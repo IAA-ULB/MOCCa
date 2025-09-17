@@ -54,6 +54,7 @@ mpi          =  T( tab + 'call MPI_ALLREDUCE(MPI_IN_PLACE,R%$NAME(:$TOTALIND,1:2
 Add_template        = T( tab + ' R%$NAME = R1%$NAME + R2%$NAME')
 Multiply_template   = T( tab + ' R%$NAME = a * R1%$NAME')
 
+write_template = T(tab + ('call hdf5_write_dataset_1d(file_id,"$NAME",R%$NAME,size(R%$NAME), groupname="fields/densities") \n')) 
 #-------------------------------------------------------------------------------
 # Some templates for comments to put into the densities file
 Den_comment          = T(2*tab+'! Calculation of density $NAME \n')

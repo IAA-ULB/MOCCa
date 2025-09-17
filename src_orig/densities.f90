@@ -51,6 +51,8 @@ module densities
 !
 ! PBROKEN         : $PBROKEN
 !
+! WRITEDENSITIES_HDF5 : [WAY too long to include here]
+!
 ! DISABLED KEYWORD, still present in Hephaestos
 ! CLEANING        : [WAY too long to include here]
 !===============================================================================
@@ -107,6 +109,8 @@ use derivatives
 use preconditioning 
 use basis_transform
 use timing
+
+use vectors, only: DensityVector, memory
 
 implicit none
 
@@ -1789,4 +1793,24 @@ $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ',
   
 end subroutine print_boxsize_check
 
+#if(USE_HDF5>0 && $FAM == 0) 
+! There is no need to write densities to file in a FAM code
+subroutine write_hdf5_densities(file_id, R)
+  !---------------------------------------------------------------------------
+  ! Write the densities to a HDF5 file 
+  !
+  ! Input:
+  !   file_id : HDF5 file identifier
+  !   R       : DensityVector type containing the densities to be written
+  !---------------------------------------------------------------------------
+  use HDF5
+  use HDF5_auxiliary 
+  integer(HID_T), INTENT(IN) :: file_id 
+  type(DensityVector), intent(in) :: R
+
+    ! Hephaestos fills in a call to hdf5_write_dataset_1d for every density
+$WRITEDENSITIES_HDF5
+
+end subroutine write_hdf5_densities
+#endif
 end module densities

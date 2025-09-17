@@ -32,6 +32,9 @@ nav:
         - wavefunction (.wf) files: user-guide/wffile.md
         - potential (.pot) files: user-guide/potfile.md
     - Convergence: user-guide/convergence.md
+  - Contributing to MOCCa:
+    - Version control: user-guide/version-control.md
+    - Fortran style guide: user-guide/codingstyle.md
   - Auxiliary tools:
     - mean-field_analysis: user-guide/mfa.md
   - Examples and tests:

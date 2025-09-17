@@ -174,7 +174,8 @@ function memory_for_densities() result (stor)
   !-----------------------------------------------------------------------------
   ! Return an estimation for the total memory required to store all densities.
   !-----------------------------------------------------------------------------
-  integer(KIND=LargeInt) :: stor
+  use iso_fortran_env, only: int64
+  integer(KIND=int64) :: stor
   stor = 0
 $MEMORY_DENSITIES
 

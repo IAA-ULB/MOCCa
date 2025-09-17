@@ -253,7 +253,7 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      !P = P_can(wave)
+      P = P_can(wave)
 
       if(wave .le. sum(HFBlocks_global(1:2))) then
           if(wave .le. HFBlocks_global(1)) then
@@ -321,7 +321,7 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      !P = P_can(wave)
+      P = P_can(wave)
 
       if(wave .le. sum(HFBlocks_global(1:6))) then
           if(wave .le. sum(HFBlocks_global(1:5))) then

@@ -1,8 +1,6 @@
 &skf
 !-------------------------------------------------------------------------------
-! BSkG4 parameterization as published in
-!    Eur. Phys. J. A (2025) 61:35
-!    https://doi.org/10.1140/epja/s10050-025-01503-x
+! BSkG4 parameterization
 !
 ! Aspects of note
 !  * microscopic pairing prescription
@@ -14,7 +12,7 @@
 !-------------------------------------------------------------------------------
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Identification
-name       = 'BSkG4'
+name       = 'BSkG4simpl'
 func_file  = 'BXL.func'
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Skyrme parameters and related
@@ -68,13 +66,13 @@ HOcomform                  = .false.
 nucleonsize_selfconsistent = .true.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Collective corrections: rotational, vibrational and COM
-rotcorr     = 1
-rotcorrb    = 0.904553
-rotcorrc    = 6.7641
-vibcorrd    = 0.234325
-vibcorrl    = 1.78716
-vibcorrb    = 0.866167
-COM1Body    = 2
-COM2Body    = 1
+rotcorr     = 0
+rotcorrb    = 0.0
+rotcorrc    = 0.0
+vibcorrd    = 0.0
+vibcorrl    = 0.0
+vibcorrb    = 0.0
+COM1Body    = 0
+COM2Body    = 0
 eps         = 1d-8
 /

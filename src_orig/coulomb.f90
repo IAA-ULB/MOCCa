@@ -569,7 +569,7 @@ $REDUZ  coul_offset_z = 0
     !   coulomb_potential : the potential with boundary conditions applied.
     !---------------------------------------------------------------------------
     use folding
-    use vectors
+    use vectors, only: DensityVector, PotentialVector
     use sphericalharmonics, only : generate_spherical_harmonics
     use moments,            only : QuantisationAxis, SecondaryAxis
     use moments,            only : figure_out_multipole_moments
@@ -689,6 +689,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ! Output:
     !     CEnergy: the direct Coulomb energy of the nucleus
     !---------------------------------------------------------------------------
+    use vectors, only: DensityVector, PotentialVector
 
     type(DensityVector), intent(in)   :: R
     type(PotentialVector), intent(in) :: F
@@ -719,6 +720,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ! Input:
     !    R :  a set of mean-field densities
     !---------------------------------------------------------------------------
+    use vectors, only: DensityVector
 
     type(DensityVector), intent(in) ::R
     real(KIND=dp) :: factor, Cenergy

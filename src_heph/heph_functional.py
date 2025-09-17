@@ -958,7 +958,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     
     dic['CALCPOTENTIALS']           = fieldcalc
     dic['CALCPOTENTIALS_PERTURBED'] = fieldcalc_perturbed
-    dic['POTENTIALPRECON']    = precond
+    dic['POTENTIALPRECON']          = precond
+    if('update' not in precond):
+        dic['PRECON_ACTIVE'] = '!'
+    else:
+        dic['PRECON_ACTIVE'] = ' '
+
     if('update' not in precond):
         dic['PRECON_ACTIVE'] = '!'
     else:
@@ -1025,6 +1030,11 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['N2'] = '!'
       dic['N3'] = ' '
 
+    if(derivative_order == 1):
+      dic['N1'] = '!'
+    else:
+      dic['N1'] = ' '
+
     if(pairing_action_derorder == 0):
       dic['N1DELTA']  = '!'
       dic['N2DELTA']  = '!'
@@ -1055,10 +1065,18 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
         dic['TAUSCALAR'] = '!'
         dic['TAUTENSOR'] = ' '
         dic['NOTAU']     = ' '
+      if('D_N_N' not in Densities_needed):
+        dic['TAUSCALAR'] = '!'
+        dic['TAUTENSOR'] = '!'
+        dic['NOTAU']     = '!'
+      else:
+        dic['TAUSCALAR'] = '!'
+        dic['TAUTENSOR'] = ' '
+        dic['NOTAU']     = ' '
     else:
       dic['TAUSCALAR'] = ' '
       dic['TAUTENSOR'] = '!'
-      dic['NOTAU']     = ' '
+      dic['NOTAU']     = '!'
 
     if(so.timelike):
       dic['NTR'] = '!'

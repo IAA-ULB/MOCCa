@@ -47,6 +47,10 @@ module functional
  ! POTENTIALNUMBER  : [WAY TOO LONG TO INCLUDE HERE]
  ! WRITEPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
  ! READPOTENTIALS   : [WAY TOO LONG TO INCLUDE HERE]
+ ! 
+ ! WRITEPOTENTIALS_HDF5 : [WAY TOO LONG TO INCLUDE HERE]
+ ! READPOTENTIALS_HDF5 : [WAY TOO LONG TO INCLUDE HERE]
+ ! 
  !
  ! TR               : $TR
  ! NTR              : $NTR
@@ -88,7 +92,6 @@ module functional
  !                                                     (n,p)
  !
  !==============================================================================
-
  use compilation
  use geninfo
  use densities
@@ -99,6 +102,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+ use vectors, only : DensityVector, PotentialVector
 #if(USE_HDF5>0)
  use HDF5
 #endif
@@ -150,13 +154,16 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
-#if(USE_HDF5>0)
-    ! level of compression in hdf5, 6 seems to be the best
-    integer, parameter  :: comprlvl = 6
-#endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
+#if(PASTA > 0)
+    ! The 'optimal' default value for potential preconditioning in pasta 
+    ! calculations is higher than for finite nuclei; this is not currently
+    ! understood. 
     real(KIND=dp) :: preconfactor = 4.0_dp
+#else
+    real(KIND=dp) :: preconfactor = 1.0_dp
+#endif
     ! Kerker parameter for the preconditioning of the Coulomb potential
     ! Nuclei => don't do kerker by default
     ! Pasta  => do Kerker by default
@@ -195,16 +202,25 @@ module functional
 $DECLARATION
     !---------------------------------------------------------------------------
     
-   interface operator (+)
+    interface operator (+)
       !Overloading "+" to be used to add potential vectors.
       module procedure Add_potentialvector
-   end interface
+    end interface
 
-   interface operator (*)
+    interface operator (*)
       !Overloading "*" to be used to multiply potential vectors with scalars
       module procedure multiply_potentialvector
-   end interface
-  
+    end interface
+
+    interface INM_k2_pot
+      module procedure INM_k2_pot_real
+      module procedure INM_k2_pot_complex
+    end interface
+
+    interface INM_k4_pot
+      module procedure INM_k4_pot_real
+      module procedure INM_k4_pot_complex
+    end interface 
 contains
 
  subroutine readfunctional(file_number)
@@ -370,7 +386,7 @@ $PRINTCOEF_PAIR
 
 #if(PASTA > 0)
   107 format (40x, '         FOR PASTA CALCULATIONS    ')
-  108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
+  108 format (15x, '        e_pasta=(Total energy + electrons - Z[Mn-Mp])/A - Mn')
   109 format (15x, '        e_pasta:', 40x, f20.6)
   110 format (15x, '   Electron kin:', 40x, f20.6) 
   111 format (15x, '  Electron exch:', 40x, f20.6) 
@@ -684,7 +700,6 @@ end function multiply_potentialvector
 
     !---------------------------------------------------------------------------
     ! First we calculate all the individual terms/parts
-
     ! Kinetic energy
 $NOTAU    if(store_derivatives) then
             Kinetic = CompKinetic_spwfs()
@@ -1369,9 +1384,8 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
-
-    integer       :: i
-    real(KIND=dp) :: radius
+    real(KIND=dp)                               :: radius
+    integer                                     :: i
 
     call start_timer(T_potentials)
 
@@ -1391,7 +1405,6 @@ $CALCPOTENTIALS
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
         call solve_coulomb(R,F,sx_rho, sy_rho, sz_rho)
     endif
-
     !---------------------------------------------------------------------------
     ! Simulation of spherical boundary conditions
     if(simulate_spherical_bc) then 
@@ -1787,7 +1800,7 @@ $POTENTIALPRECON
   
   end subroutine set_coul
 
-  function INM_k2_pot(rho) result(pot)
+  function INM_k2_pot_real(rho) result(pot)
     !-----------------------------------------------------------------
     ! Imagine homogeneous and unpolarised infinite nuclear matter:
     ! if one restricts itselfs to fourth order in gradients, the
@@ -1827,9 +1840,17 @@ $K2POT
     ! Recombine to proton and neutron potentials
     pot(:,1) = pot(:,3) + pot(:,4)
     pot(:,2) = pot(:,3) - pot(:,4)
-  end function INM_k2_pot
+  end function INM_k2_pot_real
 
-  function INM_k4_pot(rho) result(pot)
+  function INM_k2_pot_complex(rho) result (pot)
+    ! 
+    complex(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)                :: pot(mv,4)
+
+    call stp('INM_k2_pot_complex not implemented yet.')
+  end function INM_k2_pot_complex
+
+  function INM_k4_pot_real(rho) result(pot)
     !-----------------------------------------------------------------
     ! Imagine homogeneous and unpolarised infinite nuclear matter:
     ! if one restricts itselfs to fourth order in gradients, the
@@ -1869,7 +1890,16 @@ $K4POT
     ! Recombine to proton and neutron potentials
     pot(:,1) = pot(:,3) + pot(:,4)
     pot(:,2) = pot(:,3) - pot(:,4)
-end function INM_k4_pot
+end function INM_k4_pot_real
+
+function INM_k4_pot_complex(rho) result(pot)
+  ! 
+  complex(KIND=dp), intent(in) :: rho(mv,4)
+  real(KIND=dp)                :: pot(mv,4)
+
+  call stp('INM_k4_pot_complex not implemented yet.')
+end function INM_k4_pot_complex
+
 
 #if( $FAM == 0)
   function apply_sphamil(psi, dpsi, ddpsi, &
@@ -2227,68 +2257,39 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
  
-#if(USE_HDF5>0)
- subroutine WritePotentials_hdf5(file_id, F)
-   !---------------------------------------------------------------------------
-   !  Subroutine writing the different potentials to hdf5 file.
-   !---------------------------------------------------------------------------
-   type(PotentialVector), intent(in) :: F
-   integer(hid_t), intent(in) :: file_id
-
-   ! Then, for every potential write the 
-   ! * Name 
-   ! * Value
-   ! Note that the name is written as a length-30 string, padded with spaces.
-   ! If not, the unformatted in/out cannot correctly determine the end of a
-   ! string and comparisons can not be made.
-$WRITEPOTENTIALS_HDF5
- end subroutine WritePotentials_hdf5
-
-  subroutine hdf5_writepot(id, name, dset,n)
-    ! writes double precision dataset array with some name in the hdf5 file
+#if(USE_HDF5>0 && $FAM == 0)
+  ! No need to write potentials to file when dealing with FAM
+  subroutine write_hdf5_potentials(file_id, F)
+    !---------------------------------------------------------------------------
+    !  Subroutine writing the different potentials to the hdf5 file.
+    !
+    !  Note that all potentials will get stored as a completely flat array 
+    !  because they can all have different ranks.
+    !
+    ! Input:
+    !   file_id : integer(hid_t), identifier of the hdf5 file
+    !   F       : potentialvector to write
+    !---------------------------------------------------------------------------
     use HDF5
-    character(len=30), intent(in) :: name
-    integer(hid_t), intent(in) :: id
-    integer       , intent(in) :: n
-    real(kind=dp),  intent(in) :: dset(n) 
-    integer(hid_t)             :: space_id, dset_id, plist_id  
-    integer                    :: error
-    integer(hsize_t), dimension(1) :: dims,data_dims!, chdims
+    use HDF5_auxiliary, only : hdf5_write_dataset_1d
 
-    dims=(/n/)
-    data_dims(1)=n
-    ! Create dataspace for data_set 
-    call h5screate_simple_f(1, dims, space_id, error)
-    ! create property list
-    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
-    ! create chunks with property list for compression, as of now size of chunk  
-    ! is just equal to the size of array (for some reason work better). 
-    ! Modify for MPI reading?
-    call h5pset_chunk_f(plist_id, 1, dims, error)
-    ! shuffling for better compression?
-    call h5pset_shuffle_f(plist_id, error)
-    ! zlib compression with deflate
-    call h5pset_deflate_f(plist_id, comprlvl, error)
-    ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, &
-                      dset_id, error, plist_id)
-    ! Write dataset 
-    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    ! Close access to dataset 
-    call h5dclose_f(dset_id, error)
-    ! Close access to data space 
-    call h5sclose_f(space_id, error)
-    ! close access to plist
-    call h5pclose_f(plist_id, error)
+    type(PotentialVector), intent(in) :: F
+    integer(hid_t), intent(in)        :: file_id
+    real(KIND=dp)                        :: pot(mv,4)
 
-    if (error.ne.0) then
-      call stp('ERROR: writting potentials in hdf5 format')
-    endif
+    ! Hephaestos fills in a call to hdf5_write_dataset_1d for every Skyrme potential
+$WRITEPOTENTIALS_HDF5
 
-  end subroutine hdf5_writepot
+    ! a little bit of extra work since the Coulomb potential is potentially
+    ! defined on a bigger mesh
+    pot = transfer_coulomb_mesh(F, .false.) 
+    call hdf5_write_dataset_1d(file_id, 'coulomb_potential', pot, &
+    &                     size(pot), groupname='fields/potentials')
+
+  end subroutine write_hdf5_potentials
 #endif
 
-  function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
+  function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) &
   & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2303,7 +2304,7 @@ $WRITEPOTENTIALS_HDF5
     !   chan                  : integer, channel number for input
     !   filenx, fileny,filenz : integers, number of mesh points in every
     !                           direction for the quantities on file
-    !   symtransfo_needed     : logical, if a symmetry transformation is
+    !   sym_transfo_needed    : logical, if a symmetry transformation is
     !                           needed (.true.) or not (.false.)
     !                  .false.: use the potentials as read from
     !                           file, transforming only the number of mesh
@@ -2316,7 +2317,7 @@ $WRITEPOTENTIALS_HDF5
     !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
     integer, intent(in)   :: chan, filenx, fileny, filenz
-    logical, intent(in)   :: symtransfo_needed
+    logical, intent(in)   :: sym_transfo_needed
     type(PotentialVector) :: F, F_temp
     integer               :: io, potnumber, potcount, it, filemv
     character(len=30)     :: potname
@@ -2340,18 +2341,23 @@ $WRITEPOTENTIALS_HDF5
         call MPI_BCAST(potname,30, MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
         ! Then select which potential we are going to be reading
+#if( $FAM == 0)        
         select case(trim(potname))
 $READPOTENTIALS
         CASE DEFAULT
           ! The potential is not in this program, forget about it
           if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
         end select
+#else        
+        ! Do NOT read potentials from file for FAM; these are real on file and complex in FAM!
+        if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
+#endif 
     enddo
 
   end function ReadPotentials
 
 #if(USE_HDF5 > 0)
-  function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
+  function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2365,7 +2371,7 @@ $READPOTENTIALS
     !   chan                  : id of the group potentials
     !   filenx, fileny,filenz : integers, number of mesh points in every 
     !                           direction for the quantities on file
-    !   symtransfo_needed     : logical, if a symmetry transformation is 
+    !   sym_transfo_needed    : logical, if a symmetry transformation is 
     !                           needed (.true.) or not (.false.)
     !                  .false.: use the potentials as read from 
     !                           file, transforming only the number of mesh 
@@ -2377,11 +2383,15 @@ $READPOTENTIALS
     ! Output:
     !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
-    integer(hid_t), intent(in) :: file_id
+    use HDF5
+    use HDF5_auxiliary
+
+    integer(hid_t), intent(in)   :: file_id
+    integer, intent(in)          :: filenx, fileny, filenz
+    logical, intent(in)          :: sym_transfo_needed
+    character(len=21), parameter :: groupname='/fields/potentials'
+
     integer(hid_t)             :: group_id
-    character(len=11)          :: groupname
-    integer, intent(in)        :: filenx, fileny, filenz
-    logical, intent(in)        :: symtransfo_needed
     type(PotentialVector)      :: F, F_temp
     real(kind=dp), allocatable :: Ftmp(:) 
     integer                    :: filemv, it, h5ferr
@@ -2392,8 +2402,11 @@ $READPOTENTIALS
     filemv = filenx * fileny * filenz
     
     if(MPI_RANK .eq. 0) then
-      groupname='/potentials'
       call h5gopen_f(file_id,groupname,group_id,h5ferr)
+      if(h5ferr.ne.0) then
+        write(*,*) 'Error opening group ',trim(groupname)
+        call stp('ERROR: reading potentials in hdf5 format')
+      endif
     endif
 
 $READPOTENTIALS_HDF5
@@ -2403,11 +2416,24 @@ $READPOTENTIALS_HDF5
       call h5gclose_f(group_id, h5ferr)
     endif
 
-  end function ReadPotentials_hdf5
+  end function read_potentials_hdf5
 
   subroutine hdf5_readpot(id, name, dset, n)
-    ! reads double precision potential of length n with some name in the hdf5 file
+    !-----------------------------------------------------------------
+    ! Subroutine that reads a double precision potential of length n
+    ! with some name in the hdf5 file.
+    ! 
+    ! Input:
+    !   id    : integer(hid_t), identifier of the hdf5 file or group
+    !   name  : character(len=*), name of the dataset to read
+    !   n     : integer, length of the dataset to read
+    !
+    ! Output:
+    !   dset  : real(kind=dp), intent(inout), array of length n to
+    !           store the read dataset
+    !-----------------------------------------------------------------
     use HDF5
+
     character(len=*), intent(in) :: name
     integer(hid_t), intent(in)   :: id
     integer, intent(in)          :: n
@@ -2446,6 +2472,7 @@ $READPOTENTIALS_HDF5
     cut(1) = Estabn
     cut(2) = Estabp
     stab   = 0.0
+    if (pairingtype.eq.0) return
 
     do it=1,2
       !-------------------------------------------------------------------------
@@ -2513,7 +2540,6 @@ $PVECTORINPRODUCT
     ! Caution: this routine is currently foreseen for a specific application, 
     !          limited to maximally symmetric calculations and .func files
     !          for which F_Nm_Nm and G_I_NS potentials are defined.
-    !
     ! 
     !---------------------------------------------------------------------------
     use Coulombmod ! module explicitly 'used' in order to be able to place the 
@@ -2524,151 +2550,123 @@ $PVECTORINPRODUCT
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
 
-!     logical :: exists
-!     integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
-!     real(KIND=dp), allocatable :: Vc(:), Ec(:)
-!     real(KIND=dp)              :: x,y,z
-!     character(len=200)         :: temp
-!
-!     inquire(file=ifn, exist=exists)
-!     if(.not.exists) then
-!       print *, 'Input file specified does not exist!'
-!       stop
-!     endif
-!
-!     open (chan,file=ifn)
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! We need to skip any header lines (indicated by #).
-!     ! For a Tantalus-created file, there are 14 of them by default but other
-!     ! people might write a different amount
-!     io = 0; headercount = -1
-!     do while(io.eq.0)
-!       headercount = headercount + 1
-!       read(chan, iostat=io, fmt='(a200)') temp
-!       if(temp(1:1) .ne. '#') io = 1
-!     enddo
-!     ! We've found an error; we have counted the number of header lines!
-!     rewind(chan)
-!     ! ... and now we skip this number of lines
-!     do i=1,headercount
-!         read(chan, fmt=('()'))
-!     enddo
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Allocate the relevant potentials
-!     allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
-!     allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
-! $TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
-! $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
-!     allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
-!     allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
-!     allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
-!
-!     ! We assume the points on the file are correctly ordered in
-!     ! FORTRAN fashion, such that we do not have to worry about looping
-!     ! separately over x/y/z and can just loop once over all mesh points.
-!     ! This also means the coordinate information is not used.
-!     do i=1,nx*ny*nz
-!       read(chan, fmt='(7es25.12)', iostat=io, advance='no')        &
-!       &                            x,y,z,                          & !unused
-!       &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
-!       &                            Vc(i),  Ec(i)                     ! Coulomb
-!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!       ! It is easy to read the kinetic potential from ETFSI calculations if
-!       ! D_Nm_Nm is defined as a contracted density
-! $TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    &
-! $TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
-! !      ! If not, then we have to do some reorganisation
-! $TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    &
-! $TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
-! $TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
-! $TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
-! $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
-!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!       ! Pairing field
-!       read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
-!       &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
-!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!       ! All components of the spin-orbit field
-!       do mu=1,3
-!         do nu=1,3
-!           read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-!           &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
-!         enddo
-!       enddo
-!
-!       read(chan, *) ! Advance to new line
-!
-!       if(io.ne.0) then
-!         print *, 'Problem encountered reading potential file ', ifn
-!         print *, 'IOSTAT = ', io
-!         stop
-!       endif
-!     enddo
-!
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Make sure the Coulomb module is configured with the right array dimensions
-!     call setupCoulomb(F)
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! The index juggling is ugly, but necessary, because the Coulomb
-!     ! potential has a different size than the Lagrange mesh.
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-!
-!     do k=1,nz
-!       do j=1,ny
-!         do i=1,nx
-!           F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-!           F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
-!         enddo
-!       enddo
-!     enddo
-!
-!     !----------------------------------------------------------------------------
-!     ! F_I_I no longer contains the coulomb potentials; change of definition
-!     !----------------------------------------------------------------------------
-!     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-!     &                             (.not. nucleonsize_selfconsistent)) then
-!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     !  ! No finite size effects; correction is simple
-!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     !  F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
-!     else
-!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     !  ! Finite size effects taken into account
-!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     !  ! Calculate folded potentials from the read-in potentials
-!       call obtain_folded_potentials(F)
-!     !  ! ... and correct F_I_I for them with ugly index juggling
-!     !  do it=1, 2
-!     !    do k=1,nz
-!     !      do j=1,ny
-!     !        do i=1,nx
-!     !
-!     !          F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
-!     !          &                           + F%FoldedCoul(i,j,k,it)             &
-!     !          &                           + F%FoldedExchange(i,j,k,it)
-!     !        enddo
-!     !      enddo
-!     !    enddo
-!     !  enddo
-!     endif
-!
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Make sure isospin combinations are made correctly for all potentials
-!     F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-!     F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-!
-! $TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
-! $TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
-! $TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
-! $TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
-!
-!     do mu=1,3
-!       do nu=1,3
-!         F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
-!         F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
-!       enddo
-!     enddo
+    logical :: exists
+    integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
+    real(KIND=dp), allocatable :: Vc(:), Ec(:)
+    real(KIND=dp)              :: x,y,z
+    character(len=200)         :: temp
+
+    inquire(file=ifn, exist=exists)
+    if(.not.exists) then
+      print *, 'Input file specified does not exist!'
+      stop
+    endif
+    
+    open (chan,file=ifn)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We need to skip any header lines (indicated by #).
+    ! For a Tantalus-created file, there are 14 of them by default but other 
+    ! people might write a different amount
+    io = 0; headercount = -1
+    do while(io.eq.0) 
+      headercount = headercount + 1
+      read(chan, iostat=io, fmt='(a200)') temp
+      if(temp(1:1) .ne. '#') io = 1
+    enddo  
+    ! We've found an error; we have counted the number of header lines!
+    rewind(chan)
+    ! ... and now we skip this number of lines    
+    do i=1,headercount
+        read(chan, fmt=('()'))
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Allocate the relevant potentials    
+    allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
+    allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
+$TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
+$TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
+$N1    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
+    allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
+    allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
+
+    ! We assume the points on the file are correctly ordered in 
+    ! FORTRAN fashion, such that we do not have to worry about looping 
+    ! separately over x/y/z and can just loop once over all mesh points.
+    ! This also means the coordinate information is not used.
+    do i=1,nx*ny*nz
+      read(chan, fmt='(7es25.12)', iostat=io, advance='no')        & 
+      &                            x,y,z,                          & !unused
+      &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
+      &                            Vc(i),  Ec(i)                     ! Coulomb
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! It is easy to read the kinetic potential from ETFSI calculations if 
+      ! D_Nm_Nm is defined as a contracted density
+$TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+$TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
+!      ! If not, then we have to do some reorganisation
+$TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+$TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
+$TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
+$TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
+$TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Pairing field
+      read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
+      &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! All components of the spin-orbit field
+      do mu=1,3
+        do nu=1,3
+$N1          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+$N1          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
+        enddo
+      enddo
+      
+      read(chan, *) ! Advance to new line
+      
+      if(io.ne.0) then
+        print *, 'Problem encountered reading potential file ', ifn
+        print *, 'IOSTAT = ', io
+        stop
+      endif
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make sure the Coulomb module is configured with the right array dimensions
+    call setup_coulomb(F)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The index juggling is ugly, but necessary, because the Coulomb 
+    ! potential has a different size than the Lagrange mesh.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
+          F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
+        enddo
+      enddo
+    enddo
+    ! Ensure that the folded potentials are allocated if needed
+    call Obtain_folded_potentials(F, sx_rho, sy_rho, sz_rho)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Make sure isospin combinations are made correctly for all potentials
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+
+$TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
+$TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
+$TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
+$TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
+
+$N1    do mu=1,3
+$N1      do nu=1,3
+$N1        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
+$N1        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
+$N1      enddo
+$N1    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Close channel after succesfull IO operations.

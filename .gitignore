@@ -6,7 +6,7 @@ src_fam/*
 obj_fam/*
 mod_fam/*
 
-
+make.inc
 
 *exe
 *i

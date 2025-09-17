@@ -70,6 +70,12 @@ module pairing_strengths
     end function integr_abstract
  end interface
 
+ interface vmicro
+    ! Interface to traffic the work towards routines dealing with real or complex numbers.
+    module procedure vmicro_real
+    module procedure vmicro_complex
+ end interface vmicro
+
  !------------------------------------------------------------------------------
  ! Global storage for the microscopically-derived pairing strengths.
  ! Since these numbers require some numerical integration to obtain and feature
@@ -154,7 +160,43 @@ contains
 
  end subroutine print_micro_pairing_info
 
- function vmicro(rho, U2, U4, iso, ptype, interpolationtype, integrationtype)
+ function vmicro_complex(rho, U2, U4, iso, ptype, interpolationtype, integrationtype) result(vp)
+  !-----------------------------------------------------------------------------
+  ! Wrapper to calculate the microscopic pairing strength for both neutrons
+  ! and protons in one go.
+  !
+  ! Input:
+  !   rho               : density
+  !   iso               : isospin (1 or 2 for neutrons or protons)
+  !   U2          : potential multiplying k^2 in homogeneous INM
+  !   U4          : potential multiplying k^4 in homogeneous INM
+  !   ptype             : select the prescription for microscopic pairing strength
+  !                      (0) gaps from BHF calculations by Cao et al.
+  !   interpolationtype : select the prescription for INM matter interpolation
+  !                      (0) "standard" interpolation of N. Chamel et al.
+  !                      (1) linear interpolation of original BSkG3
+  !                      (2) weak coupling interpolation as proposed by
+  !                          N. Shchechilin.
+  !   integrationtype   : select the type of integration to employ when
+  !                     determining the microscopic pairing strengths
+  !                      (0) analytical result for the weak coupling
+  !                          approximation as proposed by N. Chamel.
+  !                      (1) direct numerical integration through tanh-sinh
+  !                          techniques.
+  !
+  ! Output:
+  !   vp: deduced pairing strength for both species
+  !-----------------------------------------------------------------------------
+  integer, intent(in)          :: ptype, iso, interpolationtype, integrationtype
+  complex(KIND=dp), intent(in) :: rho(mv,4)
+  real(KIND=dp), intent(in)    :: U2(mv,4), U4(mv,4)
+  real(KIND=dp)                :: vp(mv)
+
+  call stp('VMICRO does not know how to handle complex densities yet.')
+ end function vmicro_complex
+
+ function vmicro_real(rho, U2, U4, iso, ptype, interpolationtype, integrationtype) &
+ & result(vmicro)
   !-----------------------------------------------------------------------------
   ! Calculate a microscopically motivated (position-dependent) pairing strength
   !
@@ -239,7 +281,7 @@ contains
   endif
   vmicro = vmicro_storage(:,iso)
 
- end function vmicro
+ end function vmicro_real
 
  function Cao(rho, U2, U4, iso, interpolation, integration, debug) result (vp)
   !-----------------------------------------------------------------------------

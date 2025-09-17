@@ -38,6 +38,12 @@ module pairing
  use parameterization  
  use pairing_strengths
 
+#if(USE_MPI > 0)
+  use MPI 
+  ! This include statement is not particularly elegant, but appending it with an 
+  ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
+
  implicit none
  
  !------------------------------------------------------------------------------
@@ -190,6 +196,16 @@ contains
     &                  tag_spwf_file
 
     NameList /Indices/ BlockIndices, blocklowest, blockJ
+
+    ! Before we read any information on hfbmix, we check if pairing stabilisation
+    ! is active. The latter might destabilise calculations when pairing gets weak;
+    ! we slow down the HFB evolution in that case. This is done before the reading
+    ! of the namelist such that user input will override these default values.
+    if(abs(Estabn) .gt. 1e-10 .or. abs(Estabp) .gt. 1e-10 ) then
+      HFBmix = 0.5
+    else
+      HFBmix = 1.0
+    endif
 
     ! Only the very first MPI rank reads input
     if(MPI_RANK .eq. 0) then
@@ -668,8 +684,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
  
-   select case (Pairingtype)
-   case(0)
+    select case (Pairingtype)
+    case(0)
         if(inversetemp .eq. -1) then
             call NaiveFill(rho_can)
         else
@@ -786,6 +802,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
     ! TODO: document
     !---------------------------------------------------------------------------
+    use wavefunctions, only : estimated_max_spe
 
     real*8, intent(in)   :: stabfactor(2)
     integer, allocatable :: indices(:)
@@ -1034,7 +1051,6 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
 $NTR integer                   :: wavebar
 
     gap = 0 ; norm = 0
-
     allocate(gaps_can(nwt,nwt))
    
     if(.not.allocated(HFBgaps)) then

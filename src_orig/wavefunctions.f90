@@ -73,7 +73,13 @@ module wavefunctions
  use nil8
  use timing
 
- implicit none
+#if(USE_MPI > 0)
+  use MPI 
+  ! This include statement is not particularly elegant, but appending it with an 
+  ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
+
+ implicit none 
  
  !------------------------------------------------------------------------------
  ! Array containing the spwfs and their derivatives: for ease of use in density
@@ -85,7 +91,7 @@ module wavefunctions
  ! diagonalises the sphamiltonian. An extra unitary transformation might be
  ! required among them to obtain the physical HF basis.
  !
- ! Her-order derivative tensors are stored in lexicographical order to cut down
+ ! Higher-order derivative tensors are stored in lexicographical order to cut down
  !  on the number of indices and wasted computation.
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz
@@ -759,12 +765,12 @@ end subroutine loadbalance
 
     1 format  (30('-'), ' MPI load balancing ', 30('-'))
     2 format  (' number of processes = ', i7)
-    3 format ( '   Matrix blocking factors : ', i4, ' x ' i4)
+    3 format ( '   Matrix blocking factors : ', i4, ' x ', i4)
     4 format  ('1D Layout')
     5 format  ('     B = ', i1, ' has ',  i4, ' MPI ranks for ', i7, ' spwfs in total.')
 
     6 format  ('2D Layout')
-    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' = ', i4' ranks (dropped = ', i4,')')
+    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' = ', i4, ' ranks (dropped = ', i4,')')
 
     9 format  (' Memory requirements')
    10 format  ('    Densities     = ', f10.3 , ' GB')
@@ -1608,6 +1614,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       call start_timer(T_norm_ortho)
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
+
+      print *, 'Max overlap before orthonormalisation in block', B, &
+      &         ' is ', maxval(abs(overlaps))
+
       call stop_timer(T_norm_ortho)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the cholesky decomposition
@@ -2874,7 +2884,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Parity
           ! Determined by symmetry if P is conserved
-$PCON     if(mod(B,4).le.2) then
+$PCON     if( B .eq. 1 .or. B .eq. 2 .or. B .eq. 5 .or. B .eq. 6 ) then
 $PCON        P(wave) = +1
 $PCON     else
 $PCON        P(wave) = -1

@@ -28,14 +28,109 @@ module momentsofinertia
 
   implicit none
 
-  real(KIND=dp) :: Belyaev(3,3), Rigid(3,3), J2(3,3)
-  real(KIND=dp) :: J2_coll(3,3), Bely_coll(3,3)
-
+  !-------------------------------------------------------------------------------
+  ! Belyaev moments of inertia in units of hbar^2/MeV
+  !
+  ! The full definition of Belyaev moment of inertia around the Cartesian axes,
+  !
+  !           I_mm = - partial_{\omega} < psi' | J_m | psi' >
+  !
+  !        where
+  !        a) the derivative should be evaluated at a reference frequency
+  !            \omega
+  !        b) psi' is a second order perturbation to the manybody state when
+  !           the rotational frequency changes, i.e.
+  !
+  !               H - \omega J_m => H - \omega J_m  - do J_m
+  !
+  !
+  !           hence
+  !
+  !          | psi'> - |psi_0 > =
+  !             do               C
+  !          -  --- sum_ab -------------  b^{\dagger}_a b^{\dagger}_a |psi_0 > (1)
+  !              2           E_a + E_b
+  !
+  !           when T != 0 or in the presence of quasiparticle excitations
+  !           there are also terms involving annihilation operators
+  !
+  !          with E_a and E_b the quasiparticle energies and
+  !
+  !           C =  < psi_0 | J_m  b^{\dagger}_a b^{\dagger}_a |psi_0 >
+  !
+  !  The array Belyaev corresponds to the calculation of Eq. (1), but this kind
+  !  of perturbation theory is ill-defined when the reference many-body state
+  !  is ane excitation, i.e. when one (or more) of the quasiparticle energies
+  !  are negative.
+  !
+  !  The array Bely_coll "solves" this problem more or less by removing the
+  !  blocked quasiparticles from Eq. (1); i.e. it tries to get the moment of inertia
+  !  of the "even-even core".
+  !
+  real(KIND=dp) :: Belyaev(3,3), Bely_coll(3,3)
+  !                        | |> Isospin index
+  !                        |-> Cartesian index
+  !-------------------------------------------------------------------------------
+  ! Rigid rotor moment of inertia in units of hbar^2/MeV
+  !
+  !   I^rigid_x = m int d^3r rho * (y^2 + z^2)
+  !   I^rigid_y = m int d^3r rho * (x^2 + z^2)
+  !   I^rigid_z = m int d^3r rho * (x^2 + y^2)
+  real(KIND=dp) :: Rigid_MOI(3,3)
+  !                      | |> Isospin index
+  !                      |-> Cartesian index
+  !-------------------------------------------------------------------------------
+  ! Dispersion of the angular momentum squared, i.e.
+  !
+  !   \Delta J_{\mu}  = < J^2_{\mu} > - < J_{\mu} >^2    (\mu =x,y,z)
+  !
+  ! Evaluating things in second quantisation, this can be written as
+  !
+  ! Equation (2):
+  ! \Delta J_{\mu} =
+  !   \sum_{ab} <a|J_{\mu}|b><b|J_{\mu}|a> [ \rho_aa ( 1  - \rho_bb)]
+  ! - \sum_{ab} <a|J_{\mu}|b><\bar{a}|J_{\mu}|\bar{b} > \kappa^*_{a\bar{a}} \kappa_{b\bar{b}}
+  !
+  ! where the indices ab label single-particle states in the canonical basis and
+  ! \bar{a}, \bar{b} label their canonical partners.
+  !
+  ! The first term on the rhs of (2) can be rewritten as
+  !
+  ! Equation (3):
+  !  \sum_{ab} < a | J_{\mu}^2 | a > \rho_aa
+  !      - \sum_{ab} < a | J_{\mu} | b > < b | J_{\mu} | a > [ \rho_aa \rho_bb]
+  !
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !
+  ! This quantity gets calculated in several different ways
+  !
+  ! * J2
+  !   = the ordinary, correct way: direct calculation of Equation (2), using
+  !      Equation (3) for the first term.
+  !
+  ! * J2_pairing_cut
+  !   = include the pairing cutoff in the definition all matrix
+  !     elements of J_{\mu} and then use Eq.(2) WITHOUT using Eq.(3).
+  !
+  ! * J2_collective
+  !   = a "collective" expectation value that is identical to J2_pairing_cut, but
+  !     that removes all blocked states from the summations over a and b.
+  !
+  real(KIND=dp) ::  J2(3,3), J2_pairing_cut(3,3), J2_coll(3,3)
+  !                    | |> Isospin index
+  !                    |-> Cartesian index
+  !-------------------------------------------------------------------------------
+  ! Procedure pointer to perform the calculation of all quantities in this
+  ! module; defined differently depending on whether we are doing HF,HF+BCS or HFB.
   procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
 
 contains
 
   subroutine setBelyaevProcedure()
+    !-----------------------------------------------------------------------------
+    ! Set the procedure pointer calcJ2andBelyaev depending on the way
+    ! we consider pairing correlations.
+    !-----------------------------------------------------------------------------
     select case(Pairingtype)
     case(0)
       calcJ2andBelyaev => calcJ2andBelyaev_HF 
@@ -62,38 +157,38 @@ contains
     !       hbar^2 / MeV
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target :: R
-!    real(KIND=dp), pointer                  :: rho(:,:,:)
-!    real(KIND=dp)                           :: xs(2), ys(2), zs(2)
-!    integer                                 :: it, i,j,k
+    real(KIND=dp), allocatable              :: rho(:)
+    real(KIND=dp)                           :: xs(2), ys(2), zs(2)
+    integer                                 :: it, i,j,k
 
-!    Rigid = 0
+    Rigid_MOI = 0
 
-!    xs = 0 ; ys = 0 ; zs = 0
+    xs = 0 ; ys = 0 ; zs = 0
 
-!    do it=1,2
-!      ! Assigning the storage structure in D_I_I a more readable form
-!      rho(1:nx, 1:ny, 1:nz) => R%D_I_I(1:nx*ny*nz,it)
-!      do k=1,nz
-!        do j=1,ny
-!          do i=1,nx
-!            xs(it) = xs(it) + meshx_shifted(i)**2 * rho(i,j,k)
-!            ys(it) = ys(it) + meshy_shifted(j)**2 * rho(i,j,k)
-!            zs(it) = zs(it) + meshz_shifted(k)**2 * rho(i,j,k)
-!          enddo
-!        enddo
-!      enddo
-!    enddo
+    do it=1,2
+      rho = DBLE(R%D_I_I(:,it)) ! taking the real part to ensure compatibility 
+                                ! for complex densities
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            xs(it) = xs(it) + meshx_shifted(i)**2 * rho(meshindex(i, j, k))
+            ys(it) = ys(it) + meshy_shifted(j)**2 * rho(meshindex(i, j, k))
+            zs(it) = zs(it) + meshz_shifted(k)**2 * rho(meshindex(i, j, k))
+          enddo
+        enddo
+      enddo
+    enddo
 
-!    xs = xs * dv ; ys = ys *dv ; zs = zs * dv
+    xs = xs * dv ; ys = ys *dv ; zs = zs * dv
 
-!    Rigid(1,1:2) = nucleonmass * (ys + zs)
-!    Rigid(2,1:2) = nucleonmass * (xs + zs)
-!    Rigid(3,1:2) = nucleonmass * (xs + ys)
+    Rigid_MOI(1,1:2) = nucleonmass * (ys + zs)
+    Rigid_MOI(2,1:2) = nucleonmass * (xs + zs)
+    Rigid_MOI(3,1:2) = nucleonmass * (xs + ys)
 
-!    Rigid(:,3) = sum(Rigid(:,1:2),2)
+    Rigid_MOI(:,3) = sum(Rigid_MOI(:,1:2),2)
 
-!    ! Converting to the correct units
-!    Rigid = Rigid/(hbarclum**2)
+    ! Converting to the correct units
+    Rigid_MOI = Rigid_MOI/(hbarclum**2)
 
   end subroutine calcrigid
 
@@ -143,7 +238,7 @@ contains
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    J2 = 0  ;  Belyaev = 0
+    J2_pairing_cut = 0  ;  Belyaev = 0
  
     si = 0  
     do B = 1,8,2                     ! <----- loop over global indices of spwfs
@@ -184,13 +279,13 @@ $TR         fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
 $NTR        fi = rho_can(ii)     ; fj = rho_can(jj)
             ! |< k | j_z |  l >|^2 
             ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2  
-            J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+            J2_pairing_cut(3,it) = J2_pairing_cut(3,it) +  ME(3) * fi*(1-fj)
 
 $TR         ! |< k | j_x | -l >|^2  
 $TR         ME(1)= angmom_xt_real(psi_i,psi_j,der_psi_j)**2 
 $TR         ! |< k | j_y | -l >|^2 
 $TR         ME(2)= angmom_yt_imag(psi_i,psi_j,der_psi_j)**2
-$TR         J2(1:2,it) = J2(1:2,it) +  ME(1:2) * fi*(1-fj)
+$TR         J2_pairing_cut(1:2,it) = J2_pairing_cut(1:2,it) +  ME(1:2) * fi*(1-fj)
 
             if(inversetemp.eq.-1) then
               dfdE = fj - fi
@@ -228,7 +323,7 @@ $NTR      ii    = si + i            ! global index of the spwf
 $NTR      locali= spwf_inverse(ii)  ! local index of the spwf
 $NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
 $NTR
-$NTR      J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR      J2_pairing_cut(3,it) = J2_pairing_cut(3,it) +  ME(3) * fi*(1-fj)
 $NTR
 #if(USE_MPI>0)
 $NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
@@ -238,7 +333,7 @@ $NTR      call Transfer_psi(psi_i, locali, 'HF')
 $NTR       if(MPI_RANK.eq.calc_rank) then
 $NTR         ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2
 $NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
-$NTR         J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR         J2_pairing_cut(3,it) = J2_pairing_cut(3,it) +  ME(3) * fi*(1-fj)
 $NTR
 $NTR         if(inversetemp.eq.-1) then
 $NTR           dfdE = fj - fi
@@ -283,7 +378,7 @@ $NTR       if(MPI_RANK.eq.calc_rank) then
 $NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
 $NTR         ME(1)= angmom_x_real( psi_i,psi_j,der_psi_j)**2  
 $NTR         ME(2)= angmom_y_imag( psi_i,psi_j,der_psi_j)**2  
-$NTR         J2(1:2,it) = J2(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2)*fj*(1-fi)
+$NTR         J2_pairing_cut(1:2,it) = J2_pairing_cut(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2)*fj*(1-fi)
 $NTR
 $NTR         if(inversetemp.eq.-1) then
 $NTR           dfdE = fj - fi
@@ -308,16 +403,16 @@ $NTR   enddo
 #if(USE_MPI>0)
     call MPI_ALLREDUCE(MPI_IN_PLACE, Belyaev(:,1:2), 6, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
-    call MPI_ALLREDUCE(MPI_IN_PLACE, J2(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
+    call MPI_ALLREDUCE(MPI_IN_PLACE, J2_pairing_cut(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
 #endif
 
     ! Factor 2 for time-reversal
-$TR J2(:,1:2)      = 2 * J2(:,1:2)
+$TR J2_pairing_cut(:,1:2)      = 2 * J2_pairing_cut(:,1:2)
 $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 
     !  Sum for the total
-    J2(:,3)      = sum(J2(:,1:2),2) 
+    J2_pairing_cut(:,3)      = sum(J2_pairing_cut(:,1:2),2)
     Belyaev(:,3) = sum(Belyaev(:,1:2),2)
   end subroutine 
 
@@ -387,7 +482,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     integer :: mpi_err
 #endif
 
-    J2 = 0  ;  Belyaev = 0
+    J2_pairing_cut = 0  ;  Belyaev = 0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     designated_rank = -1 
@@ -477,7 +572,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
             ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
             wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
 
-            J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
+            J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * (wa+wb+wc+wd)
             !-------------------------------------------------------------------
             ! I_xx, I_yy and I_zz
             if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
@@ -507,18 +602,17 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 #if(USE_MPI>0)
     call MPI_ALLREDUCE(MPI_IN_PLACE, Belyaev(:,1:2), 6, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
-    call MPI_ALLREDUCE(MPI_IN_PLACE, J2(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
+    call MPI_ALLREDUCE(MPI_IN_PLACE, J2_pairing_cut(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
 #endif
     !  Sum for the total
-    J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+    J2_pairing_cut(:,3) = sum(J2_pairing_cut(:,1:2),2)
+    Belyaev(:,3)        = sum(Belyaev(:,1:2),2)
   end subroutine calcJ2andBelyaev_BCS
 
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
     ! NOTES 
-    !  - This routine should be double-checked in the case of T!=0 calculations. 
-    !    Many elements are present, but little has been tested...
     !
     !  - The way this routine is parallelized is simple: parallel calculation
     !    of all relevant matrix elements of the angular momentum operators
@@ -615,11 +709,19 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
     integer       :: locali, localj, ranki, rankj, calc_rank, designated_rank(8)
+    integer       :: wave, der_index
     real(KIND=dp) :: ME(3),  fac, psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
 
+    !----------------------------------------------------------------------------
+    ! Single-particle matrix elements of Jx, Jy, Jz in the array labelled HFBasis
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
+    ! Single-particle matrix elements of Jx, Jy, Jz in the canonical basis
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
-
+    !  and WITH the pairing cutoff folded in
+    real(KIND=dp) :: jx_can_cut(nwt,nwt), jy_can_cut(nwt,nwt), jz_can_cut(nwt,nwt)
+    ! Same, but Jx^2, Jy^2 and Jz^2 and only the diagonal elements
+    real(KIND=dp) :: jx2_can(nwt), jy2_can(nwt), jz2_can(nwt)
+    !---------------------------------------------------------------------------
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
     logical       ::  blocked
 
@@ -627,8 +729,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     integer       :: mpi_err
 #endif
 
-    J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0
-    jx = 0  ; jy = 0      ; jz = 0
+    Belyaev = 0         ; Bely_coll      = 0
+    J2 = 0              ; J2_pairing_cut = 0  ; J2_coll = 0
+    jx = 0              ; jy = 0              ; jz = 0
+    jx2_can = 0.0d0     ; jy2_can = 0.0d0     ; jz2_can = 0.0d0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     designated_rank = -1 
@@ -643,10 +747,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     ! ------------------- START of all things parallel -------------------------
 
     !---------------------------------------------------------------------------
-    ! First, we calculate the full matrix elements of jx, jy and jz in the  
-    ! Hartree-Fock basis. If necessary, these matrix elements are calculated
-    ! with an extra cutoff.
-    !
+    ! First, we calculate the full matrix elements of jx, jy and jz and their
+    ! squares in the Hartree-Fock basis.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     ! If time-reversal is not conserved the matrices jx/jy/jz are 
     !
@@ -674,8 +776,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !
     ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
     !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     si = 0
     do B = 1,8,2
       N = HFBlocks_global(B)   ; if(N.eq.0) cycle   !<--- this is a loop over
@@ -711,14 +812,14 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 #endif
 
           if(MPI_rank.eq.calc_rank) then
-$TR         ! |< k | j_x | -l >|^2            
+$TR         ! < k | j_x | -l >
 $TR         jx(ii,jj)= angmom_xt_real(psi_i,psi_j,der_psi_j) 
 $TR         jx(jj,ii)= jx(ii,jj)
-$TR         ! |< k | j_y | -l >|^2 
+$TR         ! < k | j_y | -l >
 $TR         jy(ii,jj)= angmom_yt_imag(psi_i,psi_j,der_psi_j) 
 $TR         jy(jj,ii)= jy(ii,jj)
 
-            ! |< k | j_z |  l >|^2 
+            ! < k | j_z |  l >
             jz(ii  ,jj  ) = angmom_z_real(psi_i,psi_j,der_psi_j) 
             jz(jj  ,ii  ) = jz(ii,jj)
           endif
@@ -791,6 +892,34 @@ $NTR  enddo
 
       si = si + N + N2
     enddo
+
+    !----------------------------------------------------------------------
+    ! The calculation of the diagonal matrix elements <J^2> is much easier
+    ! since every rank can fend for its own.
+    do i=1,nwt_local     ! loop over local indices
+      wave = spwf_map(i) ! global index
+
+      if(store_derivatives) then
+        ! In this case we have the derivatives in storage
+        der_index = i
+      else
+        ! In this case, we recalculate the derivatives on the fly
+        call Derive_X_spwf(canpsi(:,:,i), sx(:,i), candpsi(:,1,:,1))
+        call Derive_Y_spwf(canpsi(:,:,i), sy(:,i), candpsi(:,2,:,1))
+        call Derive_Z_spwf(canpsi(:,:,i), sz(:,i), candpsi(:,3,:,1))
+        der_index = 1
+      endif
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Angular momenta
+      jx2_can(wave)     = angmom_x_quad(canpsi(:,:,i), candpsi(:,:,:,der_index), &
+      &                                 canpsi(:,:,i), candpsi(:,:,:,der_index))
+      jy2_can(wave)     = angmom_y_quad(canpsi(:,:,i), candpsi(:,:,:,der_index), &
+      &                                 canpsi(:,:,i), candpsi(:,:,:,der_index))
+      jz2_can(wave)     = angmom_z_quad(canpsi(:,:,i), candpsi(:,:,:,der_index), &
+      &                                 canpsi(:,:,i), candpsi(:,:,:,der_index))
+    enddo
+
 #if(USE_MPI>0)
     ! These MPI ALLREDUCE calls can be improved upon:
     !   by using BCAST from each calc_rank and restricting to symmetry blocks
@@ -799,6 +928,13 @@ $NTR  enddo
     call MPI_ALLREDUCE(MPI_IN_PLACE, jy, nwt**2, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
     call MPI_ALLREDUCE(MPI_IN_PLACE, jz, nwt**2, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jx2_can, nwt, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jy2_can, nwt, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jz2_can, nwt, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
 #endif
 
@@ -810,9 +946,35 @@ $NTR  enddo
       N2= HFBlocks_global(B+1)                      !     global indices
       T = N + N2
       it = 1 ; if(B.gt.4) it=2
+      !-------------------------------------------------------------------------
+      ! First calculate matrix elements of Jx,Jy,Jz in the canonical basis
+      jx_can(si+1:si+T, si+1:si+T) = &
+      &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jx(si+1:si+T, si+1:si+T))
+      jy_can(si+1:si+T, si+1:si+T) = &
+      &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jy(si+1:si+T, si+1:si+T))
+      jz_can(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jz(si+1:si+T, si+1:si+T))
+
+      jx_can(si+1:si+T, si+1:si+T) = &
+      & matmul(jx_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      jy_can(si+1:si+T, si+1:si+T) = &
+      & matmul(jy_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      jz_can(si+1:si+T, si+1:si+T) = &
+      & matmul(jz_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      !-------------------------------------------------------------------------
+      ! ... and then proceed to calculate the matrix elements with cutoff
       if(rotcorr_cut) then
         !-----------------------------------------------------------------------
-        ! The matrix elements computed above are the matrix elements in the 
+        ! The matrix elements computed above are the matrix elements in the
         ! sp-basis in storage. This is not necessarily the HF-basis.
         if(.not. diagsphamil) then
              jx(si+1:si+T,si+1:si+T) = &
@@ -834,7 +996,7 @@ $NTR  enddo
              &                   HFtransfo(si+1:si+T,si+1:si+T))
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
-             &                   jz(si+1:si+T,si+1:si+T))           
+             &                   jz(si+1:si+T,si+1:si+T))
         endif
 
         ! Apply the cutoff in the HF basis
@@ -854,59 +1016,57 @@ $NTR  enddo
              jx(si+1:si+T,si+1:si+T) = &
              &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
              &                     jx(si+1:si+T,si+1:si+T))
-             
+
              jy(si+1:si+T,si+1:si+T) = &
              &    matmul(          jy(si+1:si+T,si+1:si+T),          &
              &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
              jy(si+1:si+T,si+1:si+T) = &
              &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
              &                     jy(si+1:si+T,si+1:si+T))
-             
+
              jz(si+1:si+T,si+1:si+T) = &
              &    matmul(          jz(si+1:si+T,si+1:si+T),          &
              &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
-             &                     jz(si+1:si+T,si+1:si+T))           
+             &                     jz(si+1:si+T,si+1:si+T))
         endif
       endif
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
       ! Note that we could have directly calculated these matrix elements in
-      ! the canonical basis, but for one thing: the cutoff which I feel cannot
+      ! the canonical basis, but for one thing: the pairing cutoff which cannot
       ! be meaningully defined in the canonical basis. 
       !-------------------------------------------------------------------------
-      jx_can(si+1:si+T, si+1:si+T) = &
+      jx_can_cut(si+1:si+T, si+1:si+T) = &
       &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
       &                              jx(si+1:si+T, si+1:si+T))
-      jy_can(si+1:si+T, si+1:si+T) = &
+      jy_can_cut(si+1:si+T, si+1:si+T) = &
       &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
       &                              jy(si+1:si+T, si+1:si+T))
 
-      jz_can(si+1:si+T, si+1:si+T) = &
+      jz_can_cut(si+1:si+T, si+1:si+T) = &
       & matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
       &                              jz(si+1:si+T, si+1:si+T))
 
-      jx_can(si+1:si+T, si+1:si+T) = &
-      & matmul(jx_can(si+1:si+T, si+1:si+T), &
+      jx_can_cut(si+1:si+T, si+1:si+T) = &
+      & matmul(jx_can_cut(si+1:si+T, si+1:si+T), &
       &        cantransfo(si+1:si+T, si+1:si+T))
 
-      jy_can(si+1:si+T, si+1:si+T) = & 
-      & matmul(jy_can(si+1:si+T, si+1:si+T), &
+      jy_can_cut(si+1:si+T, si+1:si+T) = &
+      & matmul(jy_can_cut(si+1:si+T, si+1:si+T), &
       &        cantransfo(si+1:si+T, si+1:si+T))
 
-      jz_can(si+1:si+T, si+1:si+T) = &
-      & matmul(jz_can(si+1:si+T, si+1:si+T), &
+      jz_can_cut(si+1:si+T, si+1:si+T) = &
+      & matmul(jz_can_cut(si+1:si+T, si+1:si+T), &
       &        cantransfo(si+1:si+T, si+1:si+T))
 
       si = si + N + N2
     enddo
     !---------------------------------------------------------------------------
     ! Then we calculate the dispersion of J^2, in the canonical basis.
-    ! Meaning 
-    !           < \Delta J^2 >  = < J^2 > - < J^2>  
+    !           < \Delta J^2 >  = < J^2 > - < J >^2
     ! 
-    ! the second term of course vanishes for even-even nuclei.
     !---------------------------------------------------------------------------
     si = 0 
     do b = 1, Blocks,2
@@ -920,50 +1080,103 @@ $NTR  enddo
 $TR     ibar = ii
 $NTR    ibar = conjugp(ii)
 
+        !--------------------------------------------------------------------
+        ! Calculation of J2: terms with one index
+        !
+        !
+        !  J2 ~  \sum_{ab} < a | J_{\mu}^2 | a > \rho_aa
+        !--------------------------------------------------------------------
+        fac=  rho_can(ii)      ! There is an additional factor 2  hidden in here
+                               ! when TR is conserved, but it's easier to let
+                               ! it be here and not have to cancel it in the
+                               ! J2 summation below.
+        ME(1) = jx2_can(ii)
+        ME(2) = jy2_can(ii)
+        ME(3) = jz2_can(ii)
+
+        J2(:,it) = J2(:,it) + ME * fac
+
         do j=1,N+N2
           jj = si + j
 $TR       jbar = jj
 $NTR      jbar = conjugp(jj)
+          !--------------------------------------------------------------------
+          ! Calculation of J2: terms with two indices
+          !
+          !   J2 ~ - \sum_{ab} < a | J_{\mu} | b > < b | J_{\mu} | a > [ \rho_aa \rho_bb]
+          !
+          ! If time-reversal is conserved,
+          !  we can treat the rho-rho term and kappa-kappa term equally
+          !
+          ! Factors 1./2 due to time-reversal
+          !--------------------------------------------------------------------
+$TR       fac=  - rho_can(ii)*rho_can(jj)/4.0d0 - kappa_can(ii)*kappa_can(jj)
+$TR
+$TR       ME(1) = 2*jx_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(2) = 2*jy_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(3) = 2*jz_can(ii,jj)**2 ! Factor two for time-reversal
+$TR
+$TR       J2(:,it) = J2(:,it) + ME * fac
 
-          !---------------------------------------------------------------------
+          ! If time-reversal is broken; we can not do things quite that easily.
+          !  => the rho-rho term and kappa-kappa term use matrix elements of
+          !     of different states
+$NTR      fac= -rho_can(ii) * rho_can(jj)
+$NTR
+$NTR      ME(1) = jx_can(ii,jj)**2
+$NTR      ME(2) = jy_can(ii,jj)**2
+$NTR      ME(3) = jz_can(ii,jj)**2
+$NTR
+$NTR      J2(:,it) = J2(:,it) + ME * fac
+          ! We haven't necessarily found canonical partners for all states
+          ! If a partner is absent, this means that the relevant matrix
+          ! elements of kappa are too small anyway; we can safely forget about
+          ! this term.
+$NTR      if(ibar .ne. 0 .and. jbar .ne. 0) then
+$NTR        fac= -kappa_can(ii)*kappa_can(jbar)
+$NTR        ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
+$NTR        ME(2) = jy_can(ii,jj)*jy_can(jbar,ibar)
+$NTR        ME(3) = jz_can(ii,jj)*jz_can(jbar,ibar)
+$NTR        J2(:,it) = J2(:,it) + ME(:) * fac
+$NTR      endif
+          !--------------------------------------------------------------------
+          ! b) calculation of J2_pairing_cut, i.e. with pairing cutoffs
+          !--------------------------------------------------------------------
           ! If time-reversal is conserved,
           !  we can treat the rho-rho term and kappa-kappa term equally
           ! 
 $TR       ! Factors 1./2 due to time-reversal
 $TR       fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
-$TR       ME(1) = 2*jx_can(ii,jj)**2 ! Factor two for time-reversal
-$TR       ME(2) = 2*jy_can(ii,jj)**2 ! Factor two for time-reversal
-$TR       ME(3) = 2*jz_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(1) = 2*jx_can_cut(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(2) = 2*jy_can_cut(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(3) = 2*jz_can_cut(ii,jj)**2 ! Factor two for time-reversal
 $TR
-$TR       J2(:,it) = J2(:,it) + ME * fac  
-          !---------------------------------------------------------------------
+$TR       J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * fac
           ! If time-reversal is broken; we can not do things quite that easily.
-          !  => the rho-rho term and kappa-kappa term use matrix elements of 
+          !  => the rho-rho term and kappa-kappa term use matrix elements of
           !     of different states
 $NTR      fac=  rho_can(ii)   *(1-rho_can(jj))
-$NTR      ME(1) = jx_can(ii,jj)**2 
-$NTR      ME(2) = jy_can(ii,jj)**2
-$NTR      ME(3) = jz_can(ii,jj)**2
-$NTR      J2(:,it) = J2(:,it) + ME * fac  
-
-          ! We haven't necessarily found canonical partners for all states 
-          ! If a partner is absent, this means that the relevant matrix 
+$NTR      ME(1) = jx_can_cut(ii,jj)**2
+$NTR      ME(2) = jy_can_cut(ii,jj)**2
+$NTR      ME(3) = jz_can_cut(ii,jj)**2
+$NTR      J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * fac
+          ! We haven't necessarily found canonical partners for all states
+          ! If a partner is absent, this means that the relevant matrix
           ! elements of kappa are too small anyway; we can safely forget about
           ! this term.
-          if(ibar .eq. 0) cycle
-          if(jbar .eq. 0) cycle
-
-$NTR      fac= -kappa_can(ii)*kappa_can(jbar)
-$NTR      ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
-$NTR      ME(2) = jy_can(ii,jj)*jy_can(jbar,ibar) 
-$NTR      ME(3) = jz_can(ii,jj)*jz_can(jbar,ibar)
-$NTR      J2(:,it) = J2(:,it) + ME(:) * fac  
-
+$NTR      if(ibar .ne. 0 .and. jbar .ne. 0) then
+$NTR        fac= -kappa_can(ii)*kappa_can(jbar)
+$NTR        ME(1) = jx_can_cut(ii,jj)*jx_can_cut(jbar,ibar)
+$NTR        ME(2) = jy_can_cut(ii,jj)*jy_can_cut(jbar,ibar)
+$NTR        ME(3) = jz_can_cut(ii,jj)*jz_can_cut(jbar,ibar)
+$NTR        J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME(:) * fac
+$NTR      endif
         enddo
       enddo
       si = si +  N + N2
     enddo
-    J2(:,3)      = sum(J2(:,1:2),2) 
+    J2(:,3)              = sum(J2(:,1:2),2)
+    J2_pairing_cut(:,3)  = sum(J2_pairing_cut(:,1:2),2)
     !---------------------------------------------------------------------------
     ! I also calculate some approximation for the collective angular momentum, 
     ! which I define as <J^2> without the contribution from the blocked qps. 
@@ -982,7 +1195,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     !---------------------------------------------------------------------------
 
     ! First, construct J20
-    call calcJ20(jx,bogoliubov, j20(:,:,1)) 
+    call calcJ20(jx,bogoliubov, j20(:,:,1))
     call calcJ20(jy,bogoliubov, j20(:,:,2)) 
     call calcJ20(jz,bogoliubov, j20(:,:,3)) 
 
@@ -1311,29 +1524,30 @@ $NTR  s = +1
     !
     !---------------------------------------------------------------------------
     1 format (21('-'), 'Rotational properties', 20('-'))
-    2 format ('                Rigid rotor          (hbar^2/MeV)')
+    2 format ('    Rigid rotor                       (hbar^2/MeV)')
     3 format ('              n', 14x ,'p',14x,'t ')
     4 format (' I_R X ', 3f15.7)
     5 format (' I_R Y ', 3f15.7)
     6 format (' I_R Z ', 3f15.7)
-    7 format ('                Belyaev                 (hbar^2/MeV) ')
-   71 format ('                Belyaev (collective)    (hbar^2/MeV) ')
+    7 format ('    Belyaev                          (hbar^2/MeV) ')
+   71 format ('    Belyaev (collective)             (hbar^2/MeV) ')
     8 format (' I_B X ', 3f15.7)
     9 format (' I_B Y ', 3f15.7)
    10 format (' I_B Z ', 3f15.7)
-   11 format ('                 <J^2> - <J>^2          (hbar^2)')
-   12 format (' J2_X  ', 3f15.7)
-   13 format (' J2_Y  ', 3f15.7)
-   14 format (' J2_Z  ', 3f15.7)
-   15 format (' J2_t  ', 3f15.7)
-   16 format ('                 <J^2> - <J>^2 (coll.)  (hbar^2)')
+   11 format ('     <J^2> - <J>^2                        (hbar^2)')
+   12 format ('     <J^2> - <J>^2 (with pairing cutoff)  (hbar^2)')
+   13 format (' J2_X  ', 3f15.7)
+   14 format (' J2_Y  ', 3f15.7)
+   15 format (' J2_Z  ', 3f15.7)
+   16 format (' J2_t  ', 3f15.7)
+   17 format ('     <J^2> - <J>^2 (collective)           (hbar^2)')
 
     print 1
     print 2
     print 3
-    print 4, Rigid(1,:)
-    print 5, Rigid(2,:)
-    print 6, Rigid(3,:)
+    print 4, Rigid_MOI(1,:)
+    print 5, Rigid_MOI(2,:)
+    print 6, Rigid_MOI(3,:)
     print *
     print 7
     print 3
@@ -1349,17 +1563,24 @@ $NTR  s = +1
     print *
     print 11
     print 3
-    print 12, J2(1,:)
-    print 13, J2(2,:)
-    print 14, J2(3,:) 
-    print 15, sum(J2,1)
+    print 13, J2(1,:)
+    print 14, J2(2,:)
+    print 15, J2(3,:)
+    print 16, sum(J2,1)
     print *
-    print 16
+    print 12
     print 3
-    print 12, J2_coll(1,:)
-    print 13, J2_coll(2,:)
-    print 14, J2_coll(3,:)
-    print 15, sum(J2_coll, 1)
+    print 13, J2_pairing_cut(1,:)
+    print 14, J2_pairing_cut(2,:)
+    print 15, J2_pairing_cut(3,:)
+    print 16, sum(J2_pairing_cut,1)
+    print *
+    print 17
+    print 3
+    print 13, J2_coll(1,:)
+    print 14, J2_coll(2,:)
+    print 15, J2_coll(3,:)
+    print 16, sum(J2_coll, 1)
 
   end subroutine PrintMomentsofInertia
 end module momentsofinertia

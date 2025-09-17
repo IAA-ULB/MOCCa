@@ -544,8 +544,6 @@ contains
         call gauss_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
       endif
     enddo
-    print *, 'CONSTRUCTED', size(Gxp,4), size(Gxn,4)
-    print *, maxval(abs(Gxp)), maxval(abs(Gxn))
 
  end subroutine construct_folding_matrices
 

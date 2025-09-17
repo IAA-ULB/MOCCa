@@ -174,6 +174,9 @@ endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Tantalus source files
 MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+ifeq ($(USE_HDF5),1)
+MF_SRC    +=   hdf5_auxiliary.f90
+endif
 MF_SRC  +=   sphericalharmonics.f90 folding.f90 nil8.f90
 MF_SRC  +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 MF_SRC  +=   pairingcutoffs.f90 parameterization.f90
@@ -182,11 +185,15 @@ MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 MF_SRC  +=   pairing.f90 densities.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 MF_SRC  +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
+MF_SRC  +=   IO_aux.f90 IO_wf.f90
 MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
 FAM_SRC :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+ifeq ($(USE_HDF5),1)
+FAM_SRC    +=   hdf5_auxiliary.f90
+endif
 FAM_SRC +=   sphericalharmonics.f90 folding.f90 nil8.f90
 FAM_SRC +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 FAM_SRC +=   pairingcutoffs.f90 parameterization.f90
@@ -196,6 +203,7 @@ FAM_SRC +=   pairing.f90 densities.f90 moments.f90
 FAM_SRC +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
 FAM_SRC +=   fam_gmres.f90 fam.f90 fam_testing.f90
+FAM_SRC  +=  IO_aux.f90 IO_wf.f90
 FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 FAM_SRC +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

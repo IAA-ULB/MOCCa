@@ -24,7 +24,7 @@ from src_heph.heph_wavefunctions import ProcessWavefunctions
 from src_heph.heph_pairing       import ProcessHFB, ProcessHartreeFock
 from src_heph.heph_pairing       import ProcessPairing
 from src_heph.heph_transform     import ProcessTransform
-from src_heph.heph_IO            import ProcessIO
+from src_heph.heph_IO            import ProcessIO, ProcessIO_wf
 from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
@@ -150,6 +150,12 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessCranking(fname, src, target, so)
     if(fname=='convergence.f90'):
         ProcessCranking(fname, src, target, so)
+    if(fname=='hdf5_auxiliary.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='IO_aux.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='IO_wf.f90'):
+        ProcessIO_wf(fname, src, target, so, oldso, fam_active) 
     if(fname=='fam.f90'):
         ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='fam_run.f90'):

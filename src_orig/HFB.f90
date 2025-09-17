@@ -60,7 +60,7 @@ module HFB
  !==============================================================================
 
   use geninfo
-  use vectors
+  use vectors, only: PotentialVector
   use wavefunctions
   use pairingcutoffs
 

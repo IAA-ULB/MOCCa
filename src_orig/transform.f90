@@ -39,7 +39,13 @@ module transform
   implicit none
 
   ! Indicates whether we need to transform the spwfs read on input.
-  logical :: symtransfo_needed = .false.
+  ! TODO: refactor things such that symtransfo_needed is no longer a global setting!
+  logical :: sym_transfo_needed = .false.
+
+  interface changeboxsize_function
+     module procedure changeboxsize_function_complex
+     module procedure changeboxsize_function_real
+  end interface
 
 contains
 
@@ -766,18 +772,18 @@ contains
     call stp('Changing spwf number is not allowed for MPI calculations.')
 #endif
           !---------------------------------------------------------------------
-          !  First a bunch of sanity checks
+          !  Sanity checks on the number of spwfs
           if(nwn .ne. sum(fileblocks(1:4)) + sum(extraspwfs(1:4)) ) then
-            call stp('Inconsistent number of neutron wavefunctions.')
+            print *, ' nwn in this calculation = ', nwn
+            print *, ' nwn on file             = ', sum(fileblocks(1:4))
+            print *, ' extra neutron spwfs     = ', sum(extraspwfs(1:4))
+            call stp('Inconsistent number of neutron wavefunction.')
           endif
           if(nwp .ne. sum(fileblocks(5:8)) + sum(extraspwfs(5:8)) ) then
+            print *, ' nwp in this calculation = ', nwp
+            print *, ' nwp on file             = ', sum(fileblocks(5:8))
+            print *, ' extra proton spwfs      = ', sum(extraspwfs(5:8))
             call stp('Inconsistent number of proton wavefunctions.')
-          endif
-          if(nwn .lt. filenwn) then
-            call stp(' Nwn lower than nwn on file.')
-          endif
-          if(nwp .lt. filenwp) then
-            call stp(' Nwp lower than nwp on file.')
           endif
 
 $TR       if((extraspwfs(2).ne.0) .or. &
@@ -1185,9 +1191,9 @@ $PBROKEN  enddo
 
   end subroutine ChangeBoxSizeSpwf
 
-  function changeboxsize_function(f, filenx, fileny, filenz) result(ft)
+  function changeboxsize_function_real(f, filenx, fileny, filenz) result(ft)
     !---------------------------------------------------------------------------
-    ! Transform a function defined on a mesh characterized by
+    ! Transform a real function defined on a mesh characterized by
     !
     !         (filenx, fileny, filenz, dx)
     !
@@ -1196,6 +1202,12 @@ $PBROKEN  enddo
     !
     ! with same mesh size dx.
     !
+    ! Input:
+    !   filenx, fileny, filenz : dimensions of the input function
+    !   f                      : input function
+    !
+    ! Output:
+    !   ft                     : output function
     !
     !---------------------------------------------------------------------------
     integer, intent(in)                :: filenx, fileny, filenz
@@ -1243,7 +1255,73 @@ $PBROKEN  endz_left    = filenz    +   (nz - filenz)/2
     ft3(1:endx,1:endy,startz_left:endz_left) =&
     &                                  f3(1:endx,1:endy,startz_right:endz_right)
 
-  end function changeboxsize_function
+  end function changeboxsize_function_real
 
+  function changeboxsize_function_complex(f, filenx, fileny, filenz) result(ft)
+    !---------------------------------------------------------------------------
+    ! Transform a complex function defined on a mesh characterized by
+    !
+    !         (filenx, fileny, filenz, dx)
+    !
+    ! to a mesh defined by
+    !         (    nx,     ny,      nz,dx)
+    !
+    ! with same mesh size dx.
+    !
+    !
+    ! Input:
+    !   filenx, fileny, filenz : dimensions of the input function
+    !   f                      : input function
+    !
+    ! Output:
+    !   ft                     : output function
+    !
+    !---------------------------------------------------------------------------
+    integer, intent(in)                   :: filenx, fileny, filenz
+    complex(KIND=dp), intent(in), target  :: f(:)
+    complex(KIND=dp), allocatable, target :: ft(:)
+    complex(KIND=dp), pointer             :: f3 (:,:,:), ft3(:,:,:)
+    integer                               :: endx, endy
+    integer                               :: endz_left, endz_right
+    integer                               :: startz_right, startz_left
+
+    allocate(ft(nx*ny*nz)) ; ft = 0
+
+    ft3(1:nx, 1:ny, 1:nz)             => ft(1:nx*ny*nz)
+    f3(1:filenx, 1:fileny, 1:filenz)  => f (1:filenx*fileny*filenz)
+
+    endx = min(nx, filenx)
+    endy = min(ny, fileny)
+
+    if (filenz .gt. nz) then
+        ! Removing points along the z-axis
+        startz_right  = 1
+        endz_right    = nz
+
+        startz_left   = 1
+        endz_left     = nz
+
+$PBROKEN  startz_right = 1  + (filenz - nz)/2
+$PBROKEN  endz_right   = nz + (filenz - nz)/2
+    elseif(nz .gt. filenz) then
+        ! Adding points along the z-axis
+        startz_right  = 1
+        endz_right    = filenz
+
+        startz_left   = 1
+        endz_left     = filenz
+
+$PBROKEN  startz_left  = 1         +   (nz - filenz)/2
+$PBROKEN  endz_left    = filenz    +   (nz - filenz)/2
+
+    else
+       startz_right = 1 ; endz_right = nz
+       startz_left  = 1 ; endz_left  = nz
+    endif
+
+    ft3(1:endx,1:endy,startz_left:endz_left) =&
+    &                                  f3(1:endx,1:endy,startz_right:endz_right)
+
+  end function changeboxsize_function_complex
 
 end module transform

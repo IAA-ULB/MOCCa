@@ -24,7 +24,7 @@ module hartreefock
  ! NTR: $NTR
  !==============================================================================
  
- use vectors
+ use vectors, only: DensityVector, PotentialVector
  use wavefunctions
  
  implicit none
