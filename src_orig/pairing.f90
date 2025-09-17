@@ -38,6 +38,12 @@ module pairing
  use parameterization  
  use pairing_strengths
 
+#if(USE_MPI > 0)
+  use MPI 
+  ! This include statement is not particularly elegant, but appending it with an 
+  ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
+
  implicit none
  
  !------------------------------------------------------------------------------

@@ -34,9 +34,15 @@ module GenInfo
   !     simulated system. This information is relevant here when using
   !     periodic boundary conditions.
   !=============================================================================
+#if(USE_MPI > 0)
+  use MPI 
+  ! This include statement is not particularly elegant, but appending it with an 
+  ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
 
-  use compilation, only : dp
-  implicit none (external)
+  use compilation , only : dp
+
+  implicit none 
 
   public
 

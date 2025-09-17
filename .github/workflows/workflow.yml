@@ -36,29 +36,45 @@ jobs:
         CONFIG     :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
+        MPI        :   [ false]
         include :
             # Only check pasta with BXL configuration
             - CALCTYPE: PASTA
               CONFIG  : BXL
               COMPILER: gfortran
+              MPI     : false
             - CALCTYPE: PASTA
               CONFIG  : BXL
               COMPILER: ifx
+              MPI     : false
             # Compile a few things with ifort to have a compiler independence check
             - CALCTYPE: NUCLEI
               CONFIG  : NLO
               COMPILER: ifx
+              MPI     : false
             - CALCTYPE: NUCLEI
               CONFIG  : BXL
               COMPILER: ifx
+              MPI     : false
+            # Compile MPI versions with ifx only; gfortran MPI on the astropcs is not supported
+            - CALCTYPE: NUCLEI 
+              CONFIG  : NLO
+              COMPILER: ifx
+              MPI     : true
+            - CALCTYPE: NUCLEI 
+              CONFIG  : BXL
+              COMPILER: ifx
+              MPI     : true
+
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
-
       # Enable HDF5 only for gfortran builds for the moment
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -80,7 +96,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ env.HDF5SUFFIX }} make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
           make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
@@ -100,7 +116,7 @@ jobs:
       matrix:
         COMPILER: [gfortran, ifx]
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -141,7 +157,8 @@ jobs:
         COMPILER:
           - ifx
     env:
-      SUFFIX: BXL.${{ matrix.COMPILER }}
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
     steps:
         # Ensure the testing scripts are available
       - name: Checkout code
@@ -150,25 +167,25 @@ jobs:
       # Start by downloading the relevant executable
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}.NUCLEI
+          name: exec-${{ env.N_SUFFIX }}
           path: exec/
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}.PASTA
+          name: exec-${{ env.P_SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run: |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.NUCLEI.exe
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.PASTA.exe
+          chmod +x exec/Tantalus.${{ env.N_SUFFIX }}.exe
+          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
 
       - name: Run boundary conditions test
         # Perform the test
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash boundary_conditions.sh -p BSkG3_naked -e $SUFFIX.NUCLEI -f $SUFFIX.PASTA
+          bash boundary_conditions.sh -p BSkG3_naked -e $N_SUFFIX -f $P_SUFFIX
 
       - name: Upload test results
         # Upload the log files as artefact
@@ -176,8 +193,8 @@ jobs:
         with:
           name: boundary_conditions-${{ env.SUFFIX }}
           path: |
-            testing/integration/logs/boundary_conditions.${{ env.SUFFIX }}.NUCLEI.out
-            testing/integration/logs/boundary_conditions.${{ env.SUFFIX }}.PASTA.out
+            testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
+            testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
           retention-days: 90
 
   store_derivatives:
@@ -199,7 +216,7 @@ jobs:
             PARAM : SN2LO1
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -242,8 +259,8 @@ jobs:
         CONFIG:   [ BXL      ]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
-      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
 
     steps:
       # Ensure the testing scripts are available
@@ -295,7 +312,7 @@ jobs:
         CONFIG:   [ BXL      ]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code
@@ -327,6 +344,65 @@ jobs:
             testing/integration/logs/spag.${{ env.SUFFIX }}.b.out
           retention-days: 90
 
+  parallel:
+    #---------------------------------------------------------------------------
+    # Run the 'parallel' test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile
+    if: github.ref == 'refs/heads/diff_merge_HDF5'
+    strategy:
+      matrix:
+        COMPILER: [ ifx ]
+        CONFIG:   [ BXL, NLO  ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: NLO
+            PARAM : SLy4
+    env:
+      # Uniquely labelling the executables with this environment variable
+      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.MPI
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: exec-${{ env.P_SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: exec-${{ env.S_SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.S_SUFFIX }}.exe
+          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
+
+      - name: Run parallel script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash parallel.sh -p ${{ matrix.PARAM }} -s $S_SUFFIX -m $P_SUFFIX -r 4 -q 8
+
+      - name: Upload parallel test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: spaghetti
+          path: |
+            testing/integration/logs/serial.${{ env.SUFFIX }}.out
+            testing/integration/logs/parallel_1.${{ env.SUFFIX }}.out
+            testing/integration/logs/parallel_2.${{ env.SUFFIX }}.out
+          retention-days: 90
   symmetries:
     #-----------------------------------------------------------------------------
     # Run the 'symmetries' test
@@ -346,10 +422,10 @@ jobs:
             PARAM : SN2LO1
 
     env:
-       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
 
     steps:
       - name: Checkout code # needed to get the testing scripts
