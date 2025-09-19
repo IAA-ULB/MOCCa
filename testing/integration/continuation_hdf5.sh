@@ -33,7 +33,7 @@ setup_test_env "continuation_HDF5" "$1" "$2"
 cat << EOF > tant.data
 &nucleus
 neutrons=24, protons=24
-energy_prec=1e-08
+energy_prec=1e-10
 moment_prec=0.001
 /
 &mesh
@@ -64,13 +64,13 @@ moreconstraints=.true.
 &momentconstraint
 l=2
 m=0
-constraint=100
+constraint=50
 moreconstraints=.true.
 /
 &momentconstraint
 l=2
 m=2
-constraint=50
+constraint=20
 /
 &Cranking
 /
@@ -79,7 +79,7 @@ EOF
 cat << EOF > tant.continuation.data
 &nucleus
 neutrons=24, protons=24
-energy_prec=1e-08
+energy_prec=1e-07
 moment_prec=0.001
 /
 &mesh
@@ -109,14 +109,14 @@ moreconstraints=.true.
 &momentconstraint
 l=2
 m=0
-constraint=100
+constraint=50
 moreconstraints=.true.
 multfromfile=.true.
 /
 &momentconstraint
 l=2
 m=2
-constraint=50
+constraint=20
 multfromfile=.true.
 /
 &Cranking

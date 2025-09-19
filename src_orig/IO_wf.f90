@@ -848,7 +848,7 @@ module IO_wf
     call write_hdf5_attributes(file_id)
     call write_hdf5_wavefunctions(file_id)
     call write_hdf5_fields(file_id, Density, Potentials)
-    !call write_hdf5_multipoles(file_id)
+    call write_hdf5_multipoles(file_id)
     ! - - - - - - - - - - - - - - - -
     ! More technical closing steps
     call h5fclose_f(file_id,h5ferr)
@@ -1013,14 +1013,7 @@ module IO_wf
       call hdf5_write_dataset_1d(file_id,'dispersions',dispersions,nwt,'wavefunctions/hfbasis/')
       ! Information on the canonical basis
       call hdf5_write_dataset_1d(file_id,'rho_can', rho_can,nwt,'wavefunctions/canbasis/')
-      !call h5screate_simple_f(1, dims_1d, space_id, h5ferr) 
-      !call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
-      !call h5dcreate_f(file_id,'/wavefunctions/canbasis/rho_can',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
-      !call h5pclose_f(plist_id, h5ferr)
-      !call h5sclose_f(space_id, h5ferr)
-      !call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, rho_can, dims_1d, h5ferr)
-      !call h5dclose_f(dset_id, h5ferr)
-    ! Information on the canonical basis
+      ! Information on the canonical basis
       ! TODO
     endif
 
@@ -1067,10 +1060,57 @@ module IO_wf
     !   None
     !------------------------------------------------------------------------------------
     use HDF5
-    use moments
+    use HDF5_auxiliary, only : hdf5_write_attr_integer, hdf5_write_dataset_1d
+    use HDF5_auxiliary, only : hdf5_write_dataset_1d_integer
+    use moments, only : root, count_multipole_moments, Root, Moment
 
-  integer(HID_T), INTENT(IN) :: file_id 
+    integer                    :: i, nm
+    integer(HID_T), INTENT(IN) :: file_id 
+    integer, allocatable       :: ell(:), emm(:), impart(:), constrainttype(:)
+    real(KIND=dp), allocatable :: value(:,:), constraint(:), deviation(:), multiplier(:), intensity(:)
+    type(Moment), pointer      :: current
 
+    ! Count the total number of multipole moments the code is keeping track of
+    nm = count_multipole_moments()
+    allocate(ell(nm), emm(nm), impart(nm), constrainttype(nm))
+    allocate(value(nm,2), constraint(nm), deviation(nm), multiplier(nm), intensity(nm))
+
+    ! Loop over all the multipole moments and store their information in arrays
+    current => root
+    i       = 1
+    do while(associated(Current%next))
+        Current => Current%next
+
+        ell(i)            = Current%l
+        emm(i)            = Current%m
+        impart(i)         = 0
+        if(current%impart) impart(i) = 1
+        value(i,:)        = Current%value(:)
+        constrainttype(i) = Current%constrainttype
+        constraint(i)     = Current%constraint
+        deviation(i)      = Current%deviation
+        multiplier(i)     = Current%multiplier
+        intensity(i)      = Current%intensity
+        
+        i = i + 1
+    enddo
+
+    ! start writing to file
+    call hdf5_write_attr_integer(file_id, '/multipoles/nmultipole', nm)
+    call hdf5_write_dataset_1d_integer(file_id, 'ell', ell, nm, '/multipoles/')
+    call hdf5_write_dataset_1d_integer(file_id, 'emm', emm, nm, '/multipoles/')
+    call hdf5_write_dataset_1d_integer(file_id, 'impart', impart, nm, '/multipoles/')
+    call hdf5_write_dataset_1d_integer(file_id, 'constrainttype', constrainttype, nm, '/multipoles/')
+
+    call hdf5_write_dataset_1d(file_id, 'value', value, 2*nm, '/multipoles/')
+    call hdf5_write_dataset_1d(file_id, 'constraint', constraint, nm, '/multipoles/')
+    call hdf5_write_dataset_1d(file_id, 'deviation', deviation, nm, '/multipoles/')
+    call hdf5_write_dataset_1d(file_id, 'multiplier', multiplier, nm, '/multipoles/')
+    call hdf5_write_dataset_1d(file_id, 'intensity', intensity, nm, '/multipoles/')
+    ! clean up
+    deallocate(ell, emm, impart, constrainttype)
+    deallocate(value, constraint, deviation, multiplier, intensity)
+        
   end subroutine write_hdf5_multipoles
 #endif 
 
@@ -1128,8 +1168,7 @@ module IO_wf
     call read_hdf5_attributes(file_id, sym_transfo_needed)
     call read_hdf5_fields(file_id, potentials_read)
     call read_hdf5_wavefunctions(file_id)
-    ! TODO: add multipoles
-    !call write_hdf5_multipoles(file_id)
+    call read_hdf5_multipoles(file_id)
 
     ! Close file and FORTRAN interface
     call h5fclose_f(file_id, h5ferr)
@@ -1332,6 +1371,62 @@ module IO_wf
       call stp('ERROR: reading wafefunctions in hdf5 format')
     endif
   end subroutine read_hdf5_wavefunctions
+
+  subroutine read_hdf5_multipoles(file_id)
+    !------------------------------------------------------------------------------------
+    ! Subroutine that reads all information on the multipole moments
+    ! /multipoles/ group on a HDF5 file.
+    ! 
+    ! Input:
+    !   file_id : integer(HID_T), identifier of the root group of the HDF5 file
+    !
+    ! Output:
+    !   None
+    !------------------------------------------------------------------------------------
+    use HDF5
+    use HDF5_auxiliary, only : hdf5_read_attr_integer, hdf5_read_dataset_1d
+    use HDF5_auxiliary, only : hdf5_read_dataset_1d_integer
+    use moments,        only : Moment, FindMoment, ContinueAll
+
+    integer                    :: i, nm
+    integer(HID_T), INTENT(IN) :: file_id
+    integer, allocatable       :: ell(:), emm(:), impart(:), constrainttype(:)
+    real(KIND=dp), allocatable :: value(:,:), constraint(:), deviation(:), multiplier(:), intensity(:)
+    type(Moment), pointer      :: current
+
+    ! start reading from file
+    call hdf5_read_attr_integer(file_id, '/multipoles/nmultipole', nm)
+    allocate(ell(nm), emm(nm), impart(nm), constrainttype(nm))
+    allocate(value(nm,2), constraint(nm), deviation(nm), multiplier(nm), intensity(nm))
+    call hdf5_read_dataset_1d_integer(file_id, 'ell', ell, nm, '/multipoles/')
+    call hdf5_read_dataset_1d_integer(file_id, 'emm', emm, nm, '/multipoles/')
+    call hdf5_read_dataset_1d_integer(file_id, 'impart', impart, nm, '/multipoles/')
+    call hdf5_read_dataset_1d_integer(file_id, 'constrainttype', constrainttype, nm, '/multipoles/')
+    call hdf5_read_dataset_1d(file_id, 'value', value, 2*nm, '/multipoles/')
+    call hdf5_read_dataset_1d(file_id, 'constraint', constraint, nm, '/multipoles/')
+    call hdf5_read_dataset_1d(file_id, 'deviation', deviation, nm, '/multipoles/')
+    call hdf5_read_dataset_1d(file_id, 'multiplier', multiplier, nm, '/multipoles/')
+    call hdf5_read_dataset_1d(file_id, 'intensity', intensity, nm, '/multipoles/')
+    ! Now, loop over all the multipole moments read from file and store their parameters if necessary
+    do i=1,nm
+      current => FindMoment(ell(i), emm(i), impart(i).eq.1)
+      if(.not.associated(current)) then 
+        cycle ! If the moment is not found, skip it
+      else 
+        if(current%continue .or. continueall) then         
+          current%value(:)        = value(i,:)
+          current%constrainttype  = constrainttype(i)
+          current%constraint      = constraint(i)
+          current%deviation       = deviation(i)
+          current%intensity       = intensity(i)
+        endif
+        if(current%multfromfile .or. ContinueAll .or. current%continue) then
+          current%multiplier = multiplier(i)
+        endif
+      endif
+    enddo
+  end subroutine read_hdf5_multipoles
+
 #endif
 
   function check_blocking_structure() result(passed)

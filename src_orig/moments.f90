@@ -3134,6 +3134,28 @@ $NTR endif
     nullify(Root)
 
   end subroutine clean_moments
+
+  function count_multipole_moments() result(n)
+    !---------------------------------------------------------------------------
+    ! Count the total number of multipole moments the code is keeping track of.
+    !
+    ! Input:
+    !   none
+    !
+    ! Output:
+    !   n : integer, number of multipole moments
+    !---------------------------------------------------------------------------
+    integer :: n
+    type(Moment), pointer :: Current 
+
+    n = 0
+    Current => root 
+    do while(associated(Current%next))
+        Current => Current%next
+        n = n + 1
+    enddo
+
+  end function count_multipole_moments
   
   subroutine ConstrainNonPhysicalMoments()
     !---------------------------------------------------------------------------
