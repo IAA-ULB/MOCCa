@@ -273,6 +273,57 @@ contains
     if (error.ne.0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_dataset_1d
 
+  subroutine hdf5_write_dataset_2d(id, name, dset, n1, n2, groupname)
+    !----------------------------------------------------------------------------
+    ! writes double precision dataset array of length n with some name in the hdf5 file
+    !
+    ! Input:
+    ! id        : hid_t,  identifier of the hdf5 object (file, group)
+    ! name      : string, name of the dataset; will get trimmed for superfluous spaces
+    ! dset      : double precision array, value of the dataset
+    ! n         : integer, length of the array
+    ! groupname : optional string, name of the group to write the dataset in 
+    !
+    ! Output:
+    ! none
+    !----------------------------------------------------------------------------
+    character(len=*), intent(in) :: name
+    character(len=*), intent(in), optional :: groupname
+    integer(hid_t), intent(in) :: id
+    integer,        intent(in) :: n1,n2
+    real(kind=dp),  intent(in) :: dset(n1,n2)
+    integer(hid_t)             :: space_id, dset_id, plist_id !identifiers
+    integer                    :: error
+    integer(hsize_t), dimension(2) :: dims,data_dims
+
+    dims=(/n1, n2/)
+    data_dims=(/n1, n2/)
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(2, dims, space_id, error)
+    if(error.ne.0) call stp('ERROR: h5screate_simple_f failed in hdf5_write_dataset_2d')
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    if(error.ne.0) call stp('ERROR: h5pcreate_f failed in hdf5_write_dataset_2d')
+    ! Create dataset with default properties "dset_id" is returned
+    if(present(groupname)) then
+      call h5dcreate_f(id,groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
+    else 
+      call h5dcreate_f(id,trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)    
+    endif
+    if(error.ne.0) call stp('ERROR: h5dcreate_f failed in hdf5_write_dataset_2d')
+    ! Write dataset 
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    if(error.ne.0) call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_2d')
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+    ! Close access to data space 
+    call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
+
+    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+  end subroutine hdf5_write_dataset_2d
+
   subroutine hdf5_read_attr_char(id, name, attribute, n)
     !----------------------------------------------------------------------------
     ! reads character scalar attribute with some name from the hdf5 file
@@ -460,6 +511,45 @@ contains
     if (error.ne.0) call report_hdf5_error(id, name, 'reading')
 
   end subroutine hdf5_read_dataset_1d
+
+  subroutine hdf5_read_dataset_2d(id, name, dset, n1,n2)
+    !----------------------------------------------------------------------------
+    ! reads double precision dataset rank 2 ALLOCATABLE array of dimension 
+    ! (n1,n2) with some name in the hdf5 file
+    !
+    ! Input:
+    ! id   : hid_t,  identifier of the hdf5 object (file, group)
+    ! name : string, name of the dataset
+    ! dset : double precision array, value of the dataset
+    ! n1   : integer, length of the array
+    ! n2   : integer, length of the array
+    !
+    ! Output:
+    ! none
+    !----------------------------------------------------------------------------
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)              :: id
+    integer, intent(in)                     :: n1,n2
+    real(kind=dp), intent(out), allocatable :: dset(:,:)
+    integer(hid_t)               :: dset_id !identifiers
+    integer(size_t), dimension(2):: dims, data_dims
+    integer                      :: error
+    dims     =(/n1,n2/)
+    data_dims=(/n1,n2/)
+
+    allocate(dset(n1,n2)) ; dset = 0.0d0
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    if(error.ne.0) call stp('ERROR: h5dopen_f failed in hdf5_read_dataset_2d')
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    if(error.ne.0) call stp('ERROR: h5dread_f failed in hdf5_read_dataset_2d')
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+
+  end subroutine hdf5_read_dataset_2d
 
   subroutine report_hdf5_error(id, name, operation)
     !----------------------------------------------------------------------------

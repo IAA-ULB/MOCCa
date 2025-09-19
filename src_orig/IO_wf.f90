@@ -951,8 +951,9 @@ module IO_wf
     !   None
     !------------------------------------------------------------------------------------
     use HDF5
-    use HDF5_auxiliary, only : hdf5_write_attr_double_1d,  hdf5_write_dataset_1d
-    use wavefunctions,  only : HFPsi, nwt, dispersions, spenergies
+    use HDF5_auxiliary, only : hdf5_write_attr_double_1d, hdf5_write_dataset_1d
+    use HDF5_auxiliary, only : hdf5_write_dataset_2d
+    use wavefunctions,  only : HFPsi, nwt, dispersions, spenergies, current_sph
     use pairing,        only : rho_can
     use BCS,            only : BCSgaps
     use HFB,            only : HFBgaps
@@ -998,13 +999,14 @@ module IO_wf
     if(MPI_Rank.eq.0) then
       dims_1d = (/nwt/)
       ! Information on the computational basis
+      call hdf5_write_dataset_2d(file_id,'sphamil' , current_sph,nwt, nwt,'wavefunctions/compbasis/')
       select case(PairingType)
       case(0) ! HF
         ! Nothing to write for now
       case(1) ! BCS
         call hdf5_write_dataset_1d(file_id,'BCSgaps' , BCSgaps,nwt,'wavefunctions/compbasis/')
       case(2) ! HFB 
-        ! Nothing to write for now
+        call hdf5_write_dataset_2d(file_id,'HFBgaps' , HFBgaps,nwt, nwt,'wavefunctions/compbasis/')
       end select
       ! Information on the HF basis
       call hdf5_write_dataset_1d(file_id,'spenergies' , spenergies,nwt,'wavefunctions/hfbasis/')
@@ -1261,9 +1263,10 @@ module IO_wf
     ! Output:
     ! 
     !------------------------------------------------------------------------------------
+    use geninfo,        only : balancing_strategy
     use HDF5
-    use HDF5_auxiliary, only : hdf5_read_dataset_1d
-    use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance
+    use HDF5_auxiliary, only : hdf5_read_dataset_1d, hdf5_read_dataset_2d
+    use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance, current_sph
     use pairing,        only : rho_can
 
     integer(HID_T), INTENT(IN) :: file_id
@@ -1273,12 +1276,14 @@ module IO_wf
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! First, make a call to loadbalance in order to set all relevant arrays
-    call loadbalance(fileblocks_global,                               &! inputs
+    call loadbalance(fileblocks_global, balancing_strategy,           &! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! wavefunctions/compbasis/
     call h5gopen_f(file_id, '/wavefunctions/compbasis', group_id, h5ferr)
+        call hdf5_read_dataset_2d(group_id, 'sphamil'    , current_sph, filenwt, filenwt)
+
     select case(filepairing)
     case(0) ! HF
       ! No pairing gaps to read
@@ -1286,7 +1291,7 @@ module IO_wf
       allocate(BCSgaps(filenwt))
       call hdf5_read_dataset_1d(group_id, 'BCSgaps'     , BCSgaps, filenwt)
     case(2) ! HFB
-    ! TODO
+      call hdf5_read_dataset_2d(group_id, 'HFBgaps'    , HFBgaps, filenwt, filenwt)
     end select
     call h5gclose_f(group_id, h5ferr)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
