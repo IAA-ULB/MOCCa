@@ -38,7 +38,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :   [ LO, NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
+        CONFIG     :   [ LO, NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
         MPI        :   [ false]
@@ -71,7 +71,9 @@ jobs:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
-      # Enable HDF5 only for gfortran builds for the moment
+
+      # There is not yet any intel HDF5 on astropc19, but enable it 
+      #   by default for gfortran
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
       # MPI enabled
       MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
@@ -97,9 +99,12 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
-      - name: Upload mean-field executable
+          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ env.HDF5SUFFIX }} make.inc
+          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+
+      - name: Upload compilation artifact
+        # Upload the executable such that next steps can download them!
+        
         uses: actions/upload-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}
@@ -356,6 +361,52 @@ jobs:
             testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
             testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
           retention-days: 90
+  continuation_wf:
+    #-----------------------------------------------------------------------------
+    # Run the 'continuation_wf' test for both BSkG3 and BSkG5
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile
+    strategy:
+      matrix:
+        COMPILER: [ gfortran      ]
+        CONFIG  : [ BXL, BXL-N2LO ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM : BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_wf test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash continuation_wf.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuation_wf-${{ env.SUFFIX }}
+          path: testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out
+          retention-days: 90
+
   store_derivatives:
     #-----------------------------------------------------------------------------
     # Run the 'store_derivatives' test

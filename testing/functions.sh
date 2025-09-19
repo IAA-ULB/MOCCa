@@ -318,6 +318,18 @@ get_inertia_components() {
     printf "%.8f %.8f %.8f\n" "$I_2020" "$I_2030" "$I_3030"
 }
 
+check_convergence() {
+#
+# Check if Tantalus has converged by looking for "Converged" in the STDOUT
+# Input:
+#   $1 -> filename of Tantalus STDOUT
+    if grep -q "Convergence criteria satisfied" "$1"; then
+        return 0  # Converged
+    else
+        return 1  # Not converged
+    fi
+}
+
 compare_floats (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Compare two floating point numbers for equality within a given tolerance.
