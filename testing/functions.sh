@@ -242,7 +242,7 @@ get_B20_stdout (){
 #    $1: filename of tantalus STDOUT
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   B20arr=(`grep "Beta_{ 2 0}" $1  | tail -1`) # The () force the grep result into array
-  echo ${B20arr[3]}                           # echo the last result
+  echo ${B20arr[6]}                           # echo the last result
 }
 
 get_B22_stdout (){
@@ -253,7 +253,7 @@ get_B22_stdout (){
 #    $1: filename of tantalus STDOUT
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   B20arr=(`grep "Beta_{ 2 2}" $1  | tail -1`) # The () force the grep result into array
-  echo ${B20arr[3]}                           # echo the last result
+  echo ${B20arr[6]}                           # echo the last result
 }
 
 get_strength (){
@@ -302,6 +302,20 @@ get_DJ2_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Bearr=(`grep "J2_$2" $1  | tail -3 | head -1 `) # The () force the grep result into array
   echo ${Bearr[3]}                                # echo the last result
+}
+
+get_inertia_components() {
+# Arguments:
+#   $1 -> filename of Tantalus STDOUT
+# Outputs the inertia tensor components 2020, 2030, 3030
+
+    # Extract the components from the table
+    I_2020=$(grep "I_Q20 |" $1 | awk '{print $3}')
+    I_2030=$(grep "I_Q20 |" $1 | awk '{print $5}')
+    I_3030=$(grep "I_Q30 |" $1 | awk '{print $5}')
+
+    # Output the results
+    printf "%.8f %.8f %.8f\n" "$I_2020" "$I_2030" "$I_3030"
 }
 
 compare_floats (){

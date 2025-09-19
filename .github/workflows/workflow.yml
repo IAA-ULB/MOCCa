@@ -263,6 +263,46 @@ jobs:
           name: minimal-${{ env.SUFFIX }}.logs
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
+  fission:
+    #-----------------------------------------------------------------------------
+    # Run the 'fission' test for two different compilers.
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile
+    strategy:
+      matrix:
+        COMPILER: [gfortran, ifx]
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run fission test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash fission.sh $SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fission-${{ env.SUFFIX }}
+          path: testing/integration/logs/fission.${{ env.SUFFIX }}.out
+          retention-days: 90
+
   boundary_conditions:
     #-----------------------------------------------------------------------------
     # Run the boundary conditions test
