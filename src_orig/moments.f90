@@ -1716,10 +1716,10 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
 
           select case(ToReadjust%isoswitch)
           case(0)
-            ToReadjust%Intensity = 5d0/sum(ToReadjust%Squared) 
+            ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
           case(1,2)
             it = ToReadjust%isoswitch
-            ToReadjust%Intensity = 5d0/ToReadjust%Squared(it) 
+            ToReadjust%Intensity = 1d0/ToReadjust%Squared(it) 
           end select
           if(MPI_RANK.eq.0) then
             print 11

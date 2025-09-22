@@ -38,7 +38,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :   [ LO, NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
+        CONFIG     :   [ LO, NLO, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
         MPI        :   [ false]
@@ -99,7 +99,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ env.HDF5SUFFIX }} make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
           make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
@@ -181,10 +181,10 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :   [ LO, LO-T, NLO, BXL ]
-        COMPILER   :   [ gfortran, ifx      ]
-        CALCTYPE   :   [ NUCLEI             ]
-        MPI        :   [ false              ]
+        CONFIG     :  [ LO, LO-T, NLO, BXL ]
+        COMPILER   :  [ gfortran, ifx      ]
+        CALCTYPE   :  [ NUCLEI             ]
+        MPI        :  [ false              ]
 
     env:
       # Uniquely labelling the executables with this environment variable
@@ -278,7 +278,7 @@ jobs:
       matrix:
         COMPILER: [gfortran, ifx]
     env:
-      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -286,7 +286,7 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -378,7 +378,7 @@ jobs:
           - CONFIG: BXL-N2LO
             PARAM : BSkG5
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -386,7 +386,7 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -405,7 +405,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: continuation_wf-${{ env.SUFFIX }}
-          path: testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out
+          path: |
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.b
           retention-days: 90
 
   continuation_hdf5:
@@ -424,7 +426,7 @@ jobs:
           - CONFIG: BXL-N2LO
             PARAM : BSkG5
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -432,7 +434,7 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -451,7 +453,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: continuation_hdf5-${{ env.SUFFIX }}
-          path: testing/integration/logs/continuation_hdf5.${{ env.SUFFIX }}.out
+          path: |
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.b
           retention-days: 90
 
   store_derivatives:
@@ -460,7 +464,7 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-nuclei
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         CONFIG  : [BXL,N2LO]
@@ -603,7 +607,7 @@ jobs:
     # Run the 'parallel' test
     #---------------------------------------------------------------------------
     runs-on: self-hosted
-    needs: compile-mf-pasta
+    needs: [ compile-mf-nuclei, compile-mf-pasta ]
     if: github.ref == 'refs/heads/diff_merge_HDF5' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
@@ -664,7 +668,7 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-nuclei
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         CONFIG  : [BXL, N2LO]
@@ -706,9 +710,6 @@ jobs:
         with:
           name: Tantalus.${{ env.EXEC_TP }}
           path: exec/
-
-      - name: Checkout code # needed to get the testing scripts
-        uses: actions/checkout@v4
 
       - name: Make executeable
         run:  |
@@ -793,3 +794,57 @@ jobs:
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
           retention-days: 90
+
+  gradient_vs_direct:
+    #---------------------------------------------------------------------------
+    # Run the hfb_direct_gradient.sh test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
+    if: github.ref == 'refs/heads/merge_FAM_pasta'
+    strategy:
+      matrix:
+        CONFIG  : [BXL, NLO]
+        COMPILER: [ gfortran]
+        CALCTYPE: [ NUCLEI  ]
+        MPI     : [ false   ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: NLO
+            PARAM : SLy4
+
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash hfb_direct_gradient.sh -e $SUFFIX -p ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradient_vs_direct.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
+          retention-days: 90          

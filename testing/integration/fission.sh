@@ -97,7 +97,7 @@ multfromfile=.true.
 EOF
 
 # Run the calculation
-./$exe < tant.data | tee $outfile
+./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -

@@ -97,6 +97,9 @@ contains
     do impart=1,2
       do l = 0,maxmoment
         do m = 0, l
+
+          if( m .eq. 0 .and. impart .eq. 2 ) cycle ! Imaginary part of m=0 is always zero, but the tests below might not catch this!
+
           ! The signs under reflection of the spherical harmonic for each cartesian direction
           signx = int(SIGN(1.0_dp, test_spher_harm(2,2,2,l,m,impart) / test_spher_harm(1,2,2,l,m,impart)))
           signy = int(SIGN(1.0_dp, test_spher_harm(2,2,2,l,m,impart) / test_spher_harm(2,1,2,l,m,impart)))

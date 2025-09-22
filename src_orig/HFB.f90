@@ -195,12 +195,13 @@ contains
     integer, intent(out)         :: ifail
     character(len=2), intent(in), allocatable :: BlockLowest(:)
     real(KIND=dp), allocatable, intent(out)   :: qp_overlaps(:)
-    real(KIND=dp), intent(in)    :: tag_overlaps(:)
+    real(KIND=dp), allocatable, intent(in)    :: tag_overlaps(:)
 
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: p_blocked(:), n_blocked(:)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     integer, allocatable         :: n_partners(:), p_partners(:)
+    real(KIND=dp), allocatable   :: n_tag_overlaps(:), p_tag_overlaps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:), n_overlaps(:)
 
     integer                     :: si, sb, N, N2, B, it, i, np, nn
@@ -300,11 +301,16 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       endif
     end select
 
+    if(allocated(tag_overlaps)) then 
+      n_tag_overlaps = tag_overlaps(    1:nwn)
+      p_tag_overlaps = tag_overlaps(nwn+1:nwt)
+    endif
     !---------------------------------------------------------------------------
     ! a) We construct the HFB-hamiltonian for every block. 
     !    We pass in everything to the routine by PAIRS of blocks
     si      = 0 ; sb = 0
     HFBHamil = 0.0d0 ! Make sure everything outside of the right blocks is zero
+
     do B=1,8,2
       N  = HFBlocks_global(B)    ! Size of the first partner block
       N2 = HFBlocks_global(B+1)  ! Size of the second partner block
@@ -326,13 +332,13 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
-    &              blocktype, neutron_block, tag_overlaps(1:nwn),              &
+    &              blocktype, neutron_block, n_tag_overlaps,                   &
     &              n_blocked, n_partners, n_overlaps, ifail)
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks_global(5:8),&
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
-    &              blocktype, proton_block, tag_overlaps(nwn+1:nwt),           &
+    &              blocktype, proton_block, p_tag_overlaps,                    &
     &              p_blocked, p_partners, p_overlaps, ifail)
 
     if(allocated(blocked_qps)) deallocate(blocked_qps)
@@ -1540,21 +1546,9 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !                suspect is time-reversal). 
     !   
     ! Note that all conserved symmetries that are easier to handle, in 
-    ! particular linear hermitian ones (such as parity) are handled outside
+    ! particular linear hermitian ones (such as parity), are handled outside
     ! of this routine. 
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! This routine also gives you the option to add the generalised density
-    ! matrix to the HFB Hamiltonian with a gauge parameter. 
-    !
-    !   H => H  + alpha * R
-    !
-    !   R = (  rho         kappa)
-    !       (- kappa^*    1 - rho^*)
-    !
-    !
-    ! 13/04/21, W.R.: this option is no longer supported.
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !
     ! Input:   
     !   sph: single-particle hamiltonian; in block-structure, i.e.
     !   
@@ -1570,14 +1564,6 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! Output: 
     !       H  : the HFB Hamiltonian in a format that can be easily passed to
     !            diagonalization routines.
-    !
-    !  -  -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! REMOVED:
-    !  r, k    : rho and kappa pairing matrices for the addition of the 
-    !            generalized density matrix. Should also be in correct
-    !            block structure.
-    !   
-    !  gauge   : real parameter alpha
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: sph(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)

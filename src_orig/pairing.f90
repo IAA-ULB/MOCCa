@@ -663,7 +663,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: sphamil(:,:), tag_overlaps(:)
+    real(KIND=dp), allocatable :: tag_overlaps(:)
 
     call start_timer(T_pairing)
  
@@ -729,10 +729,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(qpdispersions)) then
         allocate(qpdispersions(2*nwt)) ; qpdispersions = 0.0d0
       endif
-
-      ! Depending on the algorithm in use, we build a different single-particle
-      ! hamiltonian matrix.
-      !sphamil = build_sph(scheme, efficientHFB)
 
       if(blocktype .eq. 7) then
         ! Precompute the overlaps between the HF-basis states and the tagging spwf

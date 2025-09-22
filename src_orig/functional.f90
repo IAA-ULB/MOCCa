@@ -73,7 +73,7 @@ module functional
  !
  ! TAUSCALAR        : $TAUSCALAR
  ! TAUTENSOR        : $TAUTENSOR
- ! NOTAU            : $NOTAU
+ ! TAUPRESENT       : $TAUPRESENT
  !
  ! K2POT            : [WAY TOO LONG TO INCLUDE HERE]
  ! K4POT            : [WAY TOO LONG TO INCLUDE HERE]
@@ -701,11 +701,16 @@ end function multiply_potentialvector
     !---------------------------------------------------------------------------
     ! First we calculate all the individual terms/parts
     ! Kinetic energy
-$NOTAU    if(store_derivatives) then
-            Kinetic = CompKinetic_spwfs()
-$NOTAU    else
-$NOTAU      Kinetic = CompKinetic_density(Rin)
-$NOTAU    endif
+#if ( $TAUPRESENT == 1 )
+    if(store_derivatives) then
+      Kinetic = CompKinetic_spwfs()
+    else
+      Kinetic = CompKinetic_density(Rin)
+    endif
+#else 
+    Kinetic = CompKinetic_spwfs()
+#endif
+
     ! COM correction
     ! (pass signal if we want to skip the calculation of the two-body part)
 #if(PASTA == 0)
@@ -951,24 +956,26 @@ $PRINT
     return
   end function CompKinetic_spwfs
 
-$NOTAU  function CompKinetic_density(Rin) result(kinetic)
-$NOTAU    !---------------------------------------------------------------------------
-$NOTAU    ! This subroutine computes the total kinetic energy from the kinetic density
-$NOTAU    !    E_k = -\hbar/2m \int d^3x tau
-$NOTAU    !---------------------------------------------------------------------------
-$NOTAU    ! Note that the 1-body c.o.m. correction is not taken into account here!
-$NOTAU    !---------------------------------------------------------------------------
-$NOTAU    real(KIND=dp)                   :: Kinetic(2)
-$NOTAU    type(DensityVector), intent(in) :: Rin
-$NOTAU    integer                         :: it
+#if( $TAUPRESENT == 1 )
+  function CompKinetic_density(Rin) result(kinetic)
+    !---------------------------------------------------------------------------
+    ! This subroutine computes the total kinetic energy from the kinetic density
+    !    E_k = -\hbar/2m \int d^3x tau
+    !---------------------------------------------------------------------------
+    ! Note that the 1-body c.o.m. correction is not taken into account here!
+    !---------------------------------------------------------------------------
+    real(KIND=dp)                   :: Kinetic(2)
+    type(DensityVector), intent(in) :: Rin
+    integer                         :: it
 
-$NOTAU    do it=1,2
-$NOTAU$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
-$NOTAU$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
-$NOTAU$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
-$NOTAU$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
-$NOTAU    enddo
-$NOTAU  end function CompKinetic_density
+    do it=1,2
+$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
+$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
+$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
+$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
+    enddo
+  end function CompKinetic_density
+#endif
 
 #if ($FAM == 0)
   function effmass_pot(F_in) result(em_pot)

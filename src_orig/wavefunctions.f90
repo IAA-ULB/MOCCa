@@ -1615,9 +1615,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
 
-      print *, 'Max overlap before orthonormalisation in block', B, &
-      &         ' is ', maxval(abs(overlaps))
-
       call stop_timer(T_norm_ortho)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the cholesky decomposition

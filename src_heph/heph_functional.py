@@ -1058,25 +1058,17 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     if('D_Nm_Nm' not in Densities_needed):
       if('D_N_N' not in Densities_needed):
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = '!'
-        dic['NOTAU']     = '!'
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = '!'
+        dic['TAUPRESENT'] = 0
       else:
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = ' '
-        dic['NOTAU']     = ' '
-      if('D_N_N' not in Densities_needed):
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = '!'
-        dic['NOTAU']     = '!'
-      else:
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = ' '
-        dic['NOTAU']     = ' '
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = ' '
+        dic['TAUPRESENT'] = 1
     else:
-      dic['TAUSCALAR'] = ' '
-      dic['TAUTENSOR'] = '!'
-      dic['NOTAU']     = '!'
+      dic['TAUSCALAR']    = ' '
+      dic['TAUTENSOR']    = '!'
+      dic['TAUPRESENT']   = 1
 
     if(so.timelike):
       dic['NTR'] = '!'

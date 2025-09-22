@@ -26,6 +26,7 @@
 # Basic starting point of all testing scripts
 source ../functions.sh
 
+set -v
 # Set up
 setup_test_env "continuation_HDF5" "$1" "$2"
 
