@@ -273,7 +273,7 @@ jobs:
     # Run the 'fission' test for two different compilers.
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
-    needs:   compile
+    needs:   compile-mf-nuclei
     strategy:
       matrix:
         COMPILER: [gfortran, ifx]
@@ -361,12 +361,13 @@ jobs:
             testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
             testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
           retention-days: 90
+
   continuation_wf:
     #-----------------------------------------------------------------------------
     # Run the 'continuation_wf' test for both BSkG3 and BSkG5
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
-    needs:   compile
+    needs:   compile-mf-nuclei
     strategy:
       matrix:
         COMPILER: [ gfortran      ]
@@ -412,7 +413,7 @@ jobs:
     # Run the 'continuation_wf' test for both BSkG3 and BSkG5
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
-    needs:   compile
+    needs:   compile-mf-nuclei
     strategy:
       matrix:
         COMPILER: [ gfortran      ]

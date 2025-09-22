@@ -870,14 +870,15 @@ module IO_wf
     use HDF5 
     use HDF5_auxiliary, only : hdf5_write_attr_integer, hdf5_write_attr_integer_1d
     use HDF5_auxiliary, only : hdf5_write_attr_double, hdf5_write_attr_double_1d
-    use HDF5_auxiliary, only : hdf5_write_attr_char 
+    use HDF5_auxiliary, only : hdf5_write_attr_char, hdf5_write_attr_char_1d
 
     use geninfo,        only : dx, nx, ny, nz, protons, neutrons
     use functional,     only : func_name, name_param
-    use pairing,        only : PairingType, FermiEnergy
+    use pairing,        only : PairingType, FermiEnergy, pairingscheme
     use pairing,        only : BlockLowest, BlockType, BlockIndices
-    use wavefunctions,  only : nwn, nwp, nwt, HFBlocks_global
+    use wavefunctions,  only : nwn, nwp, nwt, HFBlocks_global, diagsphamil
     use cranking,       only : omega
+    use HFB_gradient,   only : grad_blocks
 
     integer(HID_T), INTENT(IN) :: file_id 
 
@@ -893,8 +894,6 @@ module IO_wf
     call hdf5_write_attr_char(file_id, 'func_name', trim(func_name))
     ! Parameterization name
     call hdf5_write_attr_char(file_id, 'name_param', trim(name_param))  
-    ! Pairing ansatz
-    call hdf5_write_attr_integer(file_id, 'PairingType', PairingType)  
 
     ! Parameters of the mesh: nx,ny,nz,dx,dy,dz
     call hdf5_write_attr_integer(file_id, 'nx', nx)
@@ -916,11 +915,19 @@ module IO_wf
     call hdf5_write_attr_char(file_id, 'mesh_type', 'integer')
 #endif
 
+    ! Type of calculation
 #if(PASTA > 0)
     call hdf5_write_attr_char(file_id, 'calctype', 'PASTA')
 #else 
     call hdf5_write_attr_char(file_id, 'calctype', 'NUCLEI')
 #endif
+
+    ! Unfortunately, the HDF5 Fortran interface does not support boolean attributes
+    if(diagsphamil) then
+      call hdf5_write_attr_integer(file_id, "diagsphamil", 1)
+    else
+      call hdf5_write_attr_integer(file_id, "diagsphamil", 0)
+    endif
 
     ! Number of wavefunctions for neutrons and protons
     call hdf5_write_attr_integer(file_id, 'nwn', nwn)
@@ -931,9 +938,22 @@ module IO_wf
     ! Symmetry information                                   
     call hdf5_write_attr_char(file_id, 'SYM_CODE', SYM_CODE)
 
-    ! Pairing information
+    ! Pairing and blocking information
+    call hdf5_write_attr_integer(file_id, 'PairingType', PairingType)  
     call hdf5_write_attr_double_1d(file_id, "FermiEnergy", FermiEnergy, 2)
-    ! TODO: include blocking information here!
+    call hdf5_write_attr_integer(file_id, "blocktype", BlockType)
+    if(pairingscheme.eq.1) then 
+      call hdf5_write_attr_integer(file_id, "blocknumber", size(BlockLowest))
+    endif
+    if(allocated(BlockLowest)) then
+      call hdf5_write_attr_char_1d(file_id, "BlockLowest", BlockLowest, size(BlockLowest), 2)
+    endif
+    if(allocated(BlockIndices)) then
+      call hdf5_write_attr_integer_1d(file_id, "BlockIndices", BlockIndices, size(BlockIndices))
+    endif
+    if(pairingscheme.eq.1) then
+      call hdf5_write_attr_integer_1d(file_id, "grad_blocks", grad_blocks, 8)
+    endif
 
     ! Cranking information
     call hdf5_write_attr_double_1d(file_id, "Omega", omega, 3)
@@ -953,14 +973,15 @@ module IO_wf
     use HDF5
     use HDF5_auxiliary, only : hdf5_write_attr_double_1d, hdf5_write_dataset_1d
     use HDF5_auxiliary, only : hdf5_write_dataset_2d
-    use wavefunctions,  only : HFPsi, nwt, dispersions, spenergies, current_sph
-    use pairing,        only : rho_can
+    use wavefunctions,  only : HFPsi, nwt, dispersions, spenergies, sphamil, HFtransfo
+    use pairing,        only : rho_can, Bogoliubov, cantransfo, configmatrix
+    use pairing,        only : rho_pairing, kappa_pairing
     use BCS,            only : BCSgaps
     use HFB,            only : HFBgaps
 
     integer(HID_T), INTENT(IN) :: file_id
     integer(HID_T)             :: space_id, plist_id, dset_id, wf_id, hf_id, comp_id, can_id
-    integer(hsize_t)           :: dims(3), dims_1d(1) !HDF5 requires a specific type of integer
+    integer(hsize_t)           :: dims(3) !HDF5 requires a specific type of integer
     integer                    :: h5ferr
 
     ! Create groups for wavefunctions, fields and multipoles with associated subgroups 
@@ -994,27 +1015,37 @@ module IO_wf
     call h5dclose_f(dset_id, h5ferr)
 #endif
 
-    !------------------------------------------------------------------------------------
     ! Other information
     if(MPI_Rank.eq.0) then
-      dims_1d = (/nwt/)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Information on the computational basis
-      call hdf5_write_dataset_2d(file_id,'sphamil' , current_sph,nwt, nwt,'wavefunctions/compbasis/')
+      call hdf5_write_dataset_2d(file_id,'sphamil'      , sphamil, nwt, nwt, 'wavefunctions/compbasis/')
       select case(PairingType)
       case(0) ! HF
         ! Nothing to write for now
       case(1) ! BCS
-        call hdf5_write_dataset_1d(file_id,'BCSgaps' , BCSgaps,nwt,'wavefunctions/compbasis/')
+        call hdf5_write_dataset_1d(file_id,'BCSgaps'  , BCSgaps,nwt,     'wavefunctions/compbasis/')
       case(2) ! HFB 
-        call hdf5_write_dataset_2d(file_id,'HFBgaps' , HFBgaps,nwt, nwt,'wavefunctions/compbasis/')
+        call hdf5_write_dataset_2d(file_id,'HFBgaps'  , HFBgaps,nwt, nwt,'wavefunctions/compbasis/')
+        call hdf5_write_dataset_1d(file_id,'configmatrix' , configmatrix,nwt,'wavefunctions/compbasis/')
+        call hdf5_write_dataset_2d(file_id,'rho_pairing'  , rho_pairing, nwt, nwt, 'wavefunctions/compbasis/')
+        call hdf5_write_dataset_2d(file_id,'kappa_pairing', kappa_pairing, nwt, nwt, 'wavefunctions/compbasis/')
+        call hdf5_write_dataset_2d(file_id,'Bogoliubov'   , Bogoliubov , nwt, nwt, 'wavefunctions/compbasis/')
       end select
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Information on the HF basis
-      call hdf5_write_dataset_1d(file_id,'spenergies' , spenergies,nwt,'wavefunctions/hfbasis/')
-      call hdf5_write_dataset_1d(file_id,'dispersions',dispersions,nwt,'wavefunctions/hfbasis/')
+      call hdf5_write_dataset_1d(file_id,'spenergies' , spenergies  ,nwt,'wavefunctions/hfbasis/')
+      call hdf5_write_dataset_1d(file_id,'dispersions', dispersions ,nwt,'wavefunctions/hfbasis/')
+      call hdf5_write_dataset_2d(file_id,'HFtransfo'  , HFtransfo   ,nwt, nwt, 'wavefunctions/hfbasis/')
+      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Information on the canonical basis
-      call hdf5_write_dataset_1d(file_id,'rho_can', rho_can,nwt,'wavefunctions/canbasis/')
-      ! Information on the canonical basis
-      ! TODO
+      call hdf5_write_dataset_1d(file_id,'rho_can'    , rho_can     ,nwt,'wavefunctions/canbasis/')
+
+      select case(PairingType)
+      case(2)
+        call hdf5_write_dataset_1d(file_id,'cantransfo' , cantransfo  ,nwt,'wavefunctions/canbasis/')
+      end select
     endif
 
   end subroutine write_hdf5_wavefunctions 
@@ -1033,7 +1064,6 @@ module IO_wf
     ! TODO
     ! - [ ] add MPI BCAST calls
     ! - [ ] add MPI_RANK == 0 selection
-    ! - [ ] add 'linguistic' links 
     !------------------------------------------------------------------------------------
     use HDF5
     use densities, only : write_hdf5_densities, DensityVector
@@ -1042,9 +1072,13 @@ module IO_wf
     integer(HID_T), INTENT(IN)        :: file_id 
     type(DensityVector), INTENT(IN)   :: R
     type(PotentialVector), INTENT(IN) :: F
+    integer                           :: h5ferr
 
     call write_hdf5_densities(file_id,  R)
     call write_hdf5_potentials(file_id, F)
+
+    ! Setting up some links for easier access
+    call H5Lcreate_hard_f(file_id, '/fields/densities/D_I_I', file_id, '/fields/rho', h5ferr)
 
   end subroutine write_hdf5_fields
 
@@ -1300,12 +1334,11 @@ module IO_wf
     !   file_id     : integer(HID_T), identifier of the root group of the HDF5 file
     !   
     ! Output:
-    ! 
+    !   None
     !------------------------------------------------------------------------------------
-    use geninfo,        only : balancing_strategy
     use HDF5
     use HDF5_auxiliary, only : hdf5_read_dataset_1d, hdf5_read_dataset_2d
-    use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance, current_sph
+    use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance, sphamil
     use pairing,        only : rho_can
 
     integer(HID_T), INTENT(IN) :: file_id
@@ -1315,13 +1348,13 @@ module IO_wf
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! First, make a call to loadbalance in order to set all relevant arrays
-    call loadbalance(fileblocks_global, balancing_strategy,           &! inputs
+    call loadbalance(fileblocks_global,                               &! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! wavefunctions/compbasis/
     call h5gopen_f(file_id, '/wavefunctions/compbasis', group_id, h5ferr)
-        call hdf5_read_dataset_2d(group_id, 'sphamil'    , current_sph, filenwt, filenwt)
+    call hdf5_read_dataset_2d(group_id, 'sphamil'    , sphamil, filenwt, filenwt)
 
     select case(filepairing)
     case(0) ! HF

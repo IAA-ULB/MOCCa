@@ -18,7 +18,7 @@
      
 ## '/' group
 
- The root group contains all quantities required to specify the details of a MOCCa calculation, i.e. settings that should be known at the start of a calculation. These are all small quantities in terms of memory use and are all stored as HDF5 attributes.
+ The root group contains all quantities required to specify the details of a MOCCa calculation, i.e. settings that should be known at the start of a calculation. These are all small quantities in terms of memory use and are stored as HDF5 attributes.
 
  A complete list 
 
@@ -26,14 +26,15 @@
     - description         : string, string giving some comments. MOCCa writes an empty one for now. 
     - neutrons, protons   : double, average particle numbers for protons and neutrons. 
     - nx, ny, nz          : integers, numbers of mesh points. 
-                            NOTE: these are the TOTAL number of mesh points in the whole of the simulation volume
     - dx, dy, dz          : double, mesh spacing in three directions; units of fm.
     - nwn, nwp, nwt       : integers,  number of neutron, proton and total wavefunctions
-    - hfblocks            : integers, number of single-particle wavefunctions in each symmetry block.
+    - hfblocks            : integer array, number of single-particle wavefunctions in each symmetry block.
+    - grad_blocks         : integer array, number of quasiparticle indices in each symmetry block. 
+                            This will be different from hfblocks if performing blocked calculations with the gradient solver.
     - param_name          : string, name of the Skyrme parameterization employed 
     - func_name           : string, name of the Skyrme functional employed 
     - diagsphamil         : integer, (1) the spwfs in MOCCa memory represent the Hartree-Fock basis 
-                                     (0) the spwfs in MOCCa memory are not eigenstates of the single-particle hamiltonian
+                                     (0) the spwfs in MOCCa memory are not trying to be eigenstates of the single-particle hamiltonian
     - SYM_CODE            : character, encodes the precise symmetry options of the MOCCa run. 
     - mesh_type           : character, half-integer or integer
                                            |              |
@@ -48,9 +49,6 @@
                              2 -> Hartree-Fock-Bogoliubov
     - FermiEnergy         : double precision, rank 1 array of dimension 2 - first neutrons, then protons
     - omega               : double, rank 1 array of dimension 3; contains the cranking frequencies (\omega_x, \omega_y, \omega_z) in units of MeV \hbar^-1.
-
-    THE ITEMS BELOW ARE NOT YET IMPLEMENTED
-    ---------------------------------------
     - blocknumber         : integer, number of quasiparticle excitations were constructed. 
     - blocktype           : integer, specifies the type of blocking employed in the calculation 
                             0 -> no blocking 
@@ -65,6 +63,7 @@
                             Possible entries: 'n+', 'n-', 'p+', 'p-', 'n0', 'p0'
     - blockindices        : rank 1 integer array of dimension (blocktype); exists only if blocktype = 1,3,5,7. 
 
+Note: these are only written to file in case the MOCCa calculation actually used these quantities. 
 
 ## '/fields' group
 
@@ -80,19 +79,15 @@
 
  The last factor two in these quantities is an isospin index: first are neutrons, then protons.
  
- For user-friendliness, we also create a number of links to these objects that reflect the standard nomenclature; at the time of writing, these are
+ For user-friendliness, we also create a number of links to these objects that reflect the standard nomenclature; at the time of writing, this is only
  
     rho -> D_I_I
-    j   -> D_I_N
-    s   -> C_I_N
 
  these links are stored within the '/fields' group itself. 
  
  The structure of the whole group is thus
  
     - rho
-    - j
-    - s
     - /densities/
       - /densities/D_I_I
       - /densities/D_Nm_Nm

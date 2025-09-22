@@ -91,6 +91,51 @@ contains
     if (error.ne.0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_char
 
+  subroutine hdf5_write_attr_char_1d(id, name, attribute, n, alen)
+    !----------------------------------------------------------------------------
+    ! This routine writes a character array attribute with to an open hdf5 file
+    !
+    ! Input:
+    ! id        : hid_t,  identifier of the hdf5 object (file, group, dataset)
+    ! name      : string, name of the attribute
+    ! attribute : string, value of the attribute
+    ! n         : integer, length of the array
+    ! alen      : integer, length of each string in the array
+    !
+    ! Output:
+    ! none
+    !----------------------------------------------------------------------------
+    integer(hid_t), intent(in) :: id
+    integer, intent(in)        :: n
+    integer, intent(in)        :: alen
+    character(len=*), intent(in)    :: name
+    character(len=alen), intent(in) :: attribute(n)
+    Integer(hsize_t), dimension (1) :: dims
+    integer                        :: error
+    integer(HID_T)             :: space_id, attribute_id, type_id, alen_hdf5 
+
+    dims(1)=n
+    alen_hdf5 = int(alen, kind=hid_t) ! type conversion for hdf5
+    if(alen.eq.0) call stp('ERROR: zero length attribute in hdf5_write_attr_char_1d')
+    !creating datatype
+    call h5tcopy_f(h5t_native_character, type_id, error)
+    call h5tset_size_f(type_id, alen_hdf5, error)
+    !create space
+    call h5screate_f(h5s_simple_f, space_id, error)
+    !create attribute
+    call h5acreate_f(id, name, type_id, space_id, attribute_id, error)
+    !write attribute
+    call h5awrite_f(attribute_id, type_id, attribute, dims, error)
+    !close attribute
+    call h5aclose_f(attribute_id, error)
+    !close space
+    call h5sclose_f(space_id, error)
+    !close type
+    call h5tclose_f(type_id, error)
+
+    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+  end subroutine hdf5_write_attr_char_1d
+
   subroutine hdf5_write_attr_integer(id, name, attribute)
     !----------------------------------------------------------------------------
     ! This routine writes integer scalar attribute in an open HDF5 file
