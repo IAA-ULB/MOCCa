@@ -9,8 +9,6 @@
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO:
-# [ ] reenable tests with HFB for the master branch
 on:
   push:
     branches:
@@ -314,7 +312,6 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs:   [compile-mf-nuclei, compile-mf-pasta]
-    if: github.ref == 'refs/heads/difficult_merge' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         COMPILER:
@@ -464,7 +461,6 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-nuclei
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         CONFIG  : [BXL,N2LO]
@@ -512,7 +508,6 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: [compile-mf-nuclei, compile-mf-pasta]
-    if: github.ref == 'refs/heads/difficult_merge' || github.ref == 'refs/heads/diff_merge_HDF5' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         COMPILER: [ gfortran ] 
@@ -564,7 +559,6 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-pasta
-    if: github.ref == 'refs/heads/difficult_merge' || github.ref == 'refs/heads/diff_merge_HDF5' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         COMPILER: [ gfortran      ] # Ifx cannot be enabled because HDF5 support is not available on all astropcs for that compiler
@@ -608,7 +602,6 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: [ compile-mf-nuclei, compile-mf-pasta ]
-    if: github.ref == 'refs/heads/diff_merge_HDF5' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         COMPILER: [ ifx ]
@@ -668,7 +661,6 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-nuclei
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         CONFIG  : [BXL, N2LO]
@@ -740,7 +732,6 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: [compile-mf-nuclei, compile-fam-nuclei]
-    if: github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         COMPILER: [ gfortran, ifx]
@@ -801,7 +792,6 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile-mf-nuclei
-    if: github.ref == 'refs/heads/merge_FAM_pasta'
     strategy:
       matrix:
         CONFIG  : [BXL, NLO]
