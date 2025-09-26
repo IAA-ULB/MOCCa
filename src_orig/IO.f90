@@ -202,8 +202,6 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(extraspwfs    , 8                  , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
-    &                                                   MPI_COMM_WORLD, mpi_err)
 
     call MPI_Bcast(allowtransform, 1                  , MPI_LOGICAL, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
