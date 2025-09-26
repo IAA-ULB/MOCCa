@@ -38,6 +38,12 @@ module pairing
  use parameterization  
  use pairing_strengths
 
+#if(USE_MPI > 0)
+  use MPI 
+  ! This include statement is not particularly elegant, but appending it with an 
+  ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
+
  implicit none
  
  !------------------------------------------------------------------------------
@@ -179,7 +185,7 @@ contains
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     integer                             :: i
-#if(USE_MPI>0)
+#if(USE_MPI > 0)
     integer                             :: mpi_err
 #endif
 
@@ -657,10 +663,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: sphamil(:,:), tag_overlaps(:)
+    real(KIND=dp), allocatable :: tag_overlaps(:)
 
     call start_timer(T_pairing)
-
+ 
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif
@@ -677,7 +683,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
-        
+ 
     select case (Pairingtype)
     case(0)
         if(inversetemp .eq. -1) then
@@ -700,6 +706,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
+#if(PASTA > 0)
+      call stp('HFB calculations for pasta-configurations currently impossible')
+#endif
+
       if(.not.allocated(CanTransfo)) then
         ! Allocate the full matrices
         allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
@@ -719,10 +729,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(qpdispersions)) then
         allocate(qpdispersions(2*nwt)) ; qpdispersions = 0.0d0
       endif
-
-      ! Depending on the algorithm in use, we build a different single-particle
-      ! hamiltonian matrix.
-      sphamil = build_sph(scheme, efficientHFB)
 
       if(blocktype .eq. 7) then
         ! Precompute the overlaps between the HF-basis states and the tagging spwf
@@ -788,62 +794,49 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select
   end subroutine calc_avg_gap
 
-  function build_sph(pscheme, efficient) result(sph)
-    !---------------------------------------------------------------------------
-    !
-    !   
-    !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable :: sph(:,:)
-    integer, intent(in)        :: pscheme
-    logical, intent(in)        :: efficient 
-    integer                    :: i
-
-    allocate(sph(nwt,nwt)) ; sph = 0.0d0
-
-    if((pscheme.eq. 0 .and. (.not. efficient)) &
-    &   .or. (.not. allocated(current_sph))) then
-      ! Diagonal part
-      do i=1, nwt
-        sph(i,i) = spenergies(i)
-      enddo
-    else
-      ! Full matrix
-      sph = current_sph
-    endif
- 
-  end function build_sph
-
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
-    !
+    ! TODO: document
     !---------------------------------------------------------------------------
+    use wavefunctions, only : estimated_max_spe
 
-    real*8, intent(in) :: stabfactor(2)
+    real*8, intent(in)   :: stabfactor(2)
+    integer, allocatable :: indices(:)
+    real(KIND=dp)        :: maxocc(2)
 
-    1 format (26('-'), ' Pairing ', 25('-'))
-    2 format (25x, ' N ',7x, ' P ')
-    3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
-    4 format (' Particles         ',2x,f13.8,2x,f13.8)
-    5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
-    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8)
-   61 format (' Average gap   uv  ',2x, f13.8, 2x, f13.8)
+    1 format (26('-'), ' Spectrum and pairing ', 23('-'))
+    2 format (36x, ' N ',12x, ' P  ')
+   21 format (' Highest possible spe    (MeV) ',2x,f13.8,2x,f13.8)
+   22 format (' Lowest represented spe  (MeV) ',2x,f13.8,2x,f13.8)
+   23 format (' Highest represented spe (MeV) ',2x,f13.8,2x,f13.8)
+   24 format (' .... with rho_ii  (HF-basis ) ',2x,f13.8,2x,f13.8)
+    3 format (' Fermi Level             (MeV) ',2x,f13.8,2x,f13.8)
+    4 format (' Particles                     ',2x,f13.8,2x,f13.8)
+    5 format (' Dispersion                    ',2x,f13.8,2x,f13.8)
+    6 format (' Average gap   v^2             ',2x, f13.8, 2x, f13.8)
+   61 format (' Average gap   uv              ',2x, f13.8, 2x, f13.8)
     7 format (60('-'))
-
-    8 format ('  gas-like          ', 2x, f13.8, 2x, f13.8)
-    9 format ('  nucleus           ', 2x, f13.8, 2x, f13.8)
-
-   10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
-!   11 format (' Overlap with model ', 2x, f13.8)
-!   12 format ('                               ++  +-  -+  --')
-!   13 format (' Number parity    n:', 2x, 4i3)
-!   14 format (' Number parity    p:', 2x, 4i3)
+    8 format ('  gas-like                     ', 2x, f13.8, 2x, f13.8)
+    9 format ('  nucleus                      ', 2x, f13.8, 2x, f13.8)
+   10 format (' Stab. factor                  ', 2x, f13.8, 2x, f13.8)
 
     select case(PairingType)
     case (0)
-        if(inversetemp .eq. -1) return
-        
+        FermiEnergy=FermiEnergyHF
         print 1
         print 2
+
+        ! Spectral information
+        print 21, estimated_max_spe
+        print 22, minval(spenergies(1:nwn)), minval(spenergies(nwn+1:))
+        print 23, maxval(spenergies(1:nwn)), maxval(spenergies(nwn+1:))
+        indices    = OrderSpwfsISO(-1, .false.)
+        maxocc(1)  = rho_can(indices(nwn))
+        indices    = OrderSpwfsISO(+1, .false.)
+        maxocc(2)  = rho_can(indices(nwp))
+        print 24, maxocc
+
+        ! Pairing information
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
 
@@ -857,6 +850,17 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         ! BCS and HFB
         print 1    
         print 2
+        ! Spectral information
+        print 21, estimated_max_spe
+        print 22, minval(spenergies(1:nwn)), minval(spenergies(nwn+1:))
+        print 23, maxval(spenergies(1:nwn)), maxval(spenergies(nwn+1:))
+        indices    = OrderSpwfsISO(-1, .false.)
+        maxocc(1)  = rho_can(indices(nwn))
+        indices    = OrderSpwfsISO(+1, .false.)
+        maxocc(2)  = rho_can(indices(nwp))
+        print 24, maxocc
+
+        ! Pairing information
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
         select case(PairingType)
@@ -1037,15 +1041,21 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
      ! part.
      !--------------------------------------------------------------------------
 
-    real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+    real(KIND=dp)              :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, wave,i
-$NTR integer      :: wavebar
+    integer                    :: it1, wave,i
+$NTR integer                   :: wavebar
 
     gap = 0 ; norm = 0
-    if(.not.allocated(HFBgaps)) return
-
-    allocate(gaps_can(nwt,nwt)) ; gaps_can = 0.0
+    allocate(gaps_can(nwt,nwt))
+   
+    if(.not.allocated(HFBgaps)) then
+        ! This return is programmed AFTER the allocate, since CRAY compilers 
+        ! complain about things that might not be allocated at high optimisation
+        ! levels.
+        deallocate(gaps_can)
+        return
+    endif
     gaps_can = matmul(transpose(cantransfo), HFBgaps)
     gaps_can = matmul(gaps_can, cantransfo)
   

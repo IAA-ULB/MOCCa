@@ -11,9 +11,18 @@ from src_heph.heph_symmetries  import *
 from string                    import Template
 
 
-def ProcessCoulomb(fname, src, target, so):
+def ProcessCoulomb(fname, src, target, so, fam_active):
   """
+  Preprocess the Coulomb.f90 file.
+
+  Input:
+    fname:   name of the file to be processed
+    src:     source directory of the file
+    target:  target directory of the file
+    so:      symmetry object for the current system
   
+  Output:
+    None, but writes the processed file to the target directory.
   """
   
   dic = {}
@@ -28,6 +37,11 @@ def ProcessCoulomb(fname, src, target, so):
     else:
       dic['REDU%s'%axes[k]] = '!'
       dic['FULL%s'%axes[k]] = ' '
+
+  if(fam_active):
+   dic['FAM'] = '1'
+  else:   
+   dic['FAM'] = '0'       
   
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:

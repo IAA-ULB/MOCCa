@@ -119,19 +119,37 @@ $PARAMDECL
     !   fitted, and this is retained here for reproducing those calculations.
     logical :: neutroncoulomberror = .false.
     !===========================================================================
-    
+    ! Overloading the pow() and lr_pow functions to safely take powers of real 
+    ! and complex functions on the mesh.
+    interface pow
+      module procedure pow_real
+      module procedure pow_complex
+    end interface
+    interface lr_pow
+       module procedure lr_pow_real
+      module procedure lr_pow_complex
+    end interface
+    !===========================================================================
+
 contains
     
    subroutine readparameterization(name_param, func_name) 
     !---------------------------------------------------------------------------
     ! Read the parameterization information from the .param file.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   name_param :  character, name of the parameterization
     !   func_name  :  character, name of the functional file used to 
     !                 compile the code. Used for consistency checking.
+    ! Side-effects:
+    !  - folding matrices for dealing with nucleon form factors get allocated 
+    !    if needed for this parameterization
     !---------------------------------------------------------------------------
-    
+    use folding, only: construct_folding_matrices
+    use folding, only: gauss_x_neutron, gauss_y_neutron, gauss_z_neutron
+    use folding, only: gauss_x_proton,  gauss_y_proton, gauss_z_proton
+
     character(len=20) :: name, func_file, toopen
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io
@@ -216,6 +234,7 @@ contains
       enddo
       !-------------------------------------------------------------------------
       ! Some sanity checks
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! a) does the type of functional match the compiled code?
       if(adjustl(func_file) .ne. adjustl(func_name)) then
         print *, '============================================================='
@@ -224,6 +243,7 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! b) does the name of the parameterization match the file?
       if(adjustl(to_upper(name_param)) .ne. adjustl(name)) then
         print *, '============================================================='
@@ -232,10 +252,50 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! c) Have all requested parameters been read?
       !    Hephaestos generates a list of 'if' conditions to check what 
       !    parameters are equal to their initializer values
 $CHECKPARAMS
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! d) Are the Coulomb options consistent? 
+      ! -> periodic boundary calculations without neutralizing electron 
+      !    background will fail.
+      ! -> the implementation of the Slater approximation is simply incorrect
+      !    when (i)  including finite-size effects for the charge densities
+      !         (ii) including electron background in pasta calculations
+#if(PASTA == 0) 
+#if(USE_Periodic == 1)
+      if(coultreatment .ne. 0) then 
+        print *, '============================================================='
+        print *, ' The current implementation does not support using periodic '
+        print *, ' boundary conditions for calculations of finite nuclei.     '
+        print *, ' Without a neutralizing background of electrons, the Coulomb'
+        print *, ' potential is not periodic. '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
+#endif
+
+      if((any(protonsize.ne.0.0) .or. any(neutronsize.ne.0.0)).and. &
+      &                                                 coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the finite size of the nucleonic charge   '
+        print *, ' densities are included.'
+        print *, '============================================================='
+        call stp('')
+      endif
+#if(PASTA > 0)
+      if(coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the electron background is included.      '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
     endif
     
 #if(USE_MPI > 0)
@@ -303,7 +363,11 @@ $BCASTPARAMS
     if(any(rotcutmu .lt. 0.0d0)) then
       rotcutmu = pairingmu
     endif
-    
+    ! b) constructing the relevant folding matrices 
+    call construct_folding_matrices(protonsize, neutronsize, hocomform, hbm,           &
+    &                               gauss_x_neutron, gauss_y_neutron, gauss_z_neutron, &
+    &                               gauss_x_proton,  gauss_y_proton,  gauss_z_proton)
+   
   end subroutine readparameterization
     
   subroutine resetparameterization()
@@ -524,7 +588,79 @@ $PRINTPARAMS
     print 200
     print 201, eps
   end subroutine printparameterization
-  
+
+  !=============================================================================
+  ! Functions for safely taking powers of densities, avoiding negative numbers 
+  ! raised to powers that are 0 or negative. This is located in this file
+  ! becasue the safeguard parameter eps is part of a parameterization.
+  !============================================================================= 
+  pure function pow_real(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely take powers of a REAL density f, avoiding the raising of negative 
+    ! numbers to powers that are 0 or negative. This is achieved by adding a 
+    ! small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_real
+
+  pure function pow_complex(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Take powers of a COMPLEX density.
+    !
+    ! No safeguard is necessary; complex exponentiation is well-defined; it
+    ! is maintained however to as closely replicate pow_real
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv)
+    real(KIND=dp), intent(in)    :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_complex
+
+  pure function lr_pow_real(f,df, alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), df(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_real
+
+  pure function lr_pow_complex(f,df,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv), df(mv)
+    real(KIND=dp), intent(in) :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_complex
+
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 
   ! the .func files.

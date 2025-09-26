@@ -12,22 +12,15 @@ module IO
  !  Copyright W. Ryssens & M. Bender
  !
  !============================================================================== 
- ! Module governing the in- and output of Tantalus. 
+ ! High-level module governing all aspects of in- and output. 
+ ! The lower-level functions that this module relies on are grouped into
+ !   - hdf5_auxiliary.f90 : auxiliary routines for hdf5 reading/writing
+ !   - IO_wf.f90          : reading and writing of wavefunction files 
+ !   - IO_aux.f90         : reading and writing of any other files
  !------------------------------------------------------------------------------
  !
  ! Hephaestos keywords:
  !
- !     SYM_CODE   : $SYM_CODE  
- !        String encoding the symmetry choices of this particular version of 
- !        Tantalus. Written to .wf files created by this version.
- !
- !     TRANS_CODE : $TRANS_CODE
- !        String encoding the symmetry choices that this version of Tantalus
- !        can READ (in addition to its own type of files).
- ! 
- ! I.e. when compiled, the code can read files characterized by either 
- ! SYM_CODE or TRANS_CODE (employing an additional transformation in the second 
- ! case). The code will however ALWAYS write SYM_CODE .wf files. 
  !
  ! Parameters to pass into iniwavefunctions
  ! ININX  : $ININX
@@ -40,6 +33,8 @@ module IO
  ! 
  !  TR    : $TR
  ! NTR    : $NTR
+ !
+ ! FAM    : $FAM
  !==============================================================================
 
 use geninfo
@@ -51,66 +46,28 @@ use moments
 use Coulombmod
 use transform
 
+use IO_wf, only: SYM_CODE, TRANS_CODE, allowtransform, extraspwfs
+use IO_wf, only: version_number, file_version
+
+#if (USE_HDF5 > 0)
+use HDF5
+#endif
+
 implicit none
-  !-----------------------------------------------------------------------------
-  ! Version number of the .wf file written by this version of the code. 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Some history:
-  !   version 1 : initial version of the .wf files (fit of GSk1-2)
-  !               (2018 - Nov. 2020)
-  !   version 2 : implementation of symmetry encoding string
-  !               (Nov. 2020 - March 2021)
-  !   version 3 : inclusion of 
-  !               * the full Bogoliubov transformation 
-  !               * configuration matrix
-  !               * HF transformation for calculations with diagsphamil=.false.
-  !               (March 2021 - March 2021)
-  !   version 4 : inclusion of 
-  !               * blocking information 
-  !               * single-particle hamiltonian
-  !               (March 2021 - November 2021)
-  !   version 5 :  inclusion of 
-  !               * cranking frequencies omega_x/y/z
-  !               (until September 2023)
-  !   version 6 : separation of the HFPsi array from one read/write
-  !               to "nwt" x read/writes for easier MPI useage
-  !               (from September 2023)
-  !-----------------------------------------------------------------------------
-  integer, parameter  :: version_number = 6
-  integer             :: file_version = 0
+
+
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
-  character(len=80)   :: BXLFIT='', COMBI='', denfile='', potfile=''
+  character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile=''
+  character(len=80)   :: inertfile='', famfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
-  !-----------------------------------------------------------------------------
-  logical             :: Allowtransform = .false.
-  integer             :: extraspwfs(8) = 0
-  !-----------------------------------------------------------------------------
-  ! Encodings of the symmetry choices imposed by Hephaestos
-  character(len=26), parameter :: SYM_CODE   = "$SYM_CODE"
-  character(len=26), parameter :: TRANS_CODE = "$TRANS_CODE"
-  !-----------------------------------------------------------------------------
-  ! Characteristics of the calculation stored on the .wf file
-  integer              :: filenx, fileny, filenz, filemv
-  integer              :: filenwn, filenwp, filepairing
-  integer              :: filenwt, fileneutrons, fileprotons
-  integer              :: fileblocks_global(8), fileblocks(8)
-  integer, allocatable :: file_spwf_map(:),file_rank_map(:),file_spwf_inverse(:)
-  real(KIND=dp) :: filedx
-  !-----------------------------------------------------------------------------
-  ! Did we succeed in reading a HFB configuration from file? 
-  logical       :: readHFBinfofile= .false.
-  ! Blocking information from file
-  integer       :: fileblocktype=0, fileblocknumber = 0
-  integer, allocatable          :: fileblockindices(:)
-  character(len=2), allocatable :: fileBlockLowest(:)
-  integer                       :: file_HFB_blocks(8)
+
   logical                       :: passed_block_test = .true.
+
 
 contains
 
@@ -139,7 +96,10 @@ contains
     use functional,    only : readfunctional
     use pairing,       only : initpairing
     use fission_moi,   only : read_inertia
-  
+#if( $FAM == 1)
+    use fam,           only : readfam
+#endif
+
     implicit none
 
     ! These inputs control where the code will look for its input. Leaving them 
@@ -172,6 +132,10 @@ contains
     call readmomentdata(file_number)
     call readcranking(file_number)
 
+#if($FAM == 1)
+    call readfam(file_number)
+#endif
+
     if(present(file_number)) then
       close(unit=file_number)
     endif
@@ -200,7 +164,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile, N_inertia
+    &           tofile, blockfile, inertfile, N_inertia, famfile
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -264,11 +228,14 @@ contains
     use wavefunctions
     use evolution
     use scfiteration
+#if( $FAM == 1 )
+    use fam, only : printfam
+#endif
+    use IO_wf, only : fileblockindices, fileBlockLowest, fileblocknumber, &
+    &                 fileblocktype, file_version, readHFBinfofile
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
-    integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
@@ -286,7 +253,9 @@ contains
     &          '  nwn = ', i5, / &
     &          '  nwp = ', i5 )
    98 format ( '  Derivatives stored explicitly: ', a3)
-   99 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
+  990 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
+  991 format ( '  Initialization with random spwfs')
+  992 format ( '  HFBlocks = ', 8i5)
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a32, / &
     &          '  outputfilename =', a32)
@@ -310,7 +279,8 @@ contains
              & '    SPCAN file     = ', a80, / &
              & '    TO file        = ', a80, / & 
              & '    BLOCK file     = ', a80, / &
-             & '    INERT file     = ', a80) 
+             & '    INERT file     = ', a80, / &
+             & '    FAM file       = ', a80) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
@@ -323,20 +293,6 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-   14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i5 )
-   15 format ( '   load balancing strategy = ', a30)
-   16 format ( '   rank ', i4, ' has ', i4, ' spwfs')
-
-
-      tcount = sum(HFBlocks)
-      if(MPI_rank .eq. 0) allocate(spwf_count(Ncores))  
-#if(USE_MPI>0)
-      call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
-      &                      0,MPI_COMM_WORLD, mpi_err)
-#else
-      spwf_count = tcount
-#endif
 
     if(MPI_rank .eq. 0) then 
       ! Only one MPI rank needs to print information
@@ -351,13 +307,19 @@ contains
       print 7 , neutrons, protons
       print 8
       print 9 , nwt,nwn,nwp
+      print 992, HFBlocks_global
       if(store_derivatives) then
         print 98, 'YES'
       else
         print 98, ' NO'
       endif
-      if(trim(to_upper(inputfilename)).eq.'INIT') print 99, osc_freq
-
+      if(trim(to_upper(inputfilename)).eq.'INIT' ) then !TODO: make this print too when starting from potentials
+        if(adjustl(ini_strategy) .eq. 'NILSSON') then
+          print 990, osc_freq
+        elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
+          print 991
+        endif
+      endif
       print 13, inversetemp
       print 10, inputfilename, outputfilename
       if(trim(to_upper(inputfilename)).ne.'INIT') then
@@ -383,48 +345,46 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE
       if(present(file_number)) then
         print 1111,  adjustl(trim(input_file)), file_number
       endif
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
-
-      print 14, Ncores
-
-      print 15, adjustl('Symmetry-wise')
-      do rank=1, NCORES
-        print 16, rank, spwf_count(rank)
-      enddo
-  
+      
       call printevolution
       call printscfiteration
       call printpairing_init
       call printmoment_init
       call printcranking_init
-      call printfunctional  
+#if( $FAM == 1 )
+      call printfam
+#endif
+      call printfunctional 
     endif    
 
-    if(MPI_rank .eq. 0) deallocate(spwf_count)  
-
   end subroutine PrintInput
-  
+
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
     !
-    ! There are two main starting options, one of which has two suboptions
+    ! There are two main starting options, both of which has two suboptions
     !
     ! 1) Initialize in an EV8-style box with Nilsson orbitals
     !    a - start self-consistency cycles immediately
     !    b - read a set of potentials from file to start the calculations
     ! 
-    ! 2) Read a set of spwfs from file 
+    ! 2) Read a set of spwfs from: 
+    !    a - *.hdf5 file 
+    !    b - *.wf file 
     ! 
     ! Which option is chosen based on the InputFileName keyword: 
     !  - INIT (case insensitive) : option 1a, no reading of any file
     !  - *.pot                   : option 1b, reading of a potential file
-    !  - [any other filename]    : option 2, reading of a wavefunction file
+    !  - *.hdf5                  : option 2a, reading of a hdf5 wavefunction file
+    !  - [any other filename]    : option 2b, reading of an unformatted fortran 
+    !                                                      wavefunction file .wf
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! These inputs can then be amended by either
@@ -453,11 +413,23 @@ contains
     ! like an inefficient use of human time since it concerns only the set-up
     ! of a given calculation.
     !---------------------------------------------------------------------------
+    use IO_wf, only : read_tantalus_wf, file_HFB_blocks
+#if(USE_HDF5 == 1)
+    use IO_wf, only : read_tantalus_hdf5
+#endif
+    use IO_wf, only : file_rank_map, file_spwf_map, file_spwf_inverse 
+    use IO_wf, only : filenx, fileny, filenz, filenwn, filenwp,filedx, filemv
+    use IO_wf, only : fileblocklowest, fileblocks, fileblocks_global,  &
+    &                 fileblocktype, fileblocknumber, fileblockindices,&
+    &                 readHFBinfofile, check_blocking_structure
+
     integer                       :: i, inputoption, lenchar
     character(len=:), allocatable :: standardized_input  
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+
+    call start_timer(T_wfini)
     
     standardized_input = trim(to_upper(inputfilename))
     lenchar=len(standardized_input)
@@ -468,9 +440,12 @@ contains
     else if( standardized_input(lenchar-3:lenchar) .eq. '.POT') then
       ! option 1b : reading potentials
       inputoption = 1 
+    else if( standardized_input(lenchar-4:lenchar) .eq. '.HDF5') then
+      ! option 2a : reading complete .hdf5 file
+      inputoption = 2 
     else
-      ! option 2 : reading complete .wf file
-      inputoption = 2        
+      ! option 2b : reading complete .wf file
+      inputoption = 3        
     endif   
     !---------------------------------------------------------------------------
     ! Input options 
@@ -482,7 +457,7 @@ contains
       fileblocks        = HFBlocks
       
       if(inputoption.eq.1) then
-        call read_potentials(12, inputfilename)
+        Potentials_read = readpotentials_separate(12, inputfilename)
         Coulomb_read_from_file = .true. 
         ! Signalling that we have direct and Exchange potentials read
       endif
@@ -490,7 +465,7 @@ contains
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
         ! Thus we signal that a symmetry transformation is needed
-        symtransfo_needed = .true.
+        sym_transfo_needed = .true.
         if( TRANS_CODE .ne. "0 1 001 000 10 000 010 111") then
           print *, "---------------------------------------------------"
           print *, "| Calculations cannot be initialized from scratch |"
@@ -511,15 +486,22 @@ contains
       file_spwf_map     = spwf_map
       file_rank_map     = rank_map
       file_spwf_inverse = spwf_inverse
+    else if(inputoption.eq.2) then
+#if (USE_HDF5 > 0)
+      ! Option 2a) start from a previous calculation with hdf5 input file
+      call read_tantalus_hdf5(inputfilename, sym_transfo_needed)
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
     else
-      ! Option 2) start from a previous calculation.
-      call ReadTantalus(12, inputfilename)
+      ! Option 2b) start from a previous calculation with .wf input file
+      call read_tantalus_wf(12, inputfilename)
       ! No need to guess gaps every time (unless the user asked for it)
     endif
     !---------------------------------------------------------------------------
     ! Transformation options
     if(allowtransform ) then
-      if(  symtransfo_needed ) then 
+      if(  sym_transfo_needed ) then 
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
@@ -535,7 +517,7 @@ contains
       endif
     else  
       ! Sanity check the input
-      if(symtransfo_needed) then
+      if(sym_transfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
       ! We still need to set the information regarding spwf mapping
@@ -557,13 +539,22 @@ contains
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
-    call  orthonormalize
+#if(USE_MPI > 0)
+    ! Copy the 1D wavefunctions to the 2D layout, since that is how we 
+    ! orthonormalize ...
+    call transfer_1D_to_2D(HFPsi, HFPsi_2D)
+#endif
+    call orthonormalize
+#if(USE_MPI > 0)
+    ! ... and make sure the results get back to the original layout
+    call transfer_2D_to_1D(HFPsi_2D, HFPsi)
+#endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
-        allocate(HFTransfo(nwt,nwt)) 
+        allocate(HFTransfo(nwt_local,nwt_local))
         HFtransfo = 0.0d0
-        do i=1,nwt
+        do i=1,nwt_local
             HFtransfo(i,i) = 1.0d0
         enddo
     endif
@@ -588,690 +579,107 @@ contains
           passed_block_test =  check_blocking_structure()      
       endif
     endif
+    call stop_timer(T_wfini)
   end subroutine ReadWaveFunction
 
-  subroutine ReadTantalus(chan, ifn)
+subroutine write_header(iochannel)
     !---------------------------------------------------------------------------
-    ! Reading all information from a previous Tantalus run stored in a .wf file.
-    ! It does not (yet) exploit MPI I/O; reading is essentially done by rank 0
-    ! and then broadcasted to the rest of the ranks.
+    ! This routine writes a header to file that contains a bunch of information 
+    ! on the calculation. It looks like:
     !
-    ! This routine also performs a few sanity checks. 
-    ! Currently:
-    !   
-    !   *) equality of (nx,ny,nz) between data and file
-    !   *) equality of (nwn,nwp) between data and file
-    !   *) the symmetry encoding matches either SYM_CODE or TRANS_CODE
+    !     #   N = i3, Z = i3, A = i3
+    !     #   nwn = i3, nwp = i3
+    !     #   Name of the parameterization
+    !     #   type of functional
+    !     #   Fermi energies of both nucleon species
+    !     #   Quadrupole deformation in terms of Q20 and Q22
+    !     #   Quadrupole deformation in terms of B20 and B22
+    !     #   Quadrupole deformation in terms of B2 and gamma
+    !     #   BI 1: Blocktype, Blocknumber
+    !     #   BI 2: BlockIndices
+    !     #   BI 3: Blocklowest
+    !     #   [EMPTY CURRENTLY, RESERVED FOR SYMMETRY INFORMATION]
     !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: iochannel
+!     type(moment), pointer :: Q20, Q22
+   
+    1 format("# N = ", i8, ' Z = ', i8, ' A = ', i8)
+    2 format("# nwn = ", i9, ", nwp = ", i9)
+    3 format("# (nx,ny,nz) = (", 3i5, "), dx = ", f10.8, ' fm')
+    4 format("# Parameterisation    : ", a40)
+    5 format("# Functional type     : ", a40)
+    6 format("# Fermi energies      : ", 2f15.4)
+!     7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
+!     8 format("# Quadrupole   B20,B22: ", 2f15.4)
+!     9 format("# Quadrupole    Q, gam: ", 2f15.4)
+
+!    10 format("# BI 1: ", 2i3)
+!    11 format("# BI 2: ", 99i4)
+!    12 format("# BI 3: ", 99a3)
+
+    write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
+    write(iochannel, fmt=2)  nwn, nwp
+    write(iochannel, fmt=3)  nx, ny, nz, dx
+    write(iochannel, fmt=4)  name_param
+    write(iochannel, fmt=5)  func_name
+    write(iochannel, fmt=6)  FermiEnergy
+  
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
+    !write(iochannel, fmt=9)    Q(3), G(3)
+    
+   ! write(iochannel, fmt=10)  blocktype, blocknumber
+   ! if(blocknumber .gt. 0) then
+   !   write(iochannel, fmt=11) Blockindices
+   !   write(iochannel, fmt=12) Blocklowest
+   ! else
+   !   write(iochannel, fmt=11)
+   !   write(iochannel, fmt=12)
+   ! endif
+
+    write(iochannel, fmt='(a1)') '#'
+
+  end subroutine write_header
+
+#if( $FAM == 0 )
+  subroutine WriteWaveFunction(chan, ofn)
+    !--------------------------------------------------------------------------------------------
+    ! Simple routine to call the appropriate subroutine depending on type of output
+    ! asked for by the user.
+    !
     ! Input:
-    !   chan : integer, channel to open the file ifn on
-    !   ifn  : character, name of the input file. 
-    !          The code will first check for its existence.
-    !---------------------------------------------------------------------------
-    ! 
-    ! Things read from file. (Not yet implemented ones are indicated by *)
-    !
-    ! Version
-    ! Convergence information: E, dE                         (*)
-    ! nx,ny,nz,dx,dt
-    ! Symmetry information                                   (1)
-    ! neutrons,protons
-    ! nwn, nwp, Number of wavefunctions in every block
-    ! spenergies, dispersions
-    ! diagsphamil
-    ! HFtransfo 
-    ! (nwt) Wavefunctions
-    ! Forcename
-    ! single-particle hamiltonian
-    ! Pairing information
-    !    - Pairingtype
-    !    - Rho_can = occupation factors 
-    !      (HF)  nothing
-    !      (BCS) Fermi level
-    !        |   BCSGaps  
-    !      (HFB) 
-    !        |   blocktype, blocknumber
-    !        |   block-sizes for HFB solver
-    !        |   blocklowest/blockindices
-    !        |   Fermi level
-    !        |   rho_pairing    
-    !        |   kappa_pairing
-    !        |   can_transfo
-    !        |   HFBgaps      
-    !        |   Bogoliubov transformation 
-    !        |   Configuration matrix      
-    ! CrankingInfo
-    ! Potentials                                             (2)
-    ! Multipole Moments
-    !     | The code writes the data on ALL the multipole moments.
-    !     | For the format of the lines, see the Moments module.
-    !
-    !---------------------------------------------------------------------------    
-    use functional
-    use moments
-    use cranking
-    
-    integer, intent(in)          :: chan
-    character(len=*), intent(in) :: ifn
-    character(len=20)            :: func_name_check
-    character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io,i, wave, wfcounter, targetrank
-    logical                      :: exists
-    real(KIND=dp)                :: Omega_file(3)
-    real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
-    logical                      :: filediagsphamil 
-    logical                      :: check_x, check_y, check_z
-    logical                      :: check_nwn, check_nwp
-
-#if(USE_MPI>0)
-    integer :: mpi_err
-#endif   
-    
-    
-    1 format ('Number of mesh points does not correspond to file.', / &
-    &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
-    &         'In data: nx= ', i3, ' ny= ', i3, ' nz= ',i3)
-    2 format ('Number of wavefunctions does not correspond to file.', / &
-    &         'On file: nwn= ', i3, ' nwp=', i3,                      / &
-    &         'In data: nwn= ', i3, ' nwp=', i3)
-
-    3 format (' The symmetry choices  on file cannot be handled.')
-    4 format (' SYM_CODE   = ', a26)
-    5 format (' TRANS_CODE = ', a26)
-    6 format (' ON FILE    = ', a26)
- 
-    if(MPI_RANK.eq.0) then
-      !-------------------------------------------------------------------------
-      ! First check if the file exists.
-      inquire(file=inputfilename, exist=exists)
-      if(.not.exists) then
-        call stp('Input file specified does not exist!')
-      endif
- 
-      open (chan,form='unformatted',file=ifn)
-
-      read(chan, iostat=io) file_version
-      if(file_version .gt. version_number) then
-        call stp('Unsupported version number of the .wf file.')
-      endif
-
-      ! Convergence information                                (NOT IMPLEMENTED)
-      read(chan,iostat=io) 
-      !Parameters of the mesh
-      read(Chan,iostat=io) filenx,fileny,filenz, filedx
-      filemv = filenx*fileny*filenz
-
-      ! Symmetry information       
-      if(file_version .eq. 1) then 
-        ! No symmetry information in version 1, only EV8-style calculations  
-        read(Chan,iostat=io) 
-      else
-        read(Chan,iostat=io) SYM_CODE_CHECK
-
-        if(SYM_CODE_CHECK .eq. SYM_CODE) then
-          symtransfo_needed = .false.
-        elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
-          symtransfo_needed = .true.
-        else
-          print 3
-          print 4, SYM_CODE 
-          print 5, TRANS_CODE
-          print 6, SYM_CODE_CHECK
-          call stp('')
-        endif
-      endif
-
-      !Number of protons and neutrons
-      read(Chan,iostat=io) fileneutrons, fileprotons
-      ! HFBLocks information 
-      read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
-      filenwt = filenwn + filenwp
-    endif
-
-    !---------------------------------------------------------------------------
-    ! Rank 0 now has a ton of information read from file, including the 
-    ! dimensions of the symmetry blocks on the file.
-#if(USE_MPI)
-    ! First, we broadcast this information
-    call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(filenz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(filemv, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(filedx, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
-
-    call MPI_BCAST(fileprotons , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(fileneutrons, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-
-    call MPI_BCAST(filenwn           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(filenwp           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(filenwt           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(fileblocks_global ,8, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
-
-    ! Seemingly useless to BCAST fileversion, but this is necessary for further
-    ! logic further down in this routine
-    call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-
-    call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
-#endif    
-    ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
-    &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
-
-    ! Arrays like these are stored on all ranks, hence "filenwt"
-    allocate(spenergies (filenwt))
-    allocate(dispersions(filenwt))
-    allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
-    allocate(current_sph(filenwt,filenwt)) ; current_sph = 0.0d0
-
-    if (allocated(rho_can)) deallocate(rho_can)
-    allocate(rho_can(filenwt))
-
-    if(MPI_RANK.eq.0) then
-      read(chan,iostat=io) spenergies, dispersions
-      if(file_version .ge. 3) then
-        read(chan,iostat=io) filediagsphamil
-        read(chan,iostat=io) HFtransfo
-      endif
-    endif
-#if(USE_MPI>0)
-    call MPI_BCAST(spenergies ,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(HFTRANSFO  ,filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-#endif
-    !---------------------------------------------------------------------------
-    ! Reading the spwfs from file
-    !---------------------------------------------------------------------------
-    ! First allocate the needed space
-    ! wavefunctions are distributed across ranks ....
-    allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
-    if(file_version .gt. 5) then
-      if(MPI_RANK.eq.0) allocate(temp(filenx*fileny*filenz,4)) ! create space
-      wfcounter = 0 ! this is the counter tracking how much spwfs each 
-                    ! INDIVIDUAL rank has stored so far
-
-      do wave=1, filenwt
-        ! Read the spwf into dummy storage
-        if(MPI_RANK.eq.0) read(chan,iostat=io) temp
-        targetrank = file_rank_map(wave) ! rank to communicate the spwf to
-        if(targetrank .eq. 0 .and. MPI_RANK.eq.0) then
-            ! No communication is necessary for the spwfs stored on rank 0
-            ! This case is ALWAYS executed for serial calculations.
-            wfcounter = wfcounter + 1
-            if(MPI_rank.eq.0) HFPsi(:,:,wfcounter) = temp
-#if(USE_MPI > 0)
-        else
-          if(MPI_RANK.eq.0) then
-            ! rank 0 sends the spwf to targetrank
-            call MPI_SEND(temp, 4*filemv, MPI_REAL8, targetrank, 2,            &
-            &                                           MPI_COMM_WORLD, mpi_err)
-          else if(MPI_RANK .eq. targetrank) then
-            ! ... which receives and stores in HFPSI
-            wfcounter = wfcounter + 1
-            call MPI_RECV(HFpsi(:,:,wfcounter), 4*filemv, MPI_REAL8, 0, 2,     &
-              &                      MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-          endif
-#endif
-        endif
-      enddo
-    else
-      ! Originally, the .wf files contained the HFPsi array as one unformatted
-      ! record. This is kind of unpractical for MPI applications.
-      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
-
-      ! We can safely read this in one go; a single rank is present
-      read(chan,iostat=io) HFPsi
-    endif
-#if(USE_MPI > 0)    
-    ! Possibly a superfluous barrier call, but good for my peace of mind
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-#endif
-    ! End of the most complicated part of this routine; back to easy sequential
-    ! reads and some MPI broadcasting
-    !---------------------------------------------------------------------------
-
-    !--------------------------------------------------------------------------- 
-    ! Name of the force and functional and full s.p. hamiltonian matrix
-    if(MPI_RANK.eq.0) then
-      read(chan, iostat=io) ini_name_param, func_name_check
-      ! Single-particle hamiltonian
-      if(file_version.ge.4) then
-        read(chan, iostat=io) current_sph
-      endif
-    endif
-#if(USE_MPI > 0)
-    call MPI_BCAST(ini_name_param , len(ini_name_param) , MPI_CHARACTER,0,     &
-    &                                                   MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
-    &                                                   MPI_COMM_WORLD, mpi_err)
-
-    call MPI_BCAST(current_sph, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
-#endif
-
-    !---------------------------------------------------------------------------
-    ! Pairing information
-    if(MPI_RANK.EQ.0) then
-      read(chan, iostat=io) filepairing
-      ! Write the occupation factors in all cases
-      read(chan, iostat=io) rho_can
-    endif
-
-#if(USE_MPI > 0) 
-    call MPI_BCAST(filepairing,      1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(rho_can    ,filenwt, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
-#endif
-
-    select case (filepairing)
-    case(0) !-------------------------------------------------------------------
-        ! HF: nothing to read
-    case(1) !-------------------------------------------------------------------
-        ! BCS calculation: read the gaps
-        allocate(filegaps(filenwt,1))
-        if(MPI_RANK .eq. 0) then
-          read(chan, iostat=io) FermiEnergy       ! Lambda
-          read(chan, iostat=io) filegaps
-        endif
-
-#if(USE_MPI > 0)
-        call MPI_BCAST(Fermienergy,      2, MPI_REAL8,0, MPI_COMM_WORLD,mpi_err)
-        call MPI_BCAST(filegaps  ,filenwt, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-#endif
-
-        ! Simply copy the gaps for now
-        select case(pairingtype)
-        case(0)
-          ! Do nothing
-        case(1)
-          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)
-        case(2)
-          allocate(HFBgaps(filenwt, filenwt)) ; HFBgaps = 0
-          do i=1, filenwt
-              HFBgaps(i,i) = filegaps(i,1)
-          enddo
-        end select
-    case(2) !-------------------------------------------------------------------
-        ! HFB calculation
-        if (allocated(filegaps)) deallocate(filegaps)
-
-        allocate(filegaps(filenwt, filenwt)) 
-        allocate(kappa_pairing(filenwt, filenwt)) 
-        allocate(rho_pairing(filenwt, filenwt)) 
-
-        if(file_version .gt. 3 ) then
-          if(MPI_RANK .eq. 0) then
-            read(chan, iostat=io) fileblocktype, fileblocknumber
-            read(chan, iostat=io) file_HFB_blocks
-          endif
-#if(USE_MPI > 0)
-          call MPI_BCAST(fileblocktype  , 1, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
-          &                                                             mpi_err)
-          call MPI_BCAST(fileblocknumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
-          &                                                             mpi_err)
-          call MPI_BCAST(file_HFB_blocks, 8, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
-          &                                                            mpi_err)
-#endif
-          ! Depending on the type of blocking, we read and BCAST different
-          select case(fileblocktype) 
-          case(0)
-            if(MPI_RANK .eq. 0) read(chan, iostat = io)
-          case(1,3,5)
-            allocate(fileblockindices(fileblocknumber))
-            if(MPI_RANK.eq.0) read(chan, iostat = io) fileblockindices
-#if(USE_MPI > 0)
-            call MPI_BCAST(fileblockindices,fileblocknumber, MPI_INTEGER, 0,   &
-            &                                            MPI_COMM_WORLD,mpi_err)
-#endif
-          case(2,4,6)
-            allocate(fileblocklowest(fileblocknumber))
-            if(MPI_RANK .eq. 0) read(chan, iostat = io) fileblocklowest
-#if(USE_MPI > 0)
-            call MPI_BCAST(fileblocklowest,fileblocknumber, MPI_INTEGER, 0,    &
-            &                                            MPI_COMM_WORLD,mpi_err)
-#endif
-          end select
-        endif
-
-        if(MPI_RANK .eq. 0) then
-          read(chan, iostat=io) FermiEnergy       ! Lambda
-          read(chan, iostat=io) rho_pairing
-          read(chan, iostat=io) kappa_pairing     ! kappa
-          read(chan, iostat=io) ! Canonical transformation
-          read(chan, iostat=io) filegaps
-        endif
-
-#if(USE_MPI>0)
-        call MPI_BCAST(FermiEnergy  ,          2, MPI_REAL8, 0,MPI_COMM_WORLD, &
-        &                                                               mpi_err)
-        call MPI_BCAST(rho_pairing  , filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, &
-        &                                                               mpi_err)
-        call MPI_BCAST(kappa_pairing, filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, & 
-        &                                                               mpi_err)
-        call MPI_BCAST(filegaps     , filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, & 
-        &                                                               mpi_err)
-#endif
-        ! For late-enough versions, we also read the full Bogoliubov 
-        ! transformation and the associated configuration matrix.
-        if(file_version .ge. 3) then
-          readHFBinfofile = .true.
-          allocate(Bogoliubov(2*filenwt, 2*filenwt)) 
-          allocate(configmatrix(2*filenwt)) 
-
-          ! We simply read these arrays here. If a transformation is needed,
-          ! we will deal with it elsewhere.
-          if(MPI_RANK .eq. 0) then
-            read(chan, iostat=io) Bogoliubov
-            if (io.ne.0) then
-              call stp('ERROR: reading Bogoliubov transformation from file.')
-            endif
-            read(chan, iostat=io) configmatrix
-            if (io.ne.0) then
-              call stp('ERROR: reading the configuration matrix from file.')
-            endif
-          endif
-#if(USE_MPI > 0)
-          call MPI_BCAST(Bogoliubov, 4*filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD,&
-          &                                                             mpi_err)
-          call MPI_BCAST(configmatrix, 2*filenwt , MPI_REAL8,0, MPI_COMM_WORLD,&
-          &                                                             mpi_err)
-#endif
-        endif
-
-        select case(pairingtype)
-        case(0) !---------------------------------------------------------------
-          ! This calculation is HF: Do nothing
-        case(1) !---------------------------------------------------------------
-          ! This calculation is HFB: use the diagonal matrix elements of 
-          ! filegaps as BCSgaps. 
-          allocate(BCSgaps(filenwt)) 
-          do i=1, filenwt
-            BCSgaps(i) = filegaps(i,i)
-          enddo
-        case(2) !---------------------------------------------------------------
-          ! This calculation is HFB: simply copy the gaps for now
-          if (allocated(HFBGaps)) then   
-            deallocate(HFBGaps)        
-          end if                       
-          allocate(HFBGaps(filenwt, filenwt)) 
-          HFBGaps = filegaps(1:filenwt, 1:filenwt)  
-        end select
-    case DEFAULT
-      call stp('Something is seriously wrong with the .wf file.')
-    end select 
-
-    !---------------------------------------------------------------------------
-    ! Cranking information
-    if(MPI_RANK.eq.0) then
-      if(file_version .gt. 4 ) then
-        read(chan, iostat=io) omega_file
-      else
-        ! File-versions < 4 do not have this line
-        read(chan, iostat=io) 
-        omega_file = 0.0d0
-      endif
-      if(io.ne.0) then
-        call stp('ERROR in reading cranking line of the wf file.')
-      endif
-    endif
-#if(USE_MPI > 0)
-    call MPI_BCAST(omega_file, 3, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-#endif
-    ! Using the cranking frequencies read from file
-    if(continueCrank) omega = omega_file
-
-    !---------------------------------------------------------------------------
-    ! Potentials: note that readpotentials handles all MPI affairs itself
-    call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
-    !-------------------------------------------------------------------------
-    ! Multipole moment information
-    ! Note: ReadMoment handles all MPI affairs itself
-    io = 0
-    do while(io.eq.0) 
-      call ReadMoment(chan,io)
-    enddo
-
-    !-------------------------------------------------------------------------
-    ! End of reading
-    if(MPI_RANK.EQ. 0) close(chan)
-    !-------------------------------------------------------------------------
-    ! Sanity checks if transformation is not allowed
-    if(.not.  AllowTransform) then
-      if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
-          print 1, filenx, fileny, filenz, nx,ny,nz
-          call stp('')
-      endif
-      if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
-          print 2, filenwn, filenwp, nwn, nwp
-          call stp('')
-      endif
-    else
-      ! We do not allow modification of the mesh, s.p. wavefunctions and 
-      ! symmetry transformations at the same time. 
-      check_x = (nx .ne. filenx) .and. (nx .ne. 2*filenx)
-      check_y = (ny .ne. fileny) .and. (ny .ne. 2*fileny)
-      check_z = (nz .ne. filenz) .and. (nz .ne. 2*filenz)
-
-      check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
-      check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
-
-      if(symtransfo_needed) then
-       if(check_x .or. check_y .or. check_z) then 
-        call stp("Please don't combine symmetry transformations and mesh modifications.")
-       endif  
-       if(check_nwn .or. check_nwp ) then 
-        call stp("Please don't combine symmetry transformations and adding wavefunctions.")
-       endif  
-      endif
-    endif
-  end subroutine ReadTantalus
-
-  subroutine WriteTantalus(chan, ofn)
-    !---------------------------------------------------------------------------
-    ! Subroutine that dumps all information to a .wf file for future runs.
-    ! Note: this does not (yet) use any MPI I/O operations, it simply relies on
-    !       transferring all data to rank 0 and having it do the writing.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
+    !------------
     !   chan : integer, channel to open file ofn on
-    !   ofn  : character, filename to write to. 
+    !   ofn  : character, filename to write to.
     !          If it does not exist, will get created.
-    !---------------------------------------------------------------------------
-    ! Things written to file. (Not yet implemented ones are indicated by (*) )
-    !
-    ! Version
-    ! Convergence information: E, dE                         (*)
-    ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   (1)
-    ! neutrons,protons
-    ! nwn, nwp, Number of wavefunctions in every block
-    ! spenergies, dispersions
-    ! diagsphamil
-    ! HFtransfo 
-    ! (nwt) Wavefunctions
-    ! Forcename
-    ! Single-particle hamiltonian
-    ! Pairing information 
-    !    - Pairingtype
-    !    - Rho_can = occupation factors 
-    !      (HF)  
-    !        |   (nothing)
-    !      (BCS) 
-    !        |   Fermi level
-    !        |   BCSGaps  
-    !      (HFB)
-    !        |   blocktype, blocknumber
-    !        |   block-sizes for HFB solver
-    !        |   blocklowest/blockindices
-    !        |   Fermi level
-    !        |   rho_pairing    
-    !        |   kappa_pairing
-    !        |   can_transfo
-    !        |   HFBgaps      
-    !        |   Bogoliubov transformation 
-    !        |   Configuration matrix   
-    ! CrankingInfo
-    ! Potentials                                             (2)
-    ! Multipole Moments
-    !     | The code writes the data on ALL the multipole moments.
-    !     | For the format of the lines, see the Moments module.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Some remarks:
-    !  (1) The symmetry information is encoded in a single string, the SYM_CODE.
-    !  (2) Potentials are written on multiple lines, see the functional module.
-    !---------------------------------------------------------------------------
-
-    use functional
-    use moments
-    use Cranking
+    !          If this ends in "HDF5" (case-insensitive), then the code will write an HDF5 file.
+    !          If not, then a simple fortran unformatted file will be written.
+    !--------------------------------------------------------------------------------------------
+    use IO_wf, only: write_tantalus_wf
+#if(USE_HDF5 == 1)
+    use IO_wf, only : write_tantalus_hdf5
+#endif
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
-    integer                      :: io, wave, wave_local, rank
-#if(USE_MPI > 0)
-    integer                      :: mpi_err
-    real(KIND=dp), allocatable   :: tempwf(:,:)
-#endif
-    type(moment), pointer        :: mom
 
-    open (chan,form='unformatted',file=ofn)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Purely sequential part of the writing
-    if(MPI_RANK .EQ. 0) then
-      write(chan, iostat=io) version_number
-      ! Convergence information                                (NOT IMPLEMENTED)
-      write(chan,iostat=io) 
-      !Parameters of the mesh
-      write(Chan,iostat=io) nx,ny,nz, dx
-      ! Symmetry information                                   
-      write(Chan,iostat=io) SYM_CODE
-      !Number of protons and neutrons
-      write(Chan,iostat=io) neutrons,protons
-      ! HFBLocks information (NOTE: this should be the GLOBAL information)
-      write(Chan,iostat=io) nwn, nwp, hfblocks_global 
-      ! Wavefunctions  
-      write(chan,iostat=io) spenergies, dispersions
-      ! information on the HF transformation
-      write(chan, iostat=io) diagsphamil
-      write(chan, iostat=io) HFtransfo
+    if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
+#if(USE_HDF5>0)
+      call write_tantalus_hdf5(ofn) !new hdf5 format
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
+    else
+      call write_tantalus_wf(chan, ofn) ! old style in .wf file
     endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Parallel part of the writing
-    ! First, make sure the team is complete before proceeding
-#if(USE_MPI > 0)
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err) 
-    ! b) making space to receive spwfs from the other ranks
-    if(MPI_RANK .eq.0) allocate(tempwf(mv,4))
-#endif
 
-    do wave = 1, nwt
-        rank = rank_map(wave)           ! spwf wave is stored on which MPI rank?
-        wave_local = spwf_inverse(wave) ! ... and has which local index? 
+  end subroutine WriteWaveFunction
+#endif 
 
-        if(rank.eq.0) then
-          ! ------ Rank 0 writes its own wavefunctions ----------------
-          if(MPI_RANK.eq.0) write(chan,iostat=io) HFPsi(:,:,wave_local)
-#if(USE_MPI > 0)
-        else
-          ! ...  otherwise there is communication involved ....
-          if(MPI_RANK .eq. 0) then
-            ! -------rank 0 receives and writes -----------------------
-            call MPI_RECV(        tempwf, 4*mv, MPI_REAL8, rank, 2, &
-            &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-            write(chan,iostat=io) tempwf
-          elseif(MPI_RANK .eq. rank) then
-            ! -------rank "rank" sends ------- -----------------------
-            call MPI_SEND(hfpsi(:,:,wave_local), 4*mv, MPI_REAL8, 0, 2,        &
-            &                                           MPI_COMM_WORLD, mpi_err)
-          endif
-#endif
-        endif
-    enddo
-
-    ! e) freeing up the space
-#if(USE_MPI > 0)
-    if(MPI_RANK .eq.0) deallocate(tempwf)
-#endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Back to the sequential part of the writing
-    if(MPI_RANK .EQ. 0) then
-      ! Name of the force.
-      write(chan, iostat=io) name_param, func_name
-      ! Single-particle hamiltonian
-      write(chan, iostat=io) current_sph
-      !-------------------------------------------------------------------------
-      ! Pairing information 
-      write(chan, iostat=io) PairingType
-
-      ! Write the occupation factors in all cases
-      write(chan, iostat=io) rho_can
-
-      select case (PairingType)
-      case(0)
-          ! HF: nothing to write
-      case(1)
-          ! BCS
-          write(chan, iostat=io) FermiEnergy
-          write(chan, iostat=io) BCSGaps 
-      case(2)
-          ! HFB
-          write(chan, iostat=io) blocktype, blocknumber
-          if(pairingscheme.eq.1) then
-            write(chan, iostat=io) grad_blocks
-          else
-            write(chan, iostat=io) HFBlocks_global
-          endif
-
-          select case( blocktype)
-          case(0)
-            write(chan, iostat=io) 
-          case(2,4,6)
-            write(chan, iostat=io) blocklowest
-          case(1,3,5)
-            write(chan, iostat=io) blockindices
-          end select
-
-          write(chan, iostat=io) FermiEnergy       ! Lambda
-          write(chan, iostat=io) rho_pairing       ! rho
-          write(chan, iostat=io) kappa_pairing     ! kappa
-          write(chan, iostat=io) Cantransfo        ! Canonical transformation
-          write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
-          write(chan, iostat=io) Bogoliubov        ! Bogoliubov transformation
-          write(chan, iostat=io) configmatrix      ! Configuration matrix
-      end select
-      ! Cranking information: frequencies in all Cartesian directions 
-      write(chan, iostat=io) Omega(1:3)
-      !-------------------------------------------------------------------------
-      ! Potentials on file
-      call writepotentials(chan)
-      !-------------------------------------------------------------------------
-      ! Multipole moment information                             
-      !
-      ! The Cray compilers on LUCIA want to inline the WriteMoment function while
-      ! also flattening the linked list of multipole moments when optimisation 
-      ! options -O2 or above are used. For reasons I do not understand, this 
-      ! makes the executable segfault. Since this routine has absolutely no impact
-      ! on execution time, I simply forbid the CRAY compiler to inline this function. 
-      ! This magically solves the issue (which does not exist for ifort or gnu compilers) 
-      ! 
-      ! Cray version on LUCIA at the time of writing:
-      ! Cray Fortran : Version 14.0.3
-      ! 
-      ! Note the double dollar-sign, to make sure Hephaestos does not replace these
-      ! compiler directives. 
-      ! 
-      mom => root
-      do while(associated(mom%next))
-        mom => mom%next
-        !DIR$$ NOINLINE
-        call Writemoment(mom,chan)
-        !DIR$$ INLINE
-      enddo
-    endif
-    close(chan)
-
-  end subroutine WriteTantalus
-
+#if ($FAM == 0)
   subroutine write_advanced_output(iter, iomsg)
     !--------------------------------------------------------------------------- 
     ! Collection routine for writing advanced output. 
@@ -1295,16 +703,16 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the neutron, proton and charge density to a file for postprocessing 
     if(DENFILE .ne. '') then
-      call write_densities(DENFILE)
+      call write_densities(Density, DENFILE)
     endif
     if(TOFILE .ne. '') then
 $TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
-      call write_timeodd_densities(TOFILE)
+$NTR  call write_timeodd_densities(Density, TOFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
-      call write_potentials(POTFILE)
+      call write_potentialfile(potentials, POTFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Single-particle wave function information 
@@ -1455,366 +863,71 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
 
   end subroutine Brussels_output
   
-  function check_blocking_structure() result(passed)
-    !---------------------------------------------------------------------------
-    !
-    ! Some tests on the blocking structure on file vs. that demanded by the user. 
-    !
-    ! Sanity check
-    !  #1 : no blocktypes that are not 0/2/4.
-    !  #2 : blocklowest on file == blocklowest input by the user 
-    !       * modulo permutations
-    !  #3 : the number of blocked states in the Bogoliubov transformation in 
-    !       each block matches the input and file
-    !---------------------------------------------------------------------------
-    integer :: i,j , NB, check_blocks(8), B
-    integer, allocatable       :: check(:)
-    logical                    :: identical, passed
-
-    passed = .true.
-    !---------------------------------------------------------------------------
-    ! # 1 : no blocktypes that are not 0/2/4.
-    if(blocktype.ne.0 .and. blocktype.ne.2 .and. blocktype.ne. 4) then
-      call stp('Subroutine check_blocking_structure cannot deal (yet) with &
-             &  blocktypes that are not 0/2/4.')
-    endif    
-    !---------------------------------------------------------------------------
-    ! # 2 :  blocklowest on file == blocklowest input by the user 
-    !        modulo permutations 
-    if(allocated(fileblocklowest) .and. (.not. allocated(blocklowest))) then
-      call stp('Blocklowest not allocated, while fileblocklowest is.')
-    endif
-
-    if(allocated(blocklowest) .and. (.not. allocated(fileblocklowest))) then
-      call stp('Blocklowest allocated, while fileblocklowest is not.')
-    endif
-    
-    if(size(fileblocklowest).ne.size(blocklowest)) then
-      print *, ' Size of blocklowest on file:  ', size(fileblocklowest)
-      print *, ' Size of blocklowest in input: ', size(blocklowest)
-      call stp('')
-    endif 
-    
-    NB = size(fileblocklowest)
-    allocate(check(NB)) ; check = 0
-    do i=1,NB
-      do j=1, NB
-        if(blocklowest(j) .eq. fileblocklowest(i)) then
-          check(i) = check(i) + 1
-        endif
-      enddo
-    enddo
-
-    identical = .true.
-    do i=1, NB
-       if(check(i).ne.1) then
-          identical = .false.
-       endif
-    enddo
-    
-    if(.not. identical) then
-      print *, 'Blocklowest on file : ', fileblocklowest
-      print *, 'Blocklowest on input: ', blocklowest
-      print *, 'These are not identical.'
-      call stp('')
-    endif
-    !---------------------------------------------------------------------------
-    ! # 3: Check if the blocking structure on file actually matches the 
-    !      structure asked for
-    
-    !---------------------------------------------------------------------------
-    ! This method has turned out to NOT be a reliable indicator.
-!    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
-!    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
-!  
-!    check_blocks = 0
-!    do i=1,NB
-!      select case(blocklowest(i))
-!      case('n+')
-!        B = 1       
-!      case('n-')
-!        B = 3       
-!      case('p+')
-!        B = 5       
-!      case('p-')
-!        B = 7       
-!      end select 
-!      check_blocks(B) = check_blocks(B) + 1 
-!    enddo
-!  
-!    do B=1,8
-!      if(check_blocks(B).ne.blocked_blocks(B)) then
-!        print *, 'Blocking structure of the Bogoliubov transformation on file'
-!        print *, 'does not match that reported by the file.'
-!        print *, ' Blocking structure of Bogoliubov matrix: ', blocked_blocks      
-!        print *, ' Blocking structure asked for           : ', check_blocks      
-!        stop
-!      endif
-!    enddo
-
-    if(.not. symtransfo_needed) then
-      !---------------------------------------------------------------------------
-      ! Instead, we check the "effective" block sizes. 
-      ! A reference unblocked calculation will have HFBlocks = grad_blocks
-      
-      ! 04/01/2022: NOTE, that we can only do this for cases where we need NO
-      !             symmetry transformation. If you transform symmetries, you
-      !             are on your own! 
-      
-      check_blocks = HFBlocks
-      
-      do i=1,NB
-        select case(blocklowest(i))
-        case('n+')
-          B = 1       
-        case('n-')
-          B = 3       
-        case('p+')
-          B = 5       
-        case('p-')
-          B = 7       
-        end select 
-        check_blocks(B)   = check_blocks(B)   - 1 
-        check_blocks(B+1) = check_blocks(B+1) + 1 
-      enddo
-
-      do B=1,8
-        if(file_HFB_blocks(B)+extraspwfs(B).ne.check_blocks(B)) then
-          print *, 'Blocking structure of the Bogoliubov transformation on file'
-          print *, 'does not match that reported by the file.'
-          print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
-          print *, ' Block structure asked for           : ', check_blocks      
-          call stp('')
-        endif
-      enddo
-    endif
-  end function check_blocking_structure
-  
-  subroutine massage_Bogoliubov()
-    !---------------------------------------------------------------------------
-    ! Subroutine to transform the Bogoliubov transformation found on file 
-    ! towards one of the type demanded by the user. 
-    ! 
-    ! Currently only works for .wf that were created with
-    !    blocktype   = 2 
-    !    blocklowest = a combination of n+,n-,p+,p  (WITH NO REPEATS!)
-    !
-    ! and that break time-reversal symmetry.
-    !    
-    ! The routine checks 
-    !   (i)   checks in what blocks excitations are         (array UNDO)
-    !   (ii)  checks in what blocks excitations should be   (array DODO)
-    !   (iii) flips quasiparticles of the lowest qp energy in every 
-    !         block where an either 
-    !          (a) excitation should be and isn't ; or
-    !          (b) excitation shoud not be and is
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 13/04/21: Some undesired behaviour because of this routine in the 
-    !           the systematic calculations by G. Scamps. For this reason, this
-    !           subroutine is currently "dead code", i.e. never called again.
-    !---------------------------------------------------------------------------
-    integer :: i, B, sb, N, N2, T
-    integer, allocatable       :: undo(:), dodo(:)
-    real(KIND=dp), allocatable :: temp(:)
-    logical  :: flip
-
-    !---------------------------------------------------------------------------    
-    ! First, we see in what blocks we need to undo some qp excitations
-    if(fileblocknumber .gt. 0) then
-      allocate(undo(fileblocknumber))
-      do i=1, fileblocknumber
-        select case(fileblocklowest(i))
-        case('n+')
-          B = 1
-        case('n-')
-          B = 3
-        case('p+')
-          B = 5
-        case('p-')
-          B = 7
-        case('n0', 'p0')
-          call stp('Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0')
-        end select
-        
-        undo(i) = B     
-      enddo
-    endif 
-    !---------------------------------------------------------------------------
-    ! Then, we check in with what the user asked
-    if(blocknumber .gt. 0) then
-      allocate(dodo(blocknumber))
-      do i=1, blocknumber
-        select case(blocklowest(i))
-        case('n+')
-          B = 1
-        case('n-')
-          B = 3
-        case('p+')
-          B = 5
-        case('p-')
-          B = 7
-        case('n0', 'p0')
-          call stp('Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0')
-        end select
-      
-        dodo(i) = B     
-      enddo 
-    endif
-    !---------------------------------------------------------------------------
-    ! Then we flip some quasiparticle excitations
-    sb = 0 
-    do B=1,8,2
-      N = file_HFB_blocks(B)   ; if(N.eq.0) cycle
-      N2= file_HFB_blocks(B+1)
-      T = N + N2
-
-      flip = .false.
-      if(allocated(undo)) then
-        do i=1,fileblocknumber
-           if(undo(i) .eq. B) flip = .true.
-        enddo
-      endif
-      
-      if(flip) then
-        temp = Bogoliubov(sb+1:sb+2*T, sb+T+N+1)
-
-        Bogoliubov(sb  +1:sb+  T, sb+T+N+1) = temp(T+1:2*T)
-        Bogoliubov(sb+T+1:sb+2*T, sb+T+N+1) = temp(  1:  T)
-      endif
-      
-      flip = .false.
-      if(allocated(dodo)) then
-        do i=1,blocknumber
-           if(dodo(i) .eq. B) then
-            flip = .true.
-           endif
-        enddo
-      endif
-      
-      if(flip) then
-        configmatrix(sb+T+N+1) = 0
-        configmatrix(sb+    1) = 1
-      endif
-
-      sb = sb + 2 *T 
-    enddo
-    !---------------------------------------------------------------------------
-
-  end subroutine massage_Bogoliubov
-
-  subroutine write_header(iochannel)
-    !---------------------------------------------------------------------------
-    ! This routine writes a header to file that contains a bunch of information 
-    ! on the calculation. It looks like:
-    !
-    !     #   N = i3, Z = i3, A = i3
-    !     #   nwn = i3, nwp = i3
-    !     #   Name of the parameterization
-    !     #   type of functional
-    !     #   Fermi energies of both nucleon species
-    !     #   Quadrupole deformation in terms of Q20 and Q22
-    !     #   Quadrupole deformation in terms of B20 and B22
-    !     #   Quadrupole deformation in terms of B2 and gamma
-    !     #   BI 1: Blocktype, Blocknumber
-    !     #   BI 2: BlockIndices
-    !     #   BI 3: Blocklowest
-    !     #   [EMPTY CURRENTLY, RESERVED FOR SYMMETRY INFORMATION]
-    !
-    !---------------------------------------------------------------------------
-    integer, intent(in) :: iochannel
-    type(moment), pointer :: Q20, Q22
-   
-    1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
-    2 format("# nwn = ", i3, ", nwp = ", i3)
-    3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
-    4 format("# Parameterisation    : ", a40)
-    5 format("# Functional type     : ", a40)
-    6 format("# Fermi energies      : ", 2f15.4)
-    7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
-    8 format("# Quadrupole   B20,B22: ", 2f15.4)
-    9 format("# Quadrupole    Q, gam: ", 2f15.4)
-
-   10 format("# BI 1: ", 2i3)
-   11 format("# BI 2: ", 99i4)
-   12 format("# BI 3: ", 99a3)
-
-    write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
-    write(iochannel, fmt=2)  nwn, nwp
-    write(iochannel, fmt=3)  nx, ny, nz, dx
-    write(iochannel, fmt=4)  name_param
-    write(iochannel, fmt=5)  func_name
-    write(iochannel, fmt=6)  FermiEnergy
-  
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)    
-    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
-    write(iochannel, fmt=9)    Q(3), G(3)
-    
-    write(iochannel, fmt=10)  blocktype, blocknumber
-    if(blocknumber .gt. 0) then
-      write(iochannel, fmt=11) Blockindices
-      write(iochannel, fmt=12) Blocklowest
-    else
-      write(iochannel, fmt=11) 
-      write(iochannel, fmt=12)
-    endif
-
-    write(iochannel, fmt='(a1)') '#'
-
-  end subroutine write_header
-
-  subroutine write_densities(fname)
+  subroutine write_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
-    !    rho(neutron), rho(proton), rho(charge)
+    !    rho(neutron), rho(proton), rho(charge), 
+    !    tau(neutron), tau(proton),
+    !    \tilde{rho}(neutron), \tilde{rho}(proton)
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    !
-    !     #   X[fm] Y[fm] Z[fm] rho_n[fm^{-3}] rho_p[fm^{-3}] rho_c[fm^{-3}]
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
+    ! supplemented by a dedicated line explaining the content of each column.
     ! The format of the body of said file is
     ! 
-    !        x , y , z,  rho_n, rho_p, rho_c
+    !   x , y , z,  rho_n, rho_p, rho_c, tau_n, tau_p, DP_I_I_n, DP_I_I_p
     !
-    ! where the first three numbers are the Cartesian coordinates (units of fm)
-    ! and the densities are all in units of fm^{-3}. 
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
+    ! where the first three numbers are the Cartesian coordinates in fm, withµ
+    ! the densities all in their natural units. The mesh points are traverse in 
+    ! column-major order ('Fortran order'), which might not be how your favorite 
+    ! plotting tool prefers it. Note that the densities are written "as-is" to 
+    ! file, i.e. only in part of the box that is actually represented 
+    ! numerically. It is up to postprocessing to construct the densities in the 
+    ! simulation volume.
     !---------------------------------------------------------------------------
-    ! Note that the densities are written "as they are" to file, i.e. only in
-    ! part of the box that is actually represented numerically. It is up to
-    ! postprocessing to actually construct the densities in the entire box.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), pointer           :: rhon(:,:,:), rhop(:,:,:)
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
+    type(DensityVector), intent(in), target :: R
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io, i,j,k, mi
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x,   &
+      &               'rho_n', 20x, 'rho_p', 20x,'rho_c', 20x, &
+      &               'tau_n', 20x, 'tau_p', 20x,              &
+      &               'tilde{rho}_n', 13x, 'tilde{rho}_p')
+
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
       call stp('')
     endif
-
-    rhon(1:nx,1:ny,1:nz)  => D_I_I(:,1)
-    rhop(1:nx,1:ny,1:nz)  => D_I_I(:,2)
-
+    
     call write_header(1)
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                        rhon(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
+          write(1, fmt='(3es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for most of the densities
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The ordinary and charge density; always defined
+          write(1, fmt='(2es25.12)', advance='no') R%D_I_I(mi,1),R%D_I_I(mi,2)
+          write(1, fmt='( es25.12)', advance='no') R%chargedensity(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic density; its definition depends on the type of EDF used
+!$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+!$TAUSCALAR &         R%D_Nm_Nm(mi,1), R%D_Nm_Nm(mi,2)
+!$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+!$TAUTENSOR &         R%D_N_N(mi,1,1,1) + R%D_N_N(mi,2,2,1) + R%D_N_N(mi,3,3,1),&
+!$TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') R%DP_I_I(mi,1), R%DP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! We are done writing this line in the output
+          write(1, fmt='()') !  newline character
         enddo
       enddo
     enddo
@@ -1822,8 +935,174 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     close(1)
   end subroutine write_densities
   
+ subroutine write_potentialfile(F,fname)
+    !---------------------------------------------------------------------------
+    ! Write the mean-field potentials to a file named "fname":
+    !  central       coulomb   coulomb   kinetic  pairing   spin-orbit  
+    !                 direct   exchange
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Remarks:
+    ! 
+    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
+    !      to the gradient and spin indices. These are arranged in lexographical
+    !      order.  
+    !   *) F_I_I should be the exact potential corresponding to the derivative 
+    !      of the Skyrme energy with respect to D_I_I. This means that it should
+    !      not include
+    !       - the contributions from constraints
+    !       - the contribution of the Coulomb interaction
+    !   *) To reproduce the complete state of the code, it is important that 
+    !      the Coulomb potentials written to file are the potentials 
+    !      corresponding to the charge density; for the direct potential this
+    !      is the U that satisfies 
+    ! 
+    !                 Delta U = 4 pi rho_charge
+    !
+    !      If the finite extent of the nucleons charge density is taken into 
+    !      account selfconsistently, this means that U is NOT the potential 
+    !      which should be added to F_I_I. 
+    !
+    !---------------------------------------------------------------------------
+    !
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
+    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm).
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    use Coulombmod ! module explicitly 'used' in order to be able to place the 
+                   ! values of the direct and exchange Coulomb potentials 
+                   ! correctly on the mesh
 
-  !!NS_t0t3: fname is deleted from write nabla argument
+
+    type(PotentialVector), intent(in) :: F
+    character(len=*), intent(in)      :: fname
+    real(KIND=dp), pointer            :: Vnucp(:,:,:), Vnucn(:,:,:)
+    real(KIND=dp), allocatable        :: Coulp(:,:,:), Excp(:,:,:)
+
+    real(KIND=dp), allocatable, target   :: temp(:,:)
+    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
+    character(len=1) :: directions(3) 
+
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
+      &      'V_cd', 21x, 'V_ce', 21x, 'V_kin(n)', 17x, 'V_kin(p)', 17x, 'FP_n', 21x, 'FP_p',21x) 
+    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a potential to file.'
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+
+    call write_header(1)
+    write(1, fmt=1, advance='no') 
+  
+    directions = (/'x', 'y', 'z'/)
+    do mu=1,3
+      do nu=1,3
+        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
+        &                             directions(mu), directions(nu)
+      enddo
+    enddo
+    write(1, fmt='()')
+    
+    ! The central nuclear potential is the potential associated with D_I_I, but 
+    ! it should not include the contribution of the constraints, nor the 
+    ! contribution of the direct and exchange Coulomb potentials
+    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
+    
+    temp = F%F_I_I(:,1:2) !- constraint_I_I
+
+    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
+    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Subtracting the coulomb potential depends on our treatment of the 
+    ! proton and neutron finite size effect
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effect
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! The index juggling is ugly, but necessary, because the Coulomb 
+      ! potential has a different size than the Lagrange mesh.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
+            &                     - F%CoulombPotential(i+ox,j+oy,k+oz)    &
+            &                     - F%ExchangePotential(i,j,k)
+          enddo
+        enddo
+      enddo
+    else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Note that there is no index juggling since these matrices are 
+      ! conveniently defined on the ordinary mesh.
+      Vnucn = Vnucn - F%FoldedCoul(:,:,:,1) &
+      &             - F%FoldedExchange(:,:,:,1)
+      Vnucp = Vnucp - F%FoldedCoul(:,:,:,2) &
+      &             - F%FoldedExchange(:,:,:,2)
+    endif
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The potentials related to the charge density
+    Coulp = F%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Excp  = F%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Mesh coordinates and F_I_I and coulomb contribution to it.
+          write(1, fmt='(7es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k),        &
+          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
+          &            Coulp(i,j,k), Excp(i,j,k) 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for the following potentials
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic potential is the potential F_Nm_Nm if D_Nm_Nm is used 
+          ! in the calculation. If instead the kinetic density is decontracted, 
+          ! i.e. D_N_N is used, then we write the scalar component of the tensor
+!$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+!$TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
+!$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+!$TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
+!$TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The spin-orbit potential is the potential G_I_NS
+          !do mu=1,3
+          !  do nu=1,3
+          !    write(1, fmt='(2es25.12)', advance='no') &
+          !    &            F%G_I_NS(mi,mu,nu,1), F%G_I_NS(mi,mu,nu,2)
+          !  enddo
+          !enddo
+          write(1, fmt='()') !  newline character
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine write_potentialfile
+
+    !!NS_t0t3: fname is deleted from write nabla argument
   subroutine write_nablaJ()
     !---------------------------------------------------------------------------
     ! Debugging routine that can be used to write both
@@ -1888,7 +1167,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! close(1)
   end subroutine write_nablaJ
 
-  subroutine write_timeodd_densities(fname)
+  subroutine write_timeodd_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
     !    D_I_S, C_I_N
@@ -1916,416 +1195,116 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! part of the box that is actually represented numerically. It is up to
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
-    
-    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
-    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
-    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
-    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
-    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
-    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
-    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
-    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
-    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
-    real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
-  
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
-$NTR integer                         :: it
+!$NTR    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
+!$NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
-    1 format('#  X[fm]   Y[fm]   Z[fm] ', &
-    &        '   Sxn     Syn     Szn   ', &
-    &        '   Sxp     Syp     Szp   ', &
-    &        '   jxn     jyn     jzn   ', &
-    &        '   jxp     jyp     jzp   ', &
-    &        '   Jxn     Jyn     Jzn   ', &
-    &        '   Jxp     Jyp     Jzp   ')
-    2 format('#  0       1       2     ', &
-    &        '   3       4       5     ', &
-    &        '   6       7       8     ', &
-    &        '   9      10      11     ', &
-    &        '  12      13      14     ', &
-    &        '  15      16      17     ', &
-    &        '  18      19      20     ')
+    type(DensityVector), intent(in), target :: R
+    character(len=*), intent(in)            :: fname!
+!
+!    real(KIND=dp), allocatable, target      :: totalangmom(:,:,:)
+!    integer                                 :: io, i,j,k
+!$NTR integer                                :: it
+!$TR  real(KIND=dp)                          :: trash!
 
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a density to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
+!    1 format('#  X[fm]   Y[fm]   Z[fm] ', &
+!    &        '   Sxn     Syn     Szn   ', &
+!    &        '   Sxp     Syp     Szp   ', &
+!    &        '   jxn     jyn     jzn   ', &
+!    &        '   jxp     jyp     jzp   ', &
+!    &        '   Jxn     Jyn     Jzn   ', &
+!    &        '   Jxp     Jyp     Jzp   ')
+!    2 format('#  0       1       2     ', &
+!    &        '   3       4       5     ', &
+!    &        '   6       7       8     ', &
+!    &        '   9      10      11     ', &
+!    &        '  12      13      14     ', &
+!    &        '  15      16      17     ', &
+!    &        '  18      19      20     ')
 
-$NTR    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
-$NTR    Syn(1:nx,1:ny,1:nz)  => D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => D_I_S(:,2,2)
-$NTR    Szn(1:nx,1:ny,1:nz)  => D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => D_I_S(:,3,2)
+!$TR trash = R%D_I_I(1,1) ! to stop compiler complaints when TR is conserved
 
-$NTR    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1,2)
-$NTR    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
-$NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
+!    open(1,file=fname, iostat=io)
+!    if(io.ne.0) then    
+!      print *, 'Something went wrong with writing a density to file.'
+!      print *, 'filename = ', fname
+!      call stp('')
+!    endif!
+
+!$NTR    Sxn(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,2)
+!$NTR    Syn(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,2)
+!$NTR    Szn(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,2)
+
+!$NTR    Jxn(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,2)
+!$NTR    Jyn(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,2)
+!$NTR    Jzn(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,2)
 
 
     ! Calculate the total angular momentum density
-$NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
-$NTR    do it=1,2
-$NTR      totalangmom(:,1,it) = 0.5 * D_I_S(:,1,it) ! spin part
-$NTR      totalangmom(:,2,it) = 0.5 * D_I_S(:,2,it) ! spin part
-$NTR      totalangmom(:,3,it) = 0.5 * D_I_S(:,3,it) ! spin part
-$NTR      do i=1, nx*ny*nz
-$NTR        ! X component : J_x ~ y j_z - z j_y
-$NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
-$NTR        & + meshgrid(i,2) * C_I_N(i,3,it) - meshgrid(i,3) * C_I_N(i,2,it)
-$NTR
-$NTR        ! Y component : J_y ~ z j_x - x j_z
-$NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
-$NTR        & + meshgrid(i,3) * C_I_N(i,1,it) - meshgrid(i,1) * C_I_N(i,3,it)
-$NTR
-$NTR        ! Z component : J_z ~ x j_y - y j_x
-$NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
-$NTR        & + meshgrid(i,1) * C_I_N(i,2,it) - meshgrid(i,2) * C_I_N(i,1,it)
-$NTR      enddo
-$NTR    enddo
+!$NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
+!$NTR    do it=1,2
+!$NTR      totalangmom(:,1,it) = 0.5 * R%D_I_S(:,1,it) ! spin part
+!$NTR      totalangmom(:,2,it) = 0.5 * R%D_I_S(:,2,it) ! spin part
+!$NTR      totalangmom(:,3,it) = 0.5 * R%D_I_S(:,3,it) ! spin part
+!$NTR      do i=1, nx*ny*nz
+!$NTR        ! X component : J_x ~ y j_z - z j_y
+!$NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
+!$NTR        & + meshgrid(i,2) * R%C_I_N(i,3,it) - meshgrid(i,3) * R%C_I_N(i,2,it)
+!$NTR
+!$NTR        ! Y component : J_y ~ z j_x - x j_z
+!$NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
+!$NTR        & + meshgrid(i,3) * R%C_I_N(i,1,it) - meshgrid(i,1) * R%C_I_N(i,3,it)
+!$NTR
+!$NTR        ! Z component : J_z ~ x j_y - y j_x
+!$NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
+!$NTR        & + meshgrid(i,1) * R%C_I_N(i,2,it) - meshgrid(i,2) * R%C_I_N(i,1,it)
+!$NTR      enddo
+!$NTR    enddo
 
-   
-$NTR    Txn(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,1) 
-$NTR    Txp(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,2)
-$NTR    Tyn(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,1) 
-$NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
-$NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
-$NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
+!   
+!$NTR    Txn(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,1) 
+!$NTR    Txp(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,2)
+!$NTR    Tyn(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,1) 
+!$NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
+!$NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
+!$NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)!!
 
-    print *, 'TOTAL J_Z', sum(TotalAngmom(:,3,1)) * dv, sum(TotalAngmom(:,3,2)) * dv
+!    call write_header(1)
+!    write(1, fmt=2) 
+!    write(1, fmt=1) 
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!$NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+!$NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
+!$NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
+!$NTR          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
+!$NTR          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
+!$NTR          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
+!$NTR          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
 
-    call write_header(1)
-    write(1, fmt=2) 
-    write(1, fmt=1) 
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
-          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
-          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
-          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
-          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
-          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
-          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
-        enddo
-      enddo
-    enddo
-
-    deallocate(TotalAngMom)
-    close(1)
+!$TR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+!$TR          &                                0.0d0,0.0d0,0.0d0, &
+!$TR          &                                0.0d0,0.0d0,0.0d0, &
+!$TR          &                                0.0d0,0.0d0,0.0d0, &
+!$TR          &                                0.0d0,0.0d0,0.0d0, &
+!$TR          &                                0.0d0,0.0d0,0.0d0, &
+!$TR          &                                0.0d0,0.0d0,0.0d0
+!        enddo
+!      enddo
+!    enddo
+!
+!    deallocate(TotalAngMom)
+!    close(1)
 
   end subroutine write_timeodd_densities
-
-  subroutine write_potentials(fname)
-    !---------------------------------------------------------------------------
-    ! Write the following potentials to a file named "fname"
-    !  F_I_I(n/p)    F_c       E_c      F_Nm_Nm (n/p)  G_I_NS(n/p) 
-    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  central       coulomb   coulomb   kinetic        spin-orbit   potentials
-    !                 direct   exchange
-    ! Remarks:
-    ! 
-    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
-    !      to the gradient and spin indices. These are arranged in lexographical
-    !      order.  
-    !   *) F_I_I should be the exact potential corresponding to the derivative 
-    !      of the Skyrme energy with respect to D_I_I. This means that it should
-    !      not include
-    !       - the contributions from constraints
-    !       - the contribution of the Coulomb interaction
-    !   *) To reproduce the complete state of the code, it is important that 
-    !      the Coulomb potentials written to file are the potentials 
-    !      corresponding to the charge density; for the direct potential this
-    !      is the U that satisfies 
-    ! 
-    !                 Delta U = 4 pi rho_charge
-    !
-    !      If the finite extent of the nucleons charge density is taken into 
-    !      account selfconsistently, this means that U is NOT the potential 
-    !      which should be added to F_I_I. 
-    !
-    !---------------------------------------------------------------------------
-    !
-    ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
-    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
-    ! where the first three numbers are the Cartesian coordinates (units of fm).
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
-    !---------------------------------------------------------------------------
-    ! IMPORTANT:
-    !  While this routine now claims to write V_so and V_pair to file, right now
-    !  it just writes zeros in those columns.
-    !---------------------------------------------------------------------------
-    character(len=*), intent(in) :: fname
-    real(KIND=dp), pointer       :: Vnucp(:,:,:), Vnucn(:,:,:)
-    real(KIND=dp), allocatable   :: Coulp(:,:,:), Excp(:,:,:)
-
-    real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
-    character(len=1) :: directions(3) 
-
-    1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
-      &      'V_cd', 20x, 'V_ce', 20x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
-    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a potential to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-
-    call write_header(1)
-    write(1, fmt=1, advance='no') 
-  
-    directions = (/'x', 'y', 'z'/)
-    do mu=1,3
-      do nu=1,3
-        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
-        &                             directions(mu), directions(nu)
-      enddo
-    enddo
-    write(1, fmt='()')
-    
-    ! The central nuclear potential is the field associated with D_I_I, but it
-    ! should not include the constraints, nor the contribution of the 
-    ! direct and exchange Coulomb potentials
-    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
-    
-    temp = F_I_I(:,1:2) - constraint_I_I
-
-    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
-    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Subtracting the coulomb potential depends on our treatment of the 
-    ! proton and neutron finite size effect
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effect
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! The index juggling is ugly, but necessary, because the Coulomb 
-      ! potential has a different size than the Lagrange mesh.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
-            &                       - CoulombPotential(i+ox,j+oy,k+oz)    &
-            &                       - ExchangePotential(i,j,k)
-          enddo
-        enddo
-      enddo
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Note that there is no index juggling since these matrices are 
-      ! conveniently defined on the ordinary mesh.
-      Vnucn = Vnucn - FoldedCoul(:,:,:,1)       - FoldedExchange(:,:,:,1)
-      Vnucp = Vnucp - FoldedCoul(:,:,:,2)       - FoldedExchange(:,:,:,2)
-    endif
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The potentials related to the charge density
-    Coulp = CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    Excp  = ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Mesh coordinates and F_I_I and coulomb contribution to it.
-          write(1, fmt='(3f8.3, 4es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k),        &
-          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
-          &            Coulp(i,j,k), Excp(i,j,k) 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! the contributions above are indexed according to (x,y,z) but 
-          ! we do not have this luxury for the following potentials
-          mi = meshindex(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
-          !NS_t0t3:
-          !write(1, fmt='(2es25.12)', advance='no') &
-          !&         F_Nm_Nm(mi,1), F_Nm_Nm(mi,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The spin-orbit potential is the field G_I_NS, associated with the
-          ! density C_I_NS
-          !do mu=1,3
-          !  do nu=1,3
-          !    write(1, fmt='(2es25.12)', advance='no') &
-          !    &             G_I_NS(mi,mu,nu,1), G_I_NS(mi,mu,nu,2)
-          !  enddo
-          !enddo
-          write(1, fmt='()') !  newline character
-        enddo
-      enddo
-    enddo
-
-    close(1)
-  end subroutine write_potentials
-
-  subroutine read_potentials(chan, ifn)
-    !---------------------------------------------------------------------------
-    ! Read mean-field potentials from a separate file.
-    !
-    ! Input: 
-    !  * chan : integer, channel number to read the file
-    !  * ifn  : input filename (will be checked for existence)
-    !
-    ! Caution: this routine is currently foreseen for a specific application, 
-    !          limited to maximally symmetric calculations and .func files
-    !          for which F_Nm_Nm and G_I_NS potentials are defined.
-    !---------------------------------------------------------------------------
-    use Coulombmod ! module explicitly 'used' in order to be able to place the 
-                   ! values of the direct and exchange Coulomb potentials 
-                   ! correctly on the mesh
-
-    integer, intent(in)          :: chan
-    character(len=*), intent(in) :: ifn
-
-    logical :: exists
-    integer :: i,j,k,io, it, ox, oy, oz, headercount
-    !integer :: mu, nu
-    real(KIND=dp), allocatable :: Vc(:), Ec(:)
-    real(KIND=dp) :: x,y,z
-    character(len=200) :: temp
-
-    inquire(file=inputfilename, exist=exists)
-    if(.not.exists) then
-      print *, 'Input file specified does not exist!'
-      stop
-    endif
-
-    open (chan,file=ifn)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! We need to skip any header lines (indicated by #).
-    ! For a Tantalus-created file, there are 14 of them by default but other 
-    ! people might write a different amount
-    io = 0; headercount = -1
-    do while(io.eq.0) 
-      headercount = headercount + 1
-      read(chan, iostat=io, fmt='(a200)') temp
-      if(temp(1:1) .ne. '#') io = 1
-    enddo  
-    ! We've found an error; we have counted the number of header lines!
-    rewind(chan)
-    ! ... and now we skip this number of lines    
-    do i=1,headercount
-        read(chan, fmt=('()'))
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Allocate the relevant potentials    
-    allocate(F_I_I  (nx*ny*nz,4))     ; F_I_I   = 0.0d0
-    !NS_t0t3:
-    !allocate(F_Nm_Nm(nx*ny*nz,4))     ; F_Nm_Nm = 0.0d0
-    !allocate(G_I_NS (nx*ny*nz,3,3,4)) ; G_I_NS  = 0.0d0
-    allocate(Vc(nx*ny*nz))            ; VC      = 0.0d0
-    allocate(Ec(nx*ny*nz))            ; EC      = 0.0d0
-
-    ! We assume the points on the file are correctly ordered in 
-    ! FORTRAN fashion, such that we do not have to worry about looping 
-    ! separately over x/y/z and can just loop once over all mesh points.
-    ! This also means the coordinate information is not used.
-    do i=1,nx*ny*nz
-      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
-      &                            x,y,z, & !unused
-      &                            F_I_I(i,1), F_I_I(i,2),     & ! U(r)
-      &                            Vc(i),  Ec(i)                 ! Coulomb
-      !!NS_t0t3:
-      !read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-      !&                            F_Nm_Nm(i,1), F_Nm_Nm(i,2)    ! kinetic
-
-      !do mu=1,3
-      !  do nu=1,3
-      !    read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-      !    &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
-      !  enddo
-      !enddo
-      read(chan, *) ! Advance to new line
-      
-      if(io.ne.0) then
-        print *, 'Problem encountered reading potential file ', inputfilename
-        print *, 'IOSTAT = ', io
-        stop
-      endif
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Make sure the Coulomb module is configured with the right array dimensions
-    call setupCoulomb
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The index juggling is ugly, but necessary, because the Coulomb 
-    ! potential has a different size than the Lagrange mesh.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-      
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
-        enddo
-      enddo
-    enddo
-    
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effects; correction is simple
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      F_I_I(:,2) = F_I_I(:,2) + Vc(:) + Ec(:)
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Calculate folded potentials from the read-in potentials
-      call obtain_folded_potentials()
-      ! ... and correct F_I_I for them with ugly index juggling
-      do it=1, 2
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-
-              F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)           &
-              &                              + FoldedCoul(i,j,k,it)            &
-              &                              + FoldedExchange(i,j,k,it)
-            enddo
-          enddo
-        enddo
-      enddo
-    endif
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Make sure isospin combinations are made correctly for all potentials
-    F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
-    F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
-             
-    !NS_t0t3:
-    !F_Nm_Nm(:,3) = F_Nm_Nm(:,1) + F_Nm_Nm(:,2)
-    !F_Nm_Nm(:,4) = F_Nm_Nm(:,1) - F_Nm_Nm(:,2)
-
-    !do mu=1,3
-    !  do nu=1,3
-    !    G_I_NS(:,mu,nu,3) = G_I_NS(:,mu,nu,1) + G_I_NS(:,mu,nu,2)
-    !    G_I_NS(:,mu,nu,4) = G_I_NS(:,mu,nu,1) - G_I_NS(:,mu,nu,2)
-    !  enddo
-    !enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Close channel after succesfull IO operations.
-    close(chan)
-  end subroutine read_potentials
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------
@@ -2547,8 +1526,11 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     1 format('#  X[fm]   Y[fm]   Z[fm]')
     2 format(7x, ' |Psi_', i1, '|^2' , 10x)
 
+    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
+
     if(.not.allocated(blocked_sps)) then
       print *, 'Cannot write single-particle wavefunctions to file.'
+      deallocate(psis)
       return
     endif
 
@@ -2566,7 +1548,6 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     enddo
     write(1, fmt=*)
     
-    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
     do wave=1,blocknumber
       tempwf_one(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,1,wave)
       tempwf_two(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,2,wave)
@@ -2726,6 +1707,69 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     enddo
   
   end subroutine write_inertias
+#endif
+
+   subroutine init_fam_file(l, m, eff_charge_n, eff_charge_p, fname)
+    !---------------------------------------------------------------------------
+    ! Create file to write strength function S(omega, F) obtained from FAMtalus
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by a dedicated line explaining the content of each column.
+    ! The format of the body of said file is
+    !   omega[MeV]    S_free[...]     S[...]   iter
+    !                         '-> unit depends on the external field                  
+    ! 
+    ! The actual strength is written to this file by subroutine append_fam_file()
+    ! called each time a frequency is converged. 
+    !---------------------------------------------------------------------------
+    integer, intent(in)               :: l, m
+    real(kind=DP), intent(in)         :: eff_charge_n, eff_charge_p
+    character(len=*), intent(in)      :: fname
+    integer                           :: io, idx
+
+    print *, ' writing strength function to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+    2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
+
+
+    open(1,file=fname, status='new', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2)      ! write column names
+
+    close(1)
+
+  end subroutine init_fam_file
+
+  subroutine append_fam_file(omega, S, iter, S_free, fname)
+    real(kind=dp), intent(in)         :: omega, S, S_free
+    integer, intent(in)               :: iter
+    character(len=*), intent(in)      :: fname
+    integer                           :: io
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, fmt='(f8.3, es25.12E3, es25.12E3, i10)') omega, S_free, S, iter
+      
+    close(1)
+
+  end subroutine append_fam_file
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------
@@ -2748,6 +1792,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
       endif
   end function force_halfinteger
 
+#if ($FAM == 0)
   subroutine combi_output(COMBI)
     !---------------------------------------------------------------------------
     ! Write an extra file to serve as input to a combinatorial calculation 
@@ -2943,5 +1988,5 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
 
     close(unit=6)
   end subroutine combi_output
-    
+#endif    
 end module IO

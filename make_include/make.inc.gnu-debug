@@ -1,0 +1,57 @@
+####################################################################
+#  Tantalus make include file.                                     #
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
+# File to be used for serial GNU gfortran without HDF5 in maximal  #
+# debugging mode.                                                  #
+#                                                                  #
+# Tested on:                                                       #
+#   - ELBERETH : W.R.s home machine                                #
+#   - ASTROPC19: W.R.s office machine                              #
+####################################################################
+
+# Directory names  (will be created if they don't exist)
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - EXEC_DIR = directory for storage of the final executables
+# - MF_SRC_DIR  = source code for mean-field calculations as processed by Hephaestos
+# - MF_OBJ_DIR  = storage for mean-field object files
+# - MF_MOD_DIR  = storage for mean-field module files
+# - FAM_SRC_DIR  = source code for linear-response calculations as processed by Hephaestos
+# - FAM_OBJ_DIR  = storage for linear-response object files
+# - FAM_MOD_DIR  = storage for linear-response module files
+EXEC_DIR    =  exec
+MF_SRC_DIR  =   src
+MF_OBJ_DIR  =   obj
+MF_MOD_DIR  =   mod
+FAM_SRC_DIR =   src_fam
+FAM_OBJ_DIR =   obj_fam
+FAM_MOD_DIR =   mod_fam
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Python interpreter with which to invoke Hephaestos
+PYTHON_CMD  = python3
+
+# Direct compiler options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# CXX        : actual fortran compiler invokation
+# OPTFLAGS   : optimisation flags to pass to the compiler
+# CXXFLAGS   : other "general use" flags
+# PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
+# DEBUG_LEVEL: debugging level to pass to the code
+# MODFLAG    : flag to indicate the location of module files, i.e. '-J' for gfortran
+# USE_MPI    : whether (1) or not (0) to compile with MPI support
+CXX         = gfortran
+OPTFLAGS    = -O0 -g -Wall -Wno-uninitialized -fbacktrace -fbounds-check
+CXXFLAGS    =
+MODFLAG     = -J
+PREPFLAG    = -cpp
+DEBUG_LEVEL = 0
+USE_MPI     = 0
+
+# Linking options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# USE_HDF5    :  have the executable offer HDF5 support or not
+# HDF5_LIB :  linking statements for the HDF5 library
+# LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
+USE_HDF5           = 0
+HDF5_LIB           =
+LINEAR_ALGEBRA_LIB = -llapack -lblas

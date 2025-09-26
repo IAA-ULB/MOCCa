@@ -818,6 +818,7 @@ $PCONSERVED    if(mod(l,2).eq.0) then
         N2= HFBlocks(B+1)
         T = N + N2
 
+        allocate(U(T,T), V(T,T))
         U = bogo(sb+  1:sb+  T,sb+ T+1:sb+2*T)
         V = bogo(sb+T+1:sb+2*T,sb+ T+1:sb+2*T)
         
@@ -842,6 +843,7 @@ $NTR        &                          - tmp(si+1:si+T,si+1:si+T)
 $TR        Q20(si+1:si+T,si+1:si+T) = - Q20(si+1:si+T,si+1:si+T) &
 $TR        &                          - tmp(si+1:si+T,si+1:si+T)
 
+        deallocate(U,V)
         si = si +   N +   N2
         sb = sb + 2*N + 2*N2
       enddo
@@ -965,7 +967,7 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 
     ! Generate the necessary spherical harmonic
     allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qlm(nx*ny*nz))
-    call GenSphericalHarmonics(l,nx,ny,nz, &
+    call generate_spherical_harmonics(l,nx,ny,nz, &
     &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis) 
 

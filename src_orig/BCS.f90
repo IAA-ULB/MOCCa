@@ -12,11 +12,12 @@ module BCS
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- !
+ !  
  ! Module implementing the routines for the solution of the BCS equations.
  !
  !==============================================================================
 
+ use vectors, only: PotentialVector
  use wavefunctions
  use pairingcutoffs
 
@@ -56,16 +57,16 @@ $N1DELTA                    &      dpsi, &
 $N2DELTA                    &            ddpsi, &
 $N3DELTA                    &                   dddpsi, &
 $SYMDELTA                   &                          sx,sy,sz, &
-&                                                               iso, onthefly) &
+&                                                            iso, onthefly, F) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
-      ! Dummy function to allow this module to acces the functional.f90 module 
-      ! to acces the information on the acces of deltas.
-      ! Note that the actual delta_action routine's interface is decided by 
-      ! Hephaestos at compiletime, and as such this dummy interface has to also
-      ! be decided at that time.
+      ! Dummy function to allow this module to access the functional.f90 module 
+      ! routine to calculate the "action of" Delta.
       !-------------------------------------------------------------------------
-      real*8, intent(in)    :: psi(:,:)  
+      import PotentialVector ! explicit import statement, otherwise the 
+                             ! interface would be invalid
+      real*8, intent(in)                :: psi(:,:)
+      type(PotentialVector), intent(in) :: F
 $N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
 $N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
 $N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
@@ -138,13 +139,14 @@ contains
   character(len=2), intent(in) :: BlockLowest(:)
   integer, allocatable         :: blocked_qps(:)
   
-  1 format('---------------------------------------',/,     &
-    &        ' Warning! ',/,                                &
-    &        ' BCS calculations did not converge.',/,       &
-    &        ' Pairing iterations:  ', i4,/,                &
-    &        ' Old Fermi:    ', 2f12.7,/,                   &
-    &        ' New Fermi:    ', 2f12.7,/,                   &
-    &        '---------------------------------------')
+  1 format('--------------------------------------------------------',/, &
+    &        ' BCS calculations did not converge.',/,  &
+    &        ' Pairing iterations:  ', i4,/,           &
+    &        ' Old Fermi         :  ', 2f15.10,/,      &
+    &        ' New Fermi         :  ', 2f15.10,/,      &
+    &        ' Difference        :  ', 2f15.10,/,      &
+    &        ' Particle deviation:  ', 2f15.10,/,      &
+    &        '-----------------------------------------------------------')
 
   if(.not.allocated(Bcsf)) then
     allocate(bcsf(nwt)) ; bcsf = 0
@@ -163,26 +165,31 @@ contains
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
     elseif(iter.eq.maxBCSiter) then
-      print 1, iter, oldfermi, fermi
+      call calcBCSoccupations(Fermi)
+      if(MPI_RANK.eq.0) print 1, iter, oldfermi, fermi, fermi-oldfermi, &
+      &                          sum(BCSoccupations(1:nwn)) -neutrons,&
+      &                          sum(BCSoccupations(nwn+1:))-protons
     endif          
   enddo
   ! Iteration end  
+  call BCSQPEnergies(Fermi)
   call calcBCSoccupations(Fermi)
   !-----------------------------------------------------------------------------
   ! Rho_pairing is diagonal for a BCS calculation
-  rho_can = 0.0
+  rho_can = 0.0d0
   do wave=1,nwt
     ! Occupations are 
     !   n_a = f_i + v_i^2 (1 - 2 * f_i)
     fac = BCSf(wave) 
     ! Note that there is already a factor two due to timereversal in    
     ! BCSoccupations, but not in the first term in the formula above.
-    rho_can(wave) = 2.0*fac + BCSoccupations(wave) * (1 - 2.0*fac)
+    rho_can(wave) = 2.0d0*fac + BCSoccupations(wave) * (1 - 2.0d0*fac)
 
     ! Failsafe
-    if(rho_can(wave).lt.0.0) then
-       rho_can(wave) = 0.0
-    endif
+    ! 06/05/'25: disabled because it lead to issues in pasta calculations
+    ! if(rho_can(wave).lt.0.0) then
+    !   rho_can(wave) = 0.0
+    ! endif
   enddo
 
   !-----------------------------------------------------------------------------
@@ -192,12 +199,12 @@ contains
   !
   ! u * v  = 0.5 * Delta/(sqrt(epsilon**2 + Delta**2))
   !-----------------------------------------------------------------------------
-  kappa_can = 0.0
+  kappa_can = 0.0d0
   do wave=1,nwt
      ! At finite temperature, the elements of kappa are
      ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
      fac             = BCSf(wave)
-     kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0*fac)
+     kappa_can(wave) = 0.5d0 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0d0*fac)
   enddo
 
   ! Qpenergies in this case are the BCSqpenergies
@@ -208,10 +215,17 @@ contains
 
  end subroutine solvepairing_BCS
  
- subroutine CalcBCSGaps(fermi, stabfactor)
+ subroutine CalcBCSGaps(fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  fermi     : chemical potential for both nucleon species
+    !  stabfactor: factor to use in the stabilised pairing
+    !  F         : set of mean-field potentials
     !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F 
     integer                      :: wave, iso, wave_global
     real(KIND=dp)                :: trash(2)
     real(KIND=dp), allocatable   :: deltapsi(:,:)
@@ -224,7 +238,6 @@ contains
     !                 variables such as the number of mesh points. Switching to an
     !                 automatic array here will lead to memory leaks with IFORT
     !                 compilers.
-    real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
 #if(USE_MPI>0)
     integer                      :: mpi_err
 #endif
@@ -235,7 +248,7 @@ contains
     if(ConstantGap) then  
       ! Constantgap pairing
       do wave=1,nwt
-          BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
+          BCSGaps(wave) = 2.0d0 * PCutoffs(wave)**2
       enddo
     else
        ! Use the delta_action function to calculate the matrix elements
@@ -253,7 +266,7 @@ $N1DELTA    &                            hfdpsi(:,:,:,wave),            &
 $N2DELTA    &                           hfddpsi(:,:,:,wave),            &
 $N3DELTA    &                          hfdddpsi(:,:,:,wave),            &
 $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
-            &                                                iso,.false.)
+            &                                             iso,.false.,F)
  
  
             BCSgaps(wave_global) =  sum(hfpsi(:,:,wave)*deltapsi)*dv*          &
@@ -302,7 +315,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
 
       fac =  BCSf(wave) 
       lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
-      lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)         
+      lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)
     enddo
     do it=1,2
         Fermi(it)=(particles(it)  - lambdasums(1,it))/lambdasums(2,it)
@@ -327,16 +340,28 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas
-    integer, allocatable         :: proton_block(:), neutron_block(:)
-    integer, allocatable         :: blocked_qps(:), indices(:), toblock(:)
     character(len=2), intent(in) :: BlockLowest(:)
+    integer, allocatable, intent(inout) :: blocked_qps(:)
+    integer, allocatable         :: proton_block(:), neutron_block(:)
+    integer, allocatable         :: indices(:), toblock(:)
   
     f = 0 ; qpb = 0
+    !---------------------------------------------------------------------------
+    ! Trash statements to fool CRAY compilers. If this is not here, the compiler
+    ! complains about the array being used before being allocated as soon as 
+    ! the optimisation level is equal to -O1 or above. I guess this is related 
+    ! to the highly-nested nature of this routine ...
+    allocate(indices(1))       ; deallocate(indices)
+    allocate(proton_block(1))  ; deallocate(proton_block)
+    allocate(neutron_block(1)) ; deallocate(neutron_block)
+    allocate(toblock(1))       ; deallocate(toblock)
+    !--------------------------------------------------------------------------
+
     if(allocated(blocked_qps)) deallocate(blocked_qps)
     !---------------------------------------------------------------------------
     ! Zero-temperature
     if(inversetemp .lt. 0) then
-      occ = 0.0
+      occ = 0.0d0
       select case(Blocktype)
       case(0)
         ! No blocking, all the f are zero
@@ -430,13 +455,15 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         c  = 0
         do B=1,8
             N = HFBlocks_global(B) ; if(N.eq.0) cycle
-            indices = Order(BCSqps(si+1:si+N))
+            allocate(indices(N))
+            indices = Order(BCSqps(si+1:si+N),N)
             do i=1, toblock(B)
               f(si+indices(i)) = occ
               c = c+1
               blocked_qps(c) = si+indices(i)
             enddo            
             si = si + N
+            deallocate(indices)
         enddo
         deallocate(proton_block, neutron_block) 
         !-----------------------------------------------------------------------
@@ -452,7 +479,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       select case(gas)
       case(0)
         ! No special treatment of the gas
-        f = 1./(1. + exp(inversetemp * BCSqps))
+        f = 1.d0/(1.d0 + exp(inversetemp * BCSqps))
       case(1)
         ! Not implemented!
         call stp('gastype = 1 is not implemented in the BCS module.')
@@ -460,9 +487,9 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         ! Only take into account the bound states
         do wave=1,nwt
           if(spenergies(wave) .lt. 0) then
-            f(wave) = 1./(1. + exp(inversetemp * BCSqps(wave)))
+            f(wave) = 1.d0/(1.d0 + exp(inversetemp * BCSqps(wave)))
           else 
-            f(wave) = 0
+            f(wave) = 0d0
           endif
         enddo
       case DEFAULT
@@ -515,7 +542,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     real(KIND=dp)               :: eqp
     
     if(.not.allocated(BCSoccupations)) then
-      allocate(BCSoccupations(nwt)) ; BCSoccupations = 0.0
+      allocate(BCSoccupations(nwt)) ; BCSoccupations = 0.0d0
     endif
     
     do wave=1,nwt
@@ -525,7 +552,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       eqp = BCSqps(wave)
 
       ! Zero-temperature BCS
-      BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+      BCSOccupations(wave) = 0.5d0*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
     ! Time reversal symmetry
     BCSOccupations = 2 * BCSOccupations
@@ -559,16 +586,16 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       integer :: wave
 
       ! BCS dispersion
-      BCSdispersion = 0.0    
+      BCSdispersion = 0.0d0
       do wave=1,nwn
         BCSdispersion(1) = BCSdispersion(1)                                    &
-        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + 0.5d0*rho_can(wave)*(1-0.5d0*rho_can(wave))&
         &                             + kappa_can(wave)**2
       enddo
 
       do wave=nwp+1,nwt
         BCSdispersion(2) = BCSdispersion(2)                                    &
-        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + 0.5d0*rho_can(wave)*(1-0.5d0*rho_can(wave))&
         &                             + kappa_can(wave)**2
       enddo
       BCSdispersion  = 2 * BCSdispersion
@@ -600,7 +627,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         it = 1
         if(wave.gt.nwn) it = 2
       
-        uv = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+        uv = 0.5d0 * BCSgaps(wave)/(BCSqps(wave))
         v2 =       BCSoccupations(wave)
 
         ! Note that the definition of the gaps include the cutoff factors. 
@@ -624,26 +651,25 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
  
    end subroutine clean_BCS
 
-   function Order(energies) result(Indices)
+   function Order(energies, nwf) result(Indices)
     !---------------------------------------------------------------------------
     ! Returns the indices for an ordered traversal of the input array.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !  energies :  real*8, a set of energies to be ordered
+    !  nwf      :  size of the array to be ordered
     ! Output:
     !  indices  :  integer, the indices to get the energies in ascending order  
     !---------------------------------------------------------------------------
-    integer, allocatable       :: Indices(:)
-    real(Kind=dp),intent(in)   :: Energies(:)
-    real(Kind=dp),allocatable  :: Eswap(:)
-    integer                    :: i, nwf,  HolePos, ToInsertIndex
+    integer, intent(in)        :: nwf
+    real(Kind=dp),intent(in)   :: Energies(nwf)
+    real(Kind=dp)              :: Eswap(nwf)
+    integer                    :: Indices(nwf)
+    integer                    :: i, HolePos, ToInsertIndex
     real(Kind=dp)              :: ToInsert
 
-    nwf = size(energies)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-    if(allocated(indices))  deallocate(indices)
-    allocate(Indices(nwf), Eswap(nwf))
     do i=1,nwf
        Indices(i) = i 
     enddo
@@ -661,14 +687,13 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         Eswap(HolePos) = Eswap(HolePos-1)
         Indices(HolePos) = Indices(HolePos-1)
         HolePos = HolePos - 1
-        if(HolePos.eq.1.0_dp) exit
+        if(HolePos.eq.1) exit
       enddo
       !Insert the energy at the correct place
       Eswap(HolePos)    = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
 
-    deallocate(Eswap)
   end function Order
 !===============================================================================
 !  Never to be used function to define an interface for delta_action

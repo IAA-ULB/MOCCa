@@ -1,7 +1,7 @@
 # Configuration file for Tantalus compilation
 # Functional : LO Skyrme-type (t0t3)
 FUNC_FILE = 'LO.func'
-# Symmetries : EV8-style
+# Symmetries : CR8-style
 SYMSTRING = 'Rz,P,STy'
 REDUCE    = [1,1,1]
 # Read symmetries: EV8-style

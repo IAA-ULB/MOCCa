@@ -27,6 +27,7 @@ nav:
         - momentparam      : user-guide/namelists/momentparam.md
         - momentconstraint : user-guide/namelists/momentconstraint.md
         - cranking         : user-guide/namelists/cranking.md
+        - fam              : user-guide/namelists/fam.md
     - "Warmstarting the code":
         - wavefunction (.wf) files: user-guide/wffile.md
         - potential (.pot) files: user-guide/potfile.md

@@ -8,8 +8,11 @@
 module timing
 
   use compilation,     only : dp
-  use geninfo,         only : MPI_RANK, NCORES
+  use geninfo,         only : MPI_RANK, NPROCS, MPI_BLOCK_ASSIGNMENTS
   use iso_fortran_env, only : int64, real64
+#if(USE_MPI > 0)
+  use MPI            , only : MPI_COMM_WORLD, MPI_BARRIER
+#endif
 
   implicit none (external)
 
@@ -17,13 +20,22 @@ module timing
 
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
+  integer :: T_wfini, T_wfoutput, T_wfinput
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
-  integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
+  integer :: T_subspace_rotation, T_subrot_transfo, T_subrot_diag
+  integer :: T_calc_sph, T_calc_sph_me, T_update_sph
+  integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
-  integer :: T_HFdiag, T_Hortho, T_moment_cutoff
-  integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_F_precon
+  integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
+  integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
+  integer :: T_fam
+  integer :: T_den_perturbed, T_den_perturbed_sym, T_den_perturbed_asym
+  integer :: T_spme_perturbed, T_spme_perturbed_sym, T_spme_perturbed_asym
+#if(USE_MPI > 0)
+  integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
+#endif
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)
@@ -299,7 +311,7 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
-    do r=1, NCORES
+    do r=1, NPROCS
       if(MPI_RANK == r) then
         if (current_context /= 0) then
            write (*,*) "WARNING: There are timers still running. They should be &
@@ -397,37 +409,61 @@ contains
   end subroutine print_all_timers_aux
 
   subroutine print_all_timers()
-
+    !--------------------------------------------------------------------------
+    ! Print the timing information on a run.
+    !
+    ! For serial execution, this prints a single table reflecting all calculations.
+    ! For parallel execution, this prints one table for every symmetry block
+    ! with timing information taken from the lowest rank assigned to that
+    ! symmetry block.
+    !--------------------------------------------------------------------------
     integer :: nsub, r
     real(real64) :: tsub, total
 
 #if(USE_MPI>0)
-    integer :: mpi_err
+    integer :: mpi_err, B
 #endif
 
     call calc_total_time(total)
 
-    do r=0,NCORES-1
 #if(USE_MPI>0)
+    do B=1,8
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
-#endif
-      if(MPI_RANK==r) then
-        print *, '-------------------------------------------------------------'
-        print *, 'Timers of rank ', r
-        print *, '-------------------------------------------------------------'
-        write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
-             "id", "Timer name                                    ", &
-             "# of calls", "time (s)", "% total"
-        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
-        write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
-                "TOTAL", "-", total, 100.d0
-        call print_all_timers_aux(0_int64,0,nsub,tsub,total,.true.)
-        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
-      endif
-#if(USE_MPI>0)
+      do r = 0, NPROCS-1
+         ! Searching for the first rank assigned to this symmetry block
+         if(MPI_BLOCK_ASSIGNMENTS(r+1) .eq. B ) then
+            if(MPI_RANK .eq. r) then
+               print *,'------------------------------------------------------------------------------'
+               print *, 'Timers of rank ', r, ' which deals with block B = ', B
+               print *,'------------------------------------------------------------------------------'
+               write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
+                     "id", "Timer name                                    ", &
+                     "# of calls", "time (s)", "% total"
+               write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+               write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+                        "TOTAL", "-", total, 100.d0
+               call print_all_timers_aux(0_int64,0,nsub,tsub,total,.true.)
+               write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+            endif
+            exit
+         endif
+      enddo
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
+   enddo
+#else
+   r = 0
+   print *,'------------------------------------------------------------------------------'
+   print *, 'Timers of rank ', r
+   print *,'------------------------------------------------------------------------------'
+   write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
+         "id", "Timer name                                    ", &
+         "# of calls", "time (s)", "% total"
+   write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+   write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+            "TOTAL", "-", total, 100.d0
+   call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+   write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
 #endif
-    enddo
 
   end subroutine print_all_timers
 

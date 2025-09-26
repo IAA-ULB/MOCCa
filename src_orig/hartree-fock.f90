@@ -24,11 +24,13 @@ module hartreefock
  ! NTR: $NTR
  !==============================================================================
  
+ use vectors, only: DensityVector, PotentialVector
  use wavefunctions
  
  implicit none
 
  real(KIND=dp) :: HFdispersion(2) = 0.0
+ real(KIND=dp) :: FermiEnergyHF(2) = 0.0
  
 contains
  
@@ -42,7 +44,7 @@ contains
     ! non-magic numbers of nucleons.
     !---------------------------------------------------------------------------
 
-    integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
+    integer :: i,j,jp1,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp), intent(out) :: occupations(nwt)
 
@@ -68,6 +70,13 @@ contains
       p = p + int(occupations(j))
       i = i + 1
     enddo
+    !NS: defining FermiEnergy even in HF case as right between last occupied
+    ! and the first unoccupied level.
+    if(ProtonUpperBound .gt. 0) then
+        jp1=ProtonOrder(i)
+        FermiEnergyHF(2)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+    endif
+    
     i=1
     do while(n.lt.NeutronUpperBound .and. i.le.nwn)
       j              = NeutronOrder(i)
@@ -76,6 +85,11 @@ contains
       n = n + int(occupations(j))
       i = i + 1
     enddo
+    if(NeutronUpperBound .gt. 0) then
+        jp1=NeutronOrder(i)
+        FermiEnergyHF(1)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+    endif
+        
     return
   end subroutine NaiveFill
 
@@ -260,11 +274,14 @@ contains
     real(KIND=dp), intent(in) :: energies(:), N, hbm  
     integer, intent(in)       :: gas
 
-    if(abs(Nmin) .lt. pairing_prec) then
+    ! We allow a larger error here; in my experience there are calculations 
+    ! where this routine keeps on calling itself because differences get
+    ! smaller than machine precision...
+    if(abs(Nmin) .lt. 10 * pairing_prec) then 
         x = xmin        
         return 
     endif
-    if(abs(Nmax) .lt. pairing_prec) then
+    if(abs(Nmax) .lt. 10 * pairing_prec) then
         x = xmax
         return
     endif   
@@ -366,15 +383,16 @@ contains
     s= 2*s
   end function gasoccupations
 
-  subroutine CalcHFgaps(Fermi, stabfactor)
+  subroutine CalcHFgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Dummy routine.
     !
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    real(KIND=dp)             :: trash(2) 
-    ! trash statement to stop the compiler complaining
-    trash = fermi ; trash=stabfactor
+    real(KIND=dp), intent(in)         :: Fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F
+    real(KIND=dp)                     :: trash(2) 
+    ! trash statements to stop the compiler complaining about unused arguments
+    trash = fermi ; trash=stabfactor ; trash = F%F_I_I(1,1)
 
   end subroutine calcHFgaps
 

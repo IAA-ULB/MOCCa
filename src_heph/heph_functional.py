@@ -82,7 +82,7 @@ vmicro_found          = False # Whether or not this functional file will
 #-------------------------------------------------------------------------------
 #assume_locality = 0
 
-def initfunctional(fname, so, density_spwf_summation):
+def initfunctional(fname, so, density_spwf_summation, fam_active):
     """
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       Initialize everything relevant about this module
@@ -111,7 +111,7 @@ def initfunctional(fname, so, density_spwf_summation):
     #---------------------------------------------------------------------------
     # Check if time-reversal (or time-parity) is conserved
     if(so.timelike):
-      RemoveTimeOddTerms()
+      RemoveTimeOddTerms(fam_active)
       
     #---------------------------------------------------------------------------
     # Reorder terms, such that everything which is "grouped" by structure 
@@ -126,6 +126,7 @@ def initfunctional(fname, so, density_spwf_summation):
     # Generating the list of all densities and the total number of derivatives
     tempden     = []
     minder      = []
+    temp_intermediate = []
     for term in Functional_terms:
        (densities,coup) = ParseDensities(term)
        totalder = 0
@@ -140,6 +141,7 @@ def initfunctional(fname, so, density_spwf_summation):
        # add density and set minimum number of derivatives for this term
        for den in densities:
            tempden.append(den)
+           temp_intermediate.append(False) # these are "true" densities
            if(len(densities)<=2):
              minder.append((totallap, totalder))
            else:
@@ -161,38 +163,52 @@ def initfunctional(fname, so, density_spwf_summation):
     #---------------------------------------------------------------------------
     if(density_spwf_summation):
       for j,den in enumerate(tempden):
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Note: because we add to the end of this list while traversing it, we
         #       automatically do the entire process recursively.
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         (der, lap, left, right, coup, cross) = \
                         ParseOperators(den,so.timelike)
         if(minder[j][1] > 0):
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap,      left, rright))
           minder.append((0,0))
+          temp_intermediate.append(True) # these are intermediate objects
+
         if(minder[j][0] != 0 or minder[j][1] == 2):
           # Add in all densities needed for the Laplacian ....
           lleft  =  'NN' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright =  'NN' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, left, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           lleft  =  'N' + left.replace('I','')
           rright =  'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
 
           # ... but also the external order one derivative
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1,  left, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
         elif(minder[j][1]>2):
           print ("Hephaestos cannot combine DENSUM=1 with high order derivatives yet.")
           sys.exit(1)
@@ -205,6 +221,7 @@ def initfunctional(fname, so, density_spwf_summation):
     # B) removing contractions when the full density will be calculated
     Densities_needed.append(tempden[0])
     deriv_needed.append([])
+    intermediate_status.append(False)  # the first density is a "real" one
 
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = \
@@ -258,6 +275,7 @@ def initfunctional(fname, so, density_spwf_summation):
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
+            intermediate_status.append(temp_intermediate[i])
 
     # Clean up the deriv_needed array and add all combinations that might be 
     # necessary for calculating fields etc. This call is not strictly needed 
@@ -497,17 +515,25 @@ def ReadFunctional(fname):
 
   return description  
 
-def RemoveTimeOddTerms():
+def RemoveTimeOddTerms(fam_active):
     """
-    We remove all terms that contain time-odd densities. 
+      We remove all terms from the EDF specification that contain
+      time-odd densities IF we are targetting a mean-field code.
+
+      IF targetting a FAM executable, we keep ALL terms.
+
+      Input:
+      ------
+        fam_active : if True, keep all terms.
     """
     global Functional_terms, coupling_constants, density_dependence
     global density_dependence, isospin_indices, extra_calls
     
 
     toremove = []
-    for i,term in enumerate(Functional_terms):
-      (densities,coup) = ParseDensities(term)      
+    if(not fam_active):
+     for i,term in enumerate(Functional_terms):
+      (densities,coup) = ParseDensities(term)
 
       timeodd= False
       totalt = +1
@@ -679,31 +705,61 @@ def ProcessParameterization(fname, src, target):
                 generated.write(Template(line).substitute(dic))  
 
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
-                      density_spwf_summation):
+                      fam_active, density_spwf_summation):
     """
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Master routine calling the other ones to generate a functional.
+     
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+     Input:
+      - fname: name of the functional file, without the directory structure
+      - src:  source directory where the templates are stored
+      - target: target directory where the generated code will be placed
+      - so:   set of symmetry options
+      - oldso: set of symmetry options for input wf files
+      - ph_pp_decoupl: boolean determining whether pairing terms are decoupled
+                       from the particle-hole part of the functional.
+      - fam_active:  boolean determining whether we are building a mean-field 
+                     or a finite-amplitude linear response code.
+      - density_spwf_summation: boolean determining whether derivatives of 
+                               densities are calculated through summation over 
+                               spwfs or derivative calls.
+     Output:
+      - pot_declaration: a (large) string containing the fortran code for the
+                         declaration of mean-field potentials in vectors.f90
+
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
 
-    declaration   = ''
-    calculation   = ''
-    form          = ''
-    printing      = ''
-    calccoef      = ''
-    printcoef_ph  = ''
-    printcoef_pair= ''
-    sumtotal_even = ''
-    sumtotal_odd  = ''
-    sumtotal_bi   = ''
-    sumtotal_tri  = ''
-    sumtotal_quad = ''
-    sumtotal_dd   = ''
-    fieldcalc     = ''
-    precond       = ''
-    erear         = ''
-    writing       = ''
-    reading       = ''
-    cleaning      = ''
+    declaration     = ''
+    pot_declaration = ''
+    calculation     = ''
+    form            = ''
+    printing        = ''
+    calccoef        = ''
+    printcoef_ph    = ''
+    printcoef_pair  = ''
+    sumtotal_even   = ''
+    sumtotal_odd    = ''
+    sumtotal_bi     = ''
+    sumtotal_tri    = ''
+    sumtotal_quad   = ''
+    sumtotal_dd     = ''
+    
+    precond         = ''
+    erear           = ''
+    writing         = ''
+    writing_hdf5    = ''
+    reading         = ''
+    reading_hdf5    = ''
+    cleaning        = ''
 
+    init            = ''
+    add             = ''
+    multiply        = ''
+    
+    inproduct       = ''
+    
     pairtotal_neutron = ''
     pairtotal_proton  = ''
     #---------------------------------------------------------------------------
@@ -721,7 +777,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
         (d,c,p,cc, pc_ph, pc_pair, st,pt,er, T) = \
           GenTermExpression(Functional_terms[i], i, term_grouping[i],    
                         term_number[Functional_terms[i]], coupling_constants[i], 
-                 isospin_indices[i], density_dependence[i], extra_calls[i], so)
+                 isospin_indices[i], density_dependence[i], extra_calls[i], so, fam_active)
                  
         if( d != ''):
           declaration = declaration + d + '\n'
@@ -790,13 +846,20 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean, fieldINMk2, fieldINMk4) =     \
-                                         GenerateFields(so,oldso, ph_pp_decoupl)
-    declaration = declaration + fielddec   + '\n'
+    (fielddec,fieldini,fieldcalc,fieldcalc_perturbed, fieldprecon,fieldwrite, \
+    fieldwrite_hdf5,fieldread, fieldread_hdf5,fieldadd,fieldmultiply,          \
+    fieldinproduct,fieldINMk2, fieldINMk4) \
+                                 =  GenerateFields(so, oldso,ph_pp_decoupl, fam_active)
+    pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
-    reading     = reading     + fieldread 
+    writing_hdf5     = writing_hdf5     + fieldwrite_hdf5
+    reading     = reading     + fieldread
+    reading_hdf5     = reading_hdf5     + fieldread_hdf5
     precond     = precond     + fieldprecon
-    cleaning    = cleaning    + fieldclean
+    init        = init        + fieldini
+    add         = add         + fieldadd
+    multiply    = multiply    + fieldmultiply
+    inproduct   = inproduct   + fieldinproduct
     #---------------------------------------------------------------------------
     # Generate the expressions for the actions of the Skyrme fields
     SkyrmeAction = ''
@@ -826,34 +889,45 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Now make sure all of the lines are not too long for compilation.
-    declaration   = LineFormat(declaration)
-    calculation   = LineFormat(calculation)
-    printing      = LineFormat(printing)
-    calccoef      = LineFormat(calccoef)
-    printcoef_ph  = LineFormat(printcoef_ph)
-    sumtotal_even = LineFormat(sumtotal_even)
-    sumtotal_odd  = LineFormat(sumtotal_odd)
-    fieldcalc     = LineFormat(fieldcalc)
-    precond       = LineFormat(precond)
-    SkyrmeAction  = LineFormat(SkyrmeAction)
-    PairingAction = LineFormat(PairingAction)
-    erear         = LineFormat(erear)
-    reading       = LineFormat(reading)
-    writing       = LineFormat(writing)
-    cleaning      = LineFormat(cleaning)
-    fieldINMk2    = LineFormat(fieldINMk2)
-    fieldINMk4    = LineFormat(fieldINMk4)
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    declaration       = LineFormat(declaration)
+    pot_declaration   = LineFormat(pot_declaration)
+    calculation       = LineFormat(calculation)
+    printing          = LineFormat(printing)
+    calccoef          = LineFormat(calccoef)
+    printcoef_ph      = LineFormat(printcoef_ph)
+    sumtotal_even     = LineFormat(sumtotal_even)
+    sumtotal_odd      = LineFormat(sumtotal_odd)
+
+    fieldcalc           = LineFormat(fieldcalc)
+    fieldcalc_perturbed = LineFormat(fieldcalc_perturbed)
+    
+    precond           = LineFormat(precond)
+    SkyrmeAction      = LineFormat(SkyrmeAction)
+    PairingAction     = LineFormat(PairingAction)
+    erear             = LineFormat(erear)
+    reading           = LineFormat(reading)
+    writing           = LineFormat(writing)
+    init              = LineFormat(init)
+    add               = LineFormat(add)
+    multiply          = LineFormat(multiply)
+    inproduct         = LineFormat(inproduct)
+    fieldINMk2        = LineFormat(fieldINMk2)
+    fieldINMk4        = LineFormat(fieldINMk4)
+    
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
 
-    dic['NTERMS']         = len(Functional_terms)
-    dic['DECLARATION']    = declaration
-    dic['CALCULATION']    = calculation
-    dic['PRINT']          = printing
-    dic['CALCCOEF']       = calccoef   
-    dic['PRINTCOEF_PH']   = printcoef_ph
-    dic['PRINTCOEF_PAIR'] = printcoef_pair
+    dic['NTERMS']                 = len(Functional_terms)
+    dic['DECLARATION']            = declaration
+    dic['CALCULATION']            = calculation
+    dic['INIPOTENTIALS']          = init
+    dic['MULTIPLY_POTENTIALS']    = multiply
+    dic['ADD_POTENTIALS']         = add
+    dic['PRINT']                  = printing
+    dic['CALCCOEF']               = calccoef
+    dic['PRINTCOEF_PH']           = printcoef_ph
+    dic['PRINTCOEF_PAIR']         = printcoef_pair
 
     dic['TOTAL_EVEN']     = sumtotal_even
     if(len(sumtotal_odd)>1):
@@ -882,8 +956,14 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['K2POT'] = fieldINMk2
     dic['K4POT'] = fieldINMk4
     
-    dic['CALCFIELDS']     = fieldcalc
-    dic['FIELDPRECON']    = precond
+    dic['CALCPOTENTIALS']           = fieldcalc
+    dic['CALCPOTENTIALS_PERTURBED'] = fieldcalc_perturbed
+    dic['POTENTIALPRECON']          = precond
+    if('update' not in precond):
+        dic['PRECON_ACTIVE'] = '!'
+    else:
+        dic['PRECON_ACTIVE'] = ' '
+
     if('update' not in precond):
         dic['PRECON_ACTIVE'] = '!'
     else:
@@ -893,11 +973,11 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['PAIRINGACTION']  = PairingAction
     dic['EREAR']          = erear
     dic['FUNC_NAME']      = func_name
-    dic['FIELDNUMBER']    = len(Densities_needed)
+    dic['POTENTIALNUMBER']= len(Densities_needed)
     dic['WRITEPOTENTIALS']= writing
+    dic['WRITEPOTENTIALS_HDF5']= writing_hdf5
     dic['READPOTENTIALS'] = reading
-    dic['CLEANING']       = cleaning
-
+    dic['READPOTENTIALS_HDF5'] = reading_hdf5
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Making sure to (un)comment the parts of the interfaces of the routines of
     #  sphamil, delta_action and the derivative routines. 
@@ -939,6 +1019,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['QUADRI'] = ' '
     else:
       dic['QUADRI'] = '!'
+
     if(derivative_order == 1):
       dic['N2'] = ' '    
       dic['N3'] = '!'
@@ -948,6 +1029,11 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     elif(derivative_order == 3):
       dic['N2'] = '!'
       dic['N3'] = ' '
+
+    if(derivative_order == 1):
+      dic['N1'] = '!'
+    else:
+      dic['N1'] = ' '
 
     if(pairing_action_derorder == 0):
       dic['N1DELTA']  = '!'
@@ -972,17 +1058,17 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     if('D_Nm_Nm' not in Densities_needed):
       if('D_N_N' not in Densities_needed):
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = '!'
-        dic['NOTAU']     = '!'
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = '!'
+        dic['TAUPRESENT'] = 0
       else:
-        dic['TAUSCALAR'] = '!'
-        dic['TAUTENSOR'] = ' '
-        dic['NOTAU']     = ' '
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = ' '
+        dic['TAUPRESENT'] = 1
     else:
-      dic['TAUSCALAR'] = ' '
-      dic['TAUTENSOR'] = '!'
-      dic['NOTAU']     = ' '
+      dic['TAUSCALAR']    = ' '
+      dic['TAUTENSOR']    = '!'
+      dic['TAUPRESENT']   = 1
 
     if(so.timelike):
       dic['NTR'] = '!'
@@ -990,13 +1076,22 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     else:
       dic['NTR'] = ''
       dic['TR']  = '!'
+
+    if(fam_active):
+      dic['FAM'] = '1'
+    else:
+      dic['FAM'] = '0'
+      
+    dic['PVECTORINPRODUCT'] = inproduct
     
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:
         for line in template:
-          generated.write(Template(line).substitute(dic))  
+          generated.write(Template(line).substitute(dic))
 
-def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,so):
+    return pot_declaration
+
+def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so, fam_active):
     """
      Generate the FORTRAN expressions to calculate the terms in the functional.
      
@@ -1014,6 +1109,8 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
       ddep : density dependence of the FIRST density in the term
       extra: extra function call to perform
       so   : symmetry options
+      fam_active :  generate code for mean-field (False) or FAM (True)
+                    calculations
 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
@@ -1158,7 +1255,7 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
     
     for arg in true_args: 
         dic['EDENT'] = ''
-        
+
         sign      = +1
         prevorder =  0 
         for i in range(len(densities)):
@@ -1202,11 +1299,17 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
             if(i == 0 and ddep != '1'):
               # The first density for the first density in the term
               isodic['EXP']= ddep
-              dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
             else:
               # No density dependence
-              dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
-            
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
+
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       

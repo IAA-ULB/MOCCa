@@ -63,7 +63,7 @@ Pairing_Fields_needed = []
 
 #  src_heph.heph_functional.PruneDeriv_needed()
       
-def GenerateFields(so, oldso, ph_pp_decoupl):
+def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
   """
    Generate a list of fields based on list of terms in the functional. 
    
@@ -80,6 +80,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     ph_pp_decoupl: Boolean. If True, drop all contributions to the normal
                    potentials that arise from density-dependent pairing 
                    terms.
+    fam_active: Boolean. If True, declare fields as complex for the FAM code.
+                If False, declare fields as real for the mean-field code.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
    Output: 
    
@@ -102,17 +104,26 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   #---------------------------------------------------------------------------
   # For every unique density encountered, we need to figure out the field
   # and the action of the field. 
-  FIELDCALC   = ''
+  FIELDCALC           = ''
+  FIELDCALC_perturbed = ''
   fieldprecon = ''
   declaration = ''
 
-  fieldread    = ''
-  fieldwrite   = ''
+  fieldread       = ''
+  fieldread_hdf5  = ''
+  fieldwrite      = ''
+  fieldwrite_hdf5 = ''
+
   fieldtransfo = ''
 
   fieldINMk2 = ''
   fieldINMk4 = ''
       
+  fieldini     = ''
+  fieldadd     = ''
+  fieldmultiply= ''
+ 
+  fieldinproduct = ''
   fieldclean = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
@@ -213,9 +224,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldlist['p'] = []
       fieldlist['n'] = []        
       cpcte     = ''
-
-      fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
-      fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
       #-----------------------------------------------------------------------
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
@@ -475,27 +483,54 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Now we BUILD the code that calculates all these terms
       #-----------------------------------------------------------------------
       # Create the expression for the field
-      dic['ALLOCIND']= ''
-      dic['DECLIND'] = ''
+      dic['ALLOCIND']     = ''
+      dic['ALLOCINDHDF5'] = ''
+      dic['DECLIND']      = ''
       for k in range(OrderOfDen(den)):
-          dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
-          dic['DECLIND']  = dic['DECLIND']  + ',:'
+          dic['ALLOCIND']     = dic['ALLOCIND']     + ',3'
+          dic['ALLOCINDHDF5'] = dic['ALLOCINDHDF5'] + '*3' 
+          dic['DECLIND']      = dic['DECLIND']      + ',:'
       if('P' in den):
         dic['ISOSIZE'] = 2
       else:
         dic['ISOSIZE'] = 4
         
-      declaration  = declaration + ts.field_decl.substitute(dic)
-      declaration  = declaration + ts.fhist_decl.substitute(dic)
+      if(fam_active):
+        declaration  = declaration + ts.field_decl_complex.substitute(dic)
+      else:
+        declaration  = declaration + ts.field_decl_real.substitute(dic)
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      # Explicit declaration of the history is no longer needed
+      #declaration  = declaration + ts.fhist_decl.substitute(dic)
       
       # ... and the expression for reading/writing the fields from file
       #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
       fieldread    = fieldread   + ts.field_read_a.substitute(dic)
-      fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+      #fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_c.substitute(dic)
       fieldread    = fieldread   + ts.field_read_d.substitute(dic)
       fieldread    = fieldread   + ts.field_read_e.substitute(dic)
+ 
+      args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
+      for arg in args:
+           # get the indices of the field correct
+           dic['IND']     = ''
+           for k in arg:
+              dic['IND'] = dic['IND'] + ',%d'%(k+1)
+
+           fieldread = fieldread + ts.field_transfo.substitute(dic)
+      if('P' not in den):
+        # Only recombine normal fields
+        fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
+      fieldread = fieldread + ts.field_read_f.substitute(dic)
+      
+      # HDF5 option
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_a.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_b.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_c.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_d.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_e.substitute(dic)
  
       args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
       for arg in args:   
@@ -504,26 +539,33 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
            for k in arg:
               dic['IND'] = dic['IND'] + ',%d'%(k+1)
               
-           fieldread = fieldread + ts.field_transfo.substitute(dic)
+           fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_hdf5.substitute(dic)
       if('P' not in den):
         # Only recombine normal fields
-        fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
-      fieldread = fieldread + ts.field_read_f.substitute(dic)
+        fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_recomb_hdf5.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_f.substitute(dic)
         
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
+      fieldwrite_hdf5   = fieldwrite_hdf5  + ts.field_write_hdf5.substitute(dic)
+
+      fieldini     = fieldini  + ts.field_allo.substitute(dic)
+
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
-      FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_line.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_a_start.substitute(dic)
+      
+      FIELDCALC           = FIELDCALC           + ts.field_condition_start.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_condition_start.substitute(dic)
+      
+      fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
 
       #------------------------------------------------------------------------
       #
       fieldINM = ""
-
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -536,7 +578,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         dic['ISO']    = str(iso)
         dic['ISOIND'] = Isospinindices(iso)
         
-        FIELDCALC    = FIELDCALC + ts.field_calc_iso_start.substitute(dic)
+        FIELDCALC            = FIELDCALC           + ts.field_calc_iso_start.substitute(dic)
+        FIELDCALC_perturbed  = FIELDCALC_perturbed + ts.field_calc_iso_start.substitute(dic)
         for fieldterm in fieldlist[iso]:
            dic['CPLCTE']   =  fieldterm[3]
 
@@ -566,7 +609,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
            for arg in true_args:
              # get the indices of the field (i.e. the lhs above) correct
              dic['IND']     = ''
-             sign           = +1
+             globalsign     = +1
 
              #--------------------------------------------------------------
              for k in range(OrderOfDen(den)):
@@ -582,11 +625,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   t = arg[fieldterm[4].index(c)] - 2*mu
                   nuka = Rot_ind(mu)[t] 
                   if(t == 1):
-                    sign = sign * -1                              
+                    globalsign = globalsign * -1
                   temp = (mu,abs(nuka[0]), abs(nuka[1]))
                   dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
-
-             lastorder = OrderOfDen(den)
 
              #----------------------------------------------------------------
              # Before we start doing complicated stuff for the index coupling
@@ -643,14 +684,16 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                  if(nosigma and noderivatives and scalar):
                    INM_term_count = INM_term_count + 1
              #----------------------------------------------------------------
-
-             FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
               
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
-             dic['EXPR2']    = ''
-             dic['EXPR3']    = ''
+             dic['EXPR_PERT'] = ''
              
+             # TODO: refactor this into a function  
+             # Build the expression for the traditional mean-field densities
+             lastorder = OrderOfDen(den)
+             FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
+             sign      = globalsign
              for i,d in enumerate(densities):
                 dic['DENSITY'] = d
                 #-----------------------------------------------------------
@@ -705,7 +748,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                  localsign = sign
 
              if(localsign > 0):
-               dic['SIGN']     =  '+'
+               dic['SIGN']    =  '+'
              else:
                dic['SIGN']    =  '-'
 
@@ -713,10 +756,90 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                dic['EXTRA'] = ''
              else:
                dic['EXTRA'] = '*(%s)'%fieldterm[-1]
-             
 
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
+             
+             # Now do it again, repeatedly, but taking one of the densities
+             # from the perturbed density vector at any one time
+             for j in range(len(densities)):
+               lastorder = OrderOfDen(den)
+               FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_b_start.substitute(dic)
+               dic['EXPR_PERT']    = ''
+               sign = globalsign
+               # Pick the J-th density to be a perturbation; otherwise do the 
+               # same thing as above...
+               for i,d in enumerate(densities):
+                  dic['DENSITY'] = d
+                  #-----------------------------------------------------------
+                  # Get the indices of the density on the rhs.
+                  indices = ()
+                  for k in range(lastorder,lastorder+OrderOfDen(d)):
+                    for c in newcpl: #fieldterm[4]:
+                      if k in c:   
+                        if(len(c) == 2):    
+                          mu      = arg[newcpl.index(c)]  #fieldterm[4].index(c)]
+                          indices = indices + (mu,)
+                        elif(len(c) == 3):
+                          # Integer division
+                          mu   = int(arg[newcpl.index(c)]/2) 
+                          # Which term of two?
+                          t = arg[newcpl.index(c)] - 2*mu
+                          if(t == 1):
+                            sign = sign * -1
+
+                          nuka = Rot_ind(mu)[t] 
+                                
+                          temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                          indices = indices + (temp[c.index(k)],)                                 
+
+                  #-----------------------------------------------------------
+                  # The first indices are necessarily external derivatives
+                  dercount = d.count('Der')
+                  if(dercount > 0):
+                      derind  = Storage_Mapping(indices[:dercount])
+                      indices = (derind,) + indices[dercount:]
+                  dic['DENIND']      = ''
+                  for l in indices:
+                      dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
+                  dic['ISOALT']= Isospinindices(fieldterm[5][i])
+                  if(fieldterm[+6] != '1' and i == 0):
+                    dic['DD']      = fieldterm[+6]
+                    dic['DD_pert'] = fieldterm[+6]  #+ '-1'
+                    # Expression with a call to 'pow'
+                    if(i != j):
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_DD.substitute(dic)
+                    else:
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_DD_pert.substitute(dic)
+                  else:
+                    # Ordinary expression
+                    if (i != j):
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den.substitute(dic)
+                    else:
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den_pert.substitute(dic)
+
+                  # Increment the starting point of indices
+                  lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+
+               #------------------------------------------------------------------
+               # Put an extra sign for every partial integration of a nabla
+               if( len(fieldterm[1])%2 != 0):
+                  localsign = sign * (-1)
+               else:
+                  localsign = sign
+
+               if(localsign > 0):
+                dic['SIGN']    =  '+'
+               else:
+                dic['SIGN']    =  '-'
+
+               if(fieldterm[-1] == ''):
+                dic['EXTRA'] = ''
+               else:
+                dic['EXTRA'] = '*(%s)'%fieldterm[-1]
+
+               FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_pert.substitute(dic)
+               FIELDCALC_perturbed = FIELDCALC_perturbed[:-4] + '\n \n'
 
            #------------------------------------------------------------------
            # This term contributes to potentials in homogeneous unpolarised
@@ -769,10 +892,18 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Add the recombination statements from isospin representation to 
       # proton-neutron representation, but only for normal densities
       if('P' not in den):
-        FIELDCALC    = FIELDCALC + ts.field_recombination.substitute(dic)
+        FIELDCALC           = FIELDCALC           + ts.field_recombination.substitute(dic)
+        FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_recombination.substitute(dic)
+
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
 
+      FIELDCALC_perturbed    = FIELDCALC_perturbed + ts.field_condition_end.substitute(dic)
+      FIELDCALC_perturbed    = FIELDCALC_perturbed + ts.field_line.substitute(dic) + '\n'
+
+      # Add some lines for the multiplication and addition of potentialvectors!
+      fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
+      fieldmultiply = fieldmultiply + '\n' +  ts.Multiply.substitute(dic)
 
       if(LeftOperator.derorder + RightOperator.derorder == 2):
         fieldINMk2 = fieldINMk2 + fieldINM
@@ -935,18 +1066,23 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
               larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
               rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
 
-              (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in den)
-              dic['PX'] = str(px)
-              dic['PY'] = str(py)
-              dic['PZ'] = str(pz)
+            # The ugly tuple(np.abs( construction is simply because abs doesn't 
+            # accept tuples as arguments, for whatever reasons.
+            larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+            rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
+
+            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in den)
+            dic['PX'] = str(px)
+            dic['PY'] = str(py)
+            dic['PZ'] = str(pz)
             # Every two external derivatives get one preconditioning run.
             dic['DIVISOR'] = (extder//2)**2 # ansatz for the appropriate preconfactor
             fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
             fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
-        fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean, fieldINMk2, fieldINMk4 )
+  return(declaration, fieldini, FIELDCALC, FIELDCALC_perturbed, fieldprecon, fieldwrite,fieldwrite_hdf5, \
+   fieldread,fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2,fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """
@@ -1469,7 +1605,7 @@ def GenerateAction(field, symmetrize, so):
             SIGN           = np.sign(leftind[k,0])
             if((symmetrize == -1) and ('C' in left or 'C' in right)):
                 SIGN = - SIGN
-  
+
             if(SIGN > 0) :
                 dic['SIGN']= '+'
             else :

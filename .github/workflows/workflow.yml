@@ -5,44 +5,76 @@
 # - the compile job creates all possible combinations of executables
 # - ... and the following jobs run all defined tests using these executables.
 #
-# It is currently only verified to run on one or more of the astropc computers.
+# It is currently only verified to run the astropc machines.
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO: fix pasta and ifort compilation
 on:
   push:
     branches:
       - master
+      - difficult_merge
+      - FAM_wr
+      - diff_merge_HDF5
+      - compilation_adaptation
+      - merge_FAM_pasta
   pull_request:
     branches:
       - master
+      - difficult_merge
+      - FAM_wr
 jobs:
-  compile:
+  #-----------------------------------------------------------------------------
+  # Compilation jobs
+  compile-mf-nuclei:
     #------------------------------------------------------------------------------
-    # Compile many different executables for different
+    # Compile mean-field executables for different
     #   - CONFIG   = configuration file
     #   - COMPILER = different compiler
-    #   - CALCTYPE = nuclei or pasta
+    #   - CALCTYPE = NUCLEI
     #------------------------------------------------------------------------------
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG  :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
-        COMPILER:   [ gfortran ]
-        CALCTYPE:   [ NUCLEI   ]
+        CONFIG     :   [ LO, NLO, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
+        COMPILER   :   [ gfortran   ]
+        CALCTYPE   :   [ NUCLEI     ]
+        MPI        :   [ false]
         include :
-            # Only check pasta with BXL and ifort compiler
-            - CALCTYPE: PASTA
-              CONFIG  : BXL
+            # Compile a few things with ifort to have a compiler independence check
+            - CALCTYPE: NUCLEI 
+              CONFIG  : LO
               COMPILER: ifx
-            # Compile one thing with ifort to have a compiler independence check
+              MPI     : false
             - CALCTYPE: NUCLEI
               CONFIG  : NLO
               COMPILER: ifx
+              MPI     : false
+            - CALCTYPE: NUCLEI
+              CONFIG  : BXL
+              COMPILER: ifx
+              MPI     : false
+            # Compile MPI versions with ifx only; gfortran MPI on the astropcs is not supported
+            - CALCTYPE: NUCLEI 
+              CONFIG  : NLO
+              COMPILER: ifx
+              MPI     : true
+            - CALCTYPE: NUCLEI 
+              CONFIG  : BXL
+              COMPILER: ifx
+              MPI     : true
+
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+
+      # There is not yet any intel HDF5 on astropc19, but enable it 
+      #   by default for gfortran
+      HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,31 +89,155 @@ jobs:
         # ---------------------------------------------------------------------------
         run: |
             mkdir src/
-            cp src_orig/*.f90 src
+            mkdir src_fam/
+            cp src_orig/*.f90 src/
+            cp src_orig/*.f90 src_fam/
       - name: Compile Tantalus
-        # The setvers.sh ensures that the intel compilers are available on the astropcs
+        # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
+        # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
+        
         uses: actions/upload-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/Tantalus.${{ env.SUFFIX }}.exe
           retention-days: 2
+  compile-mf-pasta:
+    #------------------------------------------------------------------------------
+    # Compile mean-field executables for different
+    #   - CONFIG   = BXL
+    #   - COMPILER = gfortran, ifx
+    #   - CALCTYPE = PASTA
+    #   - MPI      = true/false  ! MPI = true not yet active for gfortran
+    #------------------------------------------------------------------------------
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        CONFIG     :   [ BXL ]
+        COMPILER   :   [ gfortran, ifx ]
+        CALCTYPE   :   [ PASTA         ] 
+        MPI        :   [ false         ]
+        include :
+            # Compile a few things with ifort to have a compiler independence check
+            - CALCTYPE: PASTA 
+              CONFIG  : BXL 
+              COMPILER: ifx
+              MPI     : true
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+      # Enable HDF5 only for gfortran builds for the moment
+      HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare src directory
+        # ---------------------------------------------------------------------------
+        # This is a horrible hack:
+        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   fail the first time around because Hephaestos has not created f90 files
+        #   in the src/ directory yet. I have not found a way to correctly do this
+        #   dependency in the Makefile yet...;
+        # ---------------------------------------------------------------------------
+        run: |
+            mkdir src/
+            mkdir src_fam/
+            cp src_orig/*.f90 src/
+            cp src_orig/*.f90 src_fam/
+      - name: Compile Tantalus
+        # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
+        # 2. The copy command ensures the right compilation options
+        run: |
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+      - name: Upload mean-field executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/Tantalus.${{ env.SUFFIX }}.exe
+          retention-days: 2
+  compile-fam-nuclei:
+    #------------------------------------------------------------------------------
+    # Compile FAM executables for different
+    #   - CONFIG   = NLO
+    #   - COMPILER = gfortran
+    #   - CALCTYPE = NUCLEI
+    #   - MPI      = false
+    #------------------------------------------------------------------------------
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        CONFIG     :  [ LO, LO-T, NLO, BXL ]
+        COMPILER   :  [ gfortran, ifx      ]
+        CALCTYPE   :  [ NUCLEI             ]
+        MPI        :  [ false              ]
+
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+      # Enable HDF5 only for gfortran builds for the moment
+      HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare src directory
+        # ---------------------------------------------------------------------------
+        # This is a horrible hack:
+        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   fail the first time around because Hephaestos has not created f90 files
+        #   in the src/ directory yet. I have not found a way to correctly do this
+        #   dependency in the Makefile yet...;
+        # ---------------------------------------------------------------------------
+        run: |
+            mkdir src/
+            mkdir src_fam/
+            cp src_orig/*.f90 src/
+            cp src_orig/*.f90 src_fam/
+
+      - name: Compile Tantalus
+        # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
+        # 2. The copy command ensures the right compilation options
+        run: |
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          make fam CONFIG=${{ matrix.CONFIG }} FAMNAME=fam.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+      - name: Upload FAM executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/fam.${{ env.SUFFIX }}.exe
+          retention-days: 2
+  #-----------------------------------------------------------------------------
+  # Actual test-running jobs
   minimal:
     #-----------------------------------------------------------------------------
     # Run the 'minimal' test for two different compilers.
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
-    needs:   compile
+    needs:   compile-mf-nuclei
     strategy:
       matrix:
-        COMPILER: [gfortran, ifx]
+        COMPILER: [gfortran] #, ifx] # Reactivate
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -89,7 +245,7 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -107,15 +263,204 @@ jobs:
         # Upload the log files as artefact
         uses: actions/upload-artifact@v4
         with:
-          name: minimal-${{ env.SUFFIX }}
+          name: minimal-${{ env.SUFFIX }}.logs
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
+  fission:
+    #-----------------------------------------------------------------------------
+    # Run the 'fission' test for two different compilers.
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [gfortran, ifx]
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run fission test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash fission.sh $SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fission-${{ env.SUFFIX }}
+          path: testing/integration/logs/fission.${{ env.SUFFIX }}.out
+          retention-days: 90
+
+  boundary_conditions:
+    #-----------------------------------------------------------------------------
+    # Run the boundary conditions test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   [compile-mf-nuclei, compile-mf-pasta]
+    strategy:
+      matrix:
+        COMPILER:
+          - ifx
+    env:
+      SUFFIX  : BXL.${{ matrix.COMPILER }}.NUCLEI
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
+    steps:
+        # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Start by downloading the relevant executable
+      - uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.N_SUFFIX }}
+          path: exec/
+      - name: Download executable for pasta
+        uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.P_SUFFIX }}
+          path: exec/
+
+      - name: Make the executables executable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/Tantalus.${{ env.N_SUFFIX }}.exe
+          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
+
+      - name: Run boundary conditions test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash boundary_conditions.sh -p BSkG3_naked -e $N_SUFFIX -f $P_SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boundary_conditions-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
+            testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
+          retention-days: 90
+
+  continuation_wf:
+    #-----------------------------------------------------------------------------
+    # Run the 'continuation_wf' test for both BSkG3 and BSkG5
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [ gfortran      ]
+        CONFIG  : [ BXL, BXL-N2LO ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM : BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_wf test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash continuation_wf.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuation_wf-${{ env.SUFFIX }}
+          path: |
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.b
+          retention-days: 90
+
+  continuation_hdf5:
+    #-----------------------------------------------------------------------------
+    # Run the 'continuation_wf' test for both BSkG3 and BSkG5
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [ gfortran      ]
+        CONFIG  : [ BXL, BXL-N2LO ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM : BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_wf test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash continuation_hdf5.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuation_hdf5-${{ env.SUFFIX }}
+          path: |
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.b
+          retention-days: 90
+
   store_derivatives:
     #-----------------------------------------------------------------------------
     # Run the 'store_derivatives' test
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
-    needs: compile
+    needs: compile-mf-nuclei
     strategy:
       matrix:
         CONFIG  : [BXL,N2LO]
@@ -128,7 +473,7 @@ jobs:
             PARAM : SN2LO1
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -136,7 +481,7 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -152,15 +497,170 @@ jobs:
       - name: Upload store_derivatives test results
         uses: actions/upload-artifact@v4
         with:
-          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
           path: |
             testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
             testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
           retention-days: 90
-
-  symmetries:
+  lattice_energy:
+    #---------------------------------------------------------------------------
+    # Run the 'lattice-energy' test
+    #---------------------------------------------------------------------------
     runs-on: self-hosted
-    needs: compile
+    needs: [compile-mf-nuclei, compile-mf-pasta]
+    strategy:
+      matrix:
+        COMPILER: [ gfortran ] 
+        CONFIG:   [ BXL      ]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: Tantalus.${{ env.SUFFIX_VAC }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: Tantalus.${{ env.SUFFIX_PAS }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX_VAC }}.exe
+          chmod +x exec/Tantalus.${{ env.SUFFIX_PAS }}.exe
+
+      - name: Run lattice energy test
+        # Actually execute the test
+        run: |
+          cd testing/integration/
+          bash lattice_energy.sh -p BSkG4simpl -e ${{ env.SUFFIX_VAC }} -f ${{ env.SUFFIX_PAS }} -n 12
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lattice_energy.logs
+          path: |
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_VAC }}.out
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_PAS }}.out
+          retention-days: 90
+  spaghetti:
+    #---------------------------------------------------------------------------
+    # Run the 'spaghetti' test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-pasta
+    strategy:
+      matrix:
+        COMPILER: [ gfortran      ] # Ifx cannot be enabled because HDF5 support is not available on all astropcs for that compiler
+        CONFIG:   [ BXL           ]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run spaghetti test
+        # Actually execute the test
+        run: |
+          cd testing/integration/
+          bash spag.sh ${{ env.SUFFIX }}
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: spaghetti${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/spag.${{ env.SUFFIX }}.out
+            testing/integration/logs/spag.${{ env.SUFFIX }}.b.out
+          retention-days: 90
+  parallel:
+    #---------------------------------------------------------------------------
+    # Run the 'parallel' test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: [ compile-mf-nuclei, compile-mf-pasta ]
+    strategy:
+      matrix:
+        COMPILER: [ ifx ]
+        CONFIG:   [ BXL, NLO  ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: NLO
+            PARAM : SLy4
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX  : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
+      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.MPI
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: Tantalus.${{ env.P_SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: Tantalus.${{ env.S_SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.S_SUFFIX }}.exe
+          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
+
+      - name: Run parallel script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash parallel.sh -p ${{ matrix.PARAM }} -s $S_SUFFIX -m $P_SUFFIX -r 4 -q 8
+
+      - name: Upload parallel test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: parallel.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/serial.${{ env.S_SUFFIX }}.out
+            testing/integration/logs/parallel_1.${{ env.P_SUFFIX }}.out
+            testing/integration/logs/parallel_2.${{ env.P_SUFFIX }}.out
+          retention-days: 90
+  symmetries:
+    #-----------------------------------------------------------------------------
+    # Run the 'symmetries' test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
     strategy:
       matrix:
         CONFIG  : [BXL, N2LO]
@@ -173,10 +673,10 @@ jobs:
             PARAM : SN2LO1
 
     env:
-       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
-       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
 
     steps:
       - name: Checkout code # needed to get the testing scripts
@@ -185,22 +685,22 @@ jobs:
       - name: Download symmetric executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC }}
+          name: Tantalus.${{ env.EXEC }}
           path: exec/
       - name: Download parity broken executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_P }}
+          name: Tantalus.${{ env.EXEC_P }}
           path: exec/
       - name: Download time-reversal broken executable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_T }}
+          name: Tantalus.${{ env.EXEC_T }}
           path: exec/
       - name: Download TP-broken executeable
         uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_TP }}
+          name: Tantalus.${{ env.EXEC_TP }}
           path: exec/
 
       - name: Make executeable
@@ -219,11 +719,122 @@ jobs:
       - name: Upload symmetries test results
         uses: actions/upload-artifact@v4
         with:
-          name: symmetries-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          name: symmetries-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
           path: |
             testing/integration/logs/symmetries.${{ env.EXEC    }}.out
             testing/integration/logs/symmetries.${{ env.EXEC_T  }}.out
             testing/integration/logs/symmetries.${{ env.EXEC_P  }}.out
             testing/integration/logs/symmetries.${{ env.EXEC_TP }}.out
           retention-days: 90
+  fam_t0t3:
+    #---------------------------------------------------------------------------
+    # Run the fam_t0t3 test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    strategy:
+      matrix:
+        COMPILER: [ gfortran, ifx]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - uses: actions/download-artifact@v4
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v4
+        # Download the FAM executable
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v4
+        # Download the FAM executable
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+
+      - name: Run parallel script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: fam_t0t3.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
+          retention-days: 90
+
+  gradient_vs_direct:
+    #---------------------------------------------------------------------------
+    # Run the hfb_direct_gradient.sh test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
+    strategy:
+      matrix:
+        CONFIG  : [BXL, NLO]
+        COMPILER: [ gfortran]
+        CALCTYPE: [ NUCLEI  ]
+        MPI     : [ false   ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: NLO
+            PARAM : SLy4
+
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash hfb_direct_gradient.sh -e $SUFFIX -p ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradient_vs_direct.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
+          retention-days: 90          

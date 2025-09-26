@@ -10,11 +10,14 @@ make.inc
 
 *exe
 *i
-
+# Do not track the make.inc currently in use
+make.inc
 
 # Do not track compiled python modules
 *.pyc
 src_heph/*.pyc
+
+site/
 
 # Do not track logs of various kinds
 testing/integration/logs/
