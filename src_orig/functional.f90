@@ -780,8 +780,6 @@ end function multiply_potentialvector
     ! ... and only then calculate the contributions to the energy
     Rotcorrection    = calc_rotational_correction(rotcorr)
     Vibcorrection    = calc_vibrational_correction(vibcorr)
-    !... and then the COM correction
-    call CompCOMCorrection(calc_expensive)
 #else
     ! These collective corrections are not relevant to
     ! infinite systems
