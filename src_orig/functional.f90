@@ -1320,7 +1320,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     case(0,1)
       ! HF or BCS
       Bely    = Belyaev(:,3)
-      J2_temp = J2(:,3)
+      J2_temp = J2_pairing_cut(:,3)
       ! Sanity check: no collective sense of rotational correction implemented
       !               yet for HF/BCStype calculations
       if(blocktype.ne.0) then
@@ -1356,6 +1356,13 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     RotCorrection = - f_rot * J2_temp/(2*Bely)
 
     VibCorrection = - f_vib * J2_temp/(2*Bely)
+
+      print *, ' Rotational correction (MeV): ', Rotcorrection
+      print *, '  ( J2 = ', J2, ' , MOI = ', Bely, ' )'
+      print *, '  ( B = ', B, ' , f_rot = ', f_rot, ' )'
+      print *, '  ( rotcorrb, rotcorrc = ', rotcorrb, rotcorrc, ' )'
+      print *, ' * tanh(rotcorrc * B) '
+
 
   end subroutine calcRotationalCorrection
 
