@@ -13,16 +13,9 @@ on:
   push:
     branches:
       - master
-      - difficult_merge
-      - FAM_wr
-      - diff_merge_HDF5
-      - compilation_adaptation
-      - merge_FAM_pasta
   pull_request:
     branches:
       - master
-      - difficult_merge
-      - FAM_wr
 jobs:
   #-----------------------------------------------------------------------------
   # Compilation jobs
@@ -102,7 +95,6 @@ jobs:
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
-        
         uses: actions/upload-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}
@@ -261,6 +253,7 @@ jobs:
 
       - name: Upload test results
         # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: minimal-${{ env.SUFFIX }}.logs
@@ -300,6 +293,7 @@ jobs:
 
       - name: Upload test results
         # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: fission-${{ env.SUFFIX }}
@@ -351,6 +345,7 @@ jobs:
 
       - name: Upload test results
         # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: boundary_conditions-${{ env.SUFFIX }}.logs
@@ -399,6 +394,7 @@ jobs:
 
       - name: Upload test results
         # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: continuation_wf-${{ env.SUFFIX }}
@@ -447,6 +443,7 @@ jobs:
 
       - name: Upload test results
         # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: continuation_hdf5-${{ env.SUFFIX }}
@@ -495,6 +492,7 @@ jobs:
           bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ env.SUFFIX }}
 
       - name: Upload store_derivatives test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
@@ -502,6 +500,7 @@ jobs:
             testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
             testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
           retention-days: 90
+
   lattice_energy:
     #---------------------------------------------------------------------------
     # Run the 'lattice-energy' test
@@ -546,6 +545,7 @@ jobs:
           bash lattice_energy.sh -p BSkG4simpl -e ${{ env.SUFFIX_VAC }} -f ${{ env.SUFFIX_PAS }} -n 12
 
       - name: Upload store_derivatives test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: lattice_energy.logs
@@ -589,6 +589,7 @@ jobs:
           bash spag.sh ${{ env.SUFFIX }}
 
       - name: Upload store_derivatives test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: spaghetti${{ env.SUFFIX }}.logs
@@ -647,6 +648,7 @@ jobs:
           bash parallel.sh -p ${{ matrix.PARAM }} -s $S_SUFFIX -m $P_SUFFIX -r 4 -q 8
 
       - name: Upload parallel test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: parallel.${{ env.SUFFIX }}.logs
@@ -717,6 +719,7 @@ jobs:
           bash symmetries.sh ${{ matrix.param }} ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
 
       - name: Upload symmetries test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: symmetries-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
@@ -777,6 +780,7 @@ jobs:
           bash fam_t0t3.sh $SUFFIX $SUFFIX_T
 
       - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: fam_t0t3.${{ env.SUFFIX }}.logs
@@ -831,6 +835,7 @@ jobs:
           bash hfb_direct_gradient.sh -e $SUFFIX -p ${{ matrix.PARAM }}
 
       - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
           name: gradient_vs_direct.${{ env.SUFFIX }}.logs
