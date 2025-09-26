@@ -60,7 +60,7 @@ Type='HFB'
 pairingscheme=$2
 /
 &evolution
-maxiter=200
+maxiter=400
 /
 &scfiteration
 /
