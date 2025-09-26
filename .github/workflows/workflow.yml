@@ -13,16 +13,9 @@ on:
   push:
     branches:
       - master
-      - difficult_merge
-      - FAM_wr
-      - diff_merge_HDF5
-      - compilation_adaptation
-      - merge_FAM_pasta
   pull_request:
     branches:
       - master
-      - difficult_merge
-      - FAM_wr
 jobs:
   #-----------------------------------------------------------------------------
   # Compilation jobs

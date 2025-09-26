@@ -35,17 +35,25 @@ one for use, the following table summarizes all the options you are required to 
 | Variable           | Description
 |:-------------------|:---------------------------------------------------------
 |EXECDIR             | storage of the final executables
-|SRCDIR              | storage of the source code as processed by Hephaestos
-|OBJDIR              | storage for intermediate object files
-|MODDIR              | storage for final module files
+|MF_SRC_DIR          | storage of the source code for the mean-field code as processed by Hephaestos
+|MF_OBJ_DIR          | storage for intermediate object files  for the mean-field code
+|MF_MOD_DIR          | storage for final module files for the mean-field code
+|                    | 
+|FAM_SRC_DIR         | storage of the source code for the linear response code as processed by Hephaestos
+|FAM_OBJ_DIR         | storage for intermediate object files for the linear response code
+|FAM_MOD_DIR         | storage for final module files for the linear response code
 |                    |
+|PYTHON_CMD          | Python interpreter used to invoke Hephaestos
+|                    | 
 |CXX                 | compiler invokation to be used; e.g. 'gfortran' or 'mpiifort'
 |OPTFLAGS            | compiler flags related to optimisation
 |CXXFLAGS            | compiler flags not related to optimisation
 |PREPFLAG            | the relevant syntax to invoke the preprocessor for your choice of CXX
-|PRE                 | steps to do before compilation.
-|USE_MPI             | set to 0/1 to disable/enable MPI parallelisation
+|DEBUG_LEVEL         | debugging flags to pass to the compiler
 |                    |
+| USE_MPI            | whether (1) or not (0) to compile with MPI support 
+|                    | 
 | USE_HDF5           | whether to offer HDF5 support, yes(1) or no (0)
-| HDF5_LIB           | linking statemetns for the HDF5 library
+| HDF5_LIB           | linking statements for the HDF5 library
+| 
 | LINEAR_ALGEBRA_LIB | linking statements for (Sca)LAPACK and BLAS
