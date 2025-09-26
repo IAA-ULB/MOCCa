@@ -10,7 +10,6 @@ require the explicit setting of environment variables through something like
 
 which I recommend you add to your `.bashrc`.
 
-
 Given that HDF5 libraries can be installed in multiple ways, there is not much help I can systematically get you 
 beyond the linking options that work on astropc19, included in `make.inc.intel-serial-hdf5`.
 
@@ -78,7 +77,7 @@ and optionally
 module load cray-hdf5 OR cray-hdf5-parallel 
 ```
 
-Only the first two are strictly necessary for compilation. The third (`craype-hugeâges2M`) avoids
+Only the first two are strictly necessary for compilation. The third (`craype-hugepages2M`) avoids
 segfaults that might occur in large calculations. The loading of a HDF5 module
 is only necessary if you enable it at compiletime.
 
