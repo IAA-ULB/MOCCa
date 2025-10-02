@@ -608,6 +608,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  Sum for the total
     J2_pairing_cut(:,3) = sum(J2_pairing_cut(:,1:2),2)
     Belyaev(:,3)        = sum(Belyaev(:,1:2),2)
+
+    ! Ensure printing is complete 
+    J2_coll   = J2_pairing_cut
+    Bely_coll = Belyaev
   end subroutine calcJ2andBelyaev_BCS
 
   subroutine calcJ2andBelyaev_HFB

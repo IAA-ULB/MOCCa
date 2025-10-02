@@ -1438,7 +1438,6 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
       R   = 1.2 * (A)**(1./3.)
       MOI =  2.0d0/5.0d0 * sum(nucleonmass)/2 * (A)*R**2
       MOI = MOI/(hbarclum**2)
-
   end function classical_MOI
 
   function calcPotentials(R, Fread) result(F)
