@@ -309,10 +309,11 @@ get_inertia_components() {
 #   $1 -> filename of Tantalus STDOUT
 # Outputs the inertia tensor components 2020, 2030, 3030
 
+    LC_NUMERIC="en_US.UTF-8" # Ensure decimal points are correctly treated
     # Extract the components from the table
-    I_2020=$(grep "I_Q20 |" $1 | awk '{print $3}')
-    I_2030=$(grep "I_Q20 |" $1 | awk '{print $5}')
-    I_3030=$(grep "I_Q30 |" $1 | awk '{print $5}')
+    I_2020=$(grep "I_Q20 |" $1 | awk '{printf "%.8f", $3}') # printf with specific format string to transform scientific notation to standard one
+    I_2030=$(grep "I_Q20 |" $1 | awk '{printf "%.8f", $5}')
+    I_3030=$(grep "I_Q30 |" $1 | awk '{printf "%.8f", $5}')
 
     # Output the results
     printf "%.8f %.8f %.8f\n" "$I_2020" "$I_2030" "$I_3030"

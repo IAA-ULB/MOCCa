@@ -45,6 +45,7 @@ use momentsofinertia
 use moments
 use Coulombmod
 use transform
+use fission_MOI
 
 use IO_wf, only: SYM_CODE, TRANS_CODE, allowtransform, extraspwfs
 use IO_wf, only: version_number, file_version
@@ -126,6 +127,12 @@ contains
     call ReadSCFIteration(file_number)
     call ReadWFdata(file_number)
     call ReadIOInput(file_number)
+    if(N_inertia .gt. 4) then
+      call read_inertia(file_number=file_number)
+    else 
+      inertia_l = inertia_l_hardcoded
+      inertia_m = inertia_m_hardcoded
+    endif
     call readmomentdata(file_number)
     call readcranking(file_number)
 
@@ -160,7 +167,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile
+    &           tofile, blockfile, inertfile,  famfile, N_inertia
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -205,8 +212,21 @@ contains
 
     call MPI_Bcast(allowtransform, 1                  , MPI_LOGICAL, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
 #endif  
   
+#if(USE_MPI == 0) 
+  if(N_inertia .lt. 4) then
+    call stp('N_inertia must be at least 4.')
+  endif
+#else 
+  if(N_inertia .ne. 0) then
+    call stp('N_inertia has to be 0 for MPI calculations.')
+  endif
+#endif
+
   end subroutine ReadIOInput
 
   subroutine PrintInput(file_number, input_file)

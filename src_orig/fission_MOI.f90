@@ -59,9 +59,18 @@ module fission_MOI
   !  be more 'functional': i.e. with routines that depend less on global
   !  variables.
   !-----------------------------------------------------------------------------
-  integer, parameter   :: N_inertia            = 4
-  integer              :: inertia_l(N_inertia) = (/ 2, 2, 3, 3 /)
-  integer              :: inertia_m(N_inertia) = (/ 0, 2, 0, 2 /)
+#if(USE_MPI == 0)
+  integer              :: N_inertia = 4
+#else
+  integer              :: N_inertia = 0 ! No support for parallel calculations of the MOI yet
+#endif
+  integer, ALLOCATABLE :: inertia_l(:) 
+  integer, ALLOCATABLE :: inertia_m(:) 
+  !
+  ! These are hardcoded values that are used to ensure the first four 
+  ! moments of inertia always correspond to Q20, Q22, Q30 and Q32
+  integer, PARAMETER   :: inertia_l_hardcoded(4) = (/ 2, 2, 3, 3 /)
+  integer, PARAMETER   :: inertia_m_hardcoded(4) = (/ 0, 2, 0, 2 /)
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
@@ -250,6 +259,8 @@ contains
     integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
         
+    if(N_inertia .eq. 0) return
+
     call start_timer(T_collective_MOI)
         
     if(.not.allocated(collective_inertia)) then
@@ -876,69 +887,77 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 
   end function Qlm_spme
 
+  subroutine read_inertia(file_number)
+    !---------------------------------------------------------------------------
+    ! Subroutine to read the &inertia/ namelist from the specified file (via the
+    ! specified channel) or from STDIN if the variables are not present.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
+    !---------------------------------------------------------------------------
+    integer(dp), intent(in), optional   :: file_number
+    integer :: k
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
+
+    NameList /inertia/ inertia_l, inertia_m
+
+    ! Sanity check
+    if(N_inertia .lt. 4) then
+      call stp('N_inertia has to be larger than 4, in order to include at least Q20, Q22, Q30 and Q32.')
+    endif
+
+    allocate(inertia_l(N_inertia)) ; inertia_l = -1
+    allocate(inertia_m(N_inertia)) ; inertia_m = -1
+
+    ! only the very first MPI rank reads input
+    if(MPI_RANK.eq.0) then
+      if(present(file_number)) then
+        read (unit=file_number, nml=inertia)
+      else
+        read (unit=*, nml=inertia)
+      endif
+
+      ! Some sanity checks
+      do k=1, N_inertia
+        if(inertia_l(k) .eq. -1) then
+          call stp('Number of elements in inertia_l does not match N_inertia.')
+        endif
+
+        if(inertia_l(k) .gt. maxmoment) then
+          call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
+        endif
+
+        if(inertia_m(k) .eq. -1) then
+          call stp('Number of elements in inertia_m does not match N_inertia.')
+        endif
+
+        if(inertia_m(k) .gt. inertia_l(k)) then
+          call stp('Cannot compute inertia for Qlm with m > l.')
+        endif
+
+        if( k .le. 4 ) then
+          if(inertia_l(k) .ne. inertia_l_hardcoded(k)) then
+            print *, k, inertia_l_hardcoded(k), inertia_l(k)
+            call stp('The first four entries in inertia_l have to be l = 2,2,3,3 .')
+          endif
+          if(inertia_m_hardcoded(k) .ne. inertia_m_hardcoded(k)) then
+            print *, k, inertia_m_hardcoded(k), inertia_m(k)
+            call stp('The first four entries in inertia_l have to be l = 0,2,0,2 .')
+          endif
+        endif
+      enddo
+    endif
+
+    ! ... and then broadcast to all ranks
+#if(USE_MPI > 0)
+    call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+#endif
+  end subroutine read_inertia
+   
 end module fission_MOI
 
-! Code zoo
 
-!   subroutine read_inertia(file_number)
-!     !---------------------------------------------------------------------------
-!     ! Subroutine to read the &inertia/ namelist from the specified file (via the
-!     ! specified channel) or from STDIN if the variables are not present.
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Input:
-!     !   file_number : optional integer. If present, read from (open) channel
-!     !                 with this number. If absent, read from STDIN.
-!     !---------------------------------------------------------------------------
-!     integer(dp), intent(in), optional   :: file_number
-!     integer :: k
-! #if(USE_MPI>0)
-!     integer :: mpi_err
-! #endif
-!
-!     NameList /inertia/ inertia_l, inertia_m
-!
-!     ! Sanity check
-!     if(N_inertia .lt. 0) then
-!       call stp('N_inertia cannot be negative.')
-!     else if (N_inertia .eq. 0) then
-!       ! do nothing
-!       return
-!     endif
-!
-!     allocate(inertia_l(N_inertia)) ; inertia_l = -1
-!     allocate(inertia_m(N_inertia)) ; inertia_m = -1
-!
-!     ! only the very first MPI rank reads input
-!     if(MPI_RANK.eq.0) then
-!       if(present(file_number)) then
-!         read (unit=file_number, nml=inertia)
-!       else
-!         read (unit=*, nml=inertia)
-!       endif
-!
-!       ! Some sanity checks
-!       do k=1, N_inertia
-!         if(inertia_l(k) .eq. -1) then
-!           call stp('Number of elements in inertia_l does not match N_inertia.')
-!         endif
-!
-!         if(inertia_l(k) .gt. maxmoment) then
-!           call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
-!         endif
-!
-!         if(inertia_m(k) .eq. -1) then
-!           call stp('Number of elements in inertia_m does not match N_inertia.')
-!         endif
-!
-!         if(inertia_m(k) .gt. inertia_l(k)) then
-!           call stp('Cannot compute inertia for Qlm with m > l.')
-!         endif
-!       enddo
-!     endif
-!
-!     ! ... and then broadcast to all ranks
-! #if(USE_MPI > 0)
-!     call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-!     call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-! #endif
-!   end subroutine read_inertia

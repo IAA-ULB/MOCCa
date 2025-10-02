@@ -12,6 +12,10 @@
 #  --------                              ------                     ---------
 #  Total energy                       < the first result obtained >   1 keV
 #
+# Note: this calculation enforces the use of identical evolution algorithms
+#       in both the serial and parallel calculations.
+#
+#
 #  TODO:
 #  - add other observables
 #  - enable this test for configurations with different symmetry options
@@ -31,8 +35,7 @@
 # Owner                : wouter.ryssens@ulb.be
 # Reference commit hash: 486028f3177530a238062fee11d5392677e83578
 #--------------------------------------------------------------------------------
-set -v
-
+set -e
 usage() { echo "Usage: $0 -p param -s exec -m exec -r np1 -q np2" 1>&2; exit 1; }
 
 while getopts "p:s:m:r:q:" opt; do
@@ -57,7 +60,6 @@ while getopts "p:s:m:r:q:" opt; do
             ;;
     esac
 done
-
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # A small function to write equivalent input data
 write_data()
@@ -78,6 +80,9 @@ Type='BCS'
 &evolution
 maxiter=200
 freezeiter=0
+Strategy = 'HBSANE'
+ortho_strategy = 'CHOLESKY'
+subspace_rotation = .true.
 /
 &scfiteration
 /
@@ -93,15 +98,15 @@ OutputFilename='trash'
 !moreconstraints=.true.
 /
 &MomentConstraint
-!l=2
-!m=0
-!constraint=50
-!moreconstraints=.true.
+l=2
+m=0
+constraint=50
+moreconstraints=.true.
 /
 &MomentConstraint
-!l=2
-!m=2
-!constraint=10
+l=2
+m=2
+constraint=10
 /
 &Cranking
 /
