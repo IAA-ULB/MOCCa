@@ -844,3 +844,51 @@ jobs:
             testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
             testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
           retention-days: 90          
+
+  cranking:
+    #---------------------------------------------------------------------------
+    # Run the cranking.sh test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
+    strategy:
+      matrix:
+        CONFIG  : [ NLO-T    ]
+        COMPILER: [ gfortran]
+        CALCTYPE: [ NUCLEI  ]
+        MPI     : [ false   ]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash cranking.sh $SUFFIX 
+
+      - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradient_vs_direct.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.J
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
+          retention-days: 90          

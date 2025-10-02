@@ -254,14 +254,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     call adapt_com(Density)        !
     call CalculateMoments(Density) ! Recalculate because the COM might have changed.
 
-
-    ! Only calculate the fields that have not been read from either a
-    ! wavefunction file or a potential file.
-    if(allocated(potentials_read%F_I_I)) then
-      potentials = calcPotentials(Density, potentials_read)
-    else
-      potentials = calcPotentials(Density)
-    endif
     ! Update all spwf properties
 #if(PASTA == 0)
     ! the memory and CPU time requirements of these routine scale very badly...
@@ -271,6 +263,19 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 #else
     print_adv_spwf_properties = .false.
 #endif
+
+    call updateAM(Density) ! TODO: adapt the calculation of angular momentum
+                           !       to only ever use densities; this will avoid
+                           !       having to recalculate angular momentum matrix
+                           !       elements at every iteration
+
+    ! Only calculate the fields that have not been read from either a
+    ! wavefunction file or a potential file.
+    if(allocated(potentials_read%F_I_I)) then
+      potentials = calcPotentials(Density, potentials_read)
+    else
+      potentials = calcPotentials(Density)
+    endif
 
     call setBelyaevProcedure()
     !---------------------------------------------------------------------------
@@ -284,8 +289,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
-    
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! First, do some bookkeeping
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! (1) update the arrays containing stuff at the last iteration
@@ -333,6 +337,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
         ! Update value of the average angular momentum
+        if(check_cranking() .and. .not. crank_smooth) then 
+            call update_spwf_properties_HF()
+            if(PairingType.eq.2) call update_spwf_properties_CAN()
+        endif
         call updateAM(Density) ! TODO: adapt the calculation of angular momentum
                                !       to only ever use densities...
         ! .... and readjust any constraints on it
@@ -358,7 +366,12 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             if(follow_com) call adapt_com(Density)
             ! .... and recalculate constrained quantities
             call CalculateMoments(Density)
-            call updateAM(Density)
+
+            if(check_cranking() .and. .not. crank_smooth) then 
+              call update_spwf_properties_HF()
+              if(PairingType.eq.2) call update_spwf_properties_CAN()
+              call updateAM(Density)
+            endif
         endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -410,7 +423,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
           iprint = 1 ; calc_expensive = .true.
         else
-          iprint = 0 ; calc_expensive = .false.
+          iprint = 0 
+          calc_expensive = .false.
+          if(check_cranking()) calc_expensive = .true. ! need the details of the spwf 
+                                                       ! to calculate the cranking quantities
         endif
 
         call CalcEnergy(Density, Potentials, calc_expensive)
@@ -665,7 +681,7 @@ subroutine update_spwf_properties_CAN()
   ! the correct input depending on the type of calculation we are performing.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   use pairing, only       : cantransfo
-  use wavefunctions, only : update_spwf_properties
+  use wavefunctions, only : update_spwf_properties,nwn
   use wavefunctions, only : CAN_J, CAN_JTR, CAN_JTI, CAN_JJ, CAN_J2
   use wavefunctions, only : CAN_spin, CAN_STR, can_STI
   use wavefunctions, only : spwf_r2_can, P_can
