@@ -1234,101 +1234,109 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !
     ! Input:
     !        Tocalculate :  multipole moment to be calculated
+    !        R           :  densityvector to calculate the neck for
     !---------------------------------------------------------------------------
     use derivatives
 
     type(DensityVector), intent(in), target :: R
     type(Moment),        intent(inout)      :: ToCalculate
-!    integer                             :: it, k, maxind(1)
-!    real(KIND=dp)                       :: z0, maxz0, minz0, neck, min_neck,ztry
-!    real(KIND=dp), pointer              :: den(:,:,:)
-!    real(KIND=dp), allocatable          :: linear_den(:)
 
-!    ! Save the history
-!    Tocalculate%history = tocalculate%value
+    integer                                 :: it, k, maxind(1)
+    real(KIND=dp)                           :: z0, maxz0, minz0, neck, min_neck,ztry
+#if($FAM == 0)
+    real(KIND=dp), pointer                  :: den(:,:,:)
+#else
+    complex(KIND=dp), pointer               :: den(:,:,:)
+#endif
+    real(KIND=dp), allocatable              :: linear_den(:)
 
-!    !Initialise
-!    ToCalculate%Value      = 0.0_dp
-!    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
+    ! Save the history
+    Tocalculate%history = tocalculate%value
 
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! 1. Setting up things
-!    !
-!    ! Do the integration of the matter density over x and y
-!    allocate(linear_den(nz))
-!    ! isoscalar density pointer remapping
-!    den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
-!    ! Integrate for each point along z
-!    do k=1,nz
-!      linear_den(k) = sum(den(:,:,k))
-!    enddo
-!    ! Volume element is dx^2  * factors 2 for symmetry
-!    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
-!    
-!    ! Determine limits for z_0: between the maxima of the density along the 
-!    !  negative and positive z-axis
-!    if(reduZ .eq. 1) then
-!      ! The z-axis is represented symmetrically
-!      maxind = maxloc(linear_den)
-!      ! The following is maximum of the density along the positive z-axis
-!      maxz0 =  meshz(maxind(1))
-!      minz0 = -maxz0
-!    else
-!      ! The z-axis is fully represented
-!      ! z > 0
-!      maxind = maxloc(linear_den(nz/2+1:nz))
-!      maxz0  = meshz(nz/2 + maxind(1))
-!      ! z < 0
-!      maxind = maxloc(linear_den(1:nz/2))
-!      minz0  = meshz(maxind(1))
-!    endif
+    !Initialise
+    ToCalculate%Value      = 0.0_dp
+    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
 
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
-!    ! 2. Determine z_0 from the matter density by minimization by brute force
-!    z0       = maxz0
-!    min_neck = calc_neck(linear_den, z0)
-!    do k=1,1000
-!      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
-!      neck = calc_neck(linear_den, ztry)
-!      if(neck .lt. min_neck)then
-!        min_neck = neck
-!        z0       = ztry
-!      endif
-!    enddo
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
-!    ! 3. Use this value of z0 to calculate all values 
-!    !    Neutron and proton densities
-!    do it=1,2
-!      den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,it) 
-!      do k=1,nz
-!        linear_den(k) = sum(den(:,:,k))
-!      enddo
-!      ! Volume element is dx^2  * factors 2 for symmetry
-!      linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
-!      Tocalculate%value(it) = calc_neck(linear_den, z0)
-!    enddo
-!    ! Charge density
-!    do k=1,nz
-!      linear_den(k) = sum(R%chargedensity(:,:,k))
-!    enddo
-!    ! Volume element is dx^2  * factors 2 for symmetry
-!    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 1. Setting up things
+    !
+    ! Do the integration of the matter density over x and y
+    allocate(linear_den(nz))
+    ! isoscalar density pointer remapping
 
-!    ToCalculate%ChargeValue = calc_neck(linear_den, z0)
-!    !---------------------------------------------------------------------------
-!    ! Set the spherical harmonic" variable for this moment in order to 
-!    ! facilitate future implementation of constraints on this quantity.
-!    ToCalculate%Spherharm = exp(-(meshgrid(:,3) - z0)**2/(neck_length**2))
-!    if(reduZ .eq. 1) then
-!      ! Explicitly
-!      ToCalculate%Spherharm = ToCalculate%Spherharm + &
-!      &                     exp(-(meshgrid(:,3) + z0)**2/(neck_length**2))
-!      ToCalculate%Spherharm = ToCalculate%Spherharm/2 ! because we have 
-!                                                      ! symmetrized!
-!    endif
-!    !---------------------------------------------------------------------------
-!    ! Saving the location of the neck for printing purposes
-!    neck_location = z0
+    den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
+    ! Integrate for each point along z
+    do k=1,nz
+      linear_den(k) = sum(DBLE(den(:,:,k))) ! DBLE ensures conversion to real 
+                                            ! for FAM calculations
+    enddo
+    ! Volume element is dx^2  * factors 2 for symmetry
+    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+    
+    ! Determine limits for z_0: between the maxima of the density along the 
+    !  negative and positive z-axis
+    if(reduZ .eq. 1) then
+      ! The z-axis is represented symmetrically
+      maxind = maxloc(linear_den)
+      ! The following is maximum of the density along the positive z-axis
+      maxz0 =  meshz(maxind(1))
+      minz0 = -maxz0
+    else
+      ! The z-axis is fully represented
+      ! z > 0
+      maxind = maxloc(linear_den(nz/2+1:nz))
+      maxz0  = meshz(nz/2 + maxind(1))
+      ! z < 0
+      maxind = maxloc(linear_den(1:nz/2))
+      minz0  = meshz(maxind(1))
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+    ! 2. Determine z_0 from the matter density by minimization by brute force
+    z0       = maxz0
+    min_neck = calc_neck(linear_den, z0)
+    do k=1,1000
+      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
+      neck = calc_neck(linear_den, ztry)
+      if(neck .lt. min_neck)then
+        min_neck = neck
+        z0       = ztry
+      endif
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+    ! 3. Use this value of z0 to calculate all values 
+    !    Neutron and proton densities
+    do it=1,2
+      den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,it) 
+      do k=1,nz
+        linear_den(k) = sum(den(:,:,k))
+      enddo
+      ! Volume element is dx^2  * factors 2 for symmetry
+      linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+      Tocalculate%value(it) = calc_neck(linear_den, z0)
+    enddo
+    ! Charge density
+    do k=1,nz
+      linear_den(k) = sum(R%chargedensity(:,:,k))
+    enddo
+    ! Volume element is dx^2  * factors 2 for symmetry
+    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+
+    ToCalculate%ChargeValue = calc_neck(linear_den, z0)
+    !---------------------------------------------------------------------------
+    ! Set the spherical harmonic" variable for this moment in order to 
+    ! facilitate future implementation of constraints on this quantity.
+    ToCalculate%Spherharm = exp(-(meshgrid(:,3) - z0)**2/(neck_length**2))
+    if(reduZ .eq. 1) then
+      ! Explicitly
+      ToCalculate%Spherharm = ToCalculate%Spherharm + &
+      &                     exp(-(meshgrid(:,3) + z0)**2/(neck_length**2))
+      ToCalculate%Spherharm = ToCalculate%Spherharm/2 ! because we have 
+                                                      ! symmetrized!
+    endif
+    !---------------------------------------------------------------------------
+    ! Saving the location of the neck for printing purposes
+    neck_location = z0
     return
   end subroutine Calculate_neckoperator
   

@@ -91,7 +91,7 @@ from src_heph.heph_symmetries  import *
 from scipy.special             import sph_harm
 import numpy                   as np
 
-def ProcessMoments(fname, src, target, so):
+def ProcessMoments(fname, src, target, so, fam_active=False):
   """
     Generate the required Fortran code to process the moments.f90 file. 
     
@@ -101,7 +101,7 @@ def ProcessMoments(fname, src, target, so):
       target: directory to put the finished source code
       so    : SymmetryOption object, containing all the details on the 
               symmetries conserved during the calculation.
-    
+      fam_active : Boolean, whether we are compiling a mf or fam executable.
   """
   tab           = '    '
   template_list = Template( tab+'moment_list($ELL,$EMM,$IND) = $ON   ')
@@ -185,7 +185,12 @@ def ProcessMoments(fname, src, target, so):
   else:
     dic['TR']  = '!'
     dic['NTR'] = ''
-    
+
+  if(fam_active):
+    dic['FAM']  = 1
+  else:
+    dic['FAM']  = 0
+        
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:
       for line in template:

@@ -319,6 +319,14 @@ get_inertia_components() {
     printf "%.8f %.8f %.8f\n" "$I_2020" "$I_2030" "$I_3030"
 }
 
+get_neck_stdout (){
+# Get the neck value from a Tantalus STDOUT
+# Input:
+#   $1 -> filename of Tantalus STDOUT
+    neck=(`grep "Neck (z)" $1  | tail -1`) # The () force the grep result into array
+    echo ${neck[5]}                              # echo the last result
+}
+
 check_convergence() {
 #
 # Check if Tantalus has converged by looking for "Converged" in the STDOUT

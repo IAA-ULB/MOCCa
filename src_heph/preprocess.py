@@ -105,7 +105,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='basis_transform.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='moments.f90'):
-        ProcessMoments(fname, src, target, so)
+        ProcessMoments(fname, src, target, so, fam_active)
     if(fname=='constants.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='diag.f90'):

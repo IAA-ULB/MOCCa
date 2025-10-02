@@ -10,7 +10,7 @@
 #  - I_2020 ( MeV^{-1} b^{-l} [hbar^2])       0.20311               0.001
 #  - I_2030 ( MeV^{-1} b^{-l} [hbar^2])       0.00000               0.000
 #  - I_3030 ( MeV^{-1} b^{-l} [hbar^2])       0.04728               0.001
-#
+#  - neck   (particles)                      26.5350                0.01
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Usage
 # ------
@@ -30,6 +30,7 @@ refB20=0.68421
 refI_2020=0.197829
 refI_2030=0.000000
 refI_3030=0.045706
+ref_N=26.5350
 
 set -e
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
@@ -111,8 +112,7 @@ check_energy=$?
 B20=$(get_B20_stdout $outfile)
 compare_floats $B20 $refB20 0.001
 check_B20=$?
-# c) And finally a few components of the inertia tensor
-get_inertia_components $outfile
+# c) and a few components of the inertia tensor
 read I_2020 I_2030 I_3030 <<< $(get_inertia_components $outfile)
 
 # Compare each component with its reference
@@ -125,10 +125,15 @@ check_I_2030=$?
 compare_floats $I_3030 $refI_3030 0.001
 check_I_3030=$?
 
+# d) and the value of the neck
+N=$(get_neck_stdout $outfile)
+compare_floats $N $ref_N 0.01
+check_neck=$?
+
 # remove working directory and traces of these calculations
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
-overall_check=$(($tantalus_check || $check_energy || $check_B20 || $check_I_2020 || $check_I_2030 || $check_I_3030))
+overall_check=$(($tantalus_check || $check_energy || $check_B20 || $check_I_2020 || $check_I_2030 || $check_I_3030 || $check_neck))
 
 # Print final status
 if [ $overall_check -eq 0 ]; then
