@@ -47,11 +47,30 @@ module fission_MOI
   implicit none
 
   !-----------------------------------------------------------------------------
-  ! Multipole moments for which to construct the inertia tensor. 
-  integer :: N_inertia            = 0
-  integer, allocatable :: inertia_l(:) 
-  integer, allocatable :: inertia_m(:)  
-
+  ! Multipole moments for which to construct the inertia tensor.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Hardcoded to include Q20,Q22,Q30,Q32 at the moment because
+  ! (a) these are the relevant ones for our description of fission
+  ! (b) the Q20/Q22 are needed for the calculation for one option to
+  !     correct for the vibrational correction.
+  !
+  ! If the flexibility to calculate even more/different MOIs is needed in the
+  !  future, it is probably a good idea to further refactor this module to
+  !  be more 'functional': i.e. with routines that depend less on global
+  !  variables.
+  !-----------------------------------------------------------------------------
+#if(USE_MPI == 0)
+  integer              :: N_inertia = 4
+#else
+  integer              :: N_inertia = 0 ! No support for parallel calculations of the MOI yet
+#endif
+  integer, ALLOCATABLE :: inertia_l(:) 
+  integer, ALLOCATABLE :: inertia_m(:) 
+  !
+  ! These are hardcoded values that are used to ensure the first four 
+  ! moments of inertia always correspond to Q20, Q22, Q30 and Q32
+  integer, PARAMETER   :: inertia_l_hardcoded(4) = (/ 2, 2, 3, 3 /)
+  integer, PARAMETER   :: inertia_m_hardcoded(4) = (/ 0, 2, 0, 2 /)
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
@@ -64,68 +83,6 @@ module fission_MOI
   
 contains 
 
-  subroutine read_inertia(file_number)
-    !---------------------------------------------------------------------------
-    ! Subroutine to read the &inertia/ namelist from the specified file (via the
-    ! specified channel) or from STDIN if the variables are not present.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !   file_number : optional integer. If present, read from (open) channel
-    !                 with this number. If absent, read from STDIN.
-    !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
-    integer :: k
-#if(USE_MPI>0)
-    integer :: mpi_err
-#endif
-
-    NameList /inertia/ inertia_l, inertia_m
-
-    ! Sanity check    
-    if(N_inertia .lt. 0) then
-      call stp('N_inertia cannot be negative.')
-    else if (N_inertia .eq. 0) then
-      ! do nothing
-      return
-    endif
-  
-    allocate(inertia_l(N_inertia)) ; inertia_l = -1
-    allocate(inertia_m(N_inertia)) ; inertia_m = -1
-
-    ! only the very first MPI rank reads input   
-    if(MPI_RANK.eq.0) then 
-      if(present(file_number)) then
-        read (unit=file_number, nml=inertia)
-      else
-        read (unit=*, nml=inertia)
-      endif
-
-      ! Some sanity checks
-      do k=1, N_inertia
-        if(inertia_l(k) .eq. -1) then 
-          call stp('Number of elements in inertia_l does not match N_inertia.')
-        endif
-        
-        if(inertia_l(k) .gt. maxmoment) then
-          call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
-        endif
-        
-        if(inertia_m(k) .eq. -1) then 
-          call stp('Number of elements in inertia_m does not match N_inertia.')
-        endif
-
-        if(inertia_m(k) .gt. inertia_l(k)) then
-          call stp('Cannot compute inertia for Qlm with m > l.')
-        endif
-      enddo
-    endif
-    
-    ! ... and then broadcast to all ranks
-#if(USE_MPI > 0)
-    call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-#endif      
-  end subroutine read_inertia
 
   subroutine print_collective_inertia()
     !---------------------------------------------------------------------------
@@ -263,143 +220,6 @@ contains
         
     print 2
   end subroutine print_collective_inertia
-  
-  subroutine verify_COM_motion()
-    !---------------------------------------------------------------------------
-    !  This routine performs calculations of the collective moments of inertia
-    !  for the motion of the z-coordinate of the center of mass.
-    !
-    !  The collective coordinate for species q is thus
-    !    Q_q = z_q / A
-    !  to which corresponds a collective momentum  (in our convention)     
-    !    P_q = - i \nabla_z (*)
-    !  
-    !  One can show that, analytically, the collective inertia associated with 
-    !  movement of the centre-of-mass should be the TOTAL mass of the nucleus
-    ! 
-    !   M'_{0} = A m
-    !
-    !  This is what is always presented in the literature. Note however the 
-    !  little accent M', indicating that this IS NOT the collective inertia
-    !  associated with P_q. Rather, it is the collective mass associated with 
-    !     P'_q = hbar P_q
-    !  i.e. the 'physical' convention for the momentum. 
-    !
-    ! We calculate the collective inertia related to COM motion here in multiple
-    ! ways:
-    !
-    !   (a) Analytically, printed as 'A m'
-    !   (b) By using the Belyaev formula for the momentum in our convention (*)
-    !       (and multiplying by hbar^2 afterward)
-    !   (c) By using the perturbative cranking formula starting from Q_q
-    !       (and converting convention again afterward)
-    !
-    ! The results of (b) and (c) are not necessarily close to (a) however: 
-    ! for typical Skyrme interactions the effective mass m^*/m is not equal
-    ! to one, spoiling the correspondence of the perturbative formulation. 
-    ! The origin lies in the absence of Galileian invariance of the interaction 
-    ! in the perturbative treatment, see 
-    !
-    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
-    ! 
-    ! for a discussion. Ideally, we would calculate an "average" effective mass
-    ! as these authors do and use it to correct our results.
-    !
-    !---------------------------------------------------------------------------
-    
-    use functional
-    use densities
-    
-    1 format (' Pushing model                 M_0 (MeV/c^2)')
-    2 format (25x, 'neutrons        protons          total', / &
-    &         1x, 80('-'))
-    3 format ('   Belyaev M_0      | ', 3f16.5)
-    4 format ('   Pert. cranking   | ', 32x,f16.5)
-    7 format (1x, 80('-'),/, &
-    &         '   Am               | ', 3f16.5, /, 80('-'))
-    
-    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
-      
-    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
-    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt)
-    
-    ! Calculate hbar to make its use consistent
-    hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of nabla_z 
-    NablaMElements = compNablaMElements()
-    Psp            =  NablaMElements(3,1,:,:) 
-    if(pairingtype.eq.2) then
-      ! Attention, in a HFB calculation these are the matrix elements in the 
-      ! canonical basis, while Bogoliubov refers to the HF basis. So, we 
-      ! transfer back to the HFbasis
-      Psp = matmul(matmul(cantransfo, Psp), transpose(cantransfo))
-    endif
-    
-    Psp(1:nwn,1:nwn)         =  Psp(1:nwn,1:nwn)         * hbar
-    Psp(nwn+1:nwt,nwn+1:nwt) =  Psp(nwn+1:nwt,nwn+1:nwt) * hbar
-        
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of z-c.o.m. coordinate
-    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
-                    ! Q10 = sqrt(3/4pi) * z 
-                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
-    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
-    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: Calculate the average effective mass for the pushing model.
-    !       This used to work, but now fails thanks to the changes of the 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Calculate average effective mass 
-    !
-    !   m^*/m_q  = 2m/N_q * int d^3r   rho_q(r) hbar^2/2m^*_q(r)
-    ! 
-    ! with hbar^2/2m^*_q =  hbar^2/2m_q(r) + F_Nm_Nm(r)
-    ! 
-    ! which is the logical generalization from Eq. (30) in 
-    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
-    ! and an explicit factor of hbar^2.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !     avg_effmass = sum(F%F_Nm_Nm(:,:) * R%D_I_I(:,:) , 1) * dv
-    !     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
-    !     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
-    !     avg_effmass    = avg_effmass + 1
-    !     avg_effmass    = 1/avg_effmass
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-    print 1
-    print 2
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! perform the summations
-    select case(pairingtype)
-    case(0) ! HF
-      Pmat                     =  Ksum_Mij_HF(Psp, Psp, 1, 1,(/1,3/))
-      mat                      =  Ksum_Mij_HF(Qsp, Qsp, 1, 1,(/1,3/))
-    case(1) ! BCS
-      Pmat                     =  Ksum_Mij_BCS(Psp, Psp, 1, 1,(/1,3/))
-      mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
-    case(2) !HFB
-      P20 = calc_Q20(Psp, bogoliubov, 1)        
-      Pmat                     =  Ksum_Mij(P20, P20, 1, 1,(/1,3/))
-      Q20 = calc_Q20(Qsp, bogoliubov, 1)        
-      mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
-    end select
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculating the inertia parameters
-    totalmass   = 1.0d0/(sum(mat(1,:))) * sum(mat(2,:)) * 1.0d0/(sum(mat(1,:)))
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Printing 
-    print 3,  Pmat(1,:), sum(Pmat(1,:))
-    print 4,  totalmass * hbar**2
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Analytical result
-    print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
-    &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
-
-    print *
-
-  end subroutine verify_COM_motion
 
   subroutine calc_collective_inertia()
     !---------------------------------------------------------------------------
@@ -428,11 +248,8 @@ contains
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
     !      the quasiparticle energies, using Ksum_Mij
     !  (4) Invert M_1 with Lapack routines
-    !  (5) Obtain M_c for each species. The total inertia is M_t = M_n + M_p
+    !  (5) Calculate M_c
     !          
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Note: this routine is not yet ready to deal with blocked HFB vacua!
-    !
     !---------------------------------------------------------------------------
     ! Explicit declaration of the external linear algebra routines
     external :: dsytrf, dsytri
@@ -442,6 +259,8 @@ contains
     integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
         
+    if(N_inertia .eq. 0) return
+
     call start_timer(T_collective_MOI)
         
     if(.not.allocated(collective_inertia)) then
@@ -494,7 +313,7 @@ contains
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
+    ! Constructing explicitly the matrices M_1, M_2, M_3 for ease of reading
     if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
     if(.not. allocated(M2)) allocate(M2(N_inertia, N_inertia,3))
     if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
@@ -533,10 +352,7 @@ contains
       enddo
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Step 5: calculate cranking tensor for every isospin
-    !             M_c = 1/4 M1^{-1} M3 M1^{-1}
-    !         and sum the results
-    !             M_t = M_n + M_p
+    ! Step 5: calculate M_c
     collective_inertia = matmul(matmul(M1_inv, M3(:,:,3)), M1_inv)
 
     deallocate(Mat, M1_inv, Qsp)
@@ -1071,6 +887,77 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 
   end function Qlm_spme
 
+  subroutine read_inertia(file_number)
+    !---------------------------------------------------------------------------
+    ! Subroutine to read the &inertia/ namelist from the specified file (via the
+    ! specified channel) or from STDIN if the variables are not present.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
+    !---------------------------------------------------------------------------
+    integer(dp), intent(in), optional   :: file_number
+    integer :: k
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
+
+    NameList /inertia/ inertia_l, inertia_m
+
+    ! Sanity check
+    if(N_inertia .lt. 4) then
+      call stp('N_inertia has to be larger than 4, in order to include at least Q20, Q22, Q30 and Q32.')
+    endif
+
+    allocate(inertia_l(N_inertia)) ; inertia_l = -1
+    allocate(inertia_m(N_inertia)) ; inertia_m = -1
+
+    ! only the very first MPI rank reads input
+    if(MPI_RANK.eq.0) then
+      if(present(file_number)) then
+        read (unit=file_number, nml=inertia)
+      else
+        read (unit=*, nml=inertia)
+      endif
+
+      ! Some sanity checks
+      do k=1, N_inertia
+        if(inertia_l(k) .eq. -1) then
+          call stp('Number of elements in inertia_l does not match N_inertia.')
+        endif
+
+        if(inertia_l(k) .gt. maxmoment) then
+          call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
+        endif
+
+        if(inertia_m(k) .eq. -1) then
+          call stp('Number of elements in inertia_m does not match N_inertia.')
+        endif
+
+        if(inertia_m(k) .gt. inertia_l(k)) then
+          call stp('Cannot compute inertia for Qlm with m > l.')
+        endif
+
+        if( k .le. 4 ) then
+          if(inertia_l(k) .ne. inertia_l_hardcoded(k)) then
+            print *, k, inertia_l_hardcoded(k), inertia_l(k)
+            call stp('The first four entries in inertia_l have to be l = 2,2,3,3 .')
+          endif
+          if(inertia_m_hardcoded(k) .ne. inertia_m_hardcoded(k)) then
+            print *, k, inertia_m_hardcoded(k), inertia_m(k)
+            call stp('The first four entries in inertia_l have to be l = 0,2,0,2 .')
+          endif
+        endif
+      enddo
+    endif
+
+    ! ... and then broadcast to all ranks
+#if(USE_MPI > 0)
+    call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+#endif
+  end subroutine read_inertia
+   
 end module fission_MOI
 
-! Code zoo
+

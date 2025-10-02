@@ -45,6 +45,7 @@ use momentsofinertia
 use moments
 use Coulombmod
 use transform
+use fission_MOI
 
 use IO_wf, only: SYM_CODE, TRANS_CODE, allowtransform, extraspwfs
 use IO_wf, only: version_number, file_version
@@ -95,11 +96,9 @@ contains
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
     use pairing,       only : initpairing
-    use fission_moi,   only : read_inertia
 #if( $FAM == 1)
     use fam,           only : readfam
 #endif
-
     implicit none
 
     ! These inputs control where the code will look for its input. Leaving them 
@@ -128,7 +127,12 @@ contains
     call ReadSCFIteration(file_number)
     call ReadWFdata(file_number)
     call ReadIOInput(file_number)
-    call read_inertia(file_number)
+    if(N_inertia .gt. 4) then
+      call read_inertia(file_number=file_number)
+    else 
+      inertia_l = inertia_l_hardcoded
+      inertia_m = inertia_m_hardcoded
+    endif
     call readmomentdata(file_number)
     call readcranking(file_number)
 
@@ -155,7 +159,6 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    use fission_moi,   only : N_inertia
 
     integer(dp), intent(in), optional   :: file_number   
 #if(USE_MPI>0)
@@ -164,7 +167,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile, N_inertia, famfile
+    &           tofile, blockfile, inertfile,  famfile, N_inertia
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -206,13 +209,24 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(extraspwfs    , 8                  , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
-    &                                                   MPI_COMM_WORLD, mpi_err)
 
     call MPI_Bcast(allowtransform, 1                  , MPI_LOGICAL, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
 #endif  
   
+#if(USE_MPI == 0) 
+  if(N_inertia .lt. 4) then
+    call stp('N_inertia must be at least 4.')
+  endif
+#else 
+  if(N_inertia .ne. 0) then
+    call stp('N_inertia has to be 0 for MPI calculations.')
+  endif
+#endif
+
   end subroutine ReadIOInput
 
   subroutine PrintInput(file_number, input_file)
@@ -808,15 +822,10 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     open(unit=10,file=filedone)
 
     E = TotalE 
-    if(rotcorr.ne.0) then
-        Enocor = totalE - sum(rotcorrection)      &
-        &                 - sum(COMcorrection(2,:)) & 
-        &                 - sum(vibcorrection)
-        Erot_vib = sum(rotcorrection)+ sum(vibcorrection)
-    else
-        Enocor = totalE - sum(COMcorrection(2,:)) 
-        Erot_vib = 0.
-    endif
+    Enocor = totalE - sum(rotcorrection)      &
+    &                 - sum(COMcorrection(2,:)) &
+    &                 - vibcorrection
+    Erot_vib = sum(rotcorrection)+ vibcorrection
 
     b20 = Q20%beta(4)
     b22 = Q22%beta(4)    

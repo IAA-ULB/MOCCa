@@ -60,7 +60,7 @@ name_param='t0t3'
 type='HF'
 /
 &evolution
-maxiter=1000
+maxiter=100
 dt=0.0209, momentum=0.5746
 Estimateparams=.false.
 /
@@ -85,9 +85,50 @@ EOF
 ./$exe < mf.data > $mfoutfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (2) Run a calculation that freezes the potentials just to get a 
+#     robust set of virtual states
+cat << EOF > mf.data
+&nucleus
+neutrons=8, protons=8
+energy_prec=1e-20
+/
+&mesh
+nx=8, ny=8, nz=8, dx=0.8
+/
+&func
+name_param='t0t3'
+/
+&pairing
+type='HF'
+/
+&evolution
+maxiter=1000
+dt=0.0209, momentum=0.5746
+Estimateparams=.false.
+freezeiter=1000
+/
+&scfiteration
+/
+&wfs
+nwn = 14, nwp = 14
+osc_freq = 0.2, 0.2, 0.2
+/
+&IO
+InputFilename='mf.wf'
+OutputFilename='mf.wf'
+allowtransform=.true.
+/
+&MomentParam
+/
+&Cranking
+/
+EOF
+./$exe < mf.data > $mfoutfile.bis
+
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (2) Run the LO FAM calculation
+# (3) Run the LO FAM calculation
 
 # Create runtime data
 cat << EOF > fam.data

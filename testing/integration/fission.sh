@@ -31,7 +31,7 @@ refI_2020=0.197829
 refI_2030=0.000000
 refI_3030=0.045706
 
-#set -e
+set -e
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
@@ -112,6 +112,7 @@ B20=$(get_B20_stdout $outfile)
 compare_floats $B20 $refB20 0.001
 check_B20=$?
 # c) And finally a few components of the inertia tensor
+get_inertia_components $outfile
 read I_2020 I_2030 I_3030 <<< $(get_inertia_components $outfile)
 
 # Compare each component with its reference

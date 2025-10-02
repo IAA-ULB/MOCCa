@@ -143,7 +143,7 @@ module functional
     ! Rotational correction
     real(KIND=dp) :: RotCorrection(3)
     ! and vibrational correction
-    real(KIND=dp) :: VibCorrection(3)
+    real(KIND=dp) :: VibCorrection
     !---------------------------------------------------------------------------
     ! Value of the Routhian
     real(KIND=dp) :: Routhian, RHistory(5)
@@ -357,15 +357,15 @@ $PRINTCOEF_PAIR
    63 format (15x, '  Rotational  '  , a1, ':', 40x, f20.6)
   631 format (15x, '  Rotational  T:',          40x, f20.6)
   
-   64 format (15x, '  Vibrational '   , a1, ':', 40x, f20.6)
-  641 format (15x, '  Vibrational T:',          40x, f20.6)
-
    65 format (15x, '  Collective T: ',          40x, f20.6)
   
     7 format (15x, ' Coulomb Direct:', 3f20.6)
    !71 format (15x, '   Dir. (point):', 3f20.6)
     8 format (15x, '       Exchange:', 3f20.6)
    !81 format (15x, '   Exc. (point):', 3f20.6)  
+
+   !    64 format (15x, '  Vibrational '   , a1, ':', 30x, f15.6)
+  641 format (15x, '  Vibrational T:',          30x, f15.6)
 
     9 format (15x, 'Pairing (delta):', 3f20.6)
    91 format (15x, 'Pairing (densi):', 40x, f20.6)
@@ -421,18 +421,18 @@ $PRINTCOEF_PAIR
      !print *
     endif
 
-    if(rotcorr .ne.  0) then
-      print 65, sum(Rotcorrection) + sum(Vibcorrection)
+    if(rotcorr .ne.  0 .or. vibcorr .ne. 0) then
+      print 65, sum(Rotcorrection) + Vibcorrection
       print *
       print 631, sum(Rotcorrection)
       print 63, 'X',  Rotcorrection(1)
       print 63, 'Y',  Rotcorrection(2)
       print 63, 'Z',  Rotcorrection(3)
       print *
-      print 641, sum(Vibcorrection)
-      print 64, 'X',  Vibcorrection(1)
-      print 64, 'Y',  Vibcorrection(2)
-      print 64, 'Z',  Vibcorrection(3)
+      print 641, Vibcorrection
+!       print 64, 'X',  Vibcorrection(1)
+!       print 64, 'Y',  Vibcorrection(2)
+!       print 64, 'Z',  Vibcorrection(3)
       print *
     endif
 
@@ -466,7 +466,7 @@ $PRINTCOEF_PAIR
     if(rotcorr.ne.0) then
         print 991, totalE - sum(rotcorrection)      &
         &                 - sum(COMcorrection(2,:)) &
-        &                 - sum(vibcorrection)
+        &                 - vibcorrection
     endif
 
     if(inversetemp .ne. -1) then
@@ -676,7 +676,8 @@ end function multiply_potentialvector
     !                    parts of the total energy. 
     !                    Right now these are:
     !                      (i) the 2-body centre-of-mass correction
-    !                     (ii) the rotational correction
+    !                     (ii) the Belyaev moments of inertia and <J^2> for
+    !                          the rotational and (optional) vibration corrections
     !
     ! This routine is used to calculate "printable" energies, i.e. it is used
     ! for complete calculations of the energy in preparation of a print-out. 
@@ -688,7 +689,8 @@ end function multiply_potentialvector
     ! function calcRouth_onthefly, which has no side-effects and returns ONLY
     ! the value of the Routhian for a given set of mean-field densities. 
     !---------------------------------------------------------------------------
-    use momentsofinertia
+    use momentsofinertia, only: calcJ2andBelyaev, calcrigid
+    use fission_MOI, only: calc_collective_inertia
     use Coulombmod
     use densities
 
@@ -767,18 +769,25 @@ end function multiply_potentialvector
     CoulombExchange = coulomb_energy_exchange(Rin) 
 
     call calcrigid(Rin)
-    if(calc_expensive) then
 #if(PASTA == 0)
-      ! Collective correction
+    ! Perform the calculation of all relevant inertias
+    if(calc_expensive) then
       call start_timer(T_MOI)
       call calcJ2andBelyaev()
       call stop_timer(T_MOI)
-      call calcRotationalCorrection()
-#else
-      Vibcorrection = 0.0d0
-      Rotcorrection = 0.0d0
-#endif
+      call calc_collective_inertia()
     endif
+    ! ... and only then calculate the contributions to the energy
+    Rotcorrection    = calc_rotational_correction(rotcorr)
+    Vibcorrection    = calc_vibrational_correction(vibcorr)
+#else
+    ! These collective corrections are not relevant to
+    ! infinite systems
+    Vibcorrection = 0.0d0
+    Rotcorrection = 0.0d0
+    COMCorrection = 0.0d0
+#endif
+
     ! Entropy calculation when temperature is finite
     call calcentropy()
 
@@ -790,11 +799,11 @@ end function multiply_potentialvector
     call calcElectronEnergy()
 #endif
     ! The total energy is comprised of 
-    !      Kinetic part + Skyrme part + corrections + Coulomb energy
-    TotalE = Skyrme + sum(Kinetic) + sum(COMCorrection)
+    !      Kinetic part + Skyrme part + Coulomb energy
+    TotalE = Skyrme + sum(Kinetic)
     TotalE = TotalE + CoulombDirect + CoulombExchange
     ! Plus schematic corrections for the collective energy
-    TotalE = TotalE + sum(Rotcorrection) + sum(Vibcorrection)
+    TotalE = TotalE + sum(Rotcorrection) + Vibcorrection + sum(COMCorrection)
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -1262,109 +1271,174 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
 
   end subroutine CompCOMCorrection
 
-  subroutine calcRotationalCorrection()
-    !---------------------------------------------------------------------------
-    ! Calculate a phenomenological collective correction:
+  function calc_rotational_correction(rot_option) result(Erot)
+    !---------------------------------------------------------------------
     !
-    !    E_corr = - \sum_{\mu} (f^rot_mu  +  f^vib_mu ) <J_mu^2>/(2 * I_{\mu})
-    !
-    ! where
-    !      * the sum is over all three Cartesian directions
-    !      *  < J^2_{mu} > is the expectation value of the angular momentum
-    !                      squared in a given direction
-    !      *  I_mu is the Belyaev moment of inertia along a given direction
-    !
-    ! This incorporates more than 'just' the rotational correction: the factors
-    ! f have different interpretation:
-    !
-    !      * f^rot_mu is a cutoff function for the rotational correction
-    !      * f^vib_mu is a modification of the rotational correction, in order
-    !        to mimic a vibrational correction.
-    !
-    ! We take for both f-values
-    !
-    !      f^rot_mu = b tanh( c B_mu )
-    !      f^vib_mu = d B_mu exp ( -l  (B - b_vib)**2  )
-    !
-    ! where
-    !
-    !      B_mu = I_mu / I_c
-    !
-    ! is the ratio between the calculated Belyaev moment of inertia and (one
-    ! third of) the classical moment of inertia:
-    !
-    !      I_c = 2/15 * m_n * A * (1.2 * A)**2/(hbar c**2)
-    !
-    ! All of this is determined by five parameters: b, c, d, l and B_vib.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !
-    ! References:
-    !   G. Scamps, S. Goriely, E. Olsen, M. Bender and W. Ryssens, PRC XX (2021)
-    ! & S. Goriely, M. Samyn and J. M. Pearson, PRC 75, 065312 (2007).
-    !---------------------------------------------------------------------------
-    use momentsofinertia
-    use moments
+    ! Input:
+    !   rot_option
+    ! Output:
+    !   Erot:
+    !---------------------------------------------------------------------
+    use momentsofinertia, only: select_J2_and_MOI
 
-    integer       :: i
-    real(KIND=dp) :: B(3), A,  compare(3), R, f_rot(3), f_vib(3)
-    real(KIND=dp) :: bely(3), J2_temp(3)
+    integer, intent(in)        :: rot_option
+    real(KIND=dp)              :: Erot(3)
 
-    Rotcorrection = 0.0
-    Vibcorrection = 0.0
-    if(Rotcorr .eq. 0) return
+    real(KIND=dp)              :: B(3),f_rot(3)
+    real(KIND=dp)              :: J2(3), MOI(3), MOI_c
 
-    !---------------------------------------------------------------------------
-    ! Selecting the right quantities to use for the moment of inertia and <J^2>
-    select case(pairingtype)
-    case(0,1)
-      ! HF or BCS
-      Bely    = Belyaev(:,3)
-      J2_temp = J2_pairing_cut(:,3)
-      ! Sanity check: no collective sense of rotational correction implemented
-      !               yet for HF/BCStype calculations
-      if(blocktype.ne.0) then
-        call stp('Rotational correction for odd nuclei not incorporated into HF/BCS.')
-      endif
-    case (2)
-      ! HFB
-      if(inversetemp.lt.0) then
-        Bely    = Bely_coll(:,3)
-        J2_temp = J2_coll(:,3)
-      else
-        Bely    = Belyaev(:,3)
-        J2_temp = J2(:,3)
-      endif
+    Erot = 0.0d0
+    select case(rot_option)
+    case(0)
+      !----------------------------------------------------------------------
+      ! No rotational correction
+      return
+    case(1)
+      !----------------------------------------------------------------------
+      ! Calculate a phenomenological collective correction based on the
+      ! perturbative Belyaev moment of inertia.
+      !
+      !    Erot = - \sum_{\mu} f^rot_mu <J_mu^2>/(2 * I_{\mu})
+      !
+      ! where
+      !      * the sum is over all three Cartesian directions
+      !      *  < J^2_{mu} > is the expectation value of the angular momentum
+      !                      squared in a given direction
+      !      *  I_mu is the Belyaev moment of inertia along a given direction
+      !      * f^rot_mu is a cutoff function for the rotational correction
+      !
+      ! We take
+      !
+      !      f^rot_mu = b tanh( c B_mu )
+      !
+      ! where B_mu = I_mu / I_c is the ratio between the calculated Belyaev
+      ! moment of inertia and (one third of) the classical moment of inertia,
+      ! and the parameters b and c are encoded as rotcorrb and rotcorrc.
+      call select_J2_and_MOI(J2,MOI)
+      MOI_c = classical_MOI(neutrons,protons)
+      B = MOI/MOI_c * 3.0d0
+      f_rot         = rotcorrb * tanh(rotcorrc * B)
+      Erot          = - f_rot * J2/(2*MOI)
+    case DEFAULT
+      call stp('Unknown value for rot_opion in calc_rotational_correction')
     end select
 
+  end function calc_rotational_correction
+
+  function calc_vibrational_correction(vib_option) result(Evib)
     !---------------------------------------------------------------------------
-    ! We calculate the classical moment of inertia along every Cartesian axis
-    A = neutrons+protons
-
-    do i=1, 3
-      R = 1.2 * (neutrons+protons)**(1./3.)
-      compare(i) = 1./3. * 2./5. * sum(nucleonmass)/2 * (neutrons+protons)*R**2
-    enddo
-    ! Putting it in correct units
-    compare = compare/(hbarclum**2)
-
+    ! Calculate the energy correction for spurious vibrational motion.
+    !
+    ! Input:
+    !  vib_option: type of vibrational correction to calculate
+    !          (0) : no correction
+    !          (1) : simple formula based on the rotational one
+    !          (2) : correction inspired by the ZPE of a collective Hamiltonian
+    ! Output:
+    !   Evib: the total vibrational correction
     !---------------------------------------------------------------------------
-    ! Actual calculation
-    B = Bely/compare
-    f_rot         = rotcorrb * tanh(rotcorrc * B)
-    f_vib         = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
-    RotCorrection = - f_rot * J2_temp/(2*Bely)
+    use momentsofinertia, only :  select_J2_and_MOI
+    use fission_MOI, only      :  M2, M3
 
-    VibCorrection = - f_vib * J2_temp/(2*Bely)
+    integer, intent(in)        :: vib_option
+    real(KIND=dp)              :: Evib
 
-      print *, ' Rotational correction (MeV): ', Rotcorrection
-      print *, '  ( J2 = ', J2, ' , MOI = ', Bely, ' )'
-      print *, '  ( B = ', B, ' , f_rot = ', f_rot, ' )'
-      print *, '  ( rotcorrb, rotcorrc = ', rotcorrb, rotcorrc, ' )'
-      print *, ' * tanh(rotcorrc * B) '
+    real(KIND=dp)              :: MOI_c, fvib(3), MOI(3), J2(3), B(3)
+    real(KIND=dp)              :: M3_temp(2,2), M3_inv(2,2), temp(2,2)
 
+    select case(vib_option)
+    case (0)
+      ! No vibrational correction include
+      Evib = 0
+      return
+    case (1)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Simple vibrational correction based on the rotational moment of inertia
+      !
+      ! Evib = - \sum_{\mu}  f^vib_mu  <J_mu^2>/(2 * I_{\mu}
+      !
+      ! where
+      !      * the sum is over all three Cartesian directions
+      !      *  < J^2_{mu} > is the expectation value of the angular momentum
+      !                      squared in a given direction
+      !      *  I_mu is the Belyaev moment of inertia along a given direction
+      !      *  f^vib_mu = d B_mu exp ( -l  (B - b_vib)**2  )
+      !
+      ! The quantity  B_mu = I_mu / I_c is the ratio between the calculated
+      ! Belyaev moment of inertia and one third of the classical moment of
+      ! inertia, 1.0/3.0 * I_c as calculated in the function classical_MOI.
+      !
+      ! The free parameters are d, l and b_vib; these are specified by a
+      !  parameterization and are called vibcorrd, vibcorrl and vibcorrb in
+      !  parameterization.f90.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      MOI_c = classical_MOI(neutrons, protons)
+      call select_J2_and_MOI(J2, MOI)
+      B     = MOI/MOI_c * 3.0d0
 
-  end subroutine calcRotationalCorrection
+      fvib  = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
+      Evib  = - sum(fvib * J2/(2*MOI))
+    case (2)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Vibrational correction from the zero-point energy of a collective Hamiltonian
+      !
+      !  Evib = - 1/4 * d * Trace M_3^{-1} M_2
+      !
+      ! where
+      !  - M_{n} are the QRPA-like response matrices for the Q20 and Q22
+      !     collective degrees of freedom; see the fission_moi.f90 file.
+      !  - d is a free parameter that is encoded as vibcorrd in the .param files
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Original reference: M. Girod and B. Grammaticos, NPA 330 (1979).
+      ! More practical:     T. Niksic et al. PRC 79, 034303 (2009)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ATTENTION: hardcoded assumption that the (1:2,1:2) submatrices of
+      !            M_3 and M2 as calculated in fission_MOI represent Q20 and Q22!
+      M3_temp = M3(1:2,1:2,3)
+      M3_inv  = inv_mat(M3_temp)
+
+      temp = matmul(M3_inv, M2(1:2,1:2,3))
+      Evib = - 0.25d0 * vibcorrd *  (temp(1,1) + temp(2,2))
+    end select
+  end function calc_vibrational_correction
+
+  pure function inv_mat(A) result(Ainv)
+    !
+    ! Analytical inverse of a 2x2 matrix
+    !
+
+    real(KIND=dp), intent(in) :: A(2,2)
+    real(KIND=dp)             :: Ainv(2,2)
+    real(KIND=dp)             :: det
+
+    ! Calculate the inverse (!) of the determinant
+    det = 1/(A(1,1)*A(2,2) - A(1,2)*A(2,1))
+
+    ! Calculate the inverse of the matrix
+    Ainv(1,1) = +det * A(2,2)
+    Ainv(2,1) = -det * A(2,1)
+    Ainv(1,2) = -det * A(1,2)
+    Ainv(2,2) = +det * A(1,1)
+
+  end function inv_mat
+
+  function classical_MOI(N,Z) result(MOI)
+      !------------------------------------------------------------------------
+      ! Calculate the classical rotational moment of inertia.
+      !
+      !  I_c = 2/5 * m_n * A * R**2/(hbar c**2)
+      !   with R = (1.2 * A)**3
+      !------------------------------------------------------------------------
+      real(KIND=dp), intent(in) :: N,Z
+      real(KIND=dp)             :: MOI
+      real(KIND=dp)             :: A, R
+
+      A   = N + Z
+      R   = 1.2 * (A)**(1./3.)
+      MOI =  2.0d0/5.0d0 * sum(nucleonmass)/2 * (A)*R**2
+      MOI = MOI/(hbarclum**2)
+  end function classical_MOI
 
   function calcPotentials(R, Fread) result(F)
     !---------------------------------------------------------------------------
@@ -2178,7 +2252,7 @@ $EREAR
     ! Add the rotational correction
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
     ! And the vibrational correction
-    Spwfenergy = Spwfenergy + sum(vibcorrection)
+    Spwfenergy = Spwfenergy + vibcorrection
   end function calcspwfenergy
 
   subroutine output_Edensity(Edensity, N)
@@ -2516,6 +2590,143 @@ $READPOTENTIALS_HDF5
     enddo
 
   end function CompStabilisingFactor
+
+  subroutine verify_COM_motion()
+    !---------------------------------------------------------------------------
+    !  This routine performs calculations of the collective moments of inertia
+    !  for the motion of the z-coordinate of the center of mass.
+    !
+    !  The collective coordinate for species q is thus
+    !    Q_q = z_q / A
+    !  to which corresponds a collective momentum  (in our convention)     
+    !    P_q = - i \nabla_z (*)
+    !  
+    !  One can show that, analytically, the collective inertia associated with 
+    !  movement of the centre-of-mass should be the TOTAL mass of the nucleus
+    ! 
+    !   M'_{0} = A m
+    !
+    !  This is what is always presented in the literature. Note however the 
+    !  little accent M', indicating that this IS NOT the collective inertia
+    !  associated with P_q. Rather, it is the collective mass associated with 
+    !     P'_q = hbar P_q
+    !  i.e. the 'physical' convention for the momentum. 
+    !
+    ! We calculate the collective inertia related to COM motion here in multiple
+    ! ways:
+    !
+    !   (a) Analytically, printed as 'A m'
+    !   (b) By using the Belyaev formula for the momentum in our convention (*)
+    !       (and multiplying by hbar^2 afterward)
+    !   (c) By using the perturbative cranking formula starting from Q_q
+    !       (and converting convention again afterward)
+    !
+    ! The results of (b) and (c) are not necessarily close to (a) however: 
+    ! for typical Skyrme interactions the effective mass m^*/m is not equal
+    ! to one, spoiling the correspondence of the perturbative formulation. 
+    ! The origin lies in the absence of Galileian invariance of the interaction 
+    ! in the perturbative treatment, see 
+    !
+    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
+    ! 
+    ! for a discussion. Ideally, we would calculate an "average" effective mass
+    ! as these authors do and use it to correct our results.
+    !
+    !---------------------------------------------------------------------------
+    
+    use fission_MOI
+    use densities
+    
+    1 format (' Pushing model                 M_0 (MeV/c^2)')
+    2 format (25x, 'neutrons        protons          total', / &
+    &         1x, 80('-'))
+    3 format ('   Belyaev M_0      | ', 3f16.5)
+    4 format ('   Pert. cranking   | ', 32x,f16.5)
+    7 format (1x, 80('-'),/, &
+    &         '   Am               | ', 3f16.5, /, 80('-'))
+    
+    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
+    real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
+      
+    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
+    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt)
+    
+    ! Calculate hbar to make its use consistent
+    hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculate single-particle matrix elements of nabla_z 
+    NablaMElements = compNablaMElements()
+    Psp            =  NablaMElements(3,1,:,:) 
+    if(pairingtype.eq.2) then
+      ! Attention, in a HFB calculation these are the matrix elements in the 
+      ! canonical basis, while Bogoliubov refers to the HF basis. So, we 
+      ! transfer back to the HFbasis
+      Psp = matmul(matmul(cantransfo, Psp), transpose(cantransfo))
+    endif
+    
+    Psp(1:nwn,1:nwn)         =  Psp(1:nwn,1:nwn)         * hbar
+    Psp(nwn+1:nwt,nwn+1:nwt) =  Psp(nwn+1:nwt,nwn+1:nwt) * hbar
+        
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculate single-particle matrix elements of z-c.o.m. coordinate
+    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
+                    ! Q10 = sqrt(3/4pi) * z 
+                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
+    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
+    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: Calculate the average effective mass for the pushing model.
+    !       This used to work, but now fails thanks to the changes of the 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate average effective mass 
+    !
+    !   m^*/m_q  = 2m/N_q * int d^3r   rho_q(r) hbar^2/2m^*_q(r)
+    ! 
+    ! with hbar^2/2m^*_q =  hbar^2/2m_q(r) + F_Nm_Nm(r)
+    ! 
+    ! which is the logical generalization from Eq. (30) in 
+    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
+    ! and an explicit factor of hbar^2.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !     avg_effmass = sum(F%F_Nm_Nm(:,:) * R%D_I_I(:,:) , 1) * dv
+    !     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
+    !     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
+    !     avg_effmass    = avg_effmass + 1
+    !     avg_effmass    = 1/avg_effmass
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    print 1
+    print 2
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! perform the summations
+    select case(pairingtype)
+    case(0) ! HF
+      Pmat                     =  Ksum_Mij_HF(Psp, Psp, 1, 1,(/1,3/))
+      mat                      =  Ksum_Mij_HF(Qsp, Qsp, 1, 1,(/1,3/))
+    case(1) ! BCS
+      Pmat                     =  Ksum_Mij_BCS(Psp, Psp, 1, 1,(/1,3/))
+      mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
+    case(2) !HFB
+      P20 = calc_Q20(Psp, bogoliubov, 1)        
+      Pmat                     =  Ksum_Mij(P20, P20, 1, 1,(/1,3/))
+      Q20 = calc_Q20(Qsp, bogoliubov, 1)        
+      mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
+    end select
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculating the inertia parameters
+    totalmass   = 1.0d0/(sum(mat(1,:))) * sum(mat(2,:)) * 1.0d0/(sum(mat(1,:)))
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Printing 
+    print 3,  Pmat(1,:), sum(Pmat(1,:))
+    print 4,  totalmass * hbar**2
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Analytical result
+    print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
+    &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
+
+    print *
+
+  end subroutine verify_COM_motion
 
 #if( $FAM == 0)
   function PVectorInproduct(F1, F2) result(x)

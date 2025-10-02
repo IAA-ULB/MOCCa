@@ -1587,4 +1587,36 @@ $NTR  s = +1
     print 16, sum(J2_coll, 1)
 
   end subroutine PrintMomentsofInertia
+
+  subroutine select_J2_and_MOI(J2, MOI)
+    !-------------------------------------------------------------------------
+    ! Selecting the 'right' moment of inertia and <J^2> to be used in the
+    ! calculation of the corrections for spurious motion.
+    !
+    ! This depends on the type of pairing we consider.
+    !
+    ! Input :
+    !    NONE
+    ! Output:
+    !    J2 : the expectation value of J^2 in all three Cartesian directions
+    !    MOI: the appropriate Belyaev moment of inertia along all axes
+    !-------------------------------------------------------------------------
+    real(KIND=dp), intent(out) :: J2(3), MOI(3)
+
+    select case(pairingtype)
+    case(0,1)
+      ! HF or BCS
+      MOI  = Belyaev(:,3)
+      J2   = J2_pairing_cut(:,3)
+      ! Sanity check: no collective sense of rotational correction implemented
+      !               yet for HF/BCStype calculations
+      if(blocktype.ne.0) then
+        call stp('Rotational correction for odd nuclei not incorporated into HF/BCS.')
+      endif
+    case (2)
+      ! HFB
+      MOI  = Bely_coll(:,3)
+      J2   = J2_coll(:,3)   ! Take the collective value.
+    end select
+  end subroutine select_J2_and_MOI
 end module momentsofinertia
