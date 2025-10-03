@@ -30,7 +30,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :   [ LO, NLO, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
+        CONFIG     :   [ LO, NLO, NLO-T, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
         MPI        :   [ false]
@@ -92,7 +92,7 @@ jobs:
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!

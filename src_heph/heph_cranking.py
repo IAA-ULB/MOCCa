@@ -35,7 +35,7 @@ def ProcessCranking(fname, src, target, so):
     
   dic['CRANKLEN'] = len(directions)
 
-  if('D_Nm_Nm' not in Densities_needed):
+  if('D_Nm_Nm' not in Densities_needed and 'D_N_N' not in Densities_needed):
     dic['TAUPRESENT'] = 0
   else:
     dic['TAUPRESENT'] = 1

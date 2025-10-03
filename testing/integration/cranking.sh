@@ -37,7 +37,8 @@ setup_test_env "cranking" "$1" "SLy4"
 cat << EOF > tant.data
 &nucleus
 neutrons=24, protons=24
-energyprec=1e-8
+energy_prec=1e-8
+angmom_prec=1e-5
 /
 &mesh
 nx=12, ny=12, nz=12, dx=1.0
@@ -79,7 +80,8 @@ tantalus_check_J=$?
 cat << EOF > tant.data
 &nucleus
 neutrons=24, protons=24
-energyprec=1e-8
+energy_prec=1e-8
+angmom_prec=1e-5
 /
 &mesh
 nx=12, ny=12, nz=12, dx=1.0
@@ -117,7 +119,8 @@ tantalus_check_omega=$?
 cat << EOF > tant.data
 &nucleus
 neutrons=24, protons=24
-energyprec=1e-8
+energy_prec=1e-8
+angmom_prec=1e-5
 /
 &mesh
 nx=12, ny=12, nz=12, dx=1.0

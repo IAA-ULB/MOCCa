@@ -1003,7 +1003,7 @@ $NTR    enddo
 ! Calculation routines
 !
 !===============================================================================
-  subroutine CalculateMoments(R)
+  subroutine CalculateMoments(R, save_history)
     !---------------------------------------------------------------------------
     ! Subroutine that
     !   1) Calculates the values of all multipole (mass and magnetic) moments
@@ -1014,6 +1014,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     type(Moment), pointer           :: Current
     type(DensityVector), intent(in) :: R
+    logical,INTENT(IN)              :: save_history
     
     call start_timer(T_moments)
     !---------------------------------------------------------------------------
@@ -1025,10 +1026,12 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
     nullify(Current) ;  Current => Root
+    if(save_history) Current%history = Current%value
     call Current%Calculate(Current,R) !  electric monopole
     !---------------------------------------------------------------------------
     do while(associated(Current%Next))
         Current => Current%Next
+        if(save_history) Current%history = Current%value
         call Current%Calculate(Current, R)
     enddo
     !---------------------------------------------------------------------------
@@ -1036,6 +1039,7 @@ $NTR    enddo
 $NTR    nullify(Current) ;  Current => Root_mag
 $NTR    do while(associated(Current%Next))
 $NTR        Current => Current%Next
+$NTR        if(save_history) Current%history = Current%value
 $NTR        call Current%Calculate(Current,R)
 $NTR    enddo
     !---------------------------------------------------------------------------
@@ -1044,6 +1048,7 @@ $NTR    enddo
     call Current%Calculate(Current,R)           !norm of div J
     do while(associated(Current%Next))
        Current => Current%Next
+        if(save_history) Current%history = Current%value
        call Current%Calculate(Current, R)
     enddo
 
@@ -1063,9 +1068,6 @@ $NTR    enddo
     type(DensityVector), intent(in), target :: R
     type(Moment),        intent(inout)      :: ToCalculate
     integer                                 :: it,i,j,k
-
-    ! Save the history
-    Tocalculate%history = tocalculate%value
 
     !Initialise
     ToCalculate%Value      = 0.0_dp
@@ -1201,9 +1203,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     type(Moment),        intent(inout)      :: ToCalculate
     integer                                 :: it
 
-    ! Save the history
-    Tocalculate%history = tocalculate%value
-
     !Initialise
     ToCalculate%Value      = 0.0_dp
     ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
@@ -1249,9 +1248,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     complex(KIND=dp), pointer               :: den(:,:,:)
 #endif
     real(KIND=dp), allocatable              :: linear_den(:)
-
-    ! Save the history
-    Tocalculate%history = tocalculate%value
 
     !Initialise
     ToCalculate%Value      = 0.0_dp
