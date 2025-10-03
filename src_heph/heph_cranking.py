@@ -9,7 +9,8 @@
 #===============================================================================
 
 from string          import Template
-
+from src_heph.heph_functional import Densities_needed
+#===============================================================================
 def ProcessCranking(fname, src, target, so):
   """
     Process the cranking.f90 file. 
@@ -33,6 +34,11 @@ def ProcessCranking(fname, src, target, so):
     dic['CRANKDIR'] = dic['CRANKDIR'] + "%d,"%d
     
   dic['CRANKLEN'] = len(directions)
+
+  if('D_Nm_Nm' not in Densities_needed):
+    dic['TAUPRESENT'] = 0
+  else:
+    dic['TAUPRESENT'] = 1
 
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:

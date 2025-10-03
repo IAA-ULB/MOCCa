@@ -266,6 +266,8 @@ $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
 $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
+
+#if($TAUPRESENT == 1 )
 $NTR      do i=1, nx*ny*nz
 $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
 $NTR        & - meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it)
@@ -273,6 +275,9 @@ $NTR
 $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
 $NTR        & (- meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it))
 $NTR      enddo
+#else
+$NTR      call stp('Cranking not currently supported for LO EDFs')
+#endif 
 $NTR    enddo
 $NTR    TotalAngMom_dens = TotalAngMom_dens * dv
 $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
