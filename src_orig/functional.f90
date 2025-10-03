@@ -1934,11 +1934,26 @@ $K2POT
   end function INM_k2_pot_real
 
   function INM_k2_pot_complex(rho) result (pot)
-    ! 
+    ! Same as above, but for complex densities.
     complex(KIND=dp), intent(in) :: rho(mv,4)
     real(KIND=dp)                :: pot(mv,4)
+    real(KIND=dp)                :: kfn(mv), kfp(mv)
 
-    call stp('INM_k2_pot_complex not implemented yet.')
+    kfn=(3.d0*pi**2*DBLE(rho(:,1)))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*DBLE(rho(:,2)))**(1.0d0/3.0d0) ! Proton  density
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K2POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
   end function INM_k2_pot_complex
 
   function INM_k4_pot_real(rho) result(pot)
@@ -1987,8 +2002,23 @@ function INM_k4_pot_complex(rho) result(pot)
   ! 
   complex(KIND=dp), intent(in) :: rho(mv,4)
   real(KIND=dp)                :: pot(mv,4)
+  real(KIND=dp)             :: kfn(mv), kfp(mv)
 
-  call stp('INM_k4_pot_complex not implemented yet.')
+  kfn=(3.d0*pi**2*DBLE(rho(:,1)))**(1.0d0/3.0d0) ! Neutron density
+  kfp=(3.d0*pi**2*DBLE(rho(:,2)))**(1.0d0/3.0d0) ! Proton  density
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K4POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot_complex
 
 
