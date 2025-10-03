@@ -1690,8 +1690,11 @@ $CALCPOTENTIALS_PERTURBED
 $TR real(KIND=dp)                        :: trash
 $TR trash = F%F_I_I(1,1) ! to stop compiler complaints when time-reversal is conserved
 !
-$NTR F%F_I_S = F%F_I_S + crank_spin_potential()
-$NTR F%G_I_N = F%G_I_N + crank_current_potential()
+$TAUSCALAR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
+$TAUSCALAR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
+
+$TAUTENSOR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
+$TAUTENSOR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
 
   end subroutine add_cranking_potentials
 

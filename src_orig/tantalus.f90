@@ -239,7 +239,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
     Density = densit(rho_can, kappa_pairing)
 
-    call CalculateMoments(Density)   
+    call CalculateMoments(Density, .true.)   
                               !=> vital to be called here, 
                               !    (a) before the calculation of the potentials
                               !    (b) after construction of the charge density
@@ -252,7 +252,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
                               !      constructed
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com(Density)        !
-    call CalculateMoments(Density) ! Recalculate because the COM might have changed.
+    call CalculateMoments(Density, .false.) ! Recalculate because the COM might have changed.
 
     ! Update all spwf properties
 #if(PASTA == 0)
@@ -264,7 +264,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     print_adv_spwf_properties = .false.
 #endif
 
-    call updateAM(Density) ! TODO: adapt the calculation of angular momentum
+    call updateAM(Density,.true.) ! TODO: adapt the calculation of angular momentum
                            !       to only ever use densities; this will avoid
                            !       having to recalculate angular momentum matrix
                            !       elements at every iteration
@@ -332,7 +332,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         Density = densit(rho_can, kappa_pairing)
         if(follow_com) call adapt_com(Density)
         ! Calculate the value of all multipole moments
-        call CalculateMoments(Density)
+        call CalculateMoments(Density, .true.)
         ! ...and readjust any constraints on them
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
@@ -341,8 +341,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             call update_spwf_properties_HF()
             if(PairingType.eq.2) call update_spwf_properties_CAN()
         endif
-        call updateAM(Density) ! TODO: adapt the calculation of angular momentum
-                               !       to only ever use densities...
+        call updateAM(Density, .true.) 
         ! .... and readjust any constraints on it
         call ReadjustCranking
 
@@ -350,29 +349,29 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Do a double take when constraints are present: use the updated
         ! Lagrange multipliers to correct our many-body state
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if(projectpresent) then
-            ! Update the single-particle hamiltonian
-            call update_sphamil_constraints(sphamil)
-            if(subspace_rotation) then
-                call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-                if(store_derivatives) call deriveHF() ! and update derivatives
-            endif
-            ! .... and recalculate the gaps .....
-            call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
-            ! ..... reconstruct a many-body state .....
-            call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
-            Density = densit(rho_can, kappa_pairing)
-            ! ..... reconstruct all densities ....
-            if(follow_com) call adapt_com(Density)
-            ! .... and recalculate constrained quantities
-            call CalculateMoments(Density)
-
-            if(check_cranking() .and. .not. crank_smooth) then 
-              call update_spwf_properties_HF()
-              if(PairingType.eq.2) call update_spwf_properties_CAN()
-              call updateAM(Density)
-            endif
-        endif
+        !if(projectpresent) then
+        !    ! Update the single-particle hamiltonian
+        !    call update_sphamil_constraints(sphamil)
+        !    if(subspace_rotation) then
+        !        call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+        !        if(store_derivatives) call deriveHF() ! and update derivatives
+        !    endif
+        !    ! .... and recalculate the gaps .....
+        !    call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
+        !    ! ..... reconstruct a many-body state .....
+        !    call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+        !    Density = densit(rho_can, kappa_pairing)
+        !    ! ..... reconstruct all densities ....
+        !    if(follow_com) call adapt_com(Density)
+        !    ! .... and recalculate constrained quantities
+        !    call CalculateMoments(Density, .true.)
+        ! 
+        !    if(check_cranking() .and. .not. crank_smooth) then 
+        !      call update_spwf_properties_HF()
+        !      if(PairingType.eq.2) call update_spwf_properties_CAN()
+        !      call updateAM(Density, .true.)
+        !    endif
+        !endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Construct new potentials ...

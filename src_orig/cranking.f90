@@ -214,25 +214,31 @@ $NTR        enddo
     enddo
   end subroutine readcranking
 
-  subroutine updateAM(R)
+  subroutine updateAM(R, save_history)
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and cranking energies.
     !
     ! Input:
-    !    R : the density vector
+    !    R         : the density vector
+    ! save_history : whether or not to save the history of the
+    !                 angular momentum values
     !---------------------------------------------------------------------------
 $NTR    use Moments, only : cutoff
     ! We only import this if time-reversal is not conserved, otherwise
     ! the compiler complains
 
     type(DensityVector), intent(in) :: R
+    logical, INTENT(IN) :: save_history
 $NTR    integer   :: B, N, wave, si, i, c, it
 $TR real(KIND=dp) :: trash
-    ! Saving all of the history for convergence analysis ...
-    angmomold       = totalangmom
-    angmomold_dens  = totalangmom_dens
-    angmomold_cut   = totalangmom_cut
 
+
+    ! Saving all of the history for convergence analysis ...
+    if(save_history) then
+      angmomold       = totalangmom
+      angmomold_dens  = totalangmom_dens
+      angmomold_cut   = totalangmom_cut
+    endif
     ! ... and resetting the current values
     totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
     J2_sp       = 0.0
@@ -266,6 +272,8 @@ $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
 $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
+
+#if($TAUPRESENT == 1 )
 $NTR      do i=1, nx*ny*nz
 $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
 $NTR        & - meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it)
@@ -273,6 +281,9 @@ $NTR
 $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
 $NTR        & (- meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it))
 $NTR      enddo
+#else
+$NTR      if(crank_smooth) call stp('Cranking based on density values is not currently supported for LO EDFs')
+#endif 
 $NTR    enddo
 $NTR    TotalAngMom_dens = TotalAngMom_dens * dv
 $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv

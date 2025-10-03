@@ -68,7 +68,7 @@ program run_FAM
   ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
   !          diagonalize it within the subspace spanned by the spwfs read from file
   Density     = densit(rho_can, kappa_pairing)
-  call CalculateMoments(Density)               ! necessary here if constraints are included
+  call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
   !sphamil     = Calc_Sphamil(potentials, .true.)
 

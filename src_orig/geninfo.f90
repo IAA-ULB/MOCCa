@@ -215,7 +215,7 @@ contains
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
-    &                  block_factor_col, simulate_spherical_bc
+    &                  block_factor_col, simulate_spherical_bc, angmom_prec
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank == 0) then
@@ -227,6 +227,9 @@ contains
         read (unit=file_number, nml=nucleus, iostat=io)
       else
         read (unit=*, nml=nucleus, iostat=io)
+      endif
+      if(io /= 0) then
+        call find_nml_error('nucleus', int(file_number))
       endif
 
       ! Reading information on the mesh
