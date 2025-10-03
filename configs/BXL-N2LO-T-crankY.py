@@ -8,6 +8,6 @@ INSYM     = 'Rz,T,P,STy'
 INREDUCE  = [1,1,1]
 # Axis orientation for multipole moments : X
 QUANT_AXIS='Y'
-SECOND_AXIS=2
+SECOND_AXIS=1
 # Decouple the particle-hole and particle-particle fields? 
 PH_PP_DECOUPL = True
