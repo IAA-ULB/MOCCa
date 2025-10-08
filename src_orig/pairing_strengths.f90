@@ -162,8 +162,7 @@ contains
 
  function vmicro_complex(rho, U2, U4, iso, ptype, interpolationtype, integrationtype) result(vp)
   !-----------------------------------------------------------------------------
-  ! Wrapper to calculate the microscopic pairing strength for both neutrons
-  ! and protons in one go.
+  ! Calculate a microscopically motivated (position-dependent) pairing strength
   !
   ! Input:
   !   rho               : density
@@ -192,7 +191,8 @@ contains
   real(KIND=dp), intent(in)    :: U2(mv,4), U4(mv,4)
   real(KIND=dp)                :: vp(mv)
 
-  call stp('VMICRO does not know how to handle complex densities yet.')
+  vp = 0.0d0
+  !call stp('VMICRO does not know how to handle complex densities yet.')
  end function vmicro_complex
 
  function vmicro_real(rho, U2, U4, iso, ptype, interpolationtype, integrationtype) &

@@ -16,7 +16,7 @@ program run_FAM
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
   implicit none
-  integer :: iter, num_iter
+  integer :: iter, num_iter, ifail
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
@@ -59,7 +59,7 @@ program run_FAM
 
   ! Future dev: required for HFB
   ! ifail = 0
-  ! call SolvePairing(pairingscheme, ifail)
+  call SolvePairing(pairingscheme, ifail)
 
   ! Derive all single-particle wavefunctions on the mesh
   if(store_derivatives) call deriveHF()

@@ -34,10 +34,10 @@ module Coulombmod
  !   (2) => Only direct
  !==============================================================================
 
- use geninfo, only: nx, ny, nz, dx, dp, stp
- use densities, only: densityvector, potentialvector
+ use geninfo,          only: nx, ny, nz, dx, dp, stp
+ use densities,        only: densityvector, potentialvector
  use parameterization, only: dp, e2, pi, dv, coulorder, coultreatment
- use timing, only : start_timer, stop_timer, T_coulomb
+ use timing,           only: start_timer, stop_timer, T_coulomb
 
  implicit none
 
@@ -77,7 +77,6 @@ module Coulombmod
  ! were read from file. This is by default .false.; it should only happen when
  ! reading .pot files.
  logical :: Coulomb_read_from_file = .false.
-
  !------------------------------------------------------------------------------
  ! Coefficients of the Coulomb laplacian
  !------------------------------------------------------------------------------
