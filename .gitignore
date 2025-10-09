@@ -48,7 +48,10 @@ auxiliary/decomposition/obj/
 
 # virtual pythen environment
 MOCCaPy/.venv/
+# bash scripts (symbolic link)
+env
 # Macos
 .DS_Store
 # pycharm
 .idea
+experiments/
