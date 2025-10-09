@@ -45,3 +45,10 @@ manual/tex_source_heph/*.out
 
 auxiliary/decomposition/mod/
 auxiliary/decomposition/obj/
+
+# virtual pythen environment
+MOCCaPy/.venv/
+# Macos
+.DS_Store
+# pycharm
+.idea
