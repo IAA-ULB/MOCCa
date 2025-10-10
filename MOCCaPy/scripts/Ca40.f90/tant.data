@@ -5,7 +5,7 @@ neutrons=20, protons=20
 nx=12, ny=12, nz=12, dx=1.0
 /
 &func
-name_param='SLy4'
+name_param='BSkG1'
 /
 &pairing
 /

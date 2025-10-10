@@ -46,7 +46,7 @@ manual/tex_source_heph/*.out
 auxiliary/decomposition/mod/
 auxiliary/decomposition/obj/
 
-# virtual pythen environment
+# virtual python environment
 MOCCaPy/.venv/
 # bash scripts (symbolic link)
 env
@@ -55,3 +55,5 @@ env
 # pycharm
 .idea
 experiments/
+MOCCaPy/scripts/Ca40.f90/BSkG1.param
+MOCCaPy/scripts/Ca40.f90/trash
