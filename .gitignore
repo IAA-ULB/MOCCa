@@ -46,7 +46,9 @@ manual/tex_source_heph/*.out
 auxiliary/decomposition/mod/
 auxiliary/decomposition/obj/
 
-# virtual pythen environment
+# MOCCaPy
+# -------
+# virtual python environment
 MOCCaPy/.venv/
 # bash scripts (symbolic link)
 env
@@ -54,4 +56,7 @@ env
 .DS_Store
 # pycharm
 .idea
+
+MOCCaPy/scripts/Ca40.f90/*.param
+
 experiments/
