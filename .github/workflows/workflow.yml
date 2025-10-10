@@ -172,7 +172,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :  [ LO, LO-T, NLO, BXL ]
+        CONFIG     :  [ LO, LO-T, LO-P, NLO, BXL ]
         COMPILER   :  [ gfortran, ifx      ]
         CALCTYPE   :  [ NUCLEI             ]
         MPI        :  [ false              ]

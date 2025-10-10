@@ -2,6 +2,7 @@
 # Perform a spherical HF + FAM calculation of O16 with t0t3 in a minimal box
 #  - compare the Q_20 strength @ 25 MeV to a known result
 #  - and redo it for an explicitly time-reversal broken FAM calculation
+#  - and redo it for an explicitly parity broken FAM calculation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
@@ -19,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T]
+#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P]
 #
 # where EXESUFFIX and EXESUFFIX_T specify executables to be used: a time-reversal
 # conserving and a time-reversal breaking one.
@@ -198,7 +199,7 @@ teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO-T FAM calculation
 setup_test_env_fam "fam_t0t3" "$1" "$2" "t0t3"
-mv ../mf.wf .
+cp ../mf.wf .
 
 # Create runtime data
 cat << EOF > fam.data
@@ -245,27 +246,84 @@ EOF
 # .... and immediately check if Tantalus reported back some error codes
 fam_T_check=$?
 
-#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # b) Get the strength from the S_20.fam file
 S_T=$(get_strength "S_20.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
 compare_floats $S_T $refS20 0.01
 check_strength_T=$?
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# remove working directory and traces of these calculations
+teardown_test_env
 
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (4) Run the LO-P FAM calculation
+setup_test_env_fam "fam_t0t3" "$1" "$3" "t0t3"
+mv ../mf.wf .
 
+# Create runtime data
+cat << EOF > fam.data
+&nucleus
+neutrons=8, protons=8
+/
+&mesh
+nx=8, ny=8, nz=16, dx=0.8
+/
+&func
+name_param='t0t3'
+/
+&pairing
+/
+&evolution
+maxiter=1000
+/
+&scfiteration
+/
+&wfs
+nwn = 14, nwp = 14
+/
+&IO
+InputFilename='mf.wf'
+OutputFilename='trash'
+allowtransform=.true.
+famfile='S_20.fam'
+/
+&MomentParam
+/
+&Cranking
+/
+&fam
+omega=25.0
+smear=1.0
+l=2
+m=0
+maxiter=10000
+fam_precision=1e-11
+/
+EOF
+# Run the calculation
+./$exefam < fam.data > $famoutfile
+# .... and immediately check if Tantalus reported back some error codes
+fam_P_check=$?
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# b) Get the strength from the S_20.fam file
+S_P=$(get_strength "S_20.fam" 25.0)
+# ... and compare with a tolerance of 1e-2 to the expected answer
+compare_floats $S_P $refS20 0.01
+check_strength_P=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
 teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || fam_T_check || $check_energy || $check_strength ))
+fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P))
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
 else
-	echo -e "test FAM t0t3 :\033[1;31m failed ! tant : $tantalus_check, fam : $fam_check, E_hf : $check_energy, S20 : $check_strength, S20_T : $check_strength_T \033[0m"
+	echo -e "test FAM t0t3 :\033[1;31m failed ! tant : $tantalus_check, fam : $fam_check, E_hf : $check_energy, S20 : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P \033[0m"
 fi
 
 exit $fail
