@@ -4,6 +4,12 @@ At the 4th MOCCa user meeting wouter presented an example script of how a MOCCaP
 
 ## f90 code overview
 
+### Observation
+
+Modules contain a lot of data: that turns them more or less into classes. but since these data are not private they can be modified in every module that uses it. A good recipe for spaghetti code.
+
+### Module structure
+
 | .f90 file              | module             | use                                                                                 |
 |------------------------|--------------------|-------------------------------------------------------------------------------------|
 | basis_transform.f90    | basis_transform    | use geninfo                                                                         |
@@ -153,3 +159,60 @@ At the 4th MOCCa user meeting wouter presented an example script of how a MOCCaP
 |                        |                    | (use MPI)                                                                           |
 
 ![module dependency graph](module_dependencies.png)
+
+k wou een zicht krijgen hoe de modules in je code van elkaar afhangen. Dat bleek al snel een taak die manueel niet haalbaar was.
+Dat gaf de graph hierboven (slecht leesbaar – ik geef het toe).
+Er zijn twee modules aan de top: tantalus en fam_testing, en  aan de bodem: compilation, iso_fortran_env, mpi en hdf5. In totaal zijn er 206 links tussen 44 modules (3 modules zijn extern mpi, hdf5 en iso_fortran_env). Het totaal aantal paden tussen die 2 aan de top en de 4 onderaan is 171931 (!)
+Hier is het histogram van de lengte van die paden
+2 1
+3 24
+4 220
+5 871
+6 2580
+7 5783
+8 10884
+9 17615
+10 24665
+11 29259
+12 28920
+13 23416
+14 15317
+15 7971
+16 3226
+17 969
+18 192
+19 18
+Er zijn geen circular references.
+ 
+de enige manier waarop ik dat kan interpreteren is dat alles van alles afhangt. Ik vind deze resultaten in hoge mate verwarrend.
+
+ik doe de analyse opnieuw maar verwijder de links naar externe modules: mpi hdf5 en iso_fortran_env
+
+Dat reduceert het aantal paden aanzienlijk, maar het is nog steeds groot: 56536
+het histogram van de lengte van de paden is nu
+2 1
+3 11
+4 75
+5 285
+6 814
+7 1784
+8 3370
+9 5574
+10 8004
+11 9692
+12 9698
+13 7898
+14 5169
+15 2684
+16 1083
+17 324
+18 64
+19 6
+
+ik vind dit qua structuur hoogst verwarrend.
+
+## Conclusion 
+
+It appears to me that reusing the fortran code will be nearly impossible due to the combination of data and subprograms in modules.
+
+At this point the only thing I can imagine is to take the entire Tantalus module as is (perhaps augment it to allow accessing its internal data structures) into a python module and use that for validation purposes only, while at the same time redoing everything in python (where possible and efficient) or Fortran (if needed for performance reasons). 
