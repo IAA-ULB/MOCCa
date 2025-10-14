@@ -164,24 +164,26 @@ k wou een zicht krijgen hoe de modules in je code van elkaar afhangen. Dat bleek
 Dat gaf de graph hierboven (slecht leesbaar – ik geef het toe).
 Er zijn twee modules aan de top: tantalus en fam_testing, en  aan de bodem: compilation, iso_fortran_env, mpi en hdf5. In totaal zijn er 206 links tussen 44 modules (3 modules zijn extern mpi, hdf5 en iso_fortran_env). Het totaal aantal paden tussen die 2 aan de top en de 4 onderaan is 171931 (!)
 Hier is het histogram van de lengte van die paden
-2 1
-3 24
-4 220
-5 871
-6 2580
-7 5783
-8 10884
-9 17615
-10 24665
-11 29259
-12 28920
-13 23416
-14 15317
-15 7971
-16 3226
-17 969
-18 192
-19 18
+
+    2 1
+    3 24
+    4 220
+    5 871
+    6 2580
+    7 5783
+    8 10884
+    9 17615
+    10 24665
+    11 29259
+    12 28920
+    13 23416
+    14 15317
+    15 7971
+    16 3226
+    17 969
+    18 192
+    19 18
+
 Er zijn geen circular references.
  
 de enige manier waarop ik dat kan interpreteren is dat alles van alles afhangt. Ik vind deze resultaten in hoge mate verwarrend.
@@ -190,24 +192,25 @@ ik doe de analyse opnieuw maar verwijder de links naar externe modules: mpi hdf5
 
 Dat reduceert het aantal paden aanzienlijk, maar het is nog steeds groot: 56536
 het histogram van de lengte van de paden is nu
-2 1
-3 11
-4 75
-5 285
-6 814
-7 1784
-8 3370
-9 5574
-10 8004
-11 9692
-12 9698
-13 7898
-14 5169
-15 2684
-16 1083
-17 324
-18 64
-19 6
+
+    2 1
+    3 11
+    4 75
+    5 285
+    6 814
+    7 1784
+    8 3370
+    9 5574
+    10 8004
+    11 9692
+    12 9698
+    13 7898
+    14 5169
+    15 2684
+    16 1083
+    17 324
+    18 64
+    19 6
 
 ik vind dit qua structuur hoogst verwarrend.
 
