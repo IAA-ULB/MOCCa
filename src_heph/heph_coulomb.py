@@ -24,6 +24,8 @@ def ProcessCoulomb(fname, src, target, so, fam_active):
   Output:
     None, but writes the processed file to the target directory.
   """
+
+  from src_heph.heph_substitute import substitute
   
   dic = {}
   
@@ -42,10 +44,11 @@ def ProcessCoulomb(fname, src, target, so, fam_active):
    dic['FAM'] = '1'
   else:   
    dic['FAM'] = '0'       
-  
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-      for line in template:
-        generated.write(Template(line).substitute(dic)) 
+
+  substitute(src + fname, target+fname, dic)  
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #     for line in template:
+  #       generated.write(Template(line).substitute(dic)) 
 
 

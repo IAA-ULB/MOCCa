@@ -90,6 +90,7 @@ from string                    import Template
 from src_heph.heph_symmetries  import *
 from scipy.special             import sph_harm
 import numpy                   as np
+from src_heph.heph_substitute import substitute
 
 def ProcessMoments(fname, src, target, so, fam_active=False):
   """
@@ -191,10 +192,11 @@ def ProcessMoments(fname, src, target, so, fam_active=False):
   else:
     dic['FAM']  = 0
         
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-      for line in template:
-        generated.write(Template(line).substitute(dic))   
+  substitute(src+fname, target+fname, dic)
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #     for line in template:
+  #       generated.write(Template(line).substitute(dic))   
         
 def CartToSpher(x,y,z, so):
       """
@@ -258,7 +260,8 @@ def ProcessFission_MOI(fname, src, target, so):
               symmetries conserved during the calculation.
     
   """
-  
+  from src_heph.heph_substitute  import substitute
+
   dic = {}
 
   # Ugly Hack to check for parity conservation  
@@ -276,9 +279,10 @@ def ProcessFission_MOI(fname, src, target, so):
   else:
     dic['TR']  = '!'
     dic['NTR'] = ''
-      
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-      for line in template:
-        generated.write(Template(line).substitute(dic))   
+
+  substitute(src+fname, target+fname, dic)      
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #     for line in template:
+  #       generated.write(Template(line).substitute(dic))   
   

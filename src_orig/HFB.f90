@@ -806,8 +806,7 @@ $TR    endif
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED call stp('The blocking identification for the gradient solver is &
-$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
+$PCONSERVED call stp('The blocking identification for the gradient solver is yet capable of dealing with "n0", "p0" blocking options.')
 
         ! If parity is broken, then there is only one possible block for 
         ! the neutron qp excitation to be in 
@@ -817,8 +816,7 @@ $PBROKEN blockblock(i) = 1
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED call stp('The blocking identification for the gradient solver is &
-$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
+$PCONSERVED call stp('The blocking identification for the gradient solver is yet capable of dealing with "n0", "p0" blocking options.')
       
         ! If parity is broken, then there is only one possible block for 
         ! the proton qp excitation to be in 

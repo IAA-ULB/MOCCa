@@ -659,6 +659,7 @@ def ProcessParameterization(fname, src, target):
 
     # Go and get the relevant snippets of FORTRAN CODE to combine. 
     import src_heph.fortran_templates.ProcessParameterization_templates as ts
+    from src_heph.heph_substitute import substitute
 
     decl      = ''
     readparam = ''
@@ -699,10 +700,11 @@ def ProcessParameterization(fname, src, target):
     dic['RESETPARAMS'] = resetparam
     dic['BCASTPARAMS'] = bcastparam
 
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))  
+    substitute(src+fname, target+fname, dic)
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic))  
 
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
                       fam_active, density_spwf_summation):
@@ -730,6 +732,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
+    from src_heph.heph_substitute import substitute
 
     declaration     = ''
     pot_declaration = ''
@@ -1083,11 +1086,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['FAM'] = '0'
       
     dic['PVECTORINPRODUCT'] = inproduct
-    
-    with open(src+fname, 'r') as template:
-      with open(target+fname, 'w') as generated:
-        for line in template:
-          generated.write(Template(line).substitute(dic))
+
+    substitute(src+fname, target+fname, dic)    
+    # with open(src+fname, 'r') as template:
+    #   with open(target+fname, 'w') as generated:
+    #     for line in template:
+    #       generated.write(Template(line).substitute(dic))
 
     return pot_declaration
 

@@ -31,7 +31,7 @@ def ProcessTransform(fname, src, target, so, oldso):
                               and that not all inputs to extraspwfs are valid.
       
     """
-
+    from src_heph.heph_substitute  import substitute
     #---------------------------------------------------------------------------
     # One simple Fortran template is needed
     temp = " %+d * right3D(%s,%s,%s,%d)"
@@ -173,11 +173,11 @@ def ProcessTransform(fname, src, target, so, oldso):
       if (sym == symdic['P']):
         dic['PBROKEN'] = '!'
 
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))
-
+    substitute(src+fname, target+fname, dic)
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic))
 
 def PythLogicalToFortranString(l):
   if(l):

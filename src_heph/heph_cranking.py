@@ -18,6 +18,8 @@ def ProcessCranking(fname, src, target, so):
     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
   """
+  from src_heph.heph_substitute  import substitute
+
   directions = []
 
   dic = {}
@@ -40,7 +42,8 @@ def ProcessCranking(fname, src, target, so):
   else:
     dic['TAUPRESENT'] = 1
 
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))
+  substitute(src+fname, target+fname, dic)
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #       for line in template:
+  #           generated.write(Template(line).substitute(dic))
