@@ -1168,8 +1168,7 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
 
     ! The calculations is not yet implemented for Hartree-Fock calculations
 $NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock &
-$NTR             & calculations with time-reversal breaking.')
+$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock calculations with time-reversal breaking.')
 $NTR    endif
     
     if((COM2body .eq. 1) .and. (.not. override_2body)) then

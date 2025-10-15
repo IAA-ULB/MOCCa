@@ -13,7 +13,6 @@ on:
   push:
     branches:
       - master
-      - cranking_fix
   pull_request:
     branches:
       - master

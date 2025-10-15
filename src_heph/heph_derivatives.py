@@ -74,6 +74,8 @@ def ProcessDerivatives(fname, src, target, so):
      $N3ALL   => up to and including 3rd order derivatives
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     """
+    from src_heph.heph_substitute import substitute
+    
     dic={}
 
     dic['DERSYMX'] = '!'
@@ -129,7 +131,9 @@ def ProcessDerivatives(fname, src, target, so):
         dic['N2ALL']  = '!'
         dic['N3ALL']  = ' '
 
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))
+    substitute(src+fname, target+fname, dic)
+
+   #  with open(src+fname, 'r') as template:
+   #      with open(target+fname, 'w') as generated:
+   #          for line in template:
+   #              generated.write(Template(line).substitute(dic))

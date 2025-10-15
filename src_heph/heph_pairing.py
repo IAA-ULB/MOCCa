@@ -13,6 +13,7 @@ def ProcessPairing(fname, src, target, so):
   """
    We process pairing.f90, depending on the symmetries imposed.
   """
+  from src_heph.heph_substitute  import substitute
 
   dic = {}
 
@@ -47,11 +48,12 @@ def ProcessPairing(fname, src, target, so):
   for sym in so.generators:
     if (sym == symdic['P']):
      dic['PBROKEN'] = '!'
-    
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))  
+
+  substitute(src+fname, target+fname, dic)    
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #       for line in template:
+  #           generated.write(Template(line).substitute(dic))  
 
 
 def ProcessHFB(fname, src, target, so):
@@ -61,6 +63,7 @@ def ProcessHFB(fname, src, target, so):
   """
 
   from src_heph.heph_functional  import pairing_action_derorder
+  from src_heph.heph_substitute  import substitute
 
   dic = {}
 
@@ -104,17 +107,19 @@ def ProcessHFB(fname, src, target, so):
      dic['PBROKEN']    = '!'
      dic['PCONSERVED'] = ' '
 
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))  
+  substitute(src+fname, target+fname, dic)    
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #       for line in template:
+  #           generated.write(Template(line).substitute(dic))  
 
 
 def ProcessHartreeFock(fname, src, target, so):
   """  
    We process HartreeFock.f90, depending on the symmetries imposed.
   """
-
+  from src_heph.heph_substitute  import substitute
+  
   dic = {}
 
   timelike = False  
@@ -129,10 +134,11 @@ def ProcessHartreeFock(fname, src, target, so):
     dic["TR"]  = '!'
     dic["NTR"] = ' '
 
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))  
+  substitute(src+fname, target+fname, dic)
+  # with open(src+fname, 'r') as template:
+  #   with open(target+fname, 'w') as generated:
+  #       for line in template:
+  #           generated.write(Template(line).substitute(dic))  
 
 
 # Note: the BCS module needs no processing at the moment.
