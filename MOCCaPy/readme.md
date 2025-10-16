@@ -459,3 +459,4 @@ Dat zou handig zijn: ik krijg een merge conflict op src_orig/evolution.f90 en ik
 - De master branch wordt nog één keer gemerged met de MOCCaPy branch om de Hephaestos annotatie te incorporeren. Daarna niet meer! Anders verliezen we de link vanwaar MOCCaPy afstamt.
 - Unit testing is belangrijk en bij elke toevoeging wordt gestreefd om een overeenkomstige test toe te voegen 
 - Ons eerste doel is een bereking van $^{40}\mathrm{Ca}$.
+
