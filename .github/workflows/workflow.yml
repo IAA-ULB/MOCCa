@@ -13,7 +13,6 @@ on:
   push:
     branches:
       - master
-      - cranking_fix
   pull_request:
     branches:
       - master
@@ -172,7 +171,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG     :  [ LO, LO-T, NLO, BXL ]
+        CONFIG     :  [ LO, LO-T, LO-P, NLO, BXL ]
         COMPILER   :  [ gfortran, ifx      ]
         CALCTYPE   :  [ NUCLEI             ]
         MPI        :  [ false              ]
@@ -743,6 +742,7 @@ jobs:
       # Uniquely labelling the executables with this environment variable
       SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
       SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code
@@ -766,19 +766,26 @@ jobs:
           name: fam.${{ env.SUFFIX_T }}
           path: exec/
 
+      - uses: actions/download-artifact@v4
+        # Download the FAM executable
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
           chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
 
       - name: Run parallel script
         # Actually execute the test (source call to ensure MPIRUN is available)
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash fam_t0t3.sh $SUFFIX $SUFFIX_T
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P
 
       - name: Upload test results
         if: success() || failure() # Always upload the code outputs
@@ -790,6 +797,7 @@ jobs:
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out.bis
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_P }}.fam.out
           retention-days: 90
 
   gradient_vs_direct:

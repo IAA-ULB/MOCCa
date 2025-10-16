@@ -4,7 +4,6 @@
 #-------------------------------------------------------------------------------
 import textwrap
 
-
 def LineFormat_oneline(code):
     # Takes as input a line of fortran code, and outputs the same line 
     # split over multiple lines if necessary for the character limit.

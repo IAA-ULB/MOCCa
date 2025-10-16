@@ -46,6 +46,7 @@ def ProcessWavefunctions(fname, src, target, so):
 
     """
 
+    from src_heph.heph_substitute         import substitute
  
     dic={}
     dic['N2'] = '!'
@@ -105,11 +106,12 @@ def ProcessWavefunctions(fname, src, target, so):
       if (sym == symdic['P']):
         dic['PCON']    = ' '
         dic['PBROKEN'] = '!'
-    
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic)) 
+
+    substitute(src+fname, target+fname, dic)  
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic)) 
 
 
     

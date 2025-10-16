@@ -795,8 +795,7 @@ $TR       endif
 
 $NTR      do b=1,8,2
 $NTR        if(extraspwfs(b) .ne. extraspwfs(b+1)) then
-$NTR         call stp('Spwf number with Rz = +i needs to match the number  &
-$NTR                &  with Rz = -i.')
+$NTR         call stp('Spwf number with Rz = +i needs to match the number with Rz = -i.')
 $NTR        endif
 $NTR      enddo
 

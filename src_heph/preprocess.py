@@ -77,7 +77,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='derivatives.f90'):
         ProcessDerivatives(fname, src, target, so)
     if(fname=='wavefunctions.f90'):
-        ProcessWavefunctions(fname, src, target, so)
+        ProcessWavefunctions(fname, src, target, so)             
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='tantalus.f90'):
@@ -91,13 +91,13 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='multirun_example.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='parameterization.f90'):
-        ProcessParameterization(fname, src, target)
+        ProcessParameterization(fname, src, target)                    
     if(fname=='functional.f90'):
         vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
                                                ph_pp_decoupl,fam_active, density_spwf_summation)
     if(fname=='vectors.f90'):
         ProcessVectors(src,target,so,vectors_densities,vectors_potentials, \
-                                     memory_densities,fam_active)
+                                     memory_densities,fam_active) 
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='scfiteration.f90'):
@@ -113,11 +113,11 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='evolution.f90'):
         ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='IO.f90'):
-        ProcessIO(fname, src, target, so, oldso, fam_active)
+        ProcessIO(fname, src, target, so, oldso, fam_active)  
     if(fname=='coulomb.f90'):
-        ProcessCoulomb(fname, src, target, so, fam_active)
+        ProcessCoulomb(fname, src, target, so, fam_active)             
     if(fname=='pairing.f90'):
-        ProcessPairing(fname, src, target, so)
+        ProcessPairing(fname, src, target, so)                        
     if(fname=='pairing_strengths.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='pairingcutoffs.f90'):
@@ -143,14 +143,14 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='timing.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='transform.f90'):
-        ProcessTransform(fname, src, target, so, oldso)
-    if(fname=='densities.f90'):
+        ProcessTransform(fname, src, target, so, oldso) 
+    if(fname=='densities.f90'): 
         vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation)
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)
     if(fname=='convergence.f90'):
         ProcessCranking(fname, src, target, so)
-    if(fname=='hdf5_auxiliary.f90'):
+    if(fname=='hdf5_auxiliary.f90'): 
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='IO_aux.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -159,19 +159,18 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='fam.f90'):
         ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='fam_run.f90'):
-        print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='fam_gmres.f90'):
-        print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='fam_testing.f90'):
-        print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
 
 def ProcessGeninfo(fname, src, target, so):
     """
      This one is already more complicated. 
-    """    
+    """
+    from src_heph.heph_substitute import substitute
+
     dic={}
     dic['NUMSYM'] = sum(so.ReduceAxes)
     dic['SYMSTRING'] = so.desc
@@ -198,17 +197,19 @@ def ProcessGeninfo(fname, src, target, so):
     else:
        dic['LINESIZEZ']    = 'nz'
 
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))   
+    substitute(src+fname, target+fname, dic)
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic))   
 
 
 def ProcessGeneric(fname, src, target, so, fam_active):
     """
 
     """
-    from src_heph.heph_functional import derivative_order 
+    from src_heph.heph_functional import derivative_order
+    from src_heph.heph_substitute import substitute
     
     global derivative_order
 
@@ -236,10 +237,11 @@ def ProcessGeneric(fname, src, target, so, fam_active):
     else:
       dic['FAM'] = 0
 
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))
+    substitute(src+fname, target+fname, dic)
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic))
 
 
 def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active):
@@ -261,6 +263,8 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam
         fam_active       : Boolean, if True, the FAM is active and vectors.f90 should declare the Coulomb 
                            quantities as complex.
   """
+  from src_heph.heph_substitute import substitute
+
 
   dic = {}
   dic['DECLARATION']            = densities
@@ -276,10 +280,8 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam
     dic['COULOMB_REAL']           = ''
     dic['COULOMB_COMPLEX']        = '!'
 
-  print ('Processing vectors.f90 template...')
-  print (dic['DECLARATION'])
-
-  with open(src+'vectors.f90', 'r') as template:
-    with open(target+'vectors.f90', 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))
+  substitute(src+'vectors.f90', target+'vectors.f90', dic)
+#   with open(src+'vectors.f90', 'r') as template:
+#     with open(target+'vectors.f90', 'w') as generated:
+#         for line in template:
+#             generated.write(Template(line).substitute(dic))

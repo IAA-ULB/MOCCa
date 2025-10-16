@@ -236,6 +236,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         Memory                : string that gets the contribution to memory 
                                 requirements for this density
     """
+    from src_heph.heph_substitute import substitute
 
     global line
     Declaration      = ''
@@ -538,11 +539,12 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     for sym in so.generators:
       if (sym == symdic['P']):
         dic['PBROKEN'] = '!'
-           
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))  
+
+    substitute(src+fname, target+fname, dic)           
+    # with open(src+fname, 'r') as template:
+    #     with open(target+fname, 'w') as generated:
+    #         for line in template:
+    #             generated.write(Template(line).substitute(dic))  
 
     # Return the declaration of all densities for use in vectors.f90
     return Declaration, Memory

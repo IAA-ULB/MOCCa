@@ -22,7 +22,8 @@ def ProcessIO(fname, src, target, so, oldso, fam_active):
       fam_active:  whether we are compiling a mean-field code (False)
                    or a finite amplitude linear response code (True)
     """
-    
+    from src_heph.heph_substitute import substitute
+
     dic = {}
     
     dic['ININX'] = "nx/2"
@@ -67,10 +68,11 @@ def ProcessIO(fname, src, target, so, oldso, fam_active):
     else:
       dic['FAM'] = '0'
 
-    with open(src+fname, 'r') as template:
-      with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))  
+    substitute(src+fname, target+fname, dic)
+    # with open(src+fname, 'r') as template:
+    #   with open(target+fname, 'w') as generated:
+    #     for line in template:
+    #         generated.write(Template(line).substitute(dic))  
 
 def ProcessIO_wf(fname, src, target, so, oldso, fam_active):
     """

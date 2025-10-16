@@ -1168,8 +1168,7 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
 
     ! The calculations is not yet implemented for Hartree-Fock calculations
 $NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock &
-$NTR             & calculations with time-reversal breaking.')
+$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock calculations with time-reversal breaking.')
 $NTR    endif
     
     if((COM2body .eq. 1) .and. (.not. override_2body)) then
@@ -1496,9 +1495,19 @@ $CALCPOTENTIALS
     !---------------------------------------------------------------------------
     ! Simulation of spherical boundary conditions
     if(simulate_spherical_bc) then 
-      if(nx.ne.ny .or. nx.ne.nz) then   
-        call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
+      if(reduZ .eq. 1) then
+        if(nx.ne.nz) then
+          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
+        endif
+      else
+        if(2*nx.ne.nz) then
+          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
+        endif
       endif
+      if(nx.ne.ny) then
+          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
+      endif
+
       do i=1,mv 
         radius = sqrt(sum(meshgrid(i,:)**2))
         if(radius .gt. (nx + 0.5d0) * dx) then 
