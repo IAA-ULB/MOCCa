@@ -1,3 +1,5 @@
+from pathlib import Path
+
 __version__ = "3.0.0"
 
 # `mendeleev` package provides lots of data on elements/isotopes. I wanted a conversion from the atomic
@@ -27,3 +29,4 @@ class Nucleus:
     
     def init_wavefunctions(nwp,nwn):
         """"""
+

@@ -456,7 +456,7 @@ Dat zou handig zijn: ik krijg een merge conflict op src_orig/evolution.f90 en ik
 - We gaan voor een aanpak waarbij te recupereren code gekopieerd wordt naar een directory-structuur onder `MOCCaPy/` zodat we evolueren naar een **optimale structuur** van het project.
 - We gaan uit van `src` gebouwd met `CONFIG=BXL` en bevriezen die `src`. We nemen die `src` ook mee in branch MOCCaPy.
 - We geven de koppeling met `Hephaestos` en met `src_orig` op (ten voordele van een nieuwe - betere - projectstructuur). We proberen wel bij te houden in de repo welke code gerecupereerd wordt, zodat later bij het porteren van onderdelen die we nu niet nodig hebben duidelijk is wat er al ge-port is en wat niet.
-- De master branch wordt nog één keer gemerged met de MOCCaPy branch om de Hephaestos annotatie te incorporeren. Daarna niet meer! Anders verliezen we de link vanwaar MOCCaPy afstamt.
+- De master branch wordt nog één keer gemerged met de MOCCaPy branch om de Hephaestos annotatie te incorporeren. Daarna niet meer! Anders verliezen we de link vanwaar MOCCaPy afstamt. (deze versie kreeg de tag `MOCCaPy_start`)
 - Unit testing is belangrijk en bij elke toevoeging wordt gestreefd om een overeenkomstige test toe te voegen 
 - Ons eerste doel is een bereking van $^{40}\mathrm{Ca}$.
 
