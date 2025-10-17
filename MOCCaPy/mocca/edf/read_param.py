@@ -4,11 +4,16 @@ import re
 pattern = re.compile(r"^(\w+)\(d+\)$")
 
 def read_param(filepath: Path, edf_object, assert_config=True):
-    """Read EDF parameters from file and store them in the edf_object.
+    """Read EDF parameters from file and store them in the edf_object (as attributes).
 
     Args:
         filepath (Path): Path to the .param file.
         edf_object: a concrete EDF object, e.g. a BXL object, which will store the parameters.
+        assert_config (bool): whether or not to raise an assertion error when func_file does not
+            correspond to the class of edf_object. assert_config=False is only used in testing.
+    Raises:
+        AssertionError: when func_file does not correspond to the class of edf_object. e.g class BXL
+            requires func_file = 'BXL.func'.
     """
     edf_object.filepath = filepath
     with open(filepath) as f:
