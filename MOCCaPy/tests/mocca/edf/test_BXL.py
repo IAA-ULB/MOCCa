@@ -10,3 +10,11 @@ def test_ctor():
     bxl = BXL(param_file=project_folder/"parameterizations/BSkG1.param")
     with pytest.raises(AssertionError):
         bxl = BXL(param_file=project_folder/"parameterizations/MSk7.param")
+
+def test_read_param():
+    for p in (Path(project_folder)/'parameterizations').glob('*.param'):
+        print(p)
+        if p.name in ['BSkG1.param', 'forces.param']:
+            pass
+        else:
+            bxl = BXL(param_file=p, assert_config=False)
