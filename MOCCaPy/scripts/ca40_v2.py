@@ -2,7 +2,7 @@
 from mocca.param      import Param
 ### I strongly recommend honouring PEP 8 (https://peps.python.org/pep-0008/)
 from mocca            import mfstate # mfstate =  short for mean-field state
-from mocca.densities  import densityvector
+from mocca.densities  import densityvector ### DensityVector?
 from mocca.potentials import potentialvector
 ### class names must start with capital (typically CamelCase)
 ### methods start with lowercase
@@ -14,8 +14,8 @@ from mocca.EDFs   import BXL
 # from mocca.edf import BXL ### module names in lowercase
 ### overbodid: Param objegt genereert BXL automatisch
 
-from mocca.evolve import heavy_ball
-from mocca.scf    import linear_mix
+from mocca.evolve import heavy_ball ### = fungtie?
+from mocca.scf    import linear_mix ### = fungtie?
 from mocca.io     import write_mf_hdf5
 
 # Define a Cartesian mesh with antiperiodic boundary conditions
