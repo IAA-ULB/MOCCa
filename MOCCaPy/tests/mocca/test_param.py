@@ -25,7 +25,7 @@ def test_BXL_from_param():
     bxl = param.create_EDF()
     assert isinstance(bxl, BXL)
 
-def test_NLO_from_param():
-    param = Param(project_folder / "parameterizations/MSk7.param")
+def test_FunctionalNotImplemented_from_param():
+    param = Param(Path(__file__).parent/"FunctionalNotImplemented.param")
     with pytest.raises(ModuleNotFoundError):
         nlo = param.create_EDF()

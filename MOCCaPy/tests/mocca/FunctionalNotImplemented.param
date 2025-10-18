@@ -1,0 +1,11 @@
+!-------------------------------------------------------------------------------
+! FunctionalNotImplemented parameterization
+!
+! This is a .param file to test that an AssertionError is raised when the
+! functional is not implemented.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "FunctionalNotImplemented"
+func_file= 'FunctionalNotImplemented.func'
+! No data - is useless anyway
+/
