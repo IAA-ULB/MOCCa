@@ -51,6 +51,8 @@ def test_BXL_from_param():
     bxl = param.create_EDF()
     assert isinstance(bxl, BXL)
 
+    param = Param("BSkG1")
+
 def test_FunctionalNotImplemented_from_param():
     """Create a BXL object from a Param object that specifies a functional that is
     not implemented."""

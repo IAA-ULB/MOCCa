@@ -64,3 +64,4 @@ MOCCaPy/scripts/Ca40.f90/*.param
 experiments/
 
 MOCCaPy/scripts/tryout.py
+MOCCaPy/mocca/parameterizations

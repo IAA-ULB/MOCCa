@@ -6,7 +6,7 @@ from importlib import import_module
 _array_element_pattern = re.compile(r"^(\w+)\(d+\)$")
 
 class Param:
-    def __init__(self, filepath: Path):
+    def __init__(self, param_file: Path|str):
         """Read EDF parameters from file and store them as attributes of self.
 
         Args:
@@ -14,6 +14,10 @@ class Param:
         Raises:
             RuntimeError: when reading the .param file fails.
         """
+        if isinstance(param_file, Path):
+            filepath = param_file
+        else:
+            filepath = Path(__file__).parent / f"parameterizations/{param_file}.param"
         self.filepath = filepath
         with open(filepath) as f:
             lines = f.readlines()
@@ -79,10 +83,12 @@ class Param:
                                f"Error message: {e}")
 
     def create_EDF(self):
-        """Create an EDF object defined by `self.func_file`.
+        """Create an EDF object defined by `self.func_file`. This works only if
+        `self.func_file` is `x.func`, where `x` is the name of the EDF class.
 
         Raises:
-            ModuleNotFoundError: If the functional `self.func_file` is not found in mocca.edf.
+            ModuleNotFoundError: If the functional `self.func_file` (after removing
+                `.func`) is not found in mocca.edf.
         """
 
         edf_name = self.func_file.replace('.func', '')
