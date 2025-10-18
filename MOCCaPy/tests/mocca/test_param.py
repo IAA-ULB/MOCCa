@@ -7,7 +7,9 @@ from mocca.edf.bxl import BXL
 project_folder = Path(__file__).parent.parent.parent.parent
 assert project_folder.name == 'tantalus_full'
 
+
 def test_Param0():
+    """Test setting Param object's attributes."""
     param = Param(Path(__file__).parent/"FunctionalNotImplemented.param")
     assert param.name == "FunctionalNotImplemented"
     assert param.func_file == "FunctionalNotImplemented.func"
@@ -32,7 +34,7 @@ def test_Param0():
 
 
 def test_Param():
-    # Try all .param files (without assert_config) to make sure that all corner cases are handeled.
+    """Try all .param files to make sure that all corner cases are handled well."""
     for p in (Path(project_folder)/'parameterizations').glob('*.param'):
         if p.name in ['forces.param']:
             # Following Wouter's advice, we do not support forces.param
@@ -44,11 +46,14 @@ def test_Param():
             print(' OK')
 
 def test_BXL_from_param():
+    """Create a BXL object from a Param object that has `func_file=='BXL'`."""
     param = Param(project_folder / "parameterizations/BSkG1.param")
     bxl = param.create_EDF()
     assert isinstance(bxl, BXL)
 
 def test_FunctionalNotImplemented_from_param():
+    """Create a BXL object from a Param object that specifies a functional that is
+    not implemented."""
     param = Param(Path(__file__).parent/"FunctionalNotImplemented.param")
     with pytest.raises(ModuleNotFoundError):
         nlo = param.create_EDF()
