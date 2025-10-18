@@ -7,6 +7,29 @@ from mocca.edf.bxl import BXL
 project_folder = Path(__file__).parent.parent.parent.parent
 assert project_folder.name == 'tantalus_full'
 
+def test_Param0():
+    param = Param(Path(__file__).parent/"FunctionalNotImplemented.param")
+    assert param.name == "FunctionalNotImplemented"
+    assert param.func_file == "FunctionalNotImplemented.func"
+    assert param.p1  == 1
+    assert param.p2  == 2.0
+    assert param.p3  == 3e-9
+    assert param.p4  == 'str'
+    assert param.p5  == "str"
+    assert param.p6  == [6, 6]
+    assert param.p7  == 7
+    assert param.p8  == 8
+    assert param.p11 == 11
+    assert param.p12 == 12.0
+    assert param.p13 == 13e-9
+    assert param.p14 == 'str'
+    assert param.p15 == "str"
+    assert param.p16 == [16, 16]
+    assert param.p17 == 17
+    assert param.p18 == 18
+    assert param.p19 == True
+    assert param.p20 == False
+
 
 def test_Param():
     # Try all .param files (without assert_config) to make sure that all corner cases are handeled.

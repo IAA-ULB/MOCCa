@@ -2,7 +2,6 @@ from pathlib import Path
 import re
 from importlib import import_module
 
-from src_heph.fortran_templates.GenTermExpression_templates import edent_fam
 
 _array_element_pattern = re.compile(r"^(\w+)\(d+\)$")
 
@@ -39,19 +38,17 @@ class Param:
                         # more than one entry on this line
                         sub_lines = line.split(',')
                         for line in sub_lines:
-                            self._handle_single_entry(line)
+                            if not line.strip() == '':
+                                self._handle_single_entry(line)
 
     def _handle_single_entry(self, line):
         key, value = line.split("=")
         key = key.strip()
         value = value.strip()
         try:
-            if key == 'name':
-                key = 'param_name'
-            else:
-                m = _array_element_pattern.match(key)          # key has form 'name(1)'
-                if m:
-                    key = m.group(1)
+            m = _array_element_pattern.match(key)          # key has form 'name(1)'
+            if m:
+                key = m.group(1)
 
             if value.endswith(","):             # remove trailing comma
                 value = value[:-1]
@@ -77,7 +74,6 @@ class Param:
                 value = int(value)
 
             setattr(self, key, value)
-
         except Exception as e:
             raise RuntimeError(f"Error reading file {self.filepath} at entry {line}.\n"
                                f"Error message: {e}")
