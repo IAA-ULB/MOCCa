@@ -62,3 +62,5 @@ MOCCaPy/scripts/Ca40.f90/trash
 MOCCaPy/scripts/Ca40.f90/*.param
 
 experiments/
+
+MOCCaPy/scripts/tryout.py
