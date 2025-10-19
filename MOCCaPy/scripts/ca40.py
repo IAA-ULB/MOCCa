@@ -1,12 +1,11 @@
 import h5py
 
-from mocca.param     import Param
-from mocca.meanfield import SlaterDeterminant
-from mocca.mesh      import LagrangeMesh
-# from mocca.observables import calculate_energy, calculate_spwf_energy, calculate_multipole_moments
-from mocca.solve_mfe import MFESolver
+from mocca.param      import Param
+from mocca.mean_field import SlaterDeterminant
+from mocca.mesh       import LagrangeMesh
+from mocca.solve_mfe  import MFESolver
 
-mesh = LagrangeMesh(n=32, d=0.8, bc='antiperiodic')
+mesh = LagrangeMesh(dim=3, n=32, d=0.8, bc='antiperiodic')
 # dim=3 is default
 wf = SlaterDeterminant(Z=20, N=20, wf_init='Nilsson', mesh=mesh, nwp=40, nwn=40)
 param = Param("BSkG1")

@@ -1,8 +1,9 @@
-def init_nilsson(wf) -> None:
+def create_wf_nilsson():
     """"""
+    
 
 
-def init_random(wf) -> None:
+def create_wf_random():
     """"""
 
 
@@ -27,8 +28,8 @@ class SlaterDeterminant(BCSState):
 
     """
     wf_initializers = {
-        'Nilsson' : init_nilsson,
-        'random' : init_random,
+        'Nilsson' : create_wf_nilsson,
+        'random'  : create_wf_random,
     }
     def __init__(self, Z:int, N:int, mesh, nwp:int, nwn:int, wf_init='Nilsson'):
         super().__init__()
@@ -38,6 +39,7 @@ class SlaterDeterminant(BCSState):
         self.nwp = nwp
         self.nwn = nwn
         self.wf_init_function = self.__class__.wf_initializers[wf_init]
+        self.wf = self.wf_init_function()
 
 
     def energy(self, edf=None) -> float:
