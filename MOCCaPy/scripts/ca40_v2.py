@@ -35,7 +35,7 @@ from mocca.scf    import linear_mix ### = functie?
 from mocca.io     import write_mf_hdf5
 
 # Define a Cartesian mesh with antiperiodic boundary conditions
-mesh = Cartesian3D(n=(16,16,16), d=(0.8,0.8,0.8), bc='antiperiodic' )
+mesh = Cartesian3D(n=(32,32,32), d=(0.8,0.8,0.8), bc='antiperiodic' )
 
 # Define a mean-field state
 # - that is a Slater determinant (as opposed to a BCS or Bogoliubov state)
