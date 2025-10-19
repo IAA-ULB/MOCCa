@@ -1,45 +1,34 @@
-# A first top-down attempt at MOCCapy
+import h5py
 
-# import matplotlib.pyplot as plt
+from mocca.param     import Param
+from mocca.meanfield import SlaterDeterminant
+from mocca.mesh      import LagrangeMesh
+# from mocca.observables import calculate_energy, calculate_spwf_energy, calculate_multipole_moments
+from mocca.solve_mfe import MFESolver
 
-from mocca import Nucleus
-# from mocca.mesh     import Cartesian3D  ## based on https://peps.python.org/pep-0008/#naming-conventions this imports a class
-# from mocca.skyrme   import BXL          ## based on https://peps.python.org/pep-0008/#naming-conventions this imports a class
-# from mocca.evolve   import HeavyBall    ## based on https://peps.python.org/pep-0008/#naming-conventions this imports a class
-# from mocca.scf      import LinearMix    ## based on https://peps.python.org/pep-0008/#naming-conventions this imports a class
+mesh = LagrangeMesh(n=32, d=0.8, bc='antiperiodic')
+# dim=3 is default
+wf = SlaterDeterminant(Z=20, N=20, wf_init='Nilsson', mesh=mesh, nwp=40, nwn=40)
+param = Param("BSkG1")
+bxl = param.create_EDF()
 
-# Define the problem
-ca40 = Nucleus(Z=20, N=20)
-print(ca40)
+mfe_solver = MFESolver(energy_tol=1e-9, moment_tol=1e-3, wf0=wf, spwf_algo='heavy_ball', scf_algo='linear_mix', edf=bxl)
+# note that we opted to pass strings for strategy and scf. Now we do not have to import the functions heavy_ball and
+# linear_mix. They are only used internally, a registry for mapping strategy and scf strings to the corresponding
+# functions may help to extend the possibilities without modifying the MFESolver class.
+wf, densities, potentials = mfe_solver.solve()
 
-#
-# mesh    = Cartesian3D(nx=16, ny=16, nz=16, dx=0.8)          # create a Cartesian3D (mesh) object
-# ## alternatively: Cartesian3D(n=(16,16,16), d=0.8)
-# nucleus = Nucleus(Z=20, N=20, iniwfs='Nilsson', mesh=mesh)  # create a `Nucleus` object (Ca40)
-# param   = BXL('BSkG3')                                      # create a `BXL` object
-#
-# # Solve the mean-field problem
-# nucleus.solve(strategy=HeavyBall, scf=LinearMix)
-# ## Apparently, the `solve` call stores the solution in nucleus. You might want to reflect on wether that is the best
-# ## approach
+# Alternatively, these may be member functions of the mean-field state object (c.q. SlaterDeterminant or its base
+# class), in which case you are just accessing a quantity from the wave function and 'calculate_' can be conveniently
+# omitted:
+E = wf.energy()
+Espwf = wf.spwf_energy(potentials) # alternate way to calculate the energy; potentials are required
+Qlm = wf.multipole_moments() # Qlm is a dictionary or list with values for all multipole moments
 
+print(f"{E=}")
+print(f"{Espwf=}")
+print(f"{E-Espwf=}")
 
-## Problems:
-## 1. The `param` object is not used. I guess it should be passed
-##    - to the `Nucleus` constructor, or
-##    - to the `nucleus.solve` call,
-##    whichever makes more sense.
-## 2. Based on standard naming conventions `HeavyBall` and `LinearMix` were assumed to be classes. Although from the
-##    `nucleus.solve` call it looks more logical that they are functions, which the solve member function knows how to
-##    call. If so, according to https://peps.python.org/pep-0008/#naming-conventions they should be named `heavy_ball`,
-##    and `linear_mix`, resp.
-
-## Of course, you are free to follow you own conventions, but Python users are used to the https://peps.python.org/pep-0008/#naming-conventions
-## and appreciate you adhering to it and it facilitates using your code.
-
-# # Write a HDF5 file
-# ## Containing what? You might want to be a bit more expressive.
-# nucleus.write('Ca40.hdf5') ## this `write` is a member function of class Nucleus, it is not the `write` imported above
-#                            ## as `from mocca.io import write`
-# # Plot the density
-# plt.plot(mesh.x, nucleus.rho[:,0,0])
+with h5py.File('myfile.hdf5','w') as hdf5file:
+    mfe_solver.write_hdf5(hdf5file) # writes the necessary objects
+    # other objects can be added
