@@ -214,6 +214,8 @@ class LagrangeMesh:
         self.flatten()
         return function(self.gridx, self.gridy, self.gridz)
 
+    def integrate(self, q):
+        """Compute the integral of a scalar quantity `q` on the mesh."""
+        self.flatten(q)
+        return q.sum() * self.dv
 
-    def integrate(self, function):
-        """Compute the integral of `function` on the mesh."""

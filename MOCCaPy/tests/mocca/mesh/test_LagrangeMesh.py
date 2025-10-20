@@ -243,3 +243,11 @@ def test_LagrangeMesh_apply():
     r_xyz = mesh.apply(norm)
     for i in range(mesh.flat_shape[0]):
         assert r_xyz[i] == np.sqrt(mesh.gridx[i]**2 + mesh.gridy[i]**2 + mesh.gridz[i]**2)
+
+def test_LagrangeMesh_integrate():
+    mesh = LagrangeMesh(dim=3, n=10, d=.5)
+    c = np.ones_like(mesh.gridx)
+    c = mesh.flatten(c)
+    print(f"{c=}")
+    integral_of_c = mesh.integrate(c)
+    assert integral_of_c == len(c) * mesh.dv
