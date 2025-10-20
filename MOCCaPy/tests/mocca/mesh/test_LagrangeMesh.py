@@ -200,3 +200,46 @@ def test_LagrangeMesh_ctor_grid_3D():
     for j in range(2):
         for i in range(2):
             assert np.all(mesh.gridz[i,j,:] == [0.5,1.5])
+
+def test_LagrangeMesh_ctor_dv():
+    """Test dv computation."""
+    mesh = LagrangeMesh(dim=3, n=6, d=.5)
+    assert mesh.dv == .5**3 * 2**3
+
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=(True,True,False))
+    assert mesh.dv == .5 ** 3 * 2 ** 2
+
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=(True, False, False))
+    assert mesh.dv == .5 ** 3 * 2
+
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=False)
+    assert mesh.dv == .5 ** 3
+
+
+def test_LagrangeMesh_reshape():
+    """Test reshaping of the mesh."""
+    mesh = LagrangeMesh(dim=3, n=4, d=.5)
+    assert mesh.shape == (2,2,2)
+    assert mesh.flat_shape == (8,)
+
+    assert mesh.gridx.shape == (2,2,2)
+    mesh.flatten()
+    assert mesh.gridx.shape == (8,)
+    mesh.flatten() # already flat
+    assert mesh.gridx.shape == (8,)
+    mesh.unflatten()
+    assert mesh.gridx.shape == (2, 2, 2)
+    mesh.unflatten() # already unflattened
+    assert mesh.gridx.shape == (2, 2, 2)
+
+from numba import vectorize, float64
+
+@vectorize([float64(float64, float64, float64)])
+def norm(x, y, z):
+    return np.sqrt(x*x + y*y + z*z)
+
+def test_LagrangeMesh_apply():
+    mesh = LagrangeMesh(dim=3, n=10, d=.5)
+    r_xyz = mesh.apply(norm)
+    for i in range(mesh.flat_shape[0]):
+        assert r_xyz[i] == np.sqrt(mesh.gridx[i]**2 + mesh.gridy[i]**2 + mesh.gridz[i]**2)
