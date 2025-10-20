@@ -246,6 +246,7 @@ def test_LagrangeMesh_apply():
 
 def test_LagrangeMesh_integrate():
     mesh = LagrangeMesh(dim=3, n=10, d=.5)
+    # integrate a constant function.
     c = np.ones_like(mesh.gridx)
     c = mesh.flatten(c)
     print(f"{c=}")

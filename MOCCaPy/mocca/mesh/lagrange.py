@@ -210,12 +210,81 @@ class LagrangeMesh:
                     self.gridz = self.gridz.reshape(self.shape, order='F')
 
     def apply(self, function):
-        """Apply a function on the mesh, i.e. compute the function value on every grid point."""
+        """Apply a function on the mesh, i.e. compute the function value on every grid point.
+
+        Args:
+            function: function f(x,y,z) to be applied on the mesh array. If f accepts additional parameters, a closure
+                must be defined.
+
+        Returns:
+            a flat mesh array (self.flat_shape).
+
+        Raises:
+            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+        """
         self.flatten()
         return function(self.gridx, self.gridy, self.gridz)
 
     def integrate(self, q):
-        """Compute the integral of a scalar quantity `q` on the mesh."""
+        """Compute the integral of a scalar quantity `q` on the mesh.
+
+        Args:
+            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
+                to True
+        Returns:
+            a scalar:
+
+        Raises:
+            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+        """
         self.flatten(q)
         return q.sum() * self.dv
 
+    def derive1(self, q):
+        """Compute the 1st order derivative of a scalar quantity `q` on the mesh.
+
+        Args:
+            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
+                to True
+
+        Returns:
+
+
+        Raises:
+            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+        """
+        # TODO : implement
+
+    def derive2(self, q):
+        """Compute the 2nd order derivative of a scalar quantity `q` on the mesh.
+
+        Args:
+            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
+                to True
+
+        Returns:
+
+
+        Raises:
+            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+        """
+        # TODO : implement
+
+    def derive3(self, q):
+        """Compute the 3d order derivative of a scalar quantity `q` on the mesh.
+
+        Args:
+            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
+                to True
+
+        Returns:
+
+
+        Raises:
+            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+        """
+        # TODO : implement
+
+    def interpolate(self, q, ):
+        """Interpolate a scalar quantity `q` on the mesh."""
+        # TODO : implement
