@@ -119,7 +119,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
     real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
-    real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch
+    real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch, ElectronChempotCoul 
     real(KIND=dp), parameter :: Qnp=1.29335236 !Mn-Mp
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
@@ -468,15 +468,15 @@ $PRINTCOEF_PAIR
     print 109, calculate_epasta(totalE)
     print 110, ElectronEnergyKin
     print 111, ElectronEnergyExch
-    print 112, ElectronChempotKin+ElectronChempotExch
+    print 112, ElectronChempotKin+ElectronChempotExch+ElectronChempotCoul
     print 113, FermiEnergy(1)
     print 114, FermiEnergy(2)
-    print 115, FermiEnergy(1)-ElectronChempotKin-            &
-    &                     ElectronChempotExch+Qnp
-    print 116, (-TotalE-ElectronEnergyKin-ElectronChempotExch&
+    print 115, FermiEnergy(1)-ElectronChempotKin             &
+    &          -ElectronChempotExch-ElectronChempotCoul+Qnp                               
+    print 116, (-TotalE-ElectronEnergyKin-ElectronEnergyExch &
     &                          +dble(neutrons)*FermiEnergy(1)&
     &                          +dble(protons)*(FermiEnergy(2)&
-    &       +ElectronChempotKin+ElectronChempotExch))/(mv*dv)
+    &    +ElectronChempotCoul+ElectronChempotKin+ElectronChempotExch))/(mv*dv)
 #endif
 
     print 1
@@ -778,7 +778,7 @@ $NOTAU    endif
     ElectronEnergyKin=0.0d0
     ElectronEnergyExch=0.0d0
 #else
-    call calcElectronEnergy()
+    call calcElectronEnergy(Fin)
 #endif
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy
@@ -2084,10 +2084,13 @@ $EREAR
 
   end subroutine clean_potentials
   
-  subroutine calcElectronEnergy()
+  subroutine calcElectronEnergy(Fin)
       !NS: calculate kinetic energy of relativistic electron gas including exchange
       !(but latter in ultrarelativistic limit)
+      ! also include coulomb contribution to electron chempot
       
+      type(PotentialVector), intent(in) :: Fin !for Coulomb field
+      integer       :: i,j,k
       real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
       real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
       real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
@@ -2099,6 +2102,7 @@ $EREAR
          ElectronChempotKin  = 0.0d0
          ElectronEnergyExch  = 0.0d0
          ElectronChempotExch = 0.0d0
+         ElectronChempotCoul = 0.0d0
       else
          ne=protons/(mv*dv)
          !Relativistic electrons
@@ -2118,6 +2122,18 @@ $EREAR
          !Electron exchange energy and chempot
          ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
          ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
+
+         ! calculating Coulomb contribution to the chemical potential of electrons
+         ElectronChempotCoul = 0.0d0
+         do k=1,nz
+           do j=1,ny
+             do i=1,nx
+               ElectronChempotCoul = ElectronChempotCoul + Fin%CoulombPotential(i,j,k)                  
+             enddo
+           enddo
+         enddo
+         ElectronChempotCoul = - ElectronChempotCoul/mv
+         print *, 'check coul contr to mu_e', ElectronChempotCoul
       endif
 
   end subroutine calcElectronEnergy
