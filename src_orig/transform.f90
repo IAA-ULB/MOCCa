@@ -86,13 +86,13 @@ contains
      &   /,8x,'| Symmetry-transformation of the input                     |', &
      &   /,8x,'| On file:                                                 |', &
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |', &
-     &   /,8x '|    dx            = ', f10.7, ' (fm)                       |', &
+     &   /,8x,'|    dx            = ', f10.7, ' (fm)                       |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7 , '                        |', &
      &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
      &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
      &   /,8x,'| This calculation:                                        |' , &
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |'       , &
-     &   /,8x '|    dx            = ', f10.7, '(fm)                        |', &
+     &   /,8x,'|    dx            = ', f10.7, '(fm)                        |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7, '                        |'      , &
      &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
      &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
@@ -705,13 +705,13 @@ contains
      &   /,8x,'| Transformation of the input                              |', &
      &   /,8x,'| On file:                                                 |', &
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |', &
-     &   /,8x '|    dx            = ', f10.7, ' (fm)                       |', &
+     &   /,8x,'|    dx            = ', f10.7, ' (fm)                       |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7 , '                        |', &
      &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
      &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
      &   /,8x,'| This calculation:                                        |' , &
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |'       , &
-     &   /,8x '|    dx            = ', f10.7, '(fm)                        |', &
+     &   /,8x,'|    dx            = ', f10.7, '(fm)                        |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7, '                        |'      , &
      &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
      &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
@@ -766,18 +766,18 @@ contains
     call stp('Changing spwf number is not allowed for MPI calculations.')
 #endif
           !---------------------------------------------------------------------
-          !  First a bunch of sanity checks
+          !  Sanity checks on the number of spwfs
           if(nwn .ne. sum(fileblocks(1:4)) + sum(extraspwfs(1:4)) ) then
-            call stp('Inconsistent number of neutron wavefunctions.')
+            print *, ' nwn in this calculation = ', nwn
+            print *, ' nwn on file             = ', sum(fileblocks(1:4))
+            print *, ' extra neutron spwfs     = ', sum(extraspwfs(1:4))
+            call stp('Inconsistent number of neutron wavefunction.')
           endif
           if(nwp .ne. sum(fileblocks(5:8)) + sum(extraspwfs(5:8)) ) then
+            print *, ' nwp in this calculation = ', nwp
+            print *, ' nwp on file             = ', sum(fileblocks(5:8))
+            print *, ' extra proton spwfs      = ', sum(extraspwfs(5:8))
             call stp('Inconsistent number of proton wavefunctions.')
-          endif
-          if(nwn .lt. filenwn) then
-            call stp(' Nwn lower than nwn on file.')
-          endif
-          if(nwp .lt. filenwp) then
-            call stp(' Nwp lower than nwp on file.')
           endif
 
 $TR       if((extraspwfs(2).ne.0) .or. &

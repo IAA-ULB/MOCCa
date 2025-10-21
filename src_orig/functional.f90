@@ -57,6 +57,7 @@ module functional
  ! SYMDELTA         : $SYMDELTA
  !
  ! DTEMPSPH         : $DTEMPSPH
+ ! DTEMPSPH         : $DTEMPSPH
  ! D2TEMPSPH        : $D2TEMPSPH
  ! D3TEMPSPH        : $D3TEMPSPH
  ! LAPTEMPSPH       : $LAPTEMPSPH
@@ -1306,7 +1307,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     case(0,1)
       ! HF or BCS
       Bely    = Belyaev(:,3)
-      J2_temp = J2(:,3)
+      J2_temp = J2_pairing_cut(:,3)
       ! Sanity check: no collective sense of rotational correction implemented
       !               yet for HF/BCStype calculations
       if(blocktype.ne.0) then
@@ -1319,7 +1320,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
         J2_temp = J2_coll(:,3)
       else
         Bely    = Belyaev(:,3)
-        J2_temp = J2(:,3)
+        J2_temp = J2_pairing_cut(:,3)
       endif
     end select
 
@@ -2360,6 +2361,7 @@ $READPOTENTIALS_HDF5
     cut(1) = Estabn
     cut(2) = Estabp
     stab   = 0.0
+    if (pairingtype.eq.0) return
 
     do it=1,2
       !-------------------------------------------------------------------------

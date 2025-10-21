@@ -1,6 +1,8 @@
 &skf
 !-------------------------------------------------------------------------------
-! BSkG4 parameterization
+! BSkG4 parameterization as published in
+!    Eur. Phys. J. A (2025) 61:35
+!    https://doi.org/10.1140/epja/s10050-025-01503-x
 !
 ! Aspects of note
 !  * microscopic pairing prescription
