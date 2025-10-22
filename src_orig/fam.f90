@@ -565,13 +565,66 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
 $TR S = 2 * S ! Time-reversal factor 2
 
-    strength_complex = S ! Time-reversal factor 2
+    strength_complex = S 
     strength = - strength_complex%im / pi
 
     ! return the strength
     res = strength
 
   end function calc_strength
+
+
+  subroutine calc_strength_decomp(S_complex, strength)
+    !---------------------------------------------------------------------------
+    !
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp), intent(out) :: S_complex(8) 
+    real(KIND=dp), intent(out) :: strength(8)
+    integer :: h, p, B, N, si
+    real(KIND=dp) :: occ_h, occ_p
+
+    if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
+
+    if (mod(l,2) == 1) then
+      print *, "NOT IMPLEMENTED :: calc_strength_decomp not applicable when l is odd"
+      return
+    endif
+
+    S_complex = 0
+    strength = 0
+
+    si = 0
+
+    do B = 1, 8
+      N =  HFBlocks(B) ; if(N.eq.0) cycle
+      do h = si, si+N
+        occ_h = rho_can(h)
+        if(occ_h < 1d-6) cycle
+        do p = si, si+N
+$TR         occ_p = 2.0d0 - rho_can(p) 
+$NTR        occ_p = 1.0d0 - rho_can(p) 
+          if(occ_p < 1d-6) cycle
+          S_complex(B) = S_complex(B) + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
+        enddo
+      enddo
+      si = si + N
+    enddo
+$TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
+    strength(:) = - S_complex(:)%im / pi
+
+    if (fam_verbose > 0) then
+      print *, 'Decomposed strength : '
+      print * , 'S_n+ : (', strength(1), ' , ', strength(2), ' )'
+      print * , 'S_n- : (', strength(3), ' , ', strength(4), ' )'
+      print * , 'S_p+ : (', strength(5), ' , ', strength(6), ' )'
+      print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
+      print * , 'S_tot : ', sum(strength(:))
+    endif
+
+
+
+  end subroutine calc_strength_decomp
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------

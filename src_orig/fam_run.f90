@@ -22,6 +22,9 @@ program run_FAM
   integer :: omega_num, omega_index
   real(kind=dp) :: strength_free
 
+  complex(KIND=dp) :: S_complex_decomp(8) = 0
+  real(KIND=dp) :: S_decomp(8) = 0
+
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
 
@@ -270,9 +273,11 @@ program run_FAM
     print *, "          S     = ", strength 
     print 1
 
+    call calc_strength_decomp(S_complex_decomp, S_decomp)
+
     ! call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
 
-    call append_fam_file_new(num_iter, famfile)
+    call append_fam_file_new(S_decomp, num_iter, famfile)
 
     omega_curr = omega_curr + omega_step
 

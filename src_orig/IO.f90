@@ -1826,10 +1826,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine append_fam_file
 
 
-  subroutine append_fam_file_new(iter, fname)
+  subroutine append_fam_file_new(S_decomp, iter, fname)
     use fam
-    character(len=*), intent(in)      :: fname
+    real(KIND=dp), intent(in)         :: S_decomp(8)
     integer, intent(in)               :: iter
+    character(len=*), intent(in)      :: fname
     integer                           :: io
 
     1 format (f10.3, f10.3, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3, &
@@ -1844,7 +1845,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     endif
     
     write(1, 1) omega_fam, smear, iter, strength_complex%re, strength_complex%im, &
-    & 0.0, 0.0, 0.0, 0.0, strength
+    & sum(S_decomp(1:2)), sum(S_decomp(3:4)),sum(S_decomp(5:6)), sum(S_decomp(7:8)), sum(S_decomp(:))
 
     close(1)
 
