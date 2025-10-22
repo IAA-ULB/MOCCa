@@ -14,11 +14,16 @@ class LagrangeMesh:
             n: number of points in the respective dimensions. If n is an int n is the same in each direction.
             d: spacing of points in the respective dimensions. If n is a float or an int d is the same in each direction.
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
-            reduce: restrict the mesh to positive half-axis. Corresponding n entry is halved.
-            shift: subtract shift from the grid points. If non-zero, corresponding reduce entry must be False
+            reduce: restrict the mesh to the positive half-axis. The corresponding `n` entry is halved.
+            shift: subtract shift from the grid points. If non-zero, corresponding `reduce` entry must be `False`.
 
         Raises:
-             AssertionError: in case of invalid choices
+            AssertionError: in case of invalid choices
+
+        Remark:
+            The `reduce` parameter is derived from symmetry considerations and may at some point - when the complexity
+             of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
+             we content with explicitly indicating which coordinate axes must be 'reduced'
         """
         # initialize n and d as dim-tuples
         if dim == 0 and isinstance(n, tuple):
@@ -270,20 +275,20 @@ class LagrangeMesh:
         """
         # TODO : implement
 
-    def derive3(self, q):
-        """Compute the 3d order derivative of a scalar quantity `q` on the mesh.
-
-        Args:
-            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
-                to True
-
-        Returns:
-
-
-        Raises:
-            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
-        """
-        # TODO : implement
+    # def derive3(self, q):
+    #     """Compute the 3d order derivative of a scalar quantity `q` on the mesh.
+    #
+    #     Args:
+    #         q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
+    #             to True
+    #
+    #     Returns:
+    #
+    #
+    #     Raises:
+    #         AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+    #     """
+    #     # TODO : implement
 
     def interpolate(self, q, ):
         """Interpolate a scalar quantity `q` on the mesh."""
