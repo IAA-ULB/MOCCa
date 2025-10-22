@@ -376,7 +376,8 @@ $PRINTCOEF_PAIR
   113 format (15x, '      Chempot_n:', 40x, f20.6)
   114 format (15x, '      Chempot_p:', 40x, f20.6)
   115 format (15x, ' Chempot_p β-eq:', 40x, f20.6)
-  116 format (15x, '       Pressure:', 40x, f20.6)
+  116 format (15x, ' Chempot_e coul:', 40x, f20.6)
+  117 format (15x, '       Pressure:', 40x, f20.6)
 #endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -473,7 +474,8 @@ $PRINTCOEF_PAIR
     print 114, FermiEnergy(2)
     print 115, FermiEnergy(1)-ElectronChempotKin             &
     &          -ElectronChempotExch-ElectronChempotCoul+Qnp                               
-    print 116, (-TotalE-ElectronEnergyKin-ElectronEnergyExch &
+    print 116, ElectronChempotCoul
+    print 117, (-TotalE-ElectronEnergyKin-ElectronEnergyExch &
     &                          +dble(neutrons)*FermiEnergy(1)&
     &                          +dble(protons)*(FermiEnergy(2)&
     &    +ElectronChempotCoul+ElectronChempotKin+ElectronChempotExch))/(mv*dv)
@@ -2133,7 +2135,6 @@ $EREAR
            enddo
          enddo
          ElectronChempotCoul = - ElectronChempotCoul/mv
-         print *, 'check coul contr to mu_e', ElectronChempotCoul
       endif
 
   end subroutine calcElectronEnergy
