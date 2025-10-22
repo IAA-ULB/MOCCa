@@ -42,6 +42,12 @@ module fam
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to Gamma = 2 * smear 
   !-----------------------------------------------------------------------------
+  ! FAM strength
+  complex(KIND=dp) :: strength_complex = CMPLX(0.0_dp,0.0_dp,KIND=dp)
+  !    the complex strength S(w,F) = Tr(F^dagger drho(w))
+  real(KIND=dp) :: strength = 0.0_dp
+  !    the transition strength (aka dB/dw) obtained as - 1/pi * Im(strength_complex)
+  !-----------------------------------------------------------------------------
   ! mixing strategy
   integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
   !                                 1 : linear mixing of dH
@@ -521,22 +527,24 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
   end subroutine build_dH_explicit
 
 
-  function calc_strength() result (S_out)
+ function calc_strength() result (res)
     !---------------------------------------------------------------------------
-    ! Calculate the strength S(omega,F)
+    ! Calculate the strength S(omega,F) and store output in strength and 
+    ! strength_complex and return strength
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! obtained from 
-    !     S(omega,F) = - 1 /pi * Im Tr (F^dagger * drho)
-    ! where 
-    !    Tr (F^dagger * drho) = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! strength_complex is defined as 
+    !     strength_complex = Tr (F^dagger * drho)
+    !                      = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! while the strength  
+    !     strength = -1/pi * strength_complex
     ! 
     ! note: 
     !  - normalisation of external field may have to be taken into account
     !    S -> S/alpha
     !---------------------------------------------------------------------------
 
-    complex(KIND=dp) :: S
-    real(KIND=dp) S_out
+    complex(KIND=dp) :: S = 0
+    real(KIND=dp) :: res
     integer :: h, p
     real(KIND=dp) :: occ_h, occ_p
 
@@ -557,7 +565,11 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
 $TR S = 2 * S ! Time-reversal factor 2
 
-    S_out = - S%im / pi
+    strength_complex = S ! Time-reversal factor 2
+    strength = - strength_complex%im / pi
+
+    ! return the strength
+    res = strength
 
   end function calc_strength
 
