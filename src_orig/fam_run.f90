@@ -20,7 +20,7 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
-  real(kind=dp) :: strength, strength_free
+  real(kind=dp) :: strength_free
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
@@ -125,7 +125,7 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
-  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
+  call init_fam_file_new(famfile)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -270,7 +270,9 @@ program run_FAM
     print *, "          S     = ", strength 
     print 1
 
-    call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
+    ! call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
+
+    call append_fam_file_new(num_iter, famfile)
 
     omega_curr = omega_curr + omega_step
 

@@ -1734,7 +1734,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     integer, intent(in)               :: l, m
     real(kind=DP), intent(in)         :: eff_charge_n, eff_charge_p
     character(len=*), intent(in)      :: fname
-    integer                           :: io, idx
+    integer                           :: io
 
     print *, ' writing strength function to file :  ', fname
 
@@ -1760,6 +1760,51 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
   end subroutine init_fam_file
 
+  subroutine init_fam_file_new(fname)
+    !---------------------------------------------------------------------------
+    ! Create file to write strength function S(omega, F) obtained from FAMtalus
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by a dedicated line explaining the content of each column.
+    ! The format of the body of said file is
+    ! 
+    !  omega[MeV] gamma[MeV] iter S_complex_re S_complex_im S_n+ S_n- S_p+ S_p- S_tot
+    ! 
+    ! The units of the strength depend on the external field F. 
+    !
+    ! The actual strength is written to this file by subroutine append_fam_file()
+    ! called each time a frequency is converged. 
+    !---------------------------------------------------------------------------
+    use fam
+    character(len=*), intent(in)      :: fname
+    integer                           :: io
+
+    print *, ' writing strength function to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+    2 format('#', 4x, 'omega', 5x, 'gamma',4x, 'iter',  8x,'S_complex_re', 13x, &
+    &  'S_complex_im', 18x, 'S_n+', 21x, 'S_n-', 21x, 'S_p+', 21x, 'S_p-', 20x, &
+    &  'S_tot') 
+
+
+    open(1,file=fname, status='new', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2)      ! write column names
+
+    close(1)
+
+  end subroutine init_fam_file_new
+
   subroutine append_fam_file(omega, S, iter, S_free, fname)
     real(kind=dp), intent(in)         :: omega, S, S_free
     integer, intent(in)               :: iter
@@ -1779,6 +1824,31 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     close(1)
 
   end subroutine append_fam_file
+
+
+  subroutine append_fam_file_new(iter, fname)
+    use fam
+    character(len=*), intent(in)      :: fname
+    integer, intent(in)               :: iter
+    integer                           :: io
+
+    1 format (f10.3, f10.3, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3, &
+    & es25.12E3, es25.12E3, es25.12E3) 
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, 1) omega_fam, smear, iter, strength_complex%re, strength_complex%im, &
+    & 0.0, 0.0, 0.0, 0.0, strength
+
+    close(1)
+
+  end subroutine append_fam_file_new
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------
