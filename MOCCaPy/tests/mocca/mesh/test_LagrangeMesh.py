@@ -232,9 +232,10 @@ def test_LagrangeMesh_plane_wave():
     k /= bw
     rng = np.random.default_rng()
     r = (rng.random((5,3))*2 - 1)*bw[0]
-    phi = oneoversqrtbw*np.exp(twopij*r@k)
+    expected = oneoversqrtbw*np.exp(twopij*r@k)
+
     pwc = mesh.plane_wave(k, r)
-    assert np.all(phi == pwc)
+    assert np.all(pwc == expected)
 
 
 def test_LagrangeMesh_reshape():
