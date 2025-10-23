@@ -29,8 +29,9 @@ $$x_i=-\frac{2N-1-2i}{2}=\frac{1}{2}+i-N, i=0..2N-1$$
 ### Basis functions
 The basis functions are plane waves:
 [eq 5]
-$$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi}{L}kx})$$
+$$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx})$$
 $$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N-1}{2}, $$
+(Note that $\mathrm{i}$ is the imaginary unit here).
 ### Interpolation
 The Lagrange interpolation functions are:
 [eq 6]
@@ -123,3 +124,12 @@ The full Cartesian 3D representation of a function $h(\mathbf{r})$, where $\math
 [eq 23]
 $$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
 where the number of discretization points does not have to be the same in each direction. In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
+### Basis functions
+The basis functions are plane wave products of the different axes:
+[eq 24]
+$$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{i}}{L_x}kx})\exp({\frac{2\pi\mathrm{i}}{L_y}ly})\exp({\frac{2\pi\mathrm{i}}{L_z}mz})$$
+$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\frac{kx}{L_x}+\frac{ly}{L_y}+\frac{mz}{L_z})$$
+$$==\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\mathbf{k}\cdot\mathbf{r})$$
+$$\mathbf{k}=[\begin{matrix}\frac{k}{L_x} & \frac{l}{L_y} & \frac{m}{L_z}\end{matrix}]$$
+$$\mathbf{x}=[\begin{matrix} x & y & z\end{matrix}]$$
+	

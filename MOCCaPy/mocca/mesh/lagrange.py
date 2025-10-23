@@ -57,7 +57,6 @@ class LagrangeMesh:
             assert d > 0, "d must be strictly positive."
             self.d = tuple(self.dim*[float(d)])
 
-
         # validate boundary condition
         assert bc in ['antiperiodic', 'periodic']
         self.bc = bc
@@ -73,8 +72,12 @@ class LagrangeMesh:
             assert len(reduce) == self.dim
             self.reduce = reduce
 
-        # compute dv (for integration)
+        # Compute dv (for integration)
         self.dv = np.prod(self.d) * 2 ** self.reduce.count(True)
+
+        # Compute the unreduced (!) box widths
+        # The full (unreduced box width is needed by the plane wave base functions
+        self.box_width = np.array([n*d for (n,d) in zip(self.n, self.d)])
 
         # validate shift
         if isinstance(shift, float):
@@ -160,8 +163,6 @@ class LagrangeMesh:
         Raises:
             AssertionError: if array.shape != self.shape.
         """
-        #TODO (?) extend to multicomponent arrays (e.g HFPsi)
-
         if array is None:
             # self._reshape(flat=True)
             if len(self.gridx.shape) == 1:
@@ -201,7 +202,6 @@ class LagrangeMesh:
         Raises:
             AssertionError: if array.shape != self.flat_shape.
         """
-        #TODO (?) extend to multicomponent arrays (e.g HFPsi)
         if array is None:
             if len(self.gridx.shape) == self.dim:
                 # gridx/gridy/gridz already unflattened
@@ -227,28 +227,6 @@ class LagrangeMesh:
                 shape = tuple(shape)
                 return array.reshape(shape, order='F')
 
-    # def _reshape(self, flat:bool) -> None:
-    #     """"Private" worker method for reshaping `self.gridx`, `self.gridy` (if existing) and `self.gridz` (if existing).
-    #
-    #     Args:
-    #         flat: if True the arrays are flattened. otherwise they are reshaped into self.shape.
-    #     """
-    #     if self.dim > 1:
-    #         # (if self.dim == 1 flat and unflattened are equivalent, conversion is not necessary)
-    #         # below self.dim is at least 2, so gridx and gridy exist
-    #         if flat and len(self.gridx.shape) == self.dim:
-    #             # gridx/y/z are not flat, and we must flatten them
-    #             self.gridx = self.gridx.reshape(self.flat_shape, order='F')
-    #             self.gridy = self.gridy.reshape(self.flat_shape, order='F')
-    #             if self.dim == 3:
-    #                 self.gridz = self.gridz.reshape(self.flat_shape, order='F')
-    #         elif not flat and len(self.gridx.shape) == 1:
-    #             # gridx/y/z are flat, and we must unflatten them
-    #             self.gridx = self.gridx.reshape(self.shape, order='F')
-    #             self.gridy = self.gridy.reshape(self.shape, order='F')
-    #             if self.dim == 3:
-    #                 self.gridz = self.gridz.reshape(self.shape, order='F')
-
     def apply(self, function):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
 
@@ -262,8 +240,10 @@ class LagrangeMesh:
         Raises:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
+        # TODO use arguments for output variables?
         self.flatten()
         return function(self.gridx, self.gridy, self.gridz)
+
 
     def integrate(self, q):
         """Compute the integral of a scalar quantity `q` on the mesh.
@@ -277,8 +257,36 @@ class LagrangeMesh:
         Raises:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
+        # TODO extend to multicomponent arrays, e.g. HFPsi
         self.flatten(q)
         return q.sum() * self.dv
+
+
+    def plane_wave(self, k:np.array, r:np.array):
+        """Evaluate the plane wave basis function at with wave vector `k` at position `r`.
+
+        Args:
+            k: wave vector, shape is `(self.dim,)`. values must be odd half integers +/-1/2, +/-3/2, ...
+            r: position vector, shape is `(self.dim, nr), nr being the number of evaluation points.
+            as_complex: if True, return a complex array. otherwise return two arrays with the real and imaginary parts,
+                resp.
+
+        Returns:
+            array of shape `(2,nr)` with complex and imaginary parts
+
+        Remarks:
+            It would be nice to return a matrix of shape `(nr,2)` with the real and imaginary parts as contiguous
+            columns. However, this require a copy and moving the data. As this is inherently inefficient we do not
+            facilitate this. If necessary, we could delegate this to Fortran code.
+        """
+
+        oneoversqrtbw = np.sqrt(1 / np.prod(self.box_width))
+        twopij = np.pi * 2j
+        k = np.array([0.5,1.5,2.5])
+        k /= self.box_width
+        pw = oneoversqrtbw*np.exp(twopij*r@k)
+        return pw
+
 
     def derive1(self, q):
         """Compute the 1st order derivative of a scalar quantity `q` on the mesh.
@@ -309,21 +317,6 @@ class LagrangeMesh:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
         # TODO : implement
-
-    # def derive3(self, q):
-    #     """Compute the 3d order derivative of a scalar quantity `q` on the mesh.
-    #
-    #     Args:
-    #         q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
-    #             to True
-    #
-    #     Returns:
-    #
-    #
-    #     Raises:
-    #         AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
-    #     """
-    #     # TODO : implement
 
     def interpolate(self, q, ):
         """Interpolate a scalar quantity `q` on the mesh."""

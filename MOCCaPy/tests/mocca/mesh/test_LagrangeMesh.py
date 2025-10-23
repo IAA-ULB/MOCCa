@@ -216,6 +216,27 @@ def test_LagrangeMesh_ctor_dv():
     assert mesh.dv == .5 ** 3
 
 
+def test_LagrangeMesh_ctor_box_width():
+    """Test dv computation."""
+    mesh = LagrangeMesh(dim=3, n=6, d=.5)
+    assert mesh.box_width == tuple(3*[6*.5])
+
+
+def test_LagrangeMesh_plane_wave():
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=False)
+
+    bw = mesh.box_width
+    oneoversqrtbw = np.sqrt(1 / np.prod(mesh.box_width))
+    twopij = 2j * np.pi
+    k = np.array([0.5,1.5,2.5])
+    k /= bw
+    rng = np.random.default_rng()
+    r = (rng.random((5,3))*2 - 1)*bw[0]
+    phi = oneoversqrtbw*np.exp(twopij*r@k)
+    pwc = mesh.plane_wave(k, r)
+    assert np.all(phi == pwc)
+
+
 def test_LagrangeMesh_reshape():
     """Test reshaping of the mesh."""
     mesh = LagrangeMesh(dim=3, n=4, d=.5)
