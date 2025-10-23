@@ -232,6 +232,12 @@ def test_LagrangeMesh_reshape():
     mesh.unflatten() # already unflattened
     assert mesh.gridx.shape == (2, 2, 2)
 
+    a = np.ones((2,2,2,5,5))
+    a_flat = mesh.flatten(a)
+    assert a_flat.shape == (8,5,5)
+    a = mesh.unflatten(a_flat)
+    assert a.shape == (2,2,2,5,5)
+
 from numba import vectorize, float64
 
 @vectorize([float64(float64, float64, float64)])

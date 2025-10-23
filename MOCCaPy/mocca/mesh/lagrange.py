@@ -160,18 +160,37 @@ class LagrangeMesh:
         Raises:
             AssertionError: if array.shape != self.shape.
         """
+        #TODO (?) extend to multicomponent arrays (e.g HFPsi)
+
         if array is None:
-            self._reshape(flat=True)
+            # self._reshape(flat=True)
+            if len(self.gridx.shape) == 1:
+                # gridx/gridy/gridz already flat
+                # (We assume that either all or none of them are flat or unflattened at the same time)
+                return None
+            else:
+                try:
+                    self.gridx = self.flatten(self.gridx)
+                    # AttributeError raised if one of gridy/z does not exist
+                    self.gridy = self.flatten(self.gridy)
+                    self.gridz = self.flatten(self.gridz)
+                except AttributeError:
+                    pass
+
         else:
-            if len(array.shape) == 1:
+            if array.shape[0] == self.flat_shape[0]:
                 # already flat
                 return array
             else:
-                assert array.shape == self.shape
-                return array.reshape(self.flat_shape, order='F')
+                # collapse the first dim dimensions into one and copy the remaining dimensions:
+                flat_shape = list(self.flat_shape) # a single element
+                for d in array.shape[self.dim:]:
+                    flat_shape.append(d)
+                flat_shape = tuple(flat_shape)
+                return array.reshape(flat_shape, order='F')
 
     def unflatten(self, array=None) -> None:
-        """Unflatten the mesh array.
+        """Unflatten the mesh array. For most computations
 
         Args:
             array: if None, self.gridx|y|z are unflattened. Otherwise, array is unflattened.
@@ -182,37 +201,53 @@ class LagrangeMesh:
         Raises:
             AssertionError: if array.shape != self.flat_shape.
         """
+        #TODO (?) extend to multicomponent arrays (e.g HFPsi)
         if array is None:
-            self._reshape(flat=False)
+            if len(self.gridx.shape) == self.dim:
+                # gridx/gridy/gridz already unflattened
+                # (We assume that either all or none of them are flat or unflattened at the same time)
+                return None
+            else:
+                try:
+                    self.gridx = self.unflatten(self.gridx)
+                    # AttributeError raised if one of gridy/z does not exist
+                    self.gridy = self.unflatten(self.gridy)
+                    self.gridz = self.unflatten(self.gridz)
+                except AttributeError:
+                    pass
         else:
-            if len(array.shape) == self.dim:
+            if array.shape[0:self.dim] == self.shape[0]:
                 # already unflattened
                 return array
             else:
-                assert array.shape == self.flat_shape
-                return array.reshape(self.shape, order='F')
+                # Take the unflattened shape and append the multicomponent dimensions of array
+                shape = list(self.shape)
+                for d in array.shape[1:]:
+                    shape.append(d)
+                shape = tuple(shape)
+                return array.reshape(shape, order='F')
 
-    def _reshape(self, flat:bool) -> None:
-        """Reshape `self.gridx`, `self.gridy` (if existing) and `self.gridz` (if existing).
-
-        Args:
-            flat: if True the arrays are flattened. otherwise they are reshaped into self.shape.
-        """
-        if self.dim > 1:
-            # (if self.dim == 1 flat and unflattened are equivalent, conversion is not necessary)
-            # below self.dim is at least 2, so gridx and gridy exist
-            if flat and len(self.gridx.shape) == self.dim:
-                # gridx/y/z are not flat, and we must flatten them
-                self.gridx = self.gridx.reshape(self.flat_shape, order='F')
-                self.gridy = self.gridy.reshape(self.flat_shape, order='F')
-                if self.dim == 3:
-                    self.gridz = self.gridz.reshape(self.flat_shape, order='F')
-            elif not flat and len(self.gridx.shape) == 1:
-                # gridx/y/z are flat, and we must unflatten them
-                self.gridx = self.gridx.reshape(self.shape, order='F')
-                self.gridy = self.gridy.reshape(self.shape, order='F')
-                if self.dim == 3:
-                    self.gridz = self.gridz.reshape(self.shape, order='F')
+    # def _reshape(self, flat:bool) -> None:
+    #     """"Private" worker method for reshaping `self.gridx`, `self.gridy` (if existing) and `self.gridz` (if existing).
+    #
+    #     Args:
+    #         flat: if True the arrays are flattened. otherwise they are reshaped into self.shape.
+    #     """
+    #     if self.dim > 1:
+    #         # (if self.dim == 1 flat and unflattened are equivalent, conversion is not necessary)
+    #         # below self.dim is at least 2, so gridx and gridy exist
+    #         if flat and len(self.gridx.shape) == self.dim:
+    #             # gridx/y/z are not flat, and we must flatten them
+    #             self.gridx = self.gridx.reshape(self.flat_shape, order='F')
+    #             self.gridy = self.gridy.reshape(self.flat_shape, order='F')
+    #             if self.dim == 3:
+    #                 self.gridz = self.gridz.reshape(self.flat_shape, order='F')
+    #         elif not flat and len(self.gridx.shape) == 1:
+    #             # gridx/y/z are flat, and we must unflatten them
+    #             self.gridx = self.gridx.reshape(self.shape, order='F')
+    #             self.gridy = self.gridy.reshape(self.shape, order='F')
+    #             if self.dim == 3:
+    #                 self.gridz = self.gridz.reshape(self.shape, order='F')
 
     def apply(self, function):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
