@@ -120,16 +120,36 @@ where we have reintroduced the superscript $^{(1)}$ to indicate the first order 
 [eq 22]
 $$\frac{\mathbf{d}^2\mathbf{h}}{\mathbf{dx}^2}=[\mathbf{D}^{(2)}_{lr} \pm\mathbf{E}_{ll}^{(2)}]\mathbf{h}$$
 ## $N$-dimensional grids
-The full Cartesian 3D representation of a function $h(\mathbf{r})$, where $\mathbf{r}=\begin{bmatrix}x & y \end{bmatrix}$ (2D case), or $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
+The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]
 $$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
-where the number of discretization points does not have to be the same in each direction. In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
+where the number of discretization points does not have to be the same in each direction. 
+
+Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
+### Derivatives
+In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
 ### Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
 $$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{i}}{L_x}kx})\exp({\frac{2\pi\mathrm{i}}{L_y}ly})\exp({\frac{2\pi\mathrm{i}}{L_z}mz})$$
 $$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\frac{kx}{L_x}+\frac{ly}{L_y}+\frac{mz}{L_z})$$
-$$==\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\mathbf{k}\cdot\mathbf{r})$$
-$$\mathbf{k}=[\begin{matrix}\frac{k}{L_x} & \frac{l}{L_y} & \frac{m}{L_z}\end{matrix}]$$
-$$\mathbf{x}=[\begin{matrix} x & y & z\end{matrix}]$$
-	
+$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\mathbf{k}\cdot\mathbf{r})$$
+$$\mathbf{k}=\begin{bmatrix}\frac{k}{L_x} & \frac{l}{L_y} & \frac{m}{L_z}\end{bmatrix}$$
+$$\mathbf{x}=\begin{bmatrix} x & y & z\end{bmatrix}$$
+Note that $\phi_k$, $\phi_l$ and $\phi_m$ are generally different objects, even if accidentally the indices $k$, $l$ and $m$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
+### Interpolation
+As described by eq 23 Interpolating a scalar quantity $h$ at a single point requires a sum over all grid points which may be costly (speaking of working interactively). If $h$ needs to be interpolated on a large number of points, $p$,
+$$\mathbf{r} = \begin{bmatrix}x_0 & y_0 & z_0 \\
+							 x_1 & y_1 & z_1 \\
+							 x_2 & y_2 & z_2 \\
+							 \vdots &\vdots &\vdots \\
+							 x_{p-1} & y_{p-1} & z_{p-1}
+\end{bmatrix}$$
+it will be advantageous to move the loop over the points $0..p-1$ inside the loop over $ijk$ product $h_{ijk}f_i(x)f_j(y)f_k(z)$.
+In case $h$ is not a scalar quantity but a tensor it is advantageous to move the loop over the components between the loop over the $p$ interpolation points and the loop over $ijk$:
+```
+for all grid points ijk:
+	for all components h of H
+		for all interpolation points 0..p
+			accumulate hijk * f_i(x_p) * f_j(y_p) * f_k(z_p)
+```
