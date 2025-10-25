@@ -127,7 +127,7 @@ where the number of discretization points does not have to be the same in each d
 
 Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
 ### Derivatives
-In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
+ In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
 ### Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
@@ -153,3 +153,4 @@ for all grid points ijk:
 		for all interpolation points 0..p
 			accumulate hijk * f_i(x_p) * f_j(y_p) * f_k(z_p)
 ```
+Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$.

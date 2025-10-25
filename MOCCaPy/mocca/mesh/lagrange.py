@@ -1,4 +1,83 @@
 import numpy as np
+import numpy.typing as npt
+
+class IJK:
+    """IJK is an index object to iterate over the grid points of a rectangular mesh, like the LagrangeMesh. It
+    provides a `ig` attribute running from 1 to n_gridpoints, and attributes `i`, `j` and `k`, referring to the
+    spatial indices of the grid points. The `ig` attribute corresponds to flattened arrays, and the `i`, `j` and `k`
+    attributes correspond to the unflattened arrays.
+    """
+    def __init__(self, shape):
+        """IJK constructor.
+        Args:
+            shape (tuple): shape of the mesh, can be 1D, 2D, or 3D.
+        """
+        self.dim = len(shape)
+        # self.shape is a 3D tuple, even if self.dim<3, self.shape[i] == 1 for i>self.dim-1
+        self.shape = list(shape)
+        self.shape.extend([1,1])
+        self.shape = self.shape[0:3]
+        self.shape = tuple(self.shape)
+        self.ig_end = int(np.prod(np.array(shape)))
+        self.reset()
+
+
+    def inc(self):
+        """Increment the index to point to the next grid point in memory.
+        Returns:
+            The spatial index of the grid point pointed to after being incremented. Three values (`i`, `j` and `k`) are
+            returned even if the mesh is 1D or 2D. In the latter case, only `i`, resp. `i` and `j` are relevant.
+        """
+        self.ig += 1
+        self.index[0] += 1
+        if self.index[0] == self.shape[0]:
+            self.index[0] = 0
+            if self.dim > 1:
+                self.index[1] += 1
+                if self.index[1] == self.shape[1]:
+                    self.index[1] = 0
+                    if self.dim > 2:
+                        self.index[2] += 1
+        return self.index
+
+    def done(self) -> bool:
+        """Returns `True` if the last `inc` call incremented past the end of the grid points, `False` otherwise."""
+        return self.ig >= self.ig_end
+
+    def ijk2ig(self, ijk):
+        """ijk->ig"""
+        return ijk[0] + ijk[1] * self.shape[0] + ijk[2] * (self.shape[0] * self.shape[1])
+
+    def ig2ijk(self, ig):
+        """ig->ijk
+        returns:
+            [i,j,k] corresponding to ig. Always returns 3 indices, even if `self.dim < 3`. Indices for non-existing
+            dimensions are zero. This behavior is consistent with `self.index`.
+        """
+        ijk =[0,0,0]
+        if self.dim > 2:
+            ijk[2] = ig // (self.shape[0]*self.shape[1])
+            ig %= (self.shape[0]*self.shape[1])
+        if self.dim > 1:
+            ijk[1] = ig // self.shape[0]
+            ig %= self.shape[0]
+        ijk[0] = ig
+        return ijk
+
+
+    def reset(self, ig: int = None, ijk=None):
+        """Resets the index to point to the first grid point in the mesh."""
+        # TODO implement ig and ijk
+
+        if ig is None and ijk is None:
+            self.index = [0,0,0]
+            self.ig = 0
+        elif ig is not None:
+            if self.dim == 3:
+                self.index[2] = ig//self.shape[0]*self.shape[1]
+        elif ijk is not None:
+            if self.dim == 3:
+                self.ig = ijk[0] + ijk[1] * self.shape[0] + ijk[2] * (self.shape[0] * self.shape[1])
 
 
 class LagrangeMesh:
@@ -245,7 +324,7 @@ class LagrangeMesh:
         return function(self.gridx, self.gridy, self.gridz)
 
 
-    def integrate(self, q):
+    def integrate(self, Q:npt.NDArray):
         """Compute the integral of a scalar quantity `q` on the mesh.
 
         Args:
@@ -280,15 +359,15 @@ class LagrangeMesh:
             facilitate this. If necessary, we could delegate this to Fortran code.
         """
 
-        oneoversqrtbw = np.sqrt(1 / np.prod(self.box_width))
-        twopij = np.pi * 2j
+        one_over_sqrt_bw = np.sqrt(1 / np.prod(self.box_width))
+        two_pi_j = np.pi * 2j
         k = np.array([0.5,1.5,2.5])
         k /= self.box_width
-        pw = oneoversqrtbw*np.exp(twopij*r@k)
+        pw = one_over_sqrt_bw*np.exp(two_pi_j*r@k)
         return pw
 
 
-    def derive1(self, q):
+    def derive1(self, Q:npt.NDArray):
         """Compute the 1st order derivative of a scalar quantity `q` on the mesh.
 
         Args:
@@ -303,7 +382,7 @@ class LagrangeMesh:
         """
         # TODO : implement
 
-    def derive2(self, q):
+    def derive2(self, Q:npt.NDArray):
         """Compute the 2nd order derivative of a scalar quantity `q` on the mesh.
 
         Args:
@@ -317,7 +396,61 @@ class LagrangeMesh:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
         # TODO : implement
+        
+    
+    def is_flat(self, Q:npt.NDArray) -> bool:
+        """Determine if `q` is flat.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return Q.shape[0] == self.flat_shape[0]        
+    
+    
+    def is_unflattened(self, Q:npt.NDArray) -> bool:
+        """Determine if `q` is unflattened.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return Q.shape[0:self.dim] == self.shape        
 
-    def interpolate(self, q, ):
-        """Interpolate a scalar quantity `q` on the mesh."""
-        # TODO : implement
+
+    def is_grid_quantity(self, Q:npt.NDArray) -> bool:
+        """Determine if `Q` is a grid quantity.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return self.is_flat(Q) or self.is_unflattened(Q)
+
+    
+    def get_number_of_components(self, Q:npt.NDArray):
+        """compute the number of components in agrid quantity `Q`.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return len(Q)//self.flat_shape[0]
+    
+    
+    def get_component(self, Q:npt.NDArray, i:int):
+        """Get the i-th component of `Q`."""
+        return Q[i*self.flat_shape[0]:(i+1)*self.flat_shape[0]]
+
+
+    def interpolate(self, Q:npt.NDArray, r):
+        """Interpolate a quantity `Q` on the mesh.
+
+        Args:
+            Q: representation of a scalar quantity on the grid.
+            r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p,self.dim)'
+        """
+        self.flatten()
+        self.flatten(Q)
+        assert self.is_flat(Q)
+        ijk = IJK(self.shape)
+        n_gridpoints = ijk.ig_end
+        n_components = self.get_number_of_components(Q) # TODO n_components should be an attribute of Q, rather than self
+        i,j,k = ijk.index
+        while not ijk.done():  # loop over gridpoints
+            for iq in range(n_components):
+                q = self.get_component(Q, iq) # TODO should be method of Q, rather than self
+                # loop over interpolation points r
+            ijk.inc()
