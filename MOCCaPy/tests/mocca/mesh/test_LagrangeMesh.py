@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 
 from mocca.mesh import LagrangeMesh
+from mocca.mesh.observable import Observable
 
 def test_LagrangeMesh_ctor_n_d():
     """Test valid and invalid n and d parameters."""
@@ -121,29 +122,29 @@ def test_LagrangeMesh_ctor_n_d():
 
 
 def test_LagrangeMesh_ctor_shift():
-    """Test valid and invalid reduce parameter."""
+    """Test valid and invalid reduced parameter."""
 
     mesh = LagrangeMesh(dim=3, n=4, d=.5)
     assert mesh.shift == (.0, .0, .0)
 
-    mesh = LagrangeMesh(dim=3, n=4, d=.5, shift=.1, reduce=False)
+    mesh = LagrangeMesh(dim=3, n=4, d=.5, shift=.1, reduced=False)
     assert mesh.shift == (.1, .1, .1)
 
-    mesh = LagrangeMesh(dim=3, n=4, d=.5, shift=(.1,.2,.3), reduce=False)
+    mesh = LagrangeMesh(dim=3, n=4, d=.5, shift=(.1,.2,.3), reduced=False)
     assert mesh.shift == (.1, .2, .3)
 
 
-def test_LagrangeMesh_ctor_reduce():
-    """Test valid and invalid reduce parameter."""
+def test_LagrangeMesh_ctor_reduced():
+    """Test valid and invalid reduced parameter."""
 
-    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduce=True)
-    assert mesh.reduce == (True, True, True )
+    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduced=True)
+    assert mesh.reduced == (True, True, True )
 
-    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduce=False)
-    assert mesh.reduce == (False, False, False)
+    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduced=False)
+    assert mesh.reduced == (False, False, False)
 
-    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduce=(True,True,False))
-    assert mesh.reduce == (True, True, False)
+    mesh = LagrangeMesh(dim=3, n=4, d=.5, reduced=(True,True,False))
+    assert mesh.reduced == (True, True, False)
 
 def test_LagrangeMesh_ctor_bc():
     """Test valid and invalid bc parameter."""
@@ -168,16 +169,16 @@ def test_LagrangeMesh_ctor_grid_1D():
     mesh = LagrangeMesh(dim=1, n=6, d=.5)
     assert np.all(mesh.gridx == [.25,.75,1.25])
 
-    mesh = LagrangeMesh(dim=1, n=6, d=1., reduce=False)
+    mesh = LagrangeMesh(dim=1, n=6, d=1., reduced=False)
     assert np.all(mesh.gridx == [-2.5, -1.5,-0.5, 0.5,1.5,2.5])
 
-    mesh = LagrangeMesh(dim=1, n=6, d=1., reduce=False, shift=0.5)
+    mesh = LagrangeMesh(dim=1, n=6, d=1., reduced=False, shift=0.5)
     assert np.all(mesh.gridx == [-3., -2., -1., 0., 1., 2.])
 
-    mesh = LagrangeMesh(dim=1, n=6, d=.5, reduce=False)
+    mesh = LagrangeMesh(dim=1, n=6, d=.5, reduced=False)
     assert np.all(mesh.gridx == [-1.25, -.75, -.25, .25, .75, 1.25])
 
-    mesh = LagrangeMesh(dim=1, n=6, d=.5, reduce=False, shift=0.5)
+    mesh = LagrangeMesh(dim=1, n=6, d=.5, reduced=False, shift=0.5)
     assert np.all(mesh.gridx == [-1.75, -1.25, -.75, -.25, .25, .75])
 
 def test_LagrangeMesh_ctor_grid_2D():
@@ -206,24 +207,24 @@ def test_LagrangeMesh_ctor_dv():
     mesh = LagrangeMesh(dim=3, n=6, d=.5)
     assert mesh.dv == .5**3 * 2**3
 
-    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=(True,True,False))
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduced=(True,True,False))
     assert mesh.dv == .5 ** 3 * 2 ** 2
 
-    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=(True, False, False))
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduced=(True, False, False))
     assert mesh.dv == .5 ** 3 * 2
 
-    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=False)
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduced=False)
     assert mesh.dv == .5 ** 3
 
 
 def test_LagrangeMesh_ctor_box_width():
     """Test dv computation."""
     mesh = LagrangeMesh(dim=3, n=6, d=.5)
-    assert mesh.box_width == tuple(3*[6*.5])
+    assert (mesh.box_width == tuple(3*[6*.5])).all()
 
 
 def test_LagrangeMesh_plane_wave():
-    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduce=False)
+    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduced=False)
 
     bw = mesh.box_width
     oneoversqrtbw = np.sqrt(1 / np.prod(mesh.box_width))
@@ -260,11 +261,13 @@ def test_LagrangeMesh_reshape():
     a = mesh.unflatten(a_flat)
     assert a.shape == (2,2,2,5,5)
 
+
 from numba import vectorize, float64
 
 @vectorize([float64(float64, float64, float64)])
 def norm(x, y, z):
     return np.sqrt(x*x + y*y + z*z)
+
 
 def test_LagrangeMesh_apply():
     mesh = LagrangeMesh(dim=3, n=10, d=.5)
@@ -272,11 +275,12 @@ def test_LagrangeMesh_apply():
     for i in range(mesh.flat_shape[0]):
         assert r_xyz[i] == np.sqrt(mesh.gridx[i]**2 + mesh.gridy[i]**2 + mesh.gridz[i]**2)
 
+
 def test_LagrangeMesh_integrate():
     mesh = LagrangeMesh(dim=3, n=10, d=.5)
     # integrate a constant function.
-    c = np.ones_like(mesh.gridx)
-    c = mesh.flatten(c)
-    print(f"{c=}")
-    integral_of_c = mesh.integrate(c)
-    assert integral_of_c == len(c) * mesh.dv
+
+    o = np.ones((mesh.n_gridpoints(),))
+    O = Observable(o)
+    integral_of_O = mesh.integrate(O)
+    assert integral_of_O == mesh.n_gridpoints() * mesh.dv

@@ -1,5 +1,5 @@
 
-# A bit of theory as far as relevant to the implementation
+# A bit of theory as far as relevant to the implementation of `class LagrangeMesh`
 
 The necessary theory - for non-reduced axes - is found in [Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)](../../literature/Ryssens%20et%20al.%20-%202015%20-%20Numerical%20accuracy%20of%20mean-field%20calculations%20in%20coordinate%20space.pdf) _section III.B Lagrange-mesh representation_.
 
@@ -39,9 +39,16 @@ $$f_i(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_idx))}{\sin(\frac{\pi}{dx}\fr
 By construction, the Lagrange interpolation functions $f_i(x)$. have the property of being equal to 1 at the $i$-th mesh point, $x_i$, and 0 at all others:
 [eq 7]
 $$f_i(x_j)=\delta_{ij}$$
-Note that the arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$:
+Note that to evaluate $f_i(x_i)$, both the numerator and the denominator are 0, and we need to invoke l'Hôpitals's rule 
+[eq 7.1]
+$$\lim_{x \to x_i}\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_idx))}{\sin(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
+$$= \frac{1}{2N}\lim_{x \to x_i}\frac{\sin'(\frac{\pi}{dx}(x-x_idx))}{\sin'(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
+$$= \frac{1}{2N}\lim_{x \to x_i}\frac{\frac{\pi}{dx}\cos(\frac{\pi}{dx}(x-x_idx))}{\frac{\pi}{2Ndx}\cos(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
+$$=\frac{2N}{2N}\lim_{x \to x_i}\frac{cos(0)}{cos(0)} = 1$$
+The arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$:
 [eq 8]
-$$f_i(x)=\frac{1}{2N}\frac{\sin(A_i(x)))}{\sin(\frac{A_i(x)}{2N})}, A_i(x)=\frac{\pi}{dx}(x-x_idx)$$
+$$f_i(x)=\frac{1}{2N}\frac{\sin(A_i(x)))}{\sin(\frac{A_i(x)}{2N})}$$
+$$A_i(x)=\frac{\pi}{dx}(x-x_idx)=\pi(\frac{x}{dx}-x_i)$$
 This can be exploited for efficiency in a computation.
 An arbitrary function $h(x)$ taking the values $h_i =h(x_i)$ on the grid points can be interpolated on an arbitrary point $x\in[−Ndx,Ndx]$ as:
 [ea 9]
@@ -82,7 +89,7 @@ $$i=0..N-1$$
 ### Interpolation
 An arbitrary function $h(x)$, $x\in[0,Ndx]$ taking the values $h_i =h(x_i)$ on the grid points on a reduced axis can be interpolated as :
 [eq 15]
-$$h(x)= \sum_{i=0}^{2N-1}[h_if_i(x)\pm h_if_{-i}(x)]$$
+$$h(x)= \sum_{i=0}^{2N-1}h_i[f_i(x)\pm f_{-i}(x)]$$
 where $+$, resp. $-$, is selected if $h(x)$ is symmetric, resp. antisymmetric, and $f_{-i}(x)$ is the Lagrange interpolation function corresponding to the $i$-th grid point to the left of the origin:
 [eq 16]
 $$f_{-i}(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_{-i}dx))}{\sin(\frac{\pi}{dx}\frac{x-x_{-i}dx}{2N})}=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x+(\frac{1}{2}+i)dx))}{\sin(\frac{\pi}{dx}\frac{x+(\frac{1}{2}+i)dx}{2N})}$$
@@ -151,6 +158,12 @@ In case $h$ is not a scalar quantity but a tensor it is advantageous to move the
 for all grid points ijk:
 	for all components h of H
 		for all interpolation points 0..p
-			accumulate hijk * f_i(x_p) * f_j(y_p) * f_k(z_p)
+			accumulate h_ijk * f_i(x_p) * f_j(y_p) * f_k(z_p) over ijk  
+```
+The inner loop can be evaluated as a function over a numpy array:
+```
+for all grid points ijk:
+	for all components h of H
+		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2]) over ijk  
 ```
 Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$.

@@ -1,6 +1,5 @@
+from mocca.mesh.ijk import IJK
 import pytest
-
-from mocca.mesh.lagrange import IJK
 
 
 def test_IJK_1():

@@ -1,89 +1,28 @@
 import numpy as np
 import numpy.typing as npt
 
-class IJK:
-    """IJK is an index object to iterate over the grid points of a rectangular mesh, like the LagrangeMesh. It
-    provides a `ig` attribute running from 1 to n_gridpoints, and attributes `i`, `j` and `k`, referring to the
-    spatial indices of the grid points. The `ig` attribute corresponds to flattened arrays, and the `i`, `j` and `k`
-    attributes correspond to the unflattened arrays.
+def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, N:int):
+    """Compute the 1D Lagrange function on `x`.
+
+    Args:
+        x: array of points at which to compute the Lagrange function.
+        x_i: a grid point : ±1/2 dx, ±3/2 dx, ±5/2 dx, ...
+        d: grid spacing
+        N: number of grid points on the positive axis
+        reduced: whether the axis is reduced or not.
     """
-    def __init__(self, shape):
-        """IJK constructor.
-        Args:
-            shape (tuple): shape of the mesh, can be 1D, 2D, or 3D.
-        """
-        self.dim = len(shape)
-        # self.shape is a 3D tuple, even if self.dim<3, self.shape[i] == 1 for i>self.dim-1
-        self.shape = list(shape)
-        self.shape.extend([1,1])
-        self.shape = self.shape[0:3]
-        self.shape = tuple(self.shape)
-        self.ig_end = int(np.prod(np.array(shape)))
-        self.reset()
-
-
-    def inc(self):
-        """Increment the index to point to the next grid point in memory.
-        Returns:
-            The spatial index of the grid point pointed to after being incremented. Three values (`i`, `j` and `k`) are
-            returned even if the mesh is 1D or 2D. In the latter case, only `i`, resp. `i` and `j` are relevant.
-        """
-        self.ig += 1
-        self.index[0] += 1
-        if self.index[0] == self.shape[0]:
-            self.index[0] = 0
-            if self.dim > 1:
-                self.index[1] += 1
-                if self.index[1] == self.shape[1]:
-                    self.index[1] = 0
-                    if self.dim > 2:
-                        self.index[2] += 1
-        return self.index
-
-    def done(self) -> bool:
-        """Returns `True` if the last `inc` call incremented past the end of the grid points, `False` otherwise."""
-        return self.ig >= self.ig_end
-
-    def ijk2ig(self, ijk):
-        """ijk->ig"""
-        return ijk[0] + ijk[1] * self.shape[0] + ijk[2] * (self.shape[0] * self.shape[1])
-
-    def ig2ijk(self, ig):
-        """ig->ijk
-        returns:
-            [i,j,k] corresponding to ig. Always returns 3 indices, even if `self.dim < 3`. Indices for non-existing
-            dimensions are zero. This behavior is consistent with `self.index`.
-        """
-        ijk =[0,0,0]
-        if self.dim > 2:
-            ijk[2] = ig // (self.shape[0]*self.shape[1])
-            ig %= (self.shape[0]*self.shape[1])
-        if self.dim > 1:
-            ijk[1] = ig // self.shape[0]
-            ig %= self.shape[0]
-        ijk[0] = ig
-        return ijk
-
-
-    def reset(self, ig: int = None, ijk=None):
-        """Resets the index to point to the first grid point in the mesh."""
-        # TODO implement ig and ijk
-
-        if ig is None and ijk is None:
-            self.index = [0,0,0]
-            self.ig = 0
-        elif ig is not None:
-            if self.dim == 3:
-                self.index[2] = ig//self.shape[0]*self.shape[1]
-        elif ijk is not None:
-            if self.dim == 3:
-                self.ig = ijk[0] + ijk[1] * self.shape[0] + ijk[2] * (self.shape[0] * self.shape[1])
-
+    one_over_2N = 1/(2*N)
+    A_i = (np.pi/d)*(x - x_i)
+    result = one_over_2N*np.sin(A_i)/np.sin(one_over_2N*A_i)
+    # if reduced:
+    #     A_i = (np.pi / d) * (x + x_i)
+    #     result += one_over_2N * np.sin(A_i) / np.sin(one_over_2N * A_i)
+    return result
 
 class LagrangeMesh:
     def __init__(self, n: int|tuple, d: int|float|tuple, dim: int=0,
                        bc='antiperiodic',
-                       reduce:tuple|bool = True,
+                       reduced:tuple|bool = True,
                        shift:tuple|float = .0,
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
@@ -93,14 +32,14 @@ class LagrangeMesh:
             n: number of points in the respective dimensions. If n is an int n is the same in each direction.
             d: spacing of points in the respective dimensions. If n is a float or an int d is the same in each direction.
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
-            reduce: restrict the mesh to the positive half-axis. The corresponding `n` entry is halved.
-            shift: subtract shift from the grid points. If non-zero, corresponding `reduce` entry must be `False`.
+            reduced: restrict the mesh to the positive half-axis. The corresponding `n` entry is halved.
+            shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
 
         Raises:
             AssertionError: in case of invalid choices
 
         Remark:
-            The `reduce` parameter is derived from symmetry considerations and may at some point - when the complexity
+            The `reduced` parameter is derived from symmetry considerations and may at some point - when the complexity
              of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
              we content with explicitly indicating which coordinate axes must be 'reduced'
         """
@@ -143,16 +82,16 @@ class LagrangeMesh:
         self.antiperiodic = bc == 'antiperiodic'
         self.periodic = not self.antiperiodic # since there are only 2 options.
 
-        # validate reduce
-        if isinstance(reduce, bool):
-            self.reduce = tuple(self.dim*[reduce])
+        # validate reduced
+        if isinstance(reduced, bool):
+            self.reduced = tuple(self.dim*[reduced])
         else:
-            assert isinstance(reduce, tuple)
-            assert len(reduce) == self.dim
-            self.reduce = reduce
+            assert isinstance(reduced, tuple)
+            assert len(reduced) == self.dim
+            self.reduced = reduced
 
         # Compute dv (for integration)
-        self.dv = np.prod(self.d) * 2 ** self.reduce.count(True)
+        self.dv = np.prod(self.d) * 2 ** self.reduced.count(True)
 
         # Compute the unreduced (!) box widths
         # The full (unreduced box width is needed by the plane wave base functions
@@ -165,16 +104,16 @@ class LagrangeMesh:
             assert isinstance(shift, tuple)
             assert len(shift) == self.dim
             self.shift = shift
-        for (r,s) in zip(self.reduce, self.shift):
+        for (r,s) in zip(self.reduced, self.shift):
             if r:
-                assert s == 0., "A nonzero shift cannot be applied when reduce is True."
+                assert s == 0., "A nonzero shift cannot be applied when reduced is True."
 
         # initialize grid points:
         start = self.dim*[.0]
         n_reduced = self.dim*[0]
         g1D = self.dim*[0]
-        for i, (n_i, shift_i, reduce_i, d_i) in enumerate(zip(self.n, self.shift, self.reduce, self.d)):
-            if reduce_i:
+        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.n, self.shift, self.reduced, self.d)):
+            if reduced_i:
                 n_reduced[i] = n_i//2
                 start[i] = 0.5
             else:
@@ -324,21 +263,24 @@ class LagrangeMesh:
         return function(self.gridx, self.gridy, self.gridz)
 
 
-    def integrate(self, Q:npt.NDArray):
+    def integrate(self, Q):
         """Compute the integral of a scalar quantity `q` on the mesh.
 
         Args:
-            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
-                to True
+            Q (Observable) : discretised on the grid.
+
         Returns:
             a scalar:
 
         Raises:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
-        # TODO extend to multicomponent arrays, e.g. HFPsi
-        self.flatten(q)
-        return q.sum() * self.dv
+        n_components = Q.n_components
+        result = np.zeros((n_components,), dtype=float)
+        for i in range(n_components):
+            q = Q.get_component(i)
+            result[i] = q.sum() * self.dv
+        return result if n_components > 1 else result[0]
 
 
     def plane_wave(self, k:np.array, r:np.array):
@@ -421,6 +363,9 @@ class LagrangeMesh:
         """
         return self.is_flat(Q) or self.is_unflattened(Q)
 
+
+    def n_gridpoints(self):
+        return np.prod(self.shape)
     
     def get_number_of_components(self, Q:npt.NDArray):
         """compute the number of components in agrid quantity `Q`.
@@ -435,7 +380,7 @@ class LagrangeMesh:
         return Q[i*self.flat_shape[0]:(i+1)*self.flat_shape[0]]
 
 
-    def interpolate(self, Q:npt.NDArray, r):
+    def interpolate(self, Q:npt.NDArray, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
         Args:
@@ -445,12 +390,40 @@ class LagrangeMesh:
         self.flatten()
         self.flatten(Q)
         assert self.is_flat(Q)
-        ijk = IJK(self.shape)
-        n_gridpoints = ijk.ig_end
-        n_components = self.get_number_of_components(Q) # TODO n_components should be an attribute of Q, rather than self
-        i,j,k = ijk.index
-        while not ijk.done():  # loop over gridpoints
-            for iq in range(n_components):
-                q = self.get_component(Q, iq) # TODO should be method of Q, rather than self
-                # loop over interpolation points r
-            ijk.inc()
+
+        if self.dim == 3:
+            pass # TODO implement
+        elif self.dim == 2:
+            pass # TODO implement
+        else:
+            pass
+
+        # ijk = IJK(self.shape)
+        # n_gridpoints = ijk.ig_end
+        # n_components = self.get_number_of_components(Q) # TODO n_components should be an attribute of Q, rather than self
+        # i,j,k = ijk.index
+        # while not ijk.done():  # loop over gridpoints
+        #     for iq in range(n_components):
+        #         q = self.get_component(Q, iq) # TODO should be method of Q, rather than self
+        #         # loop over interpolation points r
+        #     ijk.inc()
+
+def lagrange_function(x:npt.NDArray, x_i:float, dx:float, N:int, reduced=False):
+    """Compute the 1D Lagrange function on `x`.
+
+    Args:
+        x: array of points at which to compute the Lagrange function.
+        x_i: grid indices: ±1/2, ±3/2, ±5/2, ...
+        dx: grid spacing
+        N: number of grid points on the positive axis
+        reduced: whether the axis is reduced or not.
+    Returns:
+        An array of values of Lagrange function corresponding to `x`.
+    Caveat:
+        The function returns nan when `x == x_i` because it evaluates 0/0. Checking for this corner case implies giving
+        up numpy array functions. As we assume that the user is not interested in finding the value at x_i because it
+        is known to be 1. The user must avoid this. However, for `x = x_i + 1e-9` the result is very close to 1,
+    """
+    one_over_2N = 1/(2*N)
+    A_i = np.pi/dx * (x - x_i)
+    return one_over_2N*np.sin(A_i)/np.sin(one_over_2N*A_i)

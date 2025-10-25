@@ -66,3 +66,5 @@ experiments/
 MOCCaPy/scripts/tryout.py
 MOCCaPy/mocca/parameterizations
 .obsidian
+
+tests/mocca/mesh/lagrange_function.png
