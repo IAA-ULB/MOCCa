@@ -49,5 +49,8 @@ def test_Observable_ctor_tensor():
         O = Observable(o, symmetry=symmetry)
         assert O.data.shape == (n_gridpoints,9)
         assert O.shape == (3,3)
-        assert (O.symmetry == symmetry.reshape((9,))).all()
+        s9 = symmetry.reshape((9,))
+        assert (O.symmetry == s9).all()
+        for i in range(9):
+            assert s9[i] == O.get_symmetry(i)
 

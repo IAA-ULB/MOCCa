@@ -33,4 +33,4 @@ class Observable:
         return self.data[:,i]
 
     def get_symmetry(self, i) -> int:
-        return self.O_symm[i]
+        return self.symmetry[i]
