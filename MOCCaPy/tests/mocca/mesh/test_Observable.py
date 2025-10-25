@@ -47,10 +47,17 @@ def test_Observable_ctor_tensor():
     for symmetry in symmetries:
         o = np.ones((n_gridpoints,3,3), dtype=float)
         O = Observable(o, symmetry=symmetry)
+        begin = 0
+        for ic in range(9):
+             O.data[begin:begin+n_gridpoints,ic] = ic
         assert O.data.shape == (n_gridpoints,9)
         assert O.shape == (3,3)
         s9 = symmetry.reshape((9,))
         assert (O.symmetry == s9).all()
-        for i in range(9):
-            assert s9[i] == O.get_symmetry(i)
+        for ic in range(9):
+            assert s9[ic] == O.get_symmetry(ic)
+            c = O.get_component(ic)
+            for g in range(n_gridpoints):
+                assert c[g] == ic
+
 
