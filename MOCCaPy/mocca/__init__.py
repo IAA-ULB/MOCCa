@@ -39,19 +39,3 @@ def symbol(Z: int) -> str:
     # The row index of the table starts at 0, hence the row index needed is Z-1.
     return chemical_symbols[Z]
 
-# TODO remove class Nucleus, it is replaced by the meanfield subpackage
-class Nucleus:
-    def __init__(self, Z: int, N: int):
-        self.Z = Z # number of protons (atomic number)
-        self.N = N # number of neutrons
-        self.symbol = symbol(Z)
-
-    def __repr__(self):
-        return f'Nucleus({self.symbol}, Z={self.Z}, N={self.N})'
-
-    def __str__(self):
-        return f'{self.symbol}[{self.Z},{self.N}]'
-
-    def init_wavefunctions(nwp,nwn):
-        """"""
-
