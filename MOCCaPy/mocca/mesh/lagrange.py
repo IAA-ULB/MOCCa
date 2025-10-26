@@ -1,5 +1,8 @@
 import numpy as np
 import numpy.typing as npt
+from mocca.mesh.observable import Observable
+from numpy.ma.core import shape
+
 
 def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, N:int):
     """Compute the 1D Lagrange function on `x`.
@@ -277,9 +280,9 @@ class LagrangeMesh:
         """
         n_components = Q.n_components
         result = np.zeros((n_components,), dtype=float)
-        for i in range(n_components):
-            q = Q.get_component(i)
-            result[i] = q.sum() * self.dv
+        for ic in range(n_components):
+            q = Q[ic]
+            result[ic] = q.sum() * self.dv
         return result if n_components > 1 else result[0]
 
 
@@ -340,12 +343,12 @@ class LagrangeMesh:
         # TODO : implement
         
     
-    def is_flat(self, Q:npt.NDArray) -> bool:
+    def is_flat(self, Q:Observable) -> bool:
         """Determine if `q` is flat.
         Args:
             Q: a quantity discretised on the grid.
         """
-        return Q.shape[0] == self.flat_shape[0]        
+        return Q.data.shape[0] == self.flat_shape[0]
     
     
     def is_unflattened(self, Q:npt.NDArray) -> bool:
@@ -380,15 +383,15 @@ class LagrangeMesh:
         return Q[i*self.flat_shape[0]:(i+1)*self.flat_shape[0]]
 
 
-    def interpolate(self, Q:npt.NDArray, r:npt.NDArray) -> npt.NDArray:
+    def interpolate(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
         Args:
             Q: representation of a scalar quantity on the grid.
-            r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p,self.dim)'
+            r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p, self.dim)'
         """
         self.flatten()
-        self.flatten(Q)
+        self.flatten(Q.data)
         assert self.is_flat(Q)
 
         if self.dim == 3:
@@ -396,7 +399,7 @@ class LagrangeMesh:
         elif self.dim == 2:
             pass # TODO implement
         else:
-            pass
+            return self._interpolate1D(Q, r)
 
         # ijk = IJK(self.shape)
         # n_gridpoints = ijk.ig_end
@@ -408,15 +411,34 @@ class LagrangeMesh:
         #         # loop over interpolation points r
         #     ijk.inc()
 
-def lagrange_function(x:npt.NDArray, x_i:float, dx:float, N:int, reduced=False):
+
+    def _interpolate1D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
+        """Interpolate `Q` on a 1D  mesh."""
+        nr = r.shape[0]
+        nc = Q.n_components
+        Qr = np.empty(shape=(nr,nc), dtype=float, order='F')
+        N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
+        for i in range(self.n_gridpoints()):
+            for j in range(nc):
+                q = Q[j]
+                sign = Q.symmetry[j]
+                if self.reduced[0]:
+                    Qr[:,j] = q[i] * (        lagrange_function(r,  self.gridx[i], self.d[0], N)
+                                     + sign * lagrange_function(r, -self.gridx[i], self.d[0], N)
+                                     )
+                else:
+                    Qr[:,j] = q[i] * lagrange_function(r, self.gridx[i], self.d[0], N)
+        return Qr
+
+
+def lagrange_function(x:npt.NDArray, x_i:float, dx:float, N:int):
     """Compute the 1D Lagrange function on `x`.
 
     Args:
         x: array of points at which to compute the Lagrange function.
-        x_i: grid indices: ±1/2, ±3/2, ±5/2, ...
+        x_i: grid point: ±1/2, ±3/2, ±5/2, ...
         dx: grid spacing
         N: number of grid points on the positive axis
-        reduced: whether the axis is reduced or not.
     Returns:
         An array of values of Lagrange function corresponding to `x`.
     Caveat:

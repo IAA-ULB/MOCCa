@@ -164,6 +164,6 @@ The inner loop can be evaluated as a function over a numpy array:
 ```
 for all grid points ijk:
 	for all components h of H
-		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2]) over ijk  
+		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2])  
 ```
 Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$.

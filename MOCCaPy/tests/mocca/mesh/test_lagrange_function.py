@@ -45,9 +45,16 @@ def test_lagrange_function_plot():
             x[i] -= 1e-9
 
     fig, ax = plt.subplots()
+    sumf = np.zeros_like(x)
     for i in range(6):
         x_i = mesh.gridx[i]
         f = lagrange_function(x,x_i,d,N)
+        sumf += f
         ax.plot(x, f)
     fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/lagrange_function.png")
+    fig.clear()
+
+    fig, ax = plt.subplots()
+    ax.plot(x, sumf)
+    fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/sum_lagrange_function.png")
     fig.clear()

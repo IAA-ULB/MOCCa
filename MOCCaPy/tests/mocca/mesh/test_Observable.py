@@ -56,7 +56,7 @@ def test_Observable_ctor_tensor():
         assert (O.symmetry == s9).all()
         for ic in range(9):
             assert s9[ic] == O.get_symmetry(ic)
-            c = O.get_component(ic)
+            c = O[ic]
             for g in range(n_gridpoints):
                 assert c[g] == ic
 

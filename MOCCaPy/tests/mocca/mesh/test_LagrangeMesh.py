@@ -284,3 +284,17 @@ def test_LagrangeMesh_integrate():
     O = Observable(o)
     integral_of_O = mesh.integrate(O)
     assert integral_of_O == mesh.n_gridpoints() * mesh.dv
+
+
+def test_LagrangeMesh_interpolate1D():
+    d = 0.5
+    mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
+    Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)
+    N = len(mesh.gridx)//2
+    r = np.linspace(-N*d, N*d, num=61)
+    for i in range(61):
+        if r[i] in mesh.gridx:
+            r[i] += 1e-9
+
+    Qr = mesh.interpolate(Q, r)
+    print(Qr)

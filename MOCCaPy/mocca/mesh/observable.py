@@ -29,7 +29,8 @@ class Observable:
         for symm in self.symmetry:
             assert symm == 1 or symm == -1
 
-    def get_component(self, i) -> np.ndarray:
+    def __getitem__(self, i) -> np.ndarray:
+        """Get i-th component of the observable."""
         return self.data[:,i]
 
     def get_symmetry(self, i) -> int:
