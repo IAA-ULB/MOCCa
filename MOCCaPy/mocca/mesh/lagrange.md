@@ -32,6 +32,11 @@ The basis functions are plane waves:
 $$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx})$$
 $$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N-1}{2}, $$
 (Note that $\mathrm{i}$ is the imaginary unit here).
+The basis functions can be written as:
+$$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx\frac{dx}{dx}})$$
+or, since $kdx=x_i$ :
+[eq 5.1]
+$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}x_i\frac{x}{dx}})$$
 ### Interpolation
 The Lagrange interpolation functions are:
 [eq 6]
@@ -39,19 +44,21 @@ $$f_i(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_idx))}{\sin(\frac{\pi}{dx}\fr
 By construction, the Lagrange interpolation functions $f_i(x)$. have the property of being equal to 1 at the $i$-th mesh point, $x_i$, and 0 at all others:
 [eq 7]
 $$f_i(x_j)=\delta_{ij}$$
-Note that to evaluate $f_i(x_i)$, both the numerator and the denominator are 0, and we need to invoke l'Hôpitals's rule 
+Note that when evaluating $f_i(x_i)$, both the numerator and the denominator are 0, and Python yields a `nan`. We need to invoke l'Hôpitals's rule to obtain the result. 
 [eq 7.1]
 $$\lim_{x \to x_i}\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_idx))}{\sin(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
 $$= \frac{1}{2N}\lim_{x \to x_i}\frac{\sin'(\frac{\pi}{dx}(x-x_idx))}{\sin'(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
 $$= \frac{1}{2N}\lim_{x \to x_i}\frac{\frac{\pi}{dx}\cos(\frac{\pi}{dx}(x-x_idx))}{\frac{\pi}{2Ndx}\cos(\frac{\pi}{dx}\frac{x-x_idx}{2N})}$$
 $$=\frac{2N}{2N}\lim_{x \to x_i}\frac{cos(0)}{cos(0)} = 1$$
-The arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$:
+In order to avoid testing for $\frac{0}{0}$ it suffices to add $\varepsilon\approx\mathrm{1e-9}$ to $x_i$ to avoid the `nan` and yield something close to $1$.
+
+The arguments of the two sine functions in eq 6 are the same, apart from a factor ${1}/{2N}$:
 [eq 8]
 $$f_i(x)=\frac{1}{2N}\frac{\sin(A_i(x)))}{\sin(\frac{A_i(x)}{2N})}$$
 $$A_i(x)=\frac{\pi}{dx}(x-x_idx)=\pi(\frac{x}{dx}-x_i)$$
 This can be exploited for efficiency in a computation.
 An arbitrary function $h(x)$ taking the values $h_i =h(x_i)$ on the grid points can be interpolated on an arbitrary point $x\in[−Ndx,Ndx]$ as:
-[ea 9]
+[eq 9]
 $$h(x)= \sum_{i=0}^{2N-1} f_i h(x_i)(x)$$
 This is essentially a dot product $\mathbf{f}\cdot\mathbf{h}$ .
 ### Derivatives
@@ -95,6 +102,13 @@ where $+$, resp. $-$, is selected if $h(x)$ is symmetric, resp. antisymmetric, a
 $$f_{-i}(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_{-i}dx))}{\sin(\frac{\pi}{dx}\frac{x-x_{-i}dx}{2N})}=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x+(\frac{1}{2}+i)dx))}{\sin(\frac{\pi}{dx}\frac{x+(\frac{1}{2}+i)dx}{2N})}$$
 This time we have a sum or a difference of two dot products $\mathbf{h}\cdot\mathbf{f_+} \pm \mathbf{h}\cdot\mathbf{f_-}$ 
 Again the the arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$.
+#### General remark on interpolation with Lagrange functions
+On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the interval $[-1.5,1.5]$, these are the 6 Lagrange functions:
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function.png)
+Clearly, each one yields 1 at one grid point and 0 at the others. Note also that they are antiperiodic: they reenter the box at the opposite edge, but **with a sign change**.
+Consequently, a constant function cannot be interpolated because it is periodic. The sum of the 6 Lagrange functions is shown below. it is definitely not the constant function $f(x)=1$.
+![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/sum_lagrange_function.png)
+According to the discussion in [github issue 52](https://github.com/IAA-nuclear/tantalus_full/issues/52) periodic functions can be interpolated with Lagrange functions provided they vanish at the boundary of the interval.
 ### Derivatives
 The formula for the derivative of a function $h$ expanded on a reduced grid is found easily by extending the column vector $\mathbf{h}$ (of length $N$) on the reduced grid as 
 [eq 17]
@@ -166,4 +180,5 @@ for all grid points ijk:
 	for all components h of H
 		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2])  
 ```
-Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$.
+Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$, where the sign is $+$ if $f$ is symmetric and $-$ if $f$ is antisymmetric.
+
