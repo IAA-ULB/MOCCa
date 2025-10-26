@@ -2,6 +2,8 @@ from pathlib import Path
 import re
 from importlib import import_module
 
+from mocca import data_folder
+
 
 _array_element_pattern = re.compile(r"^(\w+)\(d+\)$")
 
@@ -10,14 +12,15 @@ class Param:
         """Read EDF parameters from file and store them as attributes of self.
 
         Args:
-            filepath (Path): Path to the .param file.
+            filepath: Either a Path to a .param file, or a str with the name of the parameterization (without suffix),
+                in which case the corresponding .param file is sought in folder `mocca/data/parameterizations`. 
         Raises:
             RuntimeError: when reading the .param file fails.
         """
         if isinstance(param_file, Path):
             filepath = param_file
         else:
-            filepath = Path(__file__).parent / f"parameterizations/{param_file}.param"
+            filepath = data_folder / f"parameterizations/{param_file}.param"
         self.filepath = filepath
         with open(filepath) as f:
             lines = f.readlines()
