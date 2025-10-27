@@ -224,15 +224,12 @@ def test_LagrangeMesh_ctor_box_width():
 
 
 def test_LagrangeMesh_plane_wave_1D():
-    # TODO fix, broken testtest_LagrangeMesh_plane_wave_1D
-    # raise RuntimeWarning("TODO fix, broken test test_LagrangeMesh_plane_wave")
     d = .5
     n = 6
     mesh = LagrangeMesh(dim=3, n=6, d=d, reduced=False)
     k = 1.5
     L = n*d
     r = mesh.gridx[:,0,0]
-    print(f"{r=}")
     pw = mesh.plane_wave_1D(L=L, k=k, r=r)
     
     arg = (2*np.pi * k / L) * r
