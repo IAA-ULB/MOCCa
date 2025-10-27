@@ -22,48 +22,48 @@ def test_LagrangeMesh_ctor_n_d():
     mesh = LagrangeMesh(dim=2, n=6, d=.5,)
     assert mesh.dim == 2
     assert mesh.n == (6,6)
-    assert mesh.d == (.5,.5)
+    assert (mesh.d == [.5,.5]).all()
 
     mesh = LagrangeMesh(dim=2, n=6, d=(.5,.6))
     assert mesh.dim == 2
     assert mesh.n == (6,6)
-    assert mesh.d == (.5,.6)
+    assert (mesh.d == (.5,.6)).all()
 
     mesh = LagrangeMesh(n=(4,6), d=.5)
     assert mesh.dim == 2
     assert mesh.n == (4,6)
-    assert mesh.d == (.5,.5)
+    assert (mesh.d == (.5,.5)).all()
 
     mesh = LagrangeMesh(n=(4,6), d=(.5,.6))
     assert mesh.dim == 2
     assert mesh.n == (4,6)
-    assert mesh.d == (.5,.6)
+    assert (mesh.d == (.5,.6)).all()
 
     # valid 3D mesh constructions
     mesh = LagrangeMesh(dim=3, n=4, d=.5)
     assert mesh.dim == 3
     assert mesh.n == (4,4,4)
-    assert mesh.d == (.5,.5,.5)
+    assert (mesh.d == (.5,.5,.5)).all()
 
     mesh = LagrangeMesh(dim=3, n=(2,4,6), d=.5,)
     assert mesh.dim == 3
     assert mesh.n == (2,4,6)
-    assert mesh.d == (.5,.5,.5)
+    assert (mesh.d == (.5,.5,.5)).all()
 
     mesh = LagrangeMesh(dim=3, n=4, d=(.4,.5,.6))
     assert mesh.dim == 3
     assert mesh.n == (4,4,4)
-    assert mesh.d == (.4,.5,.6)
+    assert (mesh.d == (.4,.5,.6)).all()
 
     mesh = LagrangeMesh(n=(2,4,6), d=(.4,.5,.6))
     assert mesh.dim == 3
     assert mesh.n == (2,4,6)
-    assert mesh.d == (.4,.5,.6)
+    assert (mesh.d == (.4,.5,.6)).all()
 
     mesh = LagrangeMesh(n=(2,4,6), d=.5)
     assert mesh.dim == 3
     assert mesh.n == (2,4,6)
-    assert mesh.d == (.5,.5,.5)
+    assert (mesh.d == (.5,.5,.5)).all()
 
     # Invalid 1D mesh constructions
     with pytest.raises(AssertionError):
@@ -223,20 +223,23 @@ def test_LagrangeMesh_ctor_box_width():
     assert (mesh.box_width == tuple(3*[6*.5])).all()
 
 
-def test_LagrangeMesh_plane_wave():
-    mesh = LagrangeMesh(dim=3, n=6, d=.5, reduced=False)
-
-    bw = mesh.box_width
-    oneoversqrtbw = np.sqrt(1 / np.prod(mesh.box_width))
-    twopij = 2j * np.pi
-    k = np.array([0.5,1.5,2.5])
-    k /= bw
-    rng = np.random.default_rng()
-    r = (rng.random((5,3))*2 - 1)*bw[0]
-    expected = oneoversqrtbw*np.exp(twopij*r@k)
-
-    pwc = mesh.plane_wave(k, r)
-    assert np.all(pwc == expected)
+def test_LagrangeMesh_plane_wave_1D():
+    # TODO fix, broken testtest_LagrangeMesh_plane_wave_1D
+    # raise RuntimeWarning("TODO fix, broken test test_LagrangeMesh_plane_wave")
+    d = .5
+    n = 6
+    mesh = LagrangeMesh(dim=3, n=6, d=d, reduced=False)
+    k = 1.5
+    L = n*d
+    r = mesh.gridx[:,0,0]
+    print(f"{r=}")
+    pw = mesh.plane_wave_1D(L=L, k=k, r=r)
+    
+    arg = (2*np.pi * k / L) * r
+    real_part = np.sqrt(1/L) * np.cos(arg)
+    imag_part = np.sqrt(1/L) * np.sin(arg)
+    assert (pw[:,0] == real_part).all()
+    assert (pw[:,1] == imag_part).all()
 
 
 def test_LagrangeMesh_reshape():
@@ -287,6 +290,35 @@ def test_LagrangeMesh_integrate():
 
 
 def test_LagrangeMesh_interpolate1D():
+    d = 0.5
+    mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
+    Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)
+    N = len(mesh.gridx)//2
+    r = np.linspace(-N*d, N*d, num=61)
+    for i in range(61):
+        if r[i] in mesh.gridx:
+            r[i] += 1e-9
+
+    Qr = mesh.interpolate(Q, r)
+    print(Qr)
+
+
+def test_LagrangeMesh_interpolate2D():
+    d = 0.5
+    mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
+    Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)
+    N = len(mesh.gridx)//2
+    r = np.linspace(-N*d, N*d, num=61)
+    for i in range(61):
+        if r[i] in mesh.gridx:
+            r[i] += 1e-9
+        
+
+    Qr = mesh.interpolate(Q, r)
+    print(Qr)
+
+
+def test_LagrangeMesh_interpolate3D():
     d = 0.5
     mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
     Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)

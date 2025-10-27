@@ -30,13 +30,11 @@ $$x_i=-\frac{2N-1-2i}{2}=\frac{1}{2}+i-N, i=0..2N-1$$
 The basis functions are plane waves:
 [eq 5]
 $$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx})$$
-$$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N-1}{2}, $$
-(Note that $\mathrm{i}$ is the imaginary unit here).
-The basis functions can be written as:
-$$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx\frac{dx}{dx}})$$
-or, since $kdx=x_i$ :
+where $\mathrm{i}$ is the imaginary unit, and
+$$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N-1}{2}$$
+or, since $kdx$ is a grid point:
 [eq 5.1]
-$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}x_i\frac{x}{dx}})$$
+$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix})$$
 ### Interpolation
 The Lagrange interpolation functions are:
 [eq 6]
@@ -154,10 +152,17 @@ The basis functions are plane wave products of the different axes:
 [eq 24]
 $$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{i}}{L_x}kx})\exp({\frac{2\pi\mathrm{i}}{L_y}ly})\exp({\frac{2\pi\mathrm{i}}{L_z}mz})$$
 $$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\frac{kx}{L_x}+\frac{ly}{L_y}+\frac{mz}{L_z})$$
+$$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_x-1}{2}$$
+$$l=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_y-1}{2}$$
+$$m=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_z-1}{2}$$
+
 $$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\mathbf{k}\cdot\mathbf{r})$$
 $$\mathbf{k}=\begin{bmatrix}\frac{k}{L_x} & \frac{l}{L_y} & \frac{m}{L_z}\end{bmatrix}$$
 $$\mathbf{x}=\begin{bmatrix} x & y & z\end{bmatrix}$$
 Note that $\phi_k$, $\phi_l$ and $\phi_m$ are generally different objects, even if accidentally the indices $k$, $l$ and $m$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
+Alternatively, in the spirit of eq 5.1:
+[eq 24.1]
+$$\mathbf{k}=\begin{bmatrix}\frac{x_i}{L_xdx} & \frac{y_j}{L_ydy} & \frac{z_k}{L_zdz}\end{bmatrix}$$where the $x_i$, $y_j$, $z_k$ are grid coordinates in the $x$, $y$ and $z$ directions.
 ### Interpolation
 As described by eq 23 Interpolating a scalar quantity $h$ at a single point requires a sum over all grid points which may be costly (speaking of working interactively). If $h$ needs to be interpolated on a large number of points, $p$,
 $$\mathbf{r} = \begin{bmatrix}x_0 & y_0 & z_0 \\

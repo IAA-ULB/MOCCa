@@ -54,6 +54,11 @@ def test_lagrange_function_plot():
     fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/lagrange_function.png")
     fig.clear()
 
+    # A constant function cannot be interpolated by the Lagrange Functions because
+    # they are antiperiodic, i.e. periodic, but with a sign change.  
+    # See https://github.com/IAA-nuclear/tantalus_full/issues/52
+    # I expected - wrongly, as it appears - that the sum of all Lagrange functions, 
+    # which puts a one on each grid point would interpolate the constant function.
     fig, ax = plt.subplots()
     ax.plot(x, sumf)
     fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/sum_lagrange_function.png")

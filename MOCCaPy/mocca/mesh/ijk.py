@@ -1,4 +1,5 @@
 import numpy as np
+# TODO Maybe class IJK isn't needed after all. Remove it?
 
 class IJK:
     """IJK is an index object to iterate over the grid points of a rectangular mesh, like the LagrangeMesh. It
@@ -23,6 +24,7 @@ class IJK:
 
     def inc(self):
         """Increment the index to point to the next grid point in memory.
+
         Returns:
             The spatial index of the grid point pointed to after being incremented. Three values (`i`, `j` and `k`) are
             returned even if the mesh is 1D or 2D. In the latter case, only `i`, resp. `i` and `j` are relevant.
