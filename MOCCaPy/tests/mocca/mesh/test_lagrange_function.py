@@ -12,7 +12,7 @@ while project_folder.name != 'tantalus_full':
 
 def test_lagrange_function():
     d = 0.5
-    mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
+    mesh  = LagrangeMesh(dim=1, N=6, d=d, reduced=False)
     print(mesh.gridx)
     N = len(mesh.gridx)//2
     for xi in mesh.gridx:
@@ -33,7 +33,7 @@ def test_lagrange_function():
 def test_lagrange_function_plot():
     """Draw a plot of the lagrange functions on a 1D mesh"""
     d = 0.5
-    mesh  = LagrangeMesh(dim=1, n=6, d=d, reduced=False)
+    mesh  = LagrangeMesh(dim=1, N=6, d=d, reduced=False)
     N = len(mesh.gridx)//2
     x = np.linspace(-N*d, N*d, num=61)
     print(mesh.gridx)

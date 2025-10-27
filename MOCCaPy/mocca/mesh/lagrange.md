@@ -12,10 +12,10 @@ Using M evenly space grid point at distance $dx$, the boundaries of the box are 
 
 For non-reduced axes (where the shift parameter $\sigma$ is required be zero) the grid points are:
 [eq 1]
-$$\begin{equation}\pm\frac{1}{2}dx, \pm\frac{3}{2}dx, ..., \pm\frac{N-3}{2}dx, \pm\frac{N-1}{2}dx\end{equation}$$
+$$\begin{equation}\pm\frac{1}{2}dx, \pm\frac{3}{2}dx, ..., \pm\frac{2N-3}{2}dx, \pm\frac{2N-1}{2}dx\end{equation}$$
 or 
 [eq 2]
-$$x_{\pm i}=\pm(\frac{1}{2}+i)dx$$
+$$x_{\pm i}=\pm(\frac{1}{2}+i)dx=\pm(\frac{2i+1}{2})dx$$
 $$i=0..N-1$$
 
 in order:
@@ -25,16 +25,25 @@ $$-\frac{2N-1}{2}dx, -\frac{2N-3}{2}dx, ..., -\frac{3}{2}dx, -\frac{1}{2}dx, \fr
 
 or 
 [eq 4]
-$$x_i=-\frac{2N-1-2i}{2}=\frac{1}{2}+i-N, i=0..2N-1$$
+$$x_i=-\frac{2N-1-2i}{2}dx=(\frac{1}{2}+i-N)dx, i=0..(2N-1)$$
+or 
+[eq 4.1]
+$$x_i=-\frac{2N-1-2i}{2}dx=(\frac{1}{2}+i-N)dx, i=-(N-1)..(N-1)$$
 ### Basis functions
 The basis functions are plane waves:
 [eq 5]
 $$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}kx})$$
-where $\mathrm{i}$ is the imaginary unit, and
-$$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N-1}{2}$$
-or, since $kdx$ is a grid point:
+where $\mathrm{i}$ is the imaginary unit (not the index $i$), and
+$$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{2N-3}{2}, \pm\frac{2N-1}{2}$$
+or, since $kdx$ is a grid point, say, the $i$-th, $x_i$:
 [eq 5.1]
-$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix})$$
+$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}\frac{x_i}{dx}x})=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix})$$
+When $x$ is a grid point, e.g. $x=x_j$, we have 
+$$\phi_{x_i}(x_j)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix_j}) =\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{2Ndxdx}(\frac{1}{2}+i-N)dx(\frac{1}{2}+j-N)dx}))$$
+$$=\frac{1}{\sqrt{L}}\exp({\frac{\pi\mathrm{i}}{N}(\frac{1}{2}+i-N)(\frac{1}{2}+j-N)})$$
+$$=\frac{1}{\sqrt{L}}\exp(\frac{\pi\mathrm{i}}{N}(\frac{1}{4}+\frac{1}{2}j-\frac{1}{2}N+i\frac{1}{2}+ij-iN-N\frac{1}{2}-Nj+N^2))$$
+
+$$=\frac{1}{\sqrt{L}}\exp(\frac{\pi\mathrm{i}}{N}(\frac{1}{4}+\frac{1}{2}(i+j)-N+ij-(i+j)N+N^2))$$
 ### Interpolation
 The Lagrange interpolation functions are:
 [eq 6]

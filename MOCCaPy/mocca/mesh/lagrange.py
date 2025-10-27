@@ -23,7 +23,7 @@ def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, N:int):
     return result
 
 class LagrangeMesh:
-    def __init__(self, n: int|tuple, d: int|float|tuple, dim: int=0,
+    def __init__(self, N: int|tuple, d: int|float|tuple, dim: int=0,
                        bc='antiperiodic',
                        reduced:tuple|bool = True,
                        shift:tuple|float = .0,
@@ -31,11 +31,11 @@ class LagrangeMesh:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
         Args:
-            dim (int): dimension of mesh. if not specified, dim is guessed as len(n), where n must be a tuple.
-            n: number of points in the respective dimensions. If n is an int n is the same in each direction.
-            d: spacing of points in the respective dimensions. If n is a float or an int d is the same in each direction.
+            dim (int): dimension of mesh. if not specified, dim is guessed as len(N), where N must be a tuple.
+            N: number of points in the respective dimensions. If N is an int N is the same in each direction.
+            d: spacing of points in the respective dimensions. If N is a float or an int d is the same in each direction.
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
-            reduced: restrict the mesh to the positive half-axis. The corresponding `n` entry is halved.
+            reduced: restrict the mesh to the positive half-axis. The corresponding `N` entry is halved.
             shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
 
         Raises:
@@ -46,27 +46,27 @@ class LagrangeMesh:
              of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
              we content with explicitly indicating which coordinate axes must be 'reduced'
         """
-        # initialize n and d as dim-tuples
-        if dim == 0 and isinstance(n, tuple):
-            self.dim = len(n)
+        # initialize N and d as dim-tuples
+        if dim == 0 and isinstance(N, tuple):
+            self.dim = len(N)
         else:
             self.dim = dim
 
         assert 1 <= self.dim <= 3
 
-        if isinstance(n, int):
-            assert n > 0, "n must be strictly positive."
-            assert n % 2 == 0, "n must be an even number."
-            self.n = tuple(self.dim*[n])
+        if isinstance(N, int):
+            assert N > 0, "N must be strictly positive."
+            assert N % 2 == 0, "N must be an even number."
+            self.N = tuple(self.dim*[N])
         else:
-            assert isinstance(n, tuple)
-            assert len(n) == self.dim
-            for ni in n:
-                assert ni >= 0, "n must be strictly positive."
-                assert ni % 2 == 0, "n must be an even number."
-            for ni in n:
+            assert isinstance(N, tuple)
+            assert len(N) == self.dim
+            for ni in N:
+                assert ni >= 0, "N must be strictly positive."
+                assert ni % 2 == 0, "N must be an even number."
+            for ni in N:
                 assert isinstance(ni, int)
-            self.n = n
+            self.N = N
 
         # box spacing (ints are converted to floats)
         if isinstance(d,tuple):
@@ -98,7 +98,7 @@ class LagrangeMesh:
 
         # Compute the unreduced (!) box widths
         # The full (unreduced box width is needed by the plane wave base functions
-        self.box_width = np.array([n*d for (n,d) in zip(self.n, self.d)])
+        self.box_width = np.array([N*d for (N,d) in zip(self.N, self.d)])
 
         # validate shift
         if isinstance(shift, float):
@@ -115,7 +115,7 @@ class LagrangeMesh:
         start = self.dim*[.0]
         n_reduced = self.dim*[0]
         g1D = self.dim*[0]
-        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.n, self.shift, self.reduced, self.d)):
+        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.N, self.shift, self.reduced, self.d)):
             if reduced_i:
                 n_reduced[i] = n_i//2
                 start[i] = 0.5
@@ -126,6 +126,12 @@ class LagrangeMesh:
             g1D[i] = np.linspace(start[i], start[i] + n_reduced[i] - 1, n_reduced[i])
             g1D[i] *= d_i
             # print(f"{i=} {g1D[i]=}")
+
+        self.gx = g1D[0]
+        if self.dim > 1:
+            self.gy = g1D[1]
+        if self.dim > 2:
+            self.gz = g1D[2]
 
         if self.dim == 3:
             self.gridx = np.empty(n_reduced, order='F')
@@ -321,27 +327,50 @@ class LagrangeMesh:
                 unctions corresponding to grid points on the negative axis. Otherwise, grid indices
                 run from 0 to `2N-1`.
         """
-        # if self.dim == 1:
-        #     x_i = self.gridx[i] if i>0 else -self.gridx[i]
+        if self.dim == 1:
+            # ijk == i
+            i = ijk
+            two_pi_K = 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
+                                      self.gx[i] if i>0 else
+                                     -self.gx[i] ) / (self.box_width[0] * self.d[0])
+            arg = r * two_pi_K
+            factor = np.sqrt(1/self.box_width[0])
+        elif self.dim == 2:
+            i = ijk[0]
+            j = ijk[1]
+            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
+                                                 self.gx[i] if i>0 else
+                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
+                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
+                                                 self.gy[j] if i>0 else
+                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
+                                ])
+            arg = r @ two_pi_K
+            factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
 
-        # elif self.dim == 2:
-        #     k = np.array([(self.gridx[i] if i>0 else -self.gridx[i])/self.box_width[0])])
-        #     x_i = 
-        #     y_j = self.gridy[j] if i>0 else -self.gridy[j]
-        # else:
-        #     x_i = self.gridx[i] if i>0 else -self.gridx[i]
-        #     y_j = self.gridy[j] if i>0 else -self.gridy[j]
-        #     z_k = self.gridz[k] if i>0 else -self.gridz[k]
+        else:
+            i = ijk[0]
+            j = ijk[1]
+            k = ijk[2]
+            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
+                                                 self.gx[i] if i>0 else
+                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
+                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
+                                                 self.gy[j] if i>0 else
+                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
+                                , 2. * np.pi * ( self.gz[k] if not self.reduced[0] else
+                                                 self.gz[k] if i>0 else
+                                                -self.gz[k] ) / (self.box_width[2] * self.d[2])
+                                ])
+            arg = r @ two_pi_K
+            factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
 
-        # for (i,reduced) in zip(ijk,self.reduced):
-
-        # one_over_sqrt_L = np.sqrt(1 / np.prod(self.box_width))
-        # two_pi_over_L_j = (np.pi / self.box_width) * 2j
-        # k = np.array([0.5,1.5,2.5])
-        # k /= self.box_width
-        # pw = one_over_sqrt_bw*np.exp(two_pi_j*r@k)
-        # return pw
-
+        nr = r.shape[0] 
+        result = np.empty((nr,2), dtype=float, order='F')
+        result[:,0] = np.cos(arg)
+        result[:,1] = np.sin(arg)
+        result *= factor
+        return result
 
 
     def derive1(self, Q:npt.NDArray):
