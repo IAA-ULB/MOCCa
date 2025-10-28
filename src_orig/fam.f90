@@ -47,6 +47,7 @@ module fam
   !    the complex strength S(w,F) = Tr(F^dagger drho(w))
   real(KIND=dp) :: strength = 0.0_dp
   !    the transition strength (aka dB/dw) obtained as - 1/pi * Im(strength_complex)
+  real(KIND=dp) :: ewsr = 0.0_dp ! energy weighted sum rule
   !-----------------------------------------------------------------------------
   ! mixing strategy
   integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
@@ -772,6 +773,54 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     call get_ph_hp_blocks(f_LK_spme, f_LK_ph_hp(:,:,1), f_LK_ph_hp(:,:,2))
 
     deallocate(f_LK_spme)
+
+  end function
+
+
+  function calc_EWSR() result (ewsr)
+    !---------------------------------------------------------------------------
+    ! Compute the energy weighted sum rule from a ground-state 
+    ! expectation value. When Thouless' theorem is applicable, then this value 
+    ! should equal the first-moment of the strength function, i.e.
+    ! m_1(F) = int_0^inf dE E S(E, F). 
+    ! Expressions are taken from N. Hinohara PRC 91, 044323 (2015)
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: ewsr
+    type(Moment), pointer  :: moment_ptr
+
+    ewsr = 0
+
+    ! isovector perturbations
+    if(eff_charge_n .ne. eff_charge_p) then
+      print *, 'NOT IMPLEMENTED: only isoscalar pertubations are implemented for now'
+      ! this would require an enhancement factor kappa
+      return
+    endif
+
+    ! isoscalar monopole
+    if(l == 0) then
+      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
+      ewsr =  4.0 * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons
+
+    ! isoscalar quadrupole
+    else if(l == 2) then
+      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
+      ewsr = (5.0 / (2.0 * pi)) * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons 
+
+      ! deformation correction, still to be worked out for more general shapes. 
+      print *, 'INCOMPLETE: deformation correction for EWSR assumes axial shape '
+
+      ! For axial nuclei, correction with mass quadruple deformation beta20
+      moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20>
+      ewsr = ewsr * (1 + sqrt(5./(4.*pi)) * moment_ptr%beta(4))
+
+    else 
+      print *, 'NOT IMPLEMENTED: only monopole (l=0) and quadrupole (l=2) EWSR implemented for now'
+      return
+    endif
+
+
+    print *, "Energy weighted sum rule : m1 = ", ewsr
 
   end function
 
