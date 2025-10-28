@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P]
+#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [Nthreads]
 #
 # where EXESUFFIX and EXESUFFIX_T specify executables to be used: a time-reversal
 # conserving and a time-reversal breaking one.
@@ -34,13 +34,15 @@
 refE=-177.062001 # Total energy of O16 in MeV
 refS20=1.66      # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
 
-# set -e # exit immediately if command gives non-zero exit status
+Nthreads=$4
+export OMP_NUM_THREADS=$Nthreads
+set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_t0t3" "$1" "$1" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "$1" "$1" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -163,7 +165,8 @@ famfile='S_20.fam'
 &Cranking
 /
 &fam
-omega=25.0
+omega_min=25
+omega_max=25.0
 smear=1.0
 l=2
 m=0
@@ -173,7 +176,7 @@ fam_precision=1e-8
 EOF
 
 # Run the calculation
-./$exefam < fam.data > $famoutfile
+./$exefam < fam.data | tee $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
 
@@ -198,7 +201,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO-T FAM calculation
-setup_test_env_fam "fam_t0t3" "$1" "$2" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "$1" "$2" "t0t3"
 cp ../mf.wf .
 
 # Create runtime data
@@ -259,7 +262,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-P FAM calculation
-setup_test_env_fam "fam_t0t3" "$1" "$3" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "$1" "$3" "t0t3"
 mv ../mf.wf .
 
 # Create runtime data

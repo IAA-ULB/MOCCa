@@ -109,6 +109,7 @@ use derivatives
 use preconditioning 
 use basis_transform
 use timing
+use omp_lib
 
 use vectors, only: DensityVector, memory
 
@@ -752,7 +753,7 @@ subroutine print_maxval(name, den_sym, den_asym)
   print *
 end subroutine print_maxval
 
-function densit_offdiag_symmetric(rho, kappa) result(R)
+function densit_offdiag_symmetric(rho, kappa) result(R_total)
     !------------------------------ ---------------------------------------------
     ! Calculate the symmetric part(*) of the mean-field densities, both normal
     ! and pairing, based on arbitrary matrices rho and kappa.
@@ -768,7 +769,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     !----------------------------------------------------------------------------
 
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
-    type(DensityVector)          :: R
+    type(DensityVector)          :: R, R_total
 
     complex(KIND=dp)          :: weight_sym
     integer                   :: wave_i       , wave_j
@@ -796,6 +797,7 @@ $ZEROING
     DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+    R_total = R
     call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
@@ -804,17 +806,26 @@ $ZEROING
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it = 1
+      if(B .ge. 5) it = 2
+      !print *, B, 'THREAD', OMP_GET_THREAD_NUM(), 'out of', omp_get_max_threads()
 
+!$OMP PARALLEL PRIVATE(wave_i       ,wave_j       , &
+!$OMP                     wave_global_i,wave_global_j, & 
+!$OMP                     der_index_i  ,der_index_j,i, &
+!$OMP                     weight_sym, R,               &
+!$OMP                     $OMP_DENSITY_VARS            &
+!$OMP                     )  SHARED (si, N, rho, it, R_total, spwf_map, denpsi, dendpsi,mv, denddpsi) DEFAULT(NONE)
+      !
+      ! Ensure that the partial R is correctly zero-d.
+      !
+$ZEROING
+!$OMP DO
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         wave_global_i = spwf_map(wave_i)     ! Global spwf index
         ! TODO: enable store_derivatives option
         der_index_i = wave_i
-
-        ! Isospin is neutron in the first half of blocks, proton in the rest
-        it = 1
-        if(B .ge. 5) it = 2
-
-
         do wave_j=si+1,si+N
           wave_global_j = spwf_map(wave_j) ! Global spwf index
           ! TODO: enable store_derivatives option
@@ -830,10 +841,14 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
           enddo
         enddo
       enddo
+!$OMP END DO      
+!$OMP CRITICAL
+      R_total = R_total + R
+!$OMP END CRITICAL
+!$OMP END PARALLEL
       si = si + N
     enddo
     call stop_timer(T_den_ph)
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
@@ -845,10 +860,11 @@ $DERIVATION_OFFDIAG_SYMMETRIC
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
 $ISOSPINCOUPL_SYMMETRIC
-
+    R_total%D_I_I(:,3) = R_total%D_I_I(:,1) + R_total%D_I_I(:,2)
+    R_total%D_I_I(:,4) = R_total%D_I_I(:,1) - R_total%D_I_I(:,2)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
+    call construct_charge_density(R_total, sx_rho, sy_rho, sz_rho)
 
     call stop_timer(T_den_perturbed_sym)
 
@@ -905,14 +921,12 @@ $ZEROING
     si = 0
     do B=1,8
       N = HFBLocks(B) ; if(N.eq.0) cycle
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it = 1
+      if(B .ge. 5) it = 2
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         wave_global_i = spwf_map(wave_i) ! Global spwf index
         der_index_i = wave_i
-
-        ! Isospin is neutron in the first half of blocks, proton in the rest
-        it = 1
-        if(B .ge. 5) it = 2
-
         ! TODO: enable store_derivatives option
 
         do wave_j=si+1,si+N

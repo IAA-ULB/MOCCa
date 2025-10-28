@@ -104,6 +104,9 @@ subroutine Run_Tantalus(file_number,input_file)
  ! Write output to the outputfile, i.e. the full wavefunction file
  call writewavefunction(12, outputfilename)
  !------------------------------------------------------------------------------
+
+
+
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
  !------------------------------------------------------------------------------
@@ -189,7 +192,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer, intent(out)           :: iter
     character(len=99), intent(out) :: iomsg
 
-    integer :: iprint, scheme, ifail
+    integer :: iprint, scheme, ifail, i,j,k
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
     ! Logical to see if any moments with feasible set projection are necessary
@@ -505,6 +508,17 @@ subroutine ReachForWaterAndFood(iter, iomsg)
           endif
         endif
     enddo
+
+
+ open(1,file='divJ.dat',status='replace')
+ do k=1,nz
+  do j=1,ny
+    do i=1,nx
+      write(1,fmt=('(7f10.3)')) meshx(i), meshy(j), meshz(k),density%divJ(meshindex(i,j,k),:)
+    enddo
+  enddo
+ enddo
+ close(1)
 end subroutine ReachForWaterAndFood
 #endif
 

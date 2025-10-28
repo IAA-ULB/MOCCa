@@ -263,6 +263,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     BCSExpression          = ''
     HFBExpression          = ''
 
+    OMP_sharing    = ''
+
     Zeroing          = ''
     Cleaning         = ''
     MPI_REDUCE       = ''
@@ -295,7 +297,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Diagonal" summation of densities in the canonical basis
-      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei)  = \
+      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei, ompi)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so, fam_active,                     \
@@ -395,7 +397,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei)  = \
+        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei,ompi)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],    \
                                           intermediate_status[i],                  \
                                          'si+wave2' , 'si+wave'  ,                 \
@@ -427,6 +429,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         Multiply       = Multiply       + '\n' + multi
         Memory         = Memory         + '\n' + memi
         Write          = Write          + '\n' + writei
+        OMP_sharing    = OMP_sharing    + ',' +  ompi
     print (line)
 
     # Substitute into the densities.f90 file.
@@ -434,6 +437,9 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     dic['SPWF_DECLARATION'] = Spwf_Declaration
     dic['INITIALIZATION'  ] = Initialisation
 
+    # OMP things
+    dic['OMP'] = '$OMP'
+    dic['OMP_DENSITY_VARS'] = OMP_sharing[1:]  # remove leading comma
     if(fam_active):
         dic['FAM'] = 1
     else:   
@@ -733,6 +739,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                           for this density
         Cleaning       :  string deallocating the density
         Write          :  string writing the density to the HDF5 file
+        OMP            :  simple name for OMP pragmas
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
     """
@@ -754,6 +761,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     MPI_reduce    = ''
     Memory        = ''
     Write         = ''
+    OMP           = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin
@@ -884,6 +892,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         # memory requirement for this density
         Memory         = ta.Memory.substitute(dic)
     spwf_dec    = ta.Dec_spwf.substitute(dic)
+    omp         = dic['NAME']
 
     for c in derivative_combinations:
         l = c[0]
@@ -1426,7 +1435,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply,\
-                                   Write)
+                                   Write, omp)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------
