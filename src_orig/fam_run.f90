@@ -112,12 +112,19 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  ! call test_gmres_affine()
-  ! stop
+  !---------------------------------------------------------------------------------
+  ! Evaluate the energy weighted sum rule
+  ewsr = calc_EWSR()
+
+
+  !---------------------------------------------------------------------------------
+  ! create the FAM output file
+  call init_fam_file_new(famfile)
+
+
 
   !---------------------------------------------------------------------------------
   ! allocate the single-particle hamiltonians 
-
   if(.not. allocated(dH_flat)) then
     allocate(dH_flat(nwt*nwt))
   endif
@@ -125,10 +132,6 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
-
-  !---------------------------------------------------------------------------------
-  ! create the FAM output file
-  call init_fam_file_new(famfile)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies

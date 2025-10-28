@@ -1718,6 +1718,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine write_inertias
 #endif
 
+#if( $FAM == 1)
    subroutine init_fam_file(l, m, eff_charge_n, eff_charge_p, fname)
     !---------------------------------------------------------------------------
     ! Create file to write strength function S(omega, F) obtained from FAMtalus
@@ -1785,7 +1786,9 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &          '#    F = Q_', i1, i1,/, &
     &          '#    neutron eff charge = ', f10.3, ' e', /, &
     &          '#    proton eff charge  = ', f10.3, ' e')
-    2 format('#', 4x, 'omega', 5x, 'gamma',4x, 'iter',  8x,'S_complex_re', 13x, &
+
+    2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
+    3 format('#', 4x, 'omega', 5x, 'gamma',4x, 'iter',  8x,'S_complex_re', 13x, &
     &  'S_complex_im', 18x, 'S_n+', 21x, 'S_n-', 21x, 'S_p+', 21x, 'S_p-', 20x, &
     &  'S_tot') 
 
@@ -1799,7 +1802,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     call write_header(1) ! write general header info
 
     write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
-    write(1, fmt=2)      ! write column names
+    write(1, fmt=2) ewsr ! write sum rules  
+    write(1, fmt=3)      ! write column names
 
     close(1)
 
@@ -1850,6 +1854,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     close(1)
 
   end subroutine append_fam_file_new
+
+#endif
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------
