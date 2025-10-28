@@ -4,10 +4,7 @@ import json
 __version__ = "3.0.0"
 
 package_folder = Path(__file__)
-while (package_folder.name!= 'MOCCaPy'):
-    package_folder = package_folder.parent
-package_folder = package_folder/"mocca"
-data_folder = package_folder / "data"
+data_folder = Path(__file__).parent / "data"
 data_folder.mkdir(parents=True, exist_ok=True)
 if (data_folder/'chemical_symbols.json').exists():
     with open(data_folder/'chemical_symbols.json', 'r') as f:

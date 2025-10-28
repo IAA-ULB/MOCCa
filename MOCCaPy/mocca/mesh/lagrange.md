@@ -44,6 +44,7 @@ $$=\frac{1}{\sqrt{L}}\exp({\frac{\pi\mathrm{i}}{N}(\frac{1}{2}+i-N)(\frac{1}{2}+
 $$=\frac{1}{\sqrt{L}}\exp(\frac{\pi\mathrm{i}}{N}(\frac{1}{4}+\frac{1}{2}j-\frac{1}{2}N+i\frac{1}{2}+ij-iN-N\frac{1}{2}-Nj+N^2))$$
 
 $$=\frac{1}{\sqrt{L}}\exp(\frac{\pi\mathrm{i}}{N}(\frac{1}{4}+\frac{1}{2}(i+j)-N+ij-(i+j)N+N^2))$$
+(this isn't very helpful.)
 ### Interpolation
 The Lagrange interpolation functions are:
 [eq 6]

@@ -23,19 +23,25 @@ def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, N:int):
     return result
 
 class LagrangeMesh:
-    def __init__(self, N: int|tuple, d: int|float|tuple, dim: int=0,
-                       bc='antiperiodic',
-                       reduced:tuple|bool = True,
-                       shift:tuple|float = .0,
+    def __init__(self, M: int|tuple,
+                       d: int|float|tuple,
+                       dim: int=0,
+                       bc:str='antiperiodic',
+                       reduced:tuple|bool=True,
+                       shift:tuple|float=.0,
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
         Args:
-            dim (int): dimension of mesh. if not specified, dim is guessed as len(N), where N must be a tuple.
-            N: number of points in the respective dimensions. If N is an int N is the same in each direction.
-            d: spacing of points in the respective dimensions. If N is a float or an int d is the same in each direction.
+            dim (int): dimension of mesh. if not specified, dim is guessed as len(M), where M must be a tuple.
+            M: tuple with number of grid points in the respective dimensions. Each component of M=2N must be even,
+                yielding N grid points at both sides of the origin. If a single M is specified, M is the same in every
+                direction.
+                The distinction between M and N is consistent with  Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)
+                section III.B Lagrange-mesh representation.
+            d: spacing of points in the respective dimensions. If d is a float or an int d is the same in each direction.
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
-            reduced: restrict the mesh to the positive half-axis. The corresponding `N` entry is halved.
+            reduced: restrict the mesh to the positive half-axis.
             shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
 
         Raises:
@@ -46,27 +52,27 @@ class LagrangeMesh:
              of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
              we content with explicitly indicating which coordinate axes must be 'reduced'
         """
-        # initialize N and d as dim-tuples
-        if dim == 0 and isinstance(N, tuple):
-            self.dim = len(N)
+        # initialize M and d as dim-tuples
+        if dim == 0 and isinstance(M, tuple):
+            self.dim = len(M)
         else:
             self.dim = dim
 
         assert 1 <= self.dim <= 3
 
-        if isinstance(N, int):
-            assert N > 0, "N must be strictly positive."
-            assert N % 2 == 0, "N must be an even number."
-            self.N = tuple(self.dim*[N])
+        if isinstance(M, int):
+            assert M > 0, "M must be strictly positive."
+            assert M % 2 == 0, "M must be an even number."
+            self.M = tuple(self.dim*[M])
         else:
-            assert isinstance(N, tuple)
-            assert len(N) == self.dim
-            for ni in N:
-                assert ni >= 0, "N must be strictly positive."
-                assert ni % 2 == 0, "N must be an even number."
-            for ni in N:
-                assert isinstance(ni, int)
-            self.N = N
+            assert isinstance(M, tuple)
+            assert len(M) == self.dim
+            for mi in M:
+                assert mi >= 0, "M must be strictly positive."
+                assert mi % 2 == 0, "M must be an even number."
+            for mi in M:
+                assert isinstance(mi, int)
+            self.M = M
 
         # box spacing (ints are converted to floats)
         if isinstance(d,tuple):
@@ -98,7 +104,7 @@ class LagrangeMesh:
 
         # Compute the unreduced (!) box widths
         # The full (unreduced box width is needed by the plane wave base functions
-        self.box_width = np.array([N*d for (N,d) in zip(self.N, self.d)])
+        self.box_width = np.array([M*d for (M,d) in zip(self.M, self.d)])
 
         # validate shift
         if isinstance(shift, float):
@@ -115,7 +121,7 @@ class LagrangeMesh:
         start = self.dim*[.0]
         n_reduced = self.dim*[0]
         g1D = self.dim*[0]
-        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.N, self.shift, self.reduced, self.d)):
+        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
             if reduced_i:
                 n_reduced[i] = n_i//2
                 start[i] = 0.5
@@ -452,9 +458,7 @@ class LagrangeMesh:
             r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p, self.dim)'
         """
         self.flatten()
-        self.flatten(Q.data)
-        assert self.is_flat(Q)
-
+        
         if self.dim == 3:
             return self._interpolate3D(Q, r)
         elif self.dim == 2:
@@ -467,43 +471,52 @@ class LagrangeMesh:
         """Interpolate `Q` on a 1D  mesh."""
         nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.empty(shape=(nr,nq), dtype=float, order='F')
+        Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
         N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
         for ig in range(self.n_gridpoints()):
             for iq in range(nq):
                 q = Q[iq]
                 sign = Q.symmetry[iq]
                 if self.reduced[0]:
-                    Qr[:,iq] = q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-                                       + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
-                                       )
+                    Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
+                                        + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
+                                        )
                 else:
-                    Qr[:,iq] = q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N)
+                    Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N)
         return Qr
 
 
     def _interpolate2D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 2D  mesh."""
-        nr = r.shape[0]
-        nq = Q.n_components
-        Qr = np.empty(shape=(nr,nq), dtype=float, order='F')
-        N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
-        for ig in range(self.n_gridpoints()):
-            for iq in range(nq):
-                q = Q[iq]
-                sign = Q.symmetry[iq]
-                if self.reduced[0]:
-                    Qr[:,iq] = q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-                                       + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
-                                       ) \
-                                     * (        lagrange_function(r,  self.gridy[ig], self.d[1], N)
-                                       + sign * lagrange_function(r, -self.gridy[ig], self.d[1], N)
-                                       )
-                else:
-                    Qr[:,iq] = q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
-                                     * lagrange_function(r, self.gridy[ig], self.d[1], N)
-        return Qr
-
+        # nr = r.shape[0]
+        # nq = Q.n_components
+        # Qr = np.empty(shape=(nr,nq), dtype=float, order='F')
+        # N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
+        # for ig in range(self.M[0]):
+        #     for iq in range(nq):
+        #         q = Q[iq]
+        #         sign = Q.symmetry[iq]
+        #         if self.reduced[0]:
+        #             if self.reduced[1]:
+        #                 Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
+        #                                            * lagrange_function(r,  self.gridy[ig], self.d[1], N)
+        #
+        #                                     + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N) * lagrange_function(r, -self.gridy[ig], self.d[1], N)
+        #                                     )
+        #             else:
+        #                 Qr[:,iq] += q[ig] * (          lagrange_function(r,  self.gridx[ig], self.d[0], N)
+        #                                     * (        lagrange_function(r,  self.gridy[ig], self.d[1], N)
+        #                                       + sign * lagrange_function(r, -self.gridy[ig], self.d[1], N)
+        #                                       )
+        #                                     )
+        #         else:
+        #             if self.reduced[1]:
+        #                 Qr[:, iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
+        #             else:
+        #                 Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
+        #                                   * lagrange_function(r, self.gridy[ig], self.d[1], N)
+        # return Qr
+        #
 
     def _interpolate3D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 2D  mesh."""
@@ -516,19 +529,17 @@ class LagrangeMesh:
                 q = Q[iq]
                 sign = Q.symmetry[iq]
                 if self.reduced[0]:
-                    Qr[:,iq] = q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-                                       + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
-                                       ) \
-                                     * (        lagrange_function(r,  self.gridy[ig], self.d[1], N)
-                                       + sign * lagrange_function(r, -self.gridy[ig], self.d[1], N)
-                                       ) \
-                                     * (        lagrange_function(r,  self.gridz[ig], self.d[2], N)
-                                       + sign * lagrange_function(r, -self.gridz[ig], self.d[2], N)
-                                       )
+                    Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
+                                               * lagrange_function(r,  self.gridy[ig], self.d[1], N)
+                                               * lagrange_function(r,  self.gridz[ig], self.d[2], N)
+                                        + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
+                                               * lagrange_function(r, -self.gridy[ig], self.d[1], N)
+                                               * lagrange_function(r, -self.gridz[ig], self.d[2], N)
+                                        )
                 else:
-                    Qr[:,iq] = q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
-                                     * lagrange_function(r, self.gridy[ig], self.d[1], N) \
-                                     * lagrange_function(r, self.gridz[ig], self.d[2], N)
+                    Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
+                                      * lagrange_function(r, self.gridy[ig], self.d[1], N) \
+                                      * lagrange_function(r, self.gridz[ig], self.d[2], N)
         return Qr
 
 
