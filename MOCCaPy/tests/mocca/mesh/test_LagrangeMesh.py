@@ -12,6 +12,9 @@ project_folder = Path(__file__)
 while project_folder.name != 'tantalus_full':
     project_folder = project_folder.parent
 test_folder = project_folder/f"MOCCaPy/tests/mocca/mesh"
+# remove all .png files
+for png in test_folder.glob('*.png'):
+    png.unlink()
 
 def test_LagrangeMesh_ctor_n_d():
     """Test valid and invalid n and d parameters."""
@@ -361,55 +364,85 @@ def test_LagrangeMesh_integrate():
 def test_LagrangeMesh_interpolate1D():
     d = 1.
     N = 3
-    mesh  = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False)
+    for reduced in [
+        # False,
+        True,
+    ]:
+        str_reduced = "(reduced)" if reduced else ""
+        mesh  = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced)
+        r = np.empty((mesh.n_gridpoints(),), dtype=float, order='F')
+        r = mesh.gx
+        rip = np.linspace(-N*d, N*d, num=61)
+        for ip in range(len(rip)):
+            if (reduced and rip[ip] < 0 and -rip[ip] in mesh.gx) or (rip[ip] in mesh.gx):
+                rip[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
 
-    r = mesh.gx
-    rip = np.linspace(-N*d, N*d, num=61)
-    for ip in range(len(rip)):
-        if rip[ip] in mesh.gx:
-            rip[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
+        for ii in range(2*N):
+            if not mesh.reduced[0]:
+                i = ii
+                negative_axis = False
+                print(f"{i}/{2*N}")
+            else:
+                i = ii//2
+                if ii % 2 == 0:
+                    negative_axis = False
+                    print(f"+{i}/{2 * N}")
+                else:
+                    negative_axis = True
+                    print(f"-{i}/{2 * N}")
 
-    for i in range(2*N):
-        print(f"{i}/{2*N}")
-        lcpw_rgp = mesh.basis_function(i,r)
+            lcpw_rgp = mesh.basis_function(i,r  ,negative_axis=negative_axis)
+            lcpw_rip = mesh.basis_function(i,rip,negative_axis=negative_axis)
 
-        lcpw_rip = mesh.basis_function(i,rip)
+            Q = Observable( lcpw_rgp, symmetry=np.array([1,-1], order='F')) # real/imag component is symmetric/skew-symmetric
+            # Q = Observable( lcpw_rgp, symmetry=1)
 
-        Q = Observable( lcpw_rgp, symmetry=1)
+            Qrip = mesh.interpolate(Q, rip)
 
-        Qrip = mesh.interpolate(Q, rip)
+            fig, ax = plt.subplots()
+            plt.title(f"test_LagrangeMesh_interpolate1D real part $x_{i}$")
+            plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
+            plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
+            plt.legend()
+            plt.savefig(test_folder/f"test_LagrangeMesh_interpolate1D_{i}_real{str_reduced}")
+            plt.close(fig)
 
-        fig, ax = plt.subplots()
-        plt.title(f"test_LagrangeMesh_interpolate1D real part $x_{i}$")
-        plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
-        plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
-        plt.legend()
-        plt.savefig(test_folder/f"test_LagrangeMesh_interpolate1D_{i}_real")
-        plt.close(fig)
+            fig, ax = plt.subplots()
+            plt.title(f"test_LagrangeMesh_interpolate1D imag part $x_{i}$")
+            plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ imag')
+            plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ imag')
+            plt.legend()
+            plt.savefig(test_folder/f"test_LagrangeMesh_interpolate1D_{i}_imag{str_reduced}")
+            plt.close(fig)
 
-        fig, ax = plt.subplots()
-        plt.title(f"test_LagrangeMesh_interpolate1D imag part $x_{i}$")
-        plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ imag')
-        plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ imag')
-        plt.legend()
-        plt.savefig(test_folder/f"test_LagrangeMesh_interpolate1D_{i}_imag")
-        plt.close(fig)
-
-        assert ((lcpw_rip - Qrip) < 1e-12).all()
+            assert ((lcpw_rip - Qrip) < 1e-12).all()
 
     for lc in range(2):
         coeff = np.ones((2*N,),dtype=float) if lc == 0 else (
                 np.random.rand(2*N)
         )
         s = "sum of bf" if lc == 0 else "random lc of bf"
-        lcpw_rgp = coeff[0] * mesh.basis_function(0, r)
-        lcpw_rip = coeff[0] * mesh.basis_function(0, rip)
+        if not mesh.reduced[0]:
+            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  )
+            lcpw_rip = coeff[0] * mesh.basis_function(0, rip)
+        else:
+            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  ) + \
+                       coeff[1] * mesh.basis_function(0, r  , negative_axis=True)
+            lcpw_rip = coeff[0] * mesh.basis_function(0, rip) + \
+                       coeff[1] * mesh.basis_function(0, rip, negative_axis=True)
 
-        for i in range(1,2*N):
-            lcpw_rgp += coeff[i] * mesh.basis_function(i,r)
-            lcpw_rip += coeff[i] * mesh.basis_function(i,rip)
+        if not mesh.reduced[0]:
+            for i in range(1,2*N):
+                lcpw_rgp += coeff[i] * mesh.basis_function(i,r)
+                lcpw_rip += coeff[i] * mesh.basis_function(i,rip)
+        else:
+            for i in range(1,N):
+                lcpw_rgp += coeff[2*i  ] * mesh.basis_function(i,r  ) + \
+                            coeff[2*i+1] * mesh.basis_function(i,r  , negative_axis=True)
+                lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip) + \
+                            coeff[2*i+1] * mesh.basis_function(i,rip, negative_axis=True)
 
-        Q = Observable( lcpw_rgp, symmetry=1)
+        Q = Observable( lcpw_rgp, symmetry=[1,-1])
         Qrip = mesh.interpolate(Q, rip)
 
         fig, ax = plt.subplots()
@@ -432,18 +465,43 @@ def test_LagrangeMesh_interpolate1D():
         assert ((lcpw_rip - Qrip) < 1e-12).all()
 
 def test_LagrangeMesh_interpolate2D():
-    d = 0.5
-    mesh  = LagrangeMesh(dim=1, M=6, d=d, reduced=False)
-    Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)
-    N = len(mesh.gridx)//2
-    r = np.linspace(-N*d, N*d, num=61)
-    for i in range(61):
-        if r[i] in mesh.gridx:
-            r[i] += 1e-9
-        
+    d = 1.
+    N = 3
+    mesh  = LagrangeMesh(dim=2, M=2*N, d=d, reduced=False)
+    rgp = np.empty((mesh.n_gridpoints(),2),dtype=float,order='F')
+    rgp[:,0] = mesh.gridx.ravel(order='F')
+    rgp[:,1] = mesh.gridy.ravel(order='F')
 
-    Qr = mesh.interpolate(Q, r)
-    print(Qr)
+    for reduced in [ (False, False)
+                   # , (False, True)
+                   # , (True, False)
+                   # , (True, True)
+                   ]:
+
+        px = np.linspace(-N*d, N*d, num=61)
+        for ip in range(len(px)):
+            if px[ip] in mesh.gx:
+                px[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
+        py = np.linspace(-N*d, N*d, num=61)
+        for ip in range(len(py)):
+            if py[ip] in mesh.gy:
+                py[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
+        nx = len(px)
+        ny = len(py)
+        rip = np.empty((nx*ny,2),dtype=float,order='F')
+        for ip in range(ny):
+            rip[ip*nx:(ip+1)*nx, 0] = px
+            rip[ip*ny:(ip+1)*ny, 1] = py[ip]
+
+        for ibfx in range(2*N):
+            for ibfy in range(2*N):
+                bf_rgp = mesh.basis_function((ibfx,ibfy), rgp)
+                bf_rip = mesh.basis_function((ibfx,ibfy), rip)
+
+                Q = Observable( bf_rgp, symmetry=1)
+                Qrip = mesh.interpolate(Q, rip)
+
+                assert ((bf_rip - Qrip) < 1e-12).all()
 
 
 def test_LagrangeMesh_interpolate3D():

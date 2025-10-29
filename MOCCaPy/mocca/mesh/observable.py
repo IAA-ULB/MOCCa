@@ -25,8 +25,11 @@ class Observable:
             if isinstance(symmetry,(int,float)):
                 self.symmetry = symmetry * np.ones((self.n_components,), dtype=float, order='F')
             else:
-                assert symmetry.shape == self.shape
-                self.symmetry = np.array(symmetry, dtype=float, order='F')
+                if not isinstance(symmetry,np.ndarray):
+                    self.symmetry = np.array(symmetry, dtype=float, order='F')
+                else:
+                    self.symmetry = symmetry
+                assert self.symmetry.shape == self.shape
                 self.symmetry = self.symmetry.reshape((self.n_components,), order='F')
 
         for symm in self.symmetry:

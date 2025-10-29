@@ -1,26 +1,9 @@
 import numpy as np
 import numpy.typing as npt
+
 from mocca.mesh.observable import Observable
-from numpy.ma.core import shape
+from mocca.mesh.lagrange_function import lagrange_function
 
-
-def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, N:int):
-    """Compute the 1D Lagrange function on `x`.
-
-    Args:
-        x: array of points at which to compute the Lagrange function.
-        x_i: a grid point : ±1/2 dx, ±3/2 dx, ±5/2 dx, ...
-        d: grid spacing
-        N: number of grid points on the positive axis
-        reduced: whether the axis is reduced or not.
-    """
-    one_over_2N = 1/(2*N)
-    A_i = (np.pi/d)*(x - x_i)
-    result = one_over_2N*np.sin(A_i)/np.sin(one_over_2N*A_i)
-    # if reduced:
-    #     A_i = (np.pi / d) * (x + x_i)
-    #     result += one_over_2N * np.sin(A_i) / np.sin(one_over_2N * A_i)
-    return result
 
 class LagrangeMesh:
     def __init__(self, M: int|tuple,
@@ -321,40 +304,16 @@ class LagrangeMesh:
         return result
 
 
-    def basis_function(self, ijk, r):
+    def basis_function(self, ijk, r, negative_axis=False):
         """Evaluate the plane wave basis function corresponding to grid point `x_ijk = [x_i,y_j,z_k]` 
         at position `r`. The wave vector `k` is related to `x_i` as `k = x_i/dx`.
 
         According to [eq 5.1] in https://github.com/IAA-nuclear/tantalus_full/blob/MOCCaPy/MOCCaPy/mocca/mesh/lagrange.pdf
 
         Args:
-            ijk: grid point index. A D-tuple of grid indices with `D == self.dim'.  If a grid axis
-                is reduced, grid indices run from 0, ±1, ±2, ..., ±N. Negative values select basis f
-                unctions corresponding to grid points on the negative axis. Otherwise, grid indices
-                run from 0 to `2N-1`.
+            ijk: grid point index. A D-tuple of grid indices with `D == self.dim'.
         """
-        if self.dim == 1:
-            # ijk == i
-            i = ijk
-            two_pi_K = 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                      self.gx[i] if i>0 else
-                                     -self.gx[i] ) / (self.box_width[0] * self.d[0])
-            arg = r * two_pi_K
-            factor = np.sqrt(1/self.box_width[0])
-        elif self.dim == 2:
-            i = ijk[0]
-            j = ijk[1]
-            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                 self.gx[i] if i>0 else
-                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
-                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
-                                                 self.gy[j] if i>0 else
-                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
-                                ])
-            arg = r @ two_pi_K
-            factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
-
-        else:
+        if self.dim == 3:
             i = ijk[0]
             j = ijk[1]
             k = ijk[2]
@@ -371,13 +330,36 @@ class LagrangeMesh:
             arg = r @ two_pi_K
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
 
-        nr = r.shape[0] 
+        elif self.dim == 2:
+            i = ijk[0]
+            j = ijk[1]
+            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
+                                                 self.gx[i] if i>0 else
+                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
+                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
+                                                 self.gy[j] if i>0 else
+                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
+                                ])
+            arg = r @ two_pi_K
+            factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
+
+        elif self.dim == 1:
+            # ijk == i
+            i = ijk
+            two_pi_K = 2. * np.pi * self.gx[i]  / (self.box_width[0] * self.d[0])
+            if self.reduced[0] and negative_axis:
+                arg = r * (-two_pi_K)
+            else:
+                arg = r * two_pi_K
+
+            factor = np.sqrt(1 / self.box_width[0])
+
+        nr = r.shape[0]
         result = np.empty((nr,2), dtype=float, order='F')
         result[:,0] = np.cos(arg)
         result[:,1] = np.sin(arg)
         result *= factor
         return result
-
 
     def derive1(self, Q:npt.NDArray):
         """Compute the 1st order derivative of a scalar quantity `q` on the mesh.
@@ -477,87 +459,391 @@ class LagrangeMesh:
             for iq in range(nq):
                 q = Q[iq]
                 sign = Q.symmetry[iq]
-                if self.reduced[0]:
-                    Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-                                        + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
-                                        )
+                fxa = self.lagrange_function(r, ig, sign)
+                if len(fxa) == 1:
+                    Qr[:,iq] += q[ig] * fxa[0]
                 else:
-                    Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N)
+                    Qr[:, iq] += q[ig] * (fxa[0] + fxa[1])
         return Qr
 
 
     def _interpolate2D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
-        """Interpolate `Q` on a 2D  mesh."""
-        # nr = r.shape[0]
-        # nq = Q.n_components
-        # Qr = np.empty(shape=(nr,nq), dtype=float, order='F')
-        # N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
-        # for ig in range(self.M[0]):
-        #     for iq in range(nq):
-        #         q = Q[iq]
-        #         sign = Q.symmetry[iq]
-        #         if self.reduced[0]:
-        #             if self.reduced[1]:
-        #                 Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-        #                                            * lagrange_function(r,  self.gridy[ig], self.d[1], N)
-        #
-        #                                     + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N) * lagrange_function(r, -self.gridy[ig], self.d[1], N)
-        #                                     )
-        #             else:
-        #                 Qr[:,iq] += q[ig] * (          lagrange_function(r,  self.gridx[ig], self.d[0], N)
-        #                                     * (        lagrange_function(r,  self.gridy[ig], self.d[1], N)
-        #                                       + sign * lagrange_function(r, -self.gridy[ig], self.d[1], N)
-        #                                       )
-        #                                     )
-        #         else:
-        #             if self.reduced[1]:
-        #                 Qr[:, iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
-        #             else:
-        #                 Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
-        #                                   * lagrange_function(r, self.gridy[ig], self.d[1], N)
-        # return Qr
-        #
+        """Interpolate `Q` on a 2D mesh.
+
+        Args:
+            Q: An observable with values specified on all grid points
+            r: array of points at which to interpolate Q. 'r.shape == (nr, self.dim)'
+        """
+        nr = r.shape[0]
+        nq = Q.n_components
+        Qr = np.zeros(shape=(nr,nq), dtype=float, order='F') # Q interpolated at r
+        if self.reduced[0]:
+            if self.reduced[1]:
+                # both axes reduced
+                nx = self.M[0] // 2
+                ny = self.M[1] // 2
+                ig = 0
+                for ix in range(nx):
+                    for iy in range(ny):
+                        for iq in range(nq):
+                            q = Q[iq]
+                            sign = Q.symmetry[iq]
+                            lf__x  = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                            lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                            lf__y  = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                            lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+
+                            Qr[:,iq] += q[ig] * ( (        lf__x        * lf__y ) +
+                                                  (        lf__x * sign * lf_my ) +
+                                                  ( sign * lf_mx        * lf__y ) +
+                                                  (        lf_mx        * lf_my ) ) # sign * sign == 1
+                        ig +=1
+
+            else:
+                # only x-axis reduced
+                nx = self.M[0] // 2
+                ny = self.M[1]
+                ig = 0
+                for ix in range(nx):
+                    for iy in range(ny):
+                        for iq in range(nq):
+                            q = Q[iq]
+                            sign = Q.symmetry[iq]
+                            lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                            lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                            lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+
+                            Qr[:,iq] += q[ig] * ( lf__x + sign * lf_mx ) * lf__y
+                        ig += 1
+
+        else:
+            if self.reduced[1]:
+                # only y-axis reduced
+                nx = self.M[0]
+                ny = self.M[1] // 2
+                ig = 0
+                for ix in range(nx):
+                    for iy in range(ny):
+                        for iq in range(nq):
+                            q = Q[iq]
+                            sign = Q.symmetry[iq]
+                            lf__x  = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                            lf__y  = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                            lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+
+                            Qr[:,iq] += q[ig] * lf__x * ( lf__y + sign * lf_my)
+                        ig += 1
+            else:
+                # none of the axes reduced
+                nx = self.M[0]
+                ny = self.M[1]
+                ig = 0
+                for ix in range(nx):
+                    for iy in range(ny):
+                        for iq in range(nq):
+                            q = Q[iq]
+                            lf__x  = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                            lf__y  = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                            Qr[:,iq] += q[ig] * lf__x * lf__y
+                        ig +=1
+
+        return Qr
+
 
     def _interpolate3D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 2D  mesh."""
         nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.empty(shape=(nr,nq), dtype=float, order='F')
-        N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
-        for ig in range(self.n_gridpoints()):
-            for iq in range(nq):
-                q = Q[iq]
-                sign = Q.symmetry[iq]
-                if self.reduced[0]:
-                    Qr[:,iq] += q[ig] * (        lagrange_function(r,  self.gridx[ig], self.d[0], N)
-                                               * lagrange_function(r,  self.gridy[ig], self.d[1], N)
-                                               * lagrange_function(r,  self.gridz[ig], self.d[2], N)
-                                        + sign * lagrange_function(r, -self.gridx[ig], self.d[0], N)
-                                               * lagrange_function(r, -self.gridy[ig], self.d[1], N)
-                                               * lagrange_function(r, -self.gridz[ig], self.d[2], N)
-                                        )
-                else:
-                    Qr[:,iq] += q[ig] * lagrange_function(r, self.gridx[ig], self.d[0], N) \
-                                      * lagrange_function(r, self.gridy[ig], self.d[1], N) \
-                                      * lagrange_function(r, self.gridz[ig], self.d[2], N)
+        Qr = np.zeros(shape=(nr,nq), dtype=float, order='F') # Q interpolated at r
+
+        if self.reduced[0]:
+            if self.reduced[1]:
+                if self.reduced[2]: # True True True
+                    nx = self.M[0] // 2
+                    ny = self.M[1] // 2
+                    nz = self.M[2] // 2
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+                                    lf_mz = lagrange_function(r, -self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( (        lf__x        * lf__y        * lf__z ) + # 0
+                                                          (        lf__x        * lf__y * sign * lf_mz ) + # 1
+                                                          (        lf__x * sign * lf_my        * lf__z ) + # 1
+                                                          (        lf__x        * lf_my        * lf_mz ) + # 2  sign * sign == 1
+                                                          ( sign * lf_mx        * lf__y        * lf__z ) + # 1
+                                                          (        lf_mx        * lf__y        * lf_mz ) + # 2  sign * sign == 1
+                                                          (        lf_mx        * lf_my        * lf__z ) + # 2  sign * sign == 1
+                                                          ( sign * lf_mx        * lf_my        * lf_mz ) ) # 3  sign * sign * sign == sign
+
+                else:               # True True False
+                    nx = self.M[0] // 2
+                    ny = self.M[1] // 2
+                    nz = self.M[2]
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( (        lf__x        * lf__y ) + # 0
+                                                          (        lf__x * sign * lf_my ) + # 1
+                                                          ( sign * lf_mx        * lf__y ) + # 1
+                                                          (        lf_mx        * lf_my ) ) * lf__z # 2  sign * sign == 1
+
+            else:
+                if self.reduced[2]: # True False True
+                    nx = self.M[0] // 2
+                    ny = self.M[1]
+                    nz = self.M[2] // 2
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+                                    lf_mz = lagrange_function(r, -self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( (        lf__x         * lf__z ) + # 0
+                                                          (        lf__x  * sign * lf_mz ) + # 1
+                                                          ( sign * lf_mx         * lf__z ) + # 1
+                                                          (        lf_mx         * lf_mz ) ) * lf__y # 2  sign * sign == 1
+
+                else:               # True False False
+                    nx = self.M[0] // 2
+                    ny = self.M[1]
+                    nz = self.M[2]
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf_mx = lagrange_function(r, -self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( ( lf__x + sign * lf_mx ) ) * lf__y * lf__z  # 1
+
+        else:
+            if self.reduced[1]:
+                if self.reduced[2]: # False True True
+                    nx = self.M[0]
+                    ny = self.M[1] // 2
+                    nz = self.M[2] // 2
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+                                    lf_mz = lagrange_function(r, -self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( lf__x * (        lf__y        * lf__z ) + # 0
+                                                                  (        lf__y * sign * lf_mz ) + # 1
+                                                                  ( sign * lf_my        * lf__z ) + # 1
+                                                                  (        lf_my        * lf_mz ) ) # 2  sign * sign == 1
+
+                else:               # False True False
+                    nx = self.M[0]
+                    ny = self.M[1] // 2
+                    nz = self.M[2]
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf_my = lagrange_function(r, -self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * lf__x * ( lf__y + sign * lf_my ) * lf__z  # 1
+
+            else:                   # False False True
+                if self.reduced[2]:
+                    nx = self.M[0]
+                    ny = self.M[1]
+                    nz = self.M[2] // 2
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+                                    lf_mz = lagrange_function(r, -self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * lf__x * lf__y * ( lf__z + sign * lf_mz ) # 1
+
+                else:               # False False False
+                    nx = self.M[0]
+                    ny = self.M[1]
+                    nz = self.M[2]
+                    for ix in range(nx):
+                        for iy in range(ny):
+                            for iz in range(nz):
+                                for iq in range(nq):
+                                    q = Q[iq]
+                                    sign = Q.symmetry[iq]
+                                    lf__x = lagrange_function(r,  self.gridx[ix], self.d[0], self.M[0])
+                                    lf__y = lagrange_function(r,  self.gridy[iy], self.d[1], self.M[1])
+                                    lf__z = lagrange_function(r,  self.gridz[iz], self.d[2], self.M[2])
+
+                                    Qr[:,iq] += q[ig] * ( lf__x * lf__y * lf__z )
+
         return Qr
 
+    def lagrange_function(self, x:npt.NDArray|float, ijk:tuple|int, sign=1):
+        """Evaluate the Lagrange function corresponding to the `ijk` grid point at `x`.
+        Args:
+            x : array of points at which to evaluate the Lagrange function.
+            ijk : index of the grid point selecting the gridpoint of the Lagrange function.
+            sign : the symmetry ±1. For reduced axes the lagrange function of negative grid points
+                is multplied by `sign`.
+        Returns:
+            1D Array with values of the Lagrange function corresponding to the `ijk` grid point at `x`.
+            If an axis is reduced, several arrays are returned, one for each combination of positeve
+            and negative grid points.
+            reduced == [True,True,True] -> + + +   [True,True] -> + +
+                                           + + -                  + -
+                                           + - +                  - +
+                                           + - -                  - -
+                                           - + +        [True] -> +
+                                           - + -                  -
+                                           - - +
+                                           - - -
+            If one of the axes is not reduced the rows with a - on that axes are removed
+            re
+        """
+        # The original idea to select grid points on the negative axes with negative indices doesn't work because
+        # the first index is 0, and its sign is lost, as Python does not discriminate between -0 and +0.
 
-def lagrange_function(x:npt.NDArray, x_i:float, dx:float, N:int):
-    """Compute the 1D Lagrange function on `x`.
+        if self.dim == 3:
+            i,j,k = ijk
+            x_i, y_j, z_k = self.gridx[i], self.gridy[j], self.gridz[k]
 
-    Args:
-        x: array of points at which to compute the Lagrange function.
-        x_i: grid point: ±1/2, ±3/2, ±5/2, ...
-        dx: grid spacing
-        N: number of grid points on the positive axis
-    Returns:
-        An array of values of Lagrange function corresponding to `x`.
-    Caveat:
-        The function returns nan when `x == x_i` because it evaluates 0/0. Checking for this corner case implies giving
-        up numpy array functions. As we assume that the user is not interested in finding the value at x_i because it
-        is known to be 1. The user must avoid this. However, for `x = x_i + 1e-9` the result is very close to 1,
-    """
-    one_over_2N = 1/(2*N)
-    A_i = np.pi/dx * (x - x_i)
-    return one_over_2N*np.sin(A_i)/np.sin(one_over_2N*A_i)
+            if self.reduced[0]:
+                fxa = [ lagrange_function(x[:, 0],  x_i, self.d[0], self.M[0]),
+                        lagrange_function(x[:, 0], -x_i, self.d[0], self.M[0]) ]
+                if sign == -1:
+                    fxa[1] *= sign
+
+                if self.reduced[1]:
+                    fya  = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]),
+                             lagrange_function(x[:, 1], -y_j, self.d[1], self.M[1]) ]
+                    if sign == -1:
+                        fya[1] *= sign
+                    if self.reduced[2]:
+                        fza = [ lagrange_function(x[:, 2],  z_k, self.d[2], self.M[2]),
+                                lagrange_function(x[:, 2], -z_k, self.d[2], self.M[2]) ]
+                        if sign == -1:
+                            fza[1] *= sign
+                    else:
+                        fza = [ lagrange_function(x[:, 2], z_k, self.d[2], self.M[2]) ]
+                else:
+                    fya = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]) ]
+                    if self.reduced[2]:
+                        fza = [ lagrange_function(x[:, 2],  z_k, self.d[2], self.M[2]),
+                                lagrange_function(x[:, 2], -z_k, self.d[2], self.M[2]) ]
+                        if sign == -1:
+                            fza[1] *= sign
+                    else:
+                        fza = [ lagrange_function(x[:, 2], z_k, self.d[2], self.M[2]) ]
+            else:
+                fxa = [ lagrange_function(x[:, 0],  x_i, self.d[0], self.M[0]) ]
+                if self.reduced[1]:
+                    fya = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]),
+                            lagrange_function(x[:, 1], -y_j, self.d[1], self.M[1]) ]
+                    if sign == -1:
+                        fya[1] *= sign
+                    if self.reduced[2]:
+                        fza = [ lagrange_function(x[:, 2],  z_k, self.d[2], self.M[2]),
+                                lagrange_function(x[:, 2], -z_k, self.d[2], self.M[2]) ]
+                        if sign == -1:
+                            fza[1] *= sign
+                    else:
+                        fza = [ lagrange_function(x[:, 2], z_k, self.d[2], self.M[2]) ]
+                else:
+                    fya = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]) ]
+                    if self.reduced[2]:
+                        fza = [ lagrange_function(x[:, 2],  z_k, self.d[2], self.M[2]),
+                                lagrange_function(x[:, 2], -z_k, self.d[2], self.M[2]) ]
+                        if sign == -1:
+                            fza[1] *= sign
+                    else:
+                        fza = [ lagrange_function(x[:, 2], z_k, self.d[2], self.M[2]) ]
+
+            result = []
+            for fx in fxa:
+                for fy in fya:
+                    for fz in fza:
+                        result.append( fx * fy * fz )
+            return result
+
+        elif self.dim == 2:
+            i, j = ijk
+            x_i, y_j = self.gridx[i], self.gridy[j]
+
+            if self.reduced[0]:
+                fxa = [ lagrange_function(x[:, 0],  x_i, self.d[0], self.M[0]),
+                        lagrange_function(x[:, 0], -x_i, self.d[0], self.M[0]) ]
+
+                if self.reduced[1]:
+                    fya = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]),
+                            lagrange_function(x[:, 1], -y_j, self.d[1], self.M[1]) ]
+                else:
+                    fya = [ lagrange_function(x[:, 1],  y_j, self.d[1], self.M[1]) ]
+            else:
+                fxa = [lagrange_function(x[:, 0], x_i, self.d[0], self.M[0])]
+                if self.reduced[1]:
+                    fya = [ lagrange_function(x[:,1],  y_j, self.d[1], self.M[1]),
+                            lagrange_function(x[:,1], -y_j, self.d[1], self.M[1]) ]
+                else:
+                    fya = [ lagrange_function(x[:,1],  y_j, self.d[1], self.M[1]) ]
+
+            result = []
+            for fx in fxa:
+                for fy in fya:
+                    result.append(fx * fy * fz)
+            return result
+
+        else:
+            i = ijk
+            x_i = self.gridx[i]
+
+            if self.reduced[0]:
+                fxa = [ lagrange_function(x,  x_i, self.d[0], self.M[0]),
+                        lagrange_function(x, -x_i, self.d[0], self.M[0]) ]
+                if sign == -1:
+                    fxa[1] *= sign
+            else:
+                fxa = [ lagrange_function(x, x_i, self.d[0], self.M[0]) ]
+
+            return fxa

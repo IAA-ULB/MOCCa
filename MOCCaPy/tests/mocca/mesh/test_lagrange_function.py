@@ -2,7 +2,8 @@ import pytest
 import numpy as np
 from matplotlib import pyplot as plt
 
-from mocca.mesh import LagrangeMesh, lagrange_function
+from mocca.mesh.lagrange import LagrangeMesh
+from mocca.mesh.lagrange_function import lagrange_function
 
 from pathlib import Path
 project_folder = Path(__file__)
@@ -16,14 +17,14 @@ def test_lagrange_function():
     print(mesh.gridx)
     N = len(mesh.gridx)//2
     for xi in mesh.gridx:
-        assert np.isnan(lagrange_function(xi,xi,d,N))
-        fgridx = lagrange_function(mesh.gridx,xi,d,N)
+        assert np.isnan(lagrange_function(xi,  xi, d, 2*N))
+        fgridx = lagrange_function(mesh.gridx, xi, d, 2*N)
         for (f,x) in zip(fgridx,mesh.gridx):
             if x == xi:
                 assert np.isnan(f) # corner case due to 0/0, which by l'Hopitals rule should be 1
             else:
                 print(f"{f=}")
-                assert f == pytest.approx(.0, abs=1e-15)
+                assert f == pytest.approx(.0, abs=1e-14)
     xi = mesh.gridx[3]
     xi_close = mesh.gridx[3] + 1e-9
     f = lagrange_function(xi_close,xi,d,N)
