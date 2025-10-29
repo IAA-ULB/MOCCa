@@ -99,7 +99,7 @@ contains
   !
   !             interpolation routine         Interpolation approach
   ! ---------   ----------------------       ---------------------------------
-  !  0          standard_interpolation      N. Chamel et al., PRC 80, 065804 (2009).
+  !  0          standard_interpolation      Goriely et al. PRL 102, 152503 (2009)
   !  1          linear interpolation        D=(1-|eta|)D_sym + |eta|D_{q,pure}
   !  2          weak coupling interpolation [To be published]
   !
@@ -618,6 +618,7 @@ contains
   !  Delta_n = Delta_SM(k_F) (1 - abs(eta)) + eta (eta + 1)/2 Delta_NM(k_Fn)
   !  Delta_p = Delta_SM(k_F) (1 - abs(eta)) + eta (eta - 1)/2 Delta_NM(k_Fp)
   !
+  ! S. Goriely et al. PRL 102, 152503 (2009)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
@@ -638,6 +639,7 @@ contains
   integer, intent(in)                :: iso 
   real(KIND=dp)                      :: Delta(mv) 
   real(KIND=dp)                      :: deltann(mv), deltanp(mv), deltans(mv)
+  integer                            :: i
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate all pairing gaps that occur in the interpolation formula
   deltann = delta_function(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
@@ -656,6 +658,11 @@ contains
   case DEFAULT
     call stp('Unrecognised input value for iso in standard_interpolation.')
   end select
+
+  ! Safeguard: if this results in negative pairing gaps, just make pairing vanish
+  do i=1,mv
+    if(Delta(i) .lt. 1e-14) Delta(i) = 0.0d0
+  enddo
 
  end function standard_interpolation
  
