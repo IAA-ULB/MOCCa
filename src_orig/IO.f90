@@ -2985,8 +2985,8 @@ $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
 $TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
 $TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
 $TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
-$TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
-$TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
+$TAUTENSOR &         (F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1))/3.0d0,&
+$TAUTENSOR &         (F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2))/3.0d0
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The pairing fields FP_I_I
           write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
