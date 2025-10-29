@@ -2267,9 +2267,12 @@ $EREAR
     ! Add kinetic and CoulombExchange contributions
     spwfenergy = spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
 
-    ! Always add the 1-body COMcorrection. In case it is used iteratively, it
-    ! is double counted along with the kinetic energy!
-    if(COM1body.gt.0) then
+    ! Add the 1-body COMcorrection. 
+    if(COM1body.eq.1) then
+        ! Perturbative use: add it completely
+        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))
+    else if(COM1body.eq.2) then
+        ! self-consistent use; add only half
         SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
     endif
 
