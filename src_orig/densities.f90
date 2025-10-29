@@ -784,11 +784,13 @@ $SPWF_DECLARATION
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
 $INITIALIZATION
+    ! Explicit allocation of this array; below we will be incrementing densities!
+    if(.not. allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Zero the current density
 $ZEROING
-
+    R%chargedensity = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! This should always be the HF basis!
@@ -900,11 +902,13 @@ $SPWF_DECLARATION
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
 $INITIALIZATION
+    ! Explicit allocation of this array; below we will be incrementing densities!
+    if(.not. allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Zero the current density
 $ZEROING
-
+    R%chargedensity = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! This should always be the HF basis!

@@ -3,6 +3,10 @@
 #  - compare the Q_20 strength @ 25 MeV to a known result
 #  - and redo it for an explicitly time-reversal broken FAM calculation
 #  - and redo it for an explicitly parity broken FAM calculation
+# 
+# In addition, you can specify a number of OpenMP threads to be used; if you
+# do not provide an OpenMP-enabled executable, then this will simply be ignored.
+# 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
@@ -176,7 +180,7 @@ fam_precision=1e-8
 EOF
 
 # Run the calculation
-./$exefam < fam.data | tee $famoutfile
+./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
 
@@ -325,6 +329,8 @@ fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $check_
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
+	echo -e "  tantalus : $tantalus_check, fam    : $fam_check, fam_T : $fam_T_check"
+	echo -e "  E_hf     : $check_energy, S20    : $check_strength, S20_T : $check_strength_T"
 else
 	echo -e "test FAM t0t3 :\033[1;31m failed ! tant : $tantalus_check, fam : $fam_check, E_hf : $check_energy, S20 : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P \033[0m"
 fi

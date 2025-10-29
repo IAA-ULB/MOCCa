@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - master
+      - FAM_openmp
   pull_request:
     branches:
       - master
@@ -32,42 +33,49 @@ jobs:
         CONFIG     :   [ LO, NLO, NLO-T, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
-        MPI        :   [ false]
+        PARALLEL   :   [ serial     ]
         include :
             # Compile a few things with ifort to have a compiler independence check
             - CALCTYPE: NUCLEI 
               CONFIG  : LO
               COMPILER: ifx
-              MPI     : false
+              PARALLEL: serial
             - CALCTYPE: NUCLEI
               CONFIG  : NLO
               COMPILER: ifx
-              MPI     : false
+              PARALLEL: serial
             - CALCTYPE: NUCLEI
               CONFIG  : BXL
               COMPILER: ifx
-              MPI     : false
+              PARALLEL: serial
             # Compile MPI versions with ifx only; gfortran MPI on the astropcs is not supported
             - CALCTYPE: NUCLEI 
               CONFIG  : NLO
               COMPILER: ifx
-              MPI     : true
+              PARALLEL: MPI
             - CALCTYPE: NUCLEI 
               CONFIG  : BXL
               COMPILER: ifx
-              MPI     : true
+              PARALLEL: MPI
+            # Compile some small things with OpenMP
+            - CALCTYPE: NUCLEI 
+              CONFIG  : LO
+              COMPILER: gfortran
+              PARALLEL: OpenMP
+            - CALCTYPE: NUCLEI 
+              CONFIG  : LO-T
+              COMPILER: gfortran
+              PARALLEL: OpenMP
 
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.PARALLEL }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
 
       # There is not yet any intel HDF5 on astropc19, but enable it 
       #   by default for gfortran
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
-      # MPI enabled
-      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,7 +98,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ matrix.PARALLEL }}${{ env.HDF5SUFFIX }} make.inc
           make mf CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
@@ -103,10 +111,10 @@ jobs:
   compile-mf-pasta:
     #------------------------------------------------------------------------------
     # Compile mean-field executables for different
-    #   - CONFIG   = BXL
-    #   - COMPILER = gfortran, ifx
-    #   - CALCTYPE = PASTA
-    #   - MPI      = true/false  ! MPI = true not yet active for gfortran
+    #   - CONFIG    = BXL
+    #   - COMPILER  = gfortran, ifx
+    #   - CALCTYPE  = PASTA
+    #   - PARALLEL  = serial  ! MPI = true not yet active for gfortran
     #------------------------------------------------------------------------------
     runs-on: self-hosted
     strategy:
@@ -114,22 +122,20 @@ jobs:
         CONFIG     :   [ BXL ]
         COMPILER   :   [ gfortran, ifx ]
         CALCTYPE   :   [ PASTA         ] 
-        MPI        :   [ false         ]
+        PARALLEL   :   [ serial        ]
         include :
             # Compile a few things with ifort to have a compiler independence check
             - CALCTYPE: PASTA 
               CONFIG  : BXL 
               COMPILER: ifx
-              MPI     : true
+              PARALLEL: MPI
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.PARALLEL }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
       # Enable HDF5 only for gfortran builds for the moment
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
-      # MPI enabled
-      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -152,7 +158,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ matrix.PARALLEL }}${{ env.HDF5SUFFIX }} make.inc
           make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
       - name: Upload mean-field executable
         uses: actions/upload-artifact@v4
@@ -166,7 +172,7 @@ jobs:
     #   - CONFIG   = NLO
     #   - COMPILER = gfortran
     #   - CALCTYPE = NUCLEI
-    #   - MPI      = false
+    #   - PARALLEL = serial, OpenMP
     #------------------------------------------------------------------------------
     runs-on: self-hosted
     strategy:
@@ -174,17 +180,15 @@ jobs:
         CONFIG     :  [ LO, LO-T, LO-P, NLO, BXL ]
         COMPILER   :  [ gfortran, ifx      ]
         CALCTYPE   :  [ NUCLEI             ]
-        MPI        :  [ false              ]
+        PARALLEL   :  [ serial, OpenMP     ]
 
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.PARALLEL }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
       # Enable HDF5 only for gfortran builds for the moment
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
-      # MPI enabled
-      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
     
     steps:
       - name: Checkout code
@@ -209,7 +213,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ matrix.PARALLEL }}${{ env.HDF5SUFFIX }} make.inc
           make fam CONFIG=${{ matrix.CONFIG }} FAMNAME=fam.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
       - name: Upload FAM executable
         uses: actions/upload-artifact@v4
@@ -229,7 +233,7 @@ jobs:
       matrix:
         COMPILER: [gfortran] #, ifx] # Reactivate
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.serial
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -269,7 +273,7 @@ jobs:
       matrix:
         COMPILER: [gfortran, ifx]
     env:
-      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.serial
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -312,8 +316,8 @@ jobs:
           - ifx
     env:
       SUFFIX  : BXL.${{ matrix.COMPILER }}.NUCLEI
-      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.serial
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.serial
     steps:
         # Ensure the testing scripts are available
       - name: Checkout code
@@ -370,7 +374,7 @@ jobs:
           - CONFIG: BXL-N2LO
             PARAM : BSkG5
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -419,7 +423,7 @@ jobs:
           - CONFIG: BXL-N2LO
             PARAM : BSkG5
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -470,7 +474,7 @@ jobs:
             PARAM : SN2LO1
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.serial
     steps:
       - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
@@ -513,8 +517,8 @@ jobs:
         CONFIG:   [ BXL      ]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.serial
 
     steps:
       # Ensure the testing scripts are available
@@ -565,7 +569,7 @@ jobs:
         CONFIG:   [ BXL           ]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.serial
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code
@@ -615,7 +619,7 @@ jobs:
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX  : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
-      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
       P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.MPI
     steps:
       # Ensure the testing scripts are available
@@ -675,10 +679,10 @@ jobs:
             PARAM : SN2LO1
 
     env:
-       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
-       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
-       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
-       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
+       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.serial
+       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.serial
+       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.serial
+       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.serial
 
     steps:
       - name: Checkout code # needed to get the testing scripts
@@ -738,11 +742,15 @@ jobs:
     strategy:
       matrix:
         COMPILER: [ gfortran, ifx]
+        THREADS : [ 1 , 2, 4 ]
+        PARALLEL: [serial, OpenMP]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
+
+      TANT_SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.serial 
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code
@@ -751,7 +759,7 @@ jobs:
       - uses: actions/download-artifact@v4
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: Tantalus.${{ env.TANT_SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v4
@@ -772,6 +780,11 @@ jobs:
           name: fam.${{ env.SUFFIX_P }}
           path: exec/
 
+      - name: rename MF executable
+        if: ${{ matrix.PARALLEL != 'serial' }}
+        run :  |
+          mv exec/Tantalus.${{ env.TANT_SUFFIX }}.exe exec/Tantalus.${{ env.SUFFIX }}.exe
+
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
@@ -780,18 +793,18 @@ jobs:
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
 
-      - name: Run parallel script
+      - name: Run fam_t0t3 script
         # Actually execute the test (source call to ensure MPIRUN is available)
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P ${{ matrix.THREADS }}
 
       - name: Upload test results
         if: success() || failure() # Always upload the code outputs
         uses: actions/upload-artifact@v4
         with:
-          name: fam_t0t3.${{ env.SUFFIX }}.logs
+          name: fam_t0t3.${{ env.SUFFIX }}.Nthreads=${{ matrix.THREADS }}.logs
           path: |
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out.bis
@@ -811,7 +824,7 @@ jobs:
         CONFIG  : [BXL, NLO]
         COMPILER: [ gfortran]
         CALCTYPE: [ NUCLEI  ]
-        MPI     : [ false   ]
+        PARALLEL: [ serial   ]
         include :
           - CONFIG: BXL
             PARAM : BSkG3
@@ -820,7 +833,7 @@ jobs:
 
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code
