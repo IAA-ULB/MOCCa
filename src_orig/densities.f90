@@ -765,7 +765,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R_total)
     !   kappa    real/complex matrix
     !
     ! Output:
-    !   R        densityvector   values of the mean-field densities.
+    !   R_total     densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
 
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
@@ -798,32 +798,31 @@ $ZEROING
     DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
     DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+    ! Make a copy to ensure everything is allocated
     R_total = R
     call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!$OMP PARALLEL PRIVATE(si, B, N, it,                & 
+!$OMP                  wave_i       ,wave_j       , &
+!$OMP                  wave_global_i,wave_global_j, & 
+!$OMP                  der_index_i  ,der_index_j,i, &
+!$OMP                  weight_sym, R,               &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )                             &
+!$OMP          SHARED ( rho, HFBlocks, R_total,     & 
+!$OMP                   spwf_map, denpsi, dendpsi,  & 
+!$OMP                   mv, denddpsi) DEFAULT(NONE)
+
     ! TODO: ensure that this loop can deal with more different symmetries
-    si = 0
+!$OMP DO
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
+      si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
-      !print *, B, 'THREAD', OMP_GET_THREAD_NUM(), 'out of', omp_get_max_threads()
-
-!$OMP PARALLEL PRIVATE(wave_i       ,wave_j       , &
-!$OMP                     wave_global_i,wave_global_j, & 
-!$OMP                     der_index_i  ,der_index_j,i, &
-!$OMP                     weight_sym, R,               &
-!$OMP                     $OMP_DENSITY_VARS            &
-!$OMP                     )  SHARED (si, N, rho, it, R_total, spwf_map, denpsi, dendpsi,mv, denddpsi) DEFAULT(NONE)
-      !
-      ! Ensure that the partial R is correctly zero-d.
-      !
-$ZEROING
-!$OMP DO
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         wave_global_i = spwf_map(wave_i)     ! Global spwf index
         ! TODO: enable store_derivatives option
@@ -843,14 +842,8 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
           enddo
         enddo
       enddo
-!$OMP END DO      
-!$OMP CRITICAL
-      R_total = R_total + R
-!$OMP END CRITICAL
-!$OMP END PARALLEL
-      si = si + N
     enddo
-    call stop_timer(T_den_ph)
+!$OMP END DO      
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
@@ -858,12 +851,16 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
     do it=1,2
 $DERIVATION_OFFDIAG_SYMMETRIC
     enddo
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
 $ISOSPINCOUPL_SYMMETRIC
-    R_total%D_I_I(:,3) = R_total%D_I_I(:,1) + R_total%D_I_I(:,2)
-    R_total%D_I_I(:,4) = R_total%D_I_I(:,1) - R_total%D_I_I(:,2)
+
+!$OMP CRITICAL
+    R_total = R_total + R
+!$OMP END CRITICAL
+!$OMP END PARALLEL
+    call stop_timer(T_den_ph)
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
     call construct_charge_density(R_total, sx_rho, sy_rho, sz_rho)
@@ -872,7 +869,7 @@ $ISOSPINCOUPL_SYMMETRIC
 
 end function densit_offdiag_symmetric
 
-function densit_offdiag_antisymmetric(rho, kappa) result(R)
+function densit_offdiag_antisymmetric(rho, kappa) result(R_total)
     !------------------------------ ---------------------------------------------
     ! Calculate the antisymmetric part(*) of the mean-field densities, both normal
     ! and pairing, based on arbitrary matrices rho and kappa.
@@ -884,10 +881,10 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     !   kappa    real/complex matrix
     !
     ! Output:
-    !   R        densityvector   values of the mean-field densities.
+    !   R_total  densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
-    type(DensityVector)          :: R
+    type(DensityVector)          :: R, R_total
 
     complex(KIND=dp)          :: weight_asym
     integer                   :: wave_i       , wave_j
@@ -916,7 +913,8 @@ $ZEROING
     DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
     DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+    ! Make a copy to ensure everything is allocated
+    R_total = R
     call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
@@ -928,6 +926,18 @@ $ZEROING
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
+
+!$OMP PARALLEL PRIVATE(wave_i       ,wave_j       , &
+!$OMP                  wave_global_i,wave_global_j, & 
+!$OMP                  der_index_i  ,der_index_j,i, &
+!$OMP                  weight_asym, R,              &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )  SHARED (si, N, rho, it, R_total, spwf_map, denpsi, dendpsi,mv, denddpsi) DEFAULT(NONE)
+      !
+      ! Ensure that the partial R is correctly zero-d.
+      !
+$ZEROING
+!$OMP DO
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         wave_global_i = spwf_map(wave_i) ! Global spwf index
         der_index_i = wave_i
@@ -949,6 +959,11 @@ $EXPRESSION_OFFDIAG_ANTISYMMETRIC
           enddo
         enddo
       enddo
+!$OMP END DO      
+!$OMP CRITICAL
+      R_total = R_total + R
+!$OMP END CRITICAL
+!$OMP END PARALLEL
       si = si + N
     enddo
     call stop_timer(T_den_ph)
