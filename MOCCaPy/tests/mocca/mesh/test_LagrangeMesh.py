@@ -3,9 +3,9 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from matplotlib.ticker import LinearLocator
 
 from mocca.mesh import LagrangeMesh
+from mocca.mesh.lagrange import create_mesh
 from mocca.mesh.observable import Observable
 
 project_folder = Path(__file__)
@@ -466,43 +466,43 @@ def test_LagrangeMesh_interpolate1D():
 
 def test_LagrangeMesh_interpolate2D():
     """"""
-    # d = 1.
-    # N = 3
-    # mesh  = LagrangeMesh(dim=2, M=2*N, d=d, reduced=False)
-    # rgp = np.empty((mesh.n_gridpoints(),2),dtype=float,order='F')
-    # rgp[:,0] = mesh.gridx.ravel(order='F')
-    # rgp[:,1] = mesh.gridy.ravel(order='F')
-    #
-    # for reduced in [ (False, False)
-    #                # , (False, True)
-    #                # , (True, False)
-    #                # , (True, True)
-    #                ]:
-    #
-    #     px = np.linspace(-N*d, N*d, num=61)
-    #     for ip in range(len(px)):
-    #         if px[ip] in mesh.gx:
-    #             px[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
-    #     py = np.linspace(-N*d, N*d, num=61)
-    #     for ip in range(len(py)):
-    #         if py[ip] in mesh.gy:
-    #             py[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
-    #     nx = len(px)
-    #     ny = len(py)
-    #     rip = np.empty((nx*ny,2),dtype=float,order='F')
-    #     for ip in range(ny):
-    #         rip[ip*nx:(ip+1)*nx, 0] = px
-    #         rip[ip*ny:(ip+1)*ny, 1] = py[ip]
-    #
-    #     for ibfx in range(2*N):
-    #         for ibfy in range(2*N):
-    #             bf_rgp = mesh.basis_function((ibfx,ibfy), rgp)
-    #             bf_rip = mesh.basis_function((ibfx,ibfy), rip)
-    #
-    #             Q = Observable( bf_rgp, symmetry=1)
-    #             Qrip = mesh.interpolate(Q, rip)
-    #
-    #             assert ((bf_rip - Qrip) < 1e-12).all()
+    d = 1.
+    N = 3
+
+    for reduced in [ (False, False)
+                   # , (False, True)
+                   # , (True, False)
+                   # , (True, True)
+                   ]:
+        mesh  = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
+        rgp = np.empty((mesh.n_gridpoints(),2), dtype=float, order='F')
+        rgp[:,0] = mesh.gridx.ravel(order='F')
+        rgp[:,1] = mesh.gridy.ravel(order='F')
+
+        nx = 13
+        px = np.linspace(-N*d, N*d, num=nx)
+        for ip in range(len(px)):
+            if px[ip] in mesh.gx:
+                px[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
+
+        ny = 13
+        py = np.linspace(-N*d, N*d, num=ny)
+        for ip in range(len(py)):
+            if py[ip] in mesh.gy:
+                py[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
+
+        rip = create_mesh(px, py)
+
+        for ibfx in range(2*N):
+            for ibfy in range(2*N):
+                bf_rgp = mesh.basis_function((ibfx,ibfy), rgp)
+                bf_rip = mesh.basis_function((ibfx,ibfy), rip)
+
+                Q = Observable( bf_rgp, symmetry=[1,-1])
+                Qrip = mesh.interpolate(Q, rip)
+                for i in range(len(rip)):
+                    print(f"{i=} {bf_rip[i]} {Qrip[i]} {bf_rip[i] - Qrip[i]}")
+                assert ((bf_rip - Qrip) < 1e-12).all()
 
 
 def test_LagrangeMesh_interpolate3D():
@@ -517,3 +517,62 @@ def test_LagrangeMesh_interpolate3D():
 
     Qr = mesh.interpolate(Q, r)
     print(Qr)
+
+def test_create_mesh():
+    # Because create_mesh(gx,gy,gz) internally calls create_mesh(gx,gy), we do not need a separate test for the 2D case
+    # the 1D case is trivial
+
+    gx = np.array([1,2], dtype=float)
+    gy = 10*gx
+    gz = 10*gy
+    nx = len(gx)
+    ny = len(gy)
+    nz = len(gz)
+    gxyz = create_mesh(gx, gy, gz)
+    for i in range(nx*ny*nz):
+        assert gxyz[i,0] == gx[i   %2]
+        assert gxyz[i,1] == gy[i//2%2]
+        assert gxyz[i,2] == gz[i//4%2]
+
+def test_LagrangeMesh_lagrange_function():
+    for reduced in [False, True]:
+
+        print(f"1D case, {reduced=}")
+        mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
+        for ix,xi in enumerate(mesh.grid):
+            fgridx = mesh.lagrange_function(mesh.gridx, ix)
+            for (f,x) in zip(fgridx[0],mesh.gridx):
+                if x == xi:
+                    assert np.isnan(f), f"{ix=} {xi=} {f=} expected nan"# corner case due to 0/0, which by l'Hopitals rule should be 1
+                else:
+                    assert f == pytest.approx(.0, abs=1e-14), f"{ix=} {xi=} {f=} expected 0,0"
+
+        print(f"2D case, {reduced=}")
+        mesh = LagrangeMesh(dim=2, M=6, d=1, reduced=False)
+        ixy = 0
+        for iy in range(mesh.M[1]):
+            for ix in range(mesh.M[0]):
+                fgridxy = mesh.lagrange_function(mesh.grid + 1e-12,(ix,iy))
+                fgridxy = fgridxy[0]
+                for ig, (f,x) in enumerate(zip(fgridxy,mesh.grid)):
+                    if ixy == ig:
+                        assert f == pytest.approx(1., abs=1e-14), f"{ig=} {ixy=} {f=} expected 1.0"
+                    else:
+                        assert f == pytest.approx(.0, abs=1e-10), f"{ig=} {ixy=} {f=} expected 0.0"
+                        # print("ok")
+                ixy += 1
+
+        print(f"3D case, {reduced=}")
+        mesh = LagrangeMesh(dim=3, M=6, d=1, reduced=False)
+        ixyz = 0
+        for iz in range(mesh.M[2]):
+            for iy in range(mesh.M[1]):
+                for ix in range(mesh.M[0]):
+                    fgridxyz = mesh.lagrange_function(mesh.grid + 1e-12, (ix,iy,iz))
+                    fgridxyz = fgridxyz[0]
+                    for ig, (f,xyz) in enumerate(zip(fgridxyz,mesh.grid)):
+                        if ixyz == ig:
+                            assert f == pytest.approx(1., abs=1e-10), f"{ig=} {ixyz} {f=} expected 1.0"
+                        else:
+                            assert f == pytest.approx(.0, abs=1e-10), f"{ig=} {ixyz} {f=} expected 0.0"
+                    ixyz += 1
