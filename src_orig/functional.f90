@@ -2030,8 +2030,6 @@ $K4POT
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot_complex
 
-
-#if( $FAM == 0)
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
 &                                        sx,sy,sz,iso, onthefly, Fin) result(hpsi)
@@ -2230,7 +2228,6 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
 $PAIRINGACTION
 
   end function delta_action
-#endif
 
   function calcspwfenergy() result(spwfenergy)
     !---------------------------------------------------------------------------

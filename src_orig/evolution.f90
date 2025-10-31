@@ -304,7 +304,7 @@ contains
 !===============================================================================
 ! Evolution routines 
 !===============================================================================
-#if( $FAM == 0)
+    !  #if( $FAM == 0) NOTE: to renable
     subroutine Evolve_graddesc(F,iteration)
         !-----------------------------------------------------------------------
         ! 
@@ -1346,6 +1346,51 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       call stop_timer(T_subspace_rotation)
     end subroutine apply_subspace_rotation
 
+    function calculate_spwf_dispersions(F) result(spwf_dispersions)
+      !-------------------------------------------------------------------------
+      ! Calculate the single-particle wavefunction dispersions explicitly. 
+      ! Attention: this requires the application of the single-particle 
+      !   hamiltonian on all spwfs; this routine comes at a CPU cost.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Input:
+      !   None (uses global variables)
+      ! Output:
+      !   spwf_dispersions: array containing the dispersions of all spwfs
+      !-------------------------------------------------------------------------
+      type(PotentialVector), intent(in) :: F
+      integer                    :: wave , iso, wave_global
+      real(KIND=dp), allocatable :: hpsi(:,:)
+      real(KIND=dp), allocatable :: spwf_dispersions(:)
+      real(KIND=dp)              :: energy
+#if(USE_MPI > 0)
+      integer                    :: mpi_err
+#endif
+
+      allocate(spwf_dispersions(nwt))
+      do wave=1,nwt_local 
+          wave_global = spwf_map(wave)
+          if(wave_global .le. nwn) then
+              iso = -1
+          else
+              iso = +1
+          endif
+  
+          hpsi = apply_sphamil( hfpsi(:,:,wave),                           &
+          &              hfdpsi(:,:,:,wave)    ,                           &
+          &              hfddpsi(:,:,:,wave)   ,                           &
+$N3       &              hfdddpsi(:,:,:,wave)  ,                           &
+          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
+
+          energy = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+          spwf_dispersions(wave_global) = sum(hpsi**2)*dv - energy**2
+      enddo
+
+#if(USE_MPI > 0)
+     call MPI_ALLREDUCE(MPI_IN_PLACE,spwf_dispersions, nwt, MPI_REAL8,        &
+      &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+#endif
+    end function calculate_spwf_dispersions
+
     !subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
     !  !------------------------------------------------------------------------
     !  ! TODO: document
@@ -1564,7 +1609,7 @@ $N3       &                                         dddmax,                    &
         dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar *  stepsize_safety
       endif  
   end subroutine IterativeEstimation
-#endif
+!#endif ! TO renable!
 !===============================================================================
 ! Projection on the feasible subspace routine
 !===============================================================================  

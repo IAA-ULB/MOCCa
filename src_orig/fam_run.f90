@@ -73,28 +73,22 @@ program run_FAM
   Density     = densit(rho_can, kappa_pairing)
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
-  !sphamil     = Calc_Sphamil(potentials, .true.)
+  sphamil     = Calc_Sphamil(potentials, .true.)
 
   ! ATTENTION: this explicit diagonalisation can break the apparent agreement
   !            between proton and neutron matices since the LAPACK diagonalisation
   !            might perform different rotations of the spwfs dependent on small
   !            numerical details.
-  ! TODO: reenable once visual inspections are no longer necessary.
-
-  !  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-  !  ! diagonalisation done; now recalculate other quantities
-  !  if(store_derivatives) call deriveHF() ! and update derivatives
-  !  Density     = densit(rho_can, kappa_pairing)
-  !  Potentials  = calcPotentials(Density)
-  !  sphamil     = Calc_Sphamil(potentials, .true.)
-
-  ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
-  !       well-converged such that an explicit orthonormalisation will not change
-  !       our mean-field state in any meaningful way. In the future, we might want
-  !       to resolve the whole "pairing subproblem" again here and check that the
-  !       structure does not vary too much.
-
-
+  dispersions = calculate_spwf_dispersions(potentials)
+  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+  if(store_derivatives) call deriveHF() ! and update derivatives
+  ! Explicitly recalculate dispersion to provide an idea of the quality of the mean-field state
+  dispersions = calculate_spwf_dispersions(potentials)
+  ! diagonalisation done; now recalculate other quantities
+  call SolvePairing(pairingscheme, ifail)
+  Density     = densit(rho_can, kappa_pairing)
+  Potentials  = calcPotentials(Density)
+  sphamil     = Calc_Sphamil(potentials, .true.)
   !----------------------------------------------------------------------------------
   ! Step 0b: calculate all relevant quantities on the meanfield level to enable a
   !          complete printout
@@ -105,8 +99,6 @@ program run_FAM
   call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
   call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
-
-
 
   !---------------------------------------------------------------------------------
   ! construct the full HF densities rather than the merely the vector rho_can
