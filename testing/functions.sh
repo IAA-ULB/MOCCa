@@ -272,7 +272,7 @@ get_strength (){
 
     local strength_value=$(awk -v omega="$omega" '
     $1 == omega {
-        print $3
+        print $10
         exit
     }
     ' "$file")
