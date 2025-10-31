@@ -577,7 +577,12 @@ $TR S = 2 * S ! Time-reversal factor 2
 
   subroutine calc_strength_decomp(S_complex, strength)
     !---------------------------------------------------------------------------
-    !
+    ! Calculate the complex response and the strength decomposed into
+    ! different symmetry channels. For now, this assumes that the perturbing
+    ! operator must respect all symmetries, i.e. diagonal in tau,pi,z-sign. 
+    ! In the future, applying the idea for a non-trivial perturbation operator
+    ! would require to loop over the blocks in a (partial) off-diagonal way, 
+    ! e.g. pi=-pi' when l is odd. 
     !---------------------------------------------------------------------------
 
     complex(KIND=dp), intent(out) :: S_complex(8) 
@@ -587,8 +592,10 @@ $TR S = 2 * S ! Time-reversal factor 2
 
     if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
 
-    if (mod(l,2) == 1) then
-      print *, "NOT IMPLEMENTED :: calc_strength_decomp not applicable when l is odd"
+    if (mod(l,2) == 1 .or. mod(m,2) == 1) then
+      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
+      print *, "calling calc_strength() instead"
+      call calc_strength()
       return
     endif
 
