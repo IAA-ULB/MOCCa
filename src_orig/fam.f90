@@ -594,8 +594,8 @@ $TR S = 2 * S ! Time-reversal factor 2
 
     if (mod(l,2) == 1 .or. mod(m,2) == 1) then
       print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
-      print *, "calling calc_strength() instead"
-      call calc_strength()
+      ! print *, "calling calc_strength() instead"
+      ! call calc_strength()
       return
     endif
 
