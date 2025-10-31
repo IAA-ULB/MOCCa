@@ -20,7 +20,10 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
-  real(kind=dp) :: strength, strength_free
+  real(kind=dp) :: strength_free
+
+  complex(KIND=dp) :: S_complex_decomp(8) = 0
+  real(KIND=dp) :: S_decomp(8) = 0
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
@@ -109,12 +112,19 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  ! call test_gmres_affine()
-  ! stop
+  !---------------------------------------------------------------------------------
+  ! Evaluate the energy weighted sum rule
+  ewsr = calc_EWSR()
+
+
+  !---------------------------------------------------------------------------------
+  ! create the FAM output file
+  call init_fam_file_new(famfile)
+
+
 
   !---------------------------------------------------------------------------------
   ! allocate the single-particle hamiltonians 
-
   if(.not. allocated(dH_flat)) then
     allocate(dH_flat(nwt*nwt))
   endif
@@ -122,10 +132,6 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
-
-  !---------------------------------------------------------------------------------
-  ! create the FAM output file
-  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -270,7 +276,11 @@ program run_FAM
     print *, "          S     = ", strength 
     print 1
 
-    call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
+    call calc_strength_decomp(S_complex_decomp, S_decomp)
+
+    ! call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
+
+    call append_fam_file_new(S_decomp, num_iter, famfile)
 
     omega_curr = omega_curr + omega_step
 

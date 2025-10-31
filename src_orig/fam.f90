@@ -42,6 +42,13 @@ module fam
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to Gamma = 2 * smear 
   !-----------------------------------------------------------------------------
+  ! FAM strength
+  complex(KIND=dp) :: strength_complex = CMPLX(0.0_dp,0.0_dp,KIND=dp)
+  !    the complex strength S(w,F) = Tr(F^dagger drho(w))
+  real(KIND=dp) :: strength = 0.0_dp
+  !    the transition strength (aka dB/dw) obtained as - 1/pi * Im(strength_complex)
+  real(KIND=dp) :: ewsr = 0.0_dp ! energy weighted sum rule
+  !-----------------------------------------------------------------------------
   ! mixing strategy
   integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
   !                                 1 : linear mixing of dH
@@ -521,22 +528,24 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
   end subroutine build_dH_explicit
 
 
-  function calc_strength() result (S_out)
+ function calc_strength() result (res)
     !---------------------------------------------------------------------------
-    ! Calculate the strength S(omega,F)
+    ! Calculate the strength S(omega,F) and store output in strength and 
+    ! strength_complex and return strength
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! obtained from 
-    !     S(omega,F) = - 1 /pi * Im Tr (F^dagger * drho)
-    ! where 
-    !    Tr (F^dagger * drho) = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! strength_complex is defined as 
+    !     strength_complex = Tr (F^dagger * drho)
+    !                      = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! while the strength  
+    !     strength = -1/pi * strength_complex
     ! 
     ! note: 
     !  - normalisation of external field may have to be taken into account
     !    S -> S/alpha
     !---------------------------------------------------------------------------
 
-    complex(KIND=dp) :: S
-    real(KIND=dp) S_out
+    complex(KIND=dp) :: S = 0
+    real(KIND=dp) :: res
     integer :: h, p
     real(KIND=dp) :: occ_h, occ_p
 
@@ -557,9 +566,73 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
 $TR S = 2 * S ! Time-reversal factor 2
 
-    S_out = - S%im / pi
+    strength_complex = S 
+    strength = - strength_complex%im / pi
+
+    ! return the strength
+    res = strength
 
   end function calc_strength
+
+
+  subroutine calc_strength_decomp(S_complex, strength)
+    !---------------------------------------------------------------------------
+    ! Calculate the complex response and the strength decomposed into
+    ! different symmetry channels. For now, this assumes that the perturbing
+    ! operator must respect all symmetries, i.e. diagonal in tau,pi,z-sign. 
+    ! In the future, applying the idea for a non-trivial perturbation operator
+    ! would require to loop over the blocks in a (partial) off-diagonal way, 
+    ! e.g. pi=-pi' when l is odd. 
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp), intent(out) :: S_complex(8) 
+    real(KIND=dp), intent(out) :: strength(8)
+    integer :: h, p, B, N, si
+    real(KIND=dp) :: occ_h, occ_p
+
+    if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
+
+    if (mod(l,2) == 1 .or. mod(m,2) == 1) then
+      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
+      ! print *, "calling calc_strength() instead"
+      ! call calc_strength()
+      return
+    endif
+
+    S_complex = 0
+    strength = 0
+
+    si = 0
+
+    do B = 1, 8
+      N =  HFBlocks(B) ; if(N.eq.0) cycle
+      do h = si, si+N
+        occ_h = rho_can(h)
+        if(occ_h < 1d-6) cycle
+        do p = si, si+N
+$TR         occ_p = 2.0d0 - rho_can(p) 
+$NTR        occ_p = 1.0d0 - rho_can(p) 
+          if(occ_p < 1d-6) cycle
+          S_complex(B) = S_complex(B) + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
+        enddo
+      enddo
+      si = si + N
+    enddo
+$TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
+    strength(:) = - S_complex(:)%im / pi
+
+    if (fam_verbose > 0) then
+      print *, 'Decomposed strength : '
+      print * , 'S_n+ : (', strength(1), ' , ', strength(2), ' )'
+      print * , 'S_n- : (', strength(3), ' , ', strength(4), ' )'
+      print * , 'S_p+ : (', strength(5), ' , ', strength(6), ' )'
+      print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
+      print * , 'S_tot : ', sum(strength(:))
+    endif
+
+
+
+  end subroutine calc_strength_decomp
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------
@@ -707,6 +780,54 @@ $TR S = 2 * S ! Time-reversal factor 2
     call get_ph_hp_blocks(f_LK_spme, f_LK_ph_hp(:,:,1), f_LK_ph_hp(:,:,2))
 
     deallocate(f_LK_spme)
+
+  end function
+
+
+  function calc_EWSR() result (ewsr)
+    !---------------------------------------------------------------------------
+    ! Compute the energy weighted sum rule from a ground-state 
+    ! expectation value. When Thouless' theorem is applicable, then this value 
+    ! should equal the first-moment of the strength function, i.e.
+    ! m_1(F) = int_0^inf dE E S(E, F). 
+    ! Expressions are taken from N. Hinohara PRC 91, 044323 (2015)
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: ewsr
+    type(Moment), pointer  :: moment_ptr
+
+    ewsr = 0
+
+    ! isovector perturbations
+    if(eff_charge_n .ne. eff_charge_p) then
+      print *, 'NOT IMPLEMENTED: only isoscalar pertubations are implemented for now'
+      ! this would require an enhancement factor kappa
+      return
+    endif
+
+    ! isoscalar monopole
+    if(l == 0) then
+      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
+      ewsr =  4.0 * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons
+
+    ! isoscalar quadrupole
+    else if(l == 2) then
+      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
+      ewsr = (5.0 / (2.0 * pi)) * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons 
+
+      ! deformation correction, still to be worked out for more general shapes. 
+      print *, 'INCOMPLETE: deformation correction for EWSR assumes axial shape '
+
+      ! For axial nuclei, correction with mass quadruple deformation beta20
+      moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20>
+      ewsr = ewsr * (1 + sqrt(5./(4.*pi)) * moment_ptr%beta(4))
+
+    else 
+      print *, 'NOT IMPLEMENTED: only monopole (l=0) and quadrupole (l=2) EWSR implemented for now'
+      return
+    endif
+
+
+    print *, "Energy weighted sum rule : m1 = ", ewsr
 
   end function
 

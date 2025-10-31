@@ -99,6 +99,7 @@ module gmres
     gmres_histmax = histmax
     gmres_precision = prec
     gmres_hist = 0
+    gmres_iter = 0
 
     ! set the procedure pointers
     apply_A => A_proc
