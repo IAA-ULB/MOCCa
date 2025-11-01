@@ -5,9 +5,17 @@ version = "0.1.0"
 description = "MOCCaPy - a Pythonic interface to MOCCa"
 readme = "readme.md"
 requires-python = ">=3.12"
+
 dependencies = [
+    "numpy>=2.3.4",
+]
+
+[project.optional-dependencies]
+chem = ["mendeleev>=1.1.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
     "matplotlib>=3.10.7",
     "numba>=0.62.1",
-    "numpy>=2.3.4",
-    "pytest>=8.4.2",
 ]
