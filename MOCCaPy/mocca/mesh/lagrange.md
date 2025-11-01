@@ -119,7 +119,7 @@ On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the in
 ![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_4.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_5.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_functions.png)
 Clearly, each one yields 1 at one grid point and 0 at the others. Note also that they are antiperiodic: they reenter the box at the opposite edge, but **with a sign change**.
 Consequently, a constant function cannot be interpolated because it is periodic. The sum of the 6 Lagrange functions is shown below. it is definitely not the constant function $f(x)=1$.
-![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/sum_lagrange_function.png)
+![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/sum_lagrange_functions.png)
 According to the discussion in [github issue 52](https://github.com/IAA-nuclear/tantalus_full/issues/52) periodic functions can be interpolated with Lagrange functions provided they vanish at the boundary of the interval.
 ### Derivatives
 The formula for the derivative of a function $h$ expanded on a reduced grid is found easily by extending the column vector $\mathbf{h}$ (of length $N$) on the reduced grid as 
