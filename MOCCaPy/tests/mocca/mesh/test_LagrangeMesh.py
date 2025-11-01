@@ -467,50 +467,70 @@ def test_LagrangeMesh_interpolate1D():
 def test_LagrangeMesh_interpolate2D():
     """"""
     d = 1.
-    N = 5
+    N = 2
+    ng = 61
+    r = np.linspace(-2,2,num=ng)
+    xy = create_mesh(r, r)
+    xy += 1e-9
+    x = xy[:,0].reshape((ng,ng), order='F')
+    y = xy[:,1].reshape((ng,ng), order='F')
 
     for reduced in [ (False, False)
                    # , (False, True)
                    # , (True, False)
                    # , (True, True)
                    ]:
-        mesh  = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
-        rgp = mesh.grid + 1e-12
-
-        nx = 13
-        px = np.linspace(-N*d, N*d, num=nx)
-        for ip in range(len(px)):
-            if px[ip] in mesh.gx:
-                px[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
-
-        ny = 13
-        py = np.linspace(-N*d, N*d, num=ny)
-        for ip in range(len(py)):
-            if py[ip] in mesh.gy:
-                py[ip] += 1e-12 # avoid 0/0 in the Lagrange Functions
-
-        rip = create_mesh(px, py)
+        mesh = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
 
         for ibfx in range(2*N):
             for ibfy in range(2*N):
                 # values of the basis function at the grid points (with a very small offset)
-                bf_rgp = mesh.basis_function((ibfx,ibfy), rgp) # the interpolated quantity
-                # bf_rip = mesh.basis_function((ibfx,ibfy), rip) # the expected values
-                # fig, ax = plt.subplots()
-                # plt.plot(mesh.gx, bf_rgp[: 6,0],'o')
-                # plt.plot(     px, bf_rip[13:26,0])
-                # plt.show()
+                bf_xy = mesh.basis_function((ibfx,ibfy), xy) # the interpolated quantity
+                bf_real = bf_xy[:, 0].reshape((ng, ng), order='F')
+                bf_imag = bf_xy[:, 1].reshape((ng, ng), order='F')
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
+                ax.plot_surface(x, y, bf_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(test_folder / f"basis_function_({ibfx},{ibfy}).png")
+                plt.show()
+                plt.close(fig)
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
+                ax.plot_surface(x, y, bf_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(test_folder / f"BF_real({ibfx},{ibfy}).png")
+                plt.show()
+                plt.close(fig)
+
+                # compute the values of the basis function at the grid points
+                bf_xy_g = mesh.basis_function((ibfx,ibfy), mesh.grid)
                 # wrap the interpolated quantity in an observable
-                Q = Observable( bf_rgp, symmetry=[1,-1])
-                # interpolate Q at rip
-                Qrip = mesh.interpolate(Q, rgp)
-                for i in range(2*N*2*N):
-                    assert Qrip[i, 0] == pytest.approx(bf_rgp[i, 0], abs=1e-10), f"bf ({ibfx},{ibfy}) real {i=} {bf_rgp[i, 0]} {Qrip[i,0]}"
-                    # assert Qrip[i, 1] == pytest.approx(bf_rgp[i, 1], abs=1e-10), f"bf ({ibfx},{ibfy}) imag {i=} {bf_rgp[i, 1]} {Qrip[i,1]}"
-                print(f"bf ({ibfx},{ibfy}) ok")
-                #     print(f"real {i=} {bf_rgp[i, 0]} {Qrip[i,0]}")
-                #     print(f"imag {i=} {bf_rgp[i, 1]} {Qrip[i,1]}")
-                # assert ((bf_rip - Qrip) < 1e-12).all()
+                Q = Observable( bf_xy_g, symmetry=[1,-1])
+
+                # interpolate Q at xy
+                Qxy = mesh.interpolate(Q, xy)
+                Qxy_real = Qxy[:, 0].reshape((ng, ng), order='F')
+                Qxy_imag = Qxy[:, 1].reshape((ng, ng), order='F')
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'BF real x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
+                ax.plot_surface(x, y, Qxy_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(test_folder / f"BF_real({ibfx},{ibfy})_interpolated.png")
+                plt.show()
+                plt.close(fig)
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'BF imag x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
+                ax.plot_surface(x, y, Qxy_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(test_folder / f"BF_real({ibfx},{ibfy})_interpolated.png")
+                plt.show()
+                plt.close(fig)
+
+                print(f"({ibfx}, {ibfy})")
+                for i in range(len(Qxy_real)):
+                    assert Qxy[i,0] == pytest.approx(bf_xy[i,0]), f"{i=} {Qxy[i,0]} != {bf_xy[i,0]}, |diff|={abs(Qxy[i,0]-bf_xy[i,0])}"
+                    assert Qxy[i,1] == pytest.approx(bf_xy[i,1]), f"{i=} {Qxy[i,1]} != {bf_xy[i,1]}, |diff|={abs(Qxy[i,1]-bf_xy[i,1])}"
 
 
 def test_LagrangeMesh_interpolate3D():
@@ -560,7 +580,7 @@ def test_LagrangeMesh_lagrange_function():
         ixy = 0
         for iy in range(mesh.M[1]):
             for ix in range(mesh.M[0]):
-                fgridxy = mesh.lagrange_function(mesh.grid + 1e-12,(ix,iy))
+                fgridxy = mesh.lagrange_function(mesh.grid + 1e-12,(ix,iy)) # returns a list
                 fgridxy = fgridxy[0]
                 for ig, (f,x) in enumerate(zip(fgridxy,mesh.grid)):
                     if ixy == ig:
@@ -584,3 +604,25 @@ def test_LagrangeMesh_lagrange_function():
                         else:
                             assert f == pytest.approx(.0, abs=1e-10), f"{ig=} {ixyz} {f=} expected 0.0"
                     ixyz += 1
+
+def test_LagrangeMesh_lagrange_function_plot2D():
+    M = 4
+    d = 1
+    mesh = LagrangeMesh(dim=2, M=M, d=d, reduced=False)
+    ng = 61
+    r = np.linspace(-2,2,num=ng)
+    xy = create_mesh(r, r)
+    x = xy[:,0].reshape((ng,ng), order='F')
+    y = xy[:,1].reshape((ng,ng), order='F')
+    for i in range(M):
+        for j in range(M):
+            ij = (i,j)
+            lf_ij = mesh.lagrange_function(xy, ij)[0]
+            lf_ij = lf_ij.reshape((ng,ng), order='F')
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]}')
+            ax.plot_surface(x, y, lf_ij, label='real', cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            plt.legend()
+            fig.savefig(test_folder / f"2D_lagrange_function_({i},{j}).png")
+            # plt.show()
+            plt.close(fig)

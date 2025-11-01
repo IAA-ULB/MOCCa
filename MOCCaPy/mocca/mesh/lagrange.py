@@ -522,12 +522,12 @@ class LagrangeMesh:
         Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
         N = len(self.gridx) if self.reduced[0] else len(self.gridx)//2
         ig = 0
-        for ix in range(self.M[0]):
-            for iy in range(self.M[1]):
+        for iy in range(self.M[1]):
+            for ix in range(self.M[0]):
                 for iq in range(nq):
                     q = Q[iq]
                     sign = Q.symmetry[iq]
-                    fxya = self.lagrange_function(r, (ix,iy), sign)
+                    fxya = self.lagrange_function (r, (ix,iy), sign)
                     if len(fxya) == 1:
                         Qr[:,iq] += q[ig] * fxya[0]
                     else:
