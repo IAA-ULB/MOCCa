@@ -112,7 +112,11 @@ This time we have a sum or a difference of two dot products $\mathbf{h}\cdot\mat
 Again the the arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$.
 #### General remark on interpolation with Lagrange functions
 On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the interval $[-1.5,1.5]$, these are the 6 Lagrange functions:
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_0.png)![]()
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_1.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_2.png) 
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_3.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_4.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_5.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_functions.png)
 Clearly, each one yields 1 at one grid point and 0 at the others. Note also that they are antiperiodic: they reenter the box at the opposite edge, but **with a sign change**.
 Consequently, a constant function cannot be interpolated because it is periodic. The sum of the 6 Lagrange functions is shown below. it is definitely not the constant function $f(x)=1$.
 ![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/sum_lagrange_function.png)
