@@ -381,15 +381,16 @@ def test_LagrangeMesh_interpolate1D():
             if not mesh.reduced[0]:
                 i = ii
                 negative_axis = False
-                print(f"{i}/{2*N}")
+                print(f"{reduced=} bf={i}/{2*N}")
             else:
                 i = ii//2
                 if ii % 2 == 0:
                     negative_axis = False
-                    print(f"+{i}/{2 * N}")
+                    print(f"{reduced=} bf={i}/{2 * N}")
                 else:
                     negative_axis = True
-                    print(f"-{i}/{2 * N}")
+                    print(f"{reduced=} bf=-{i}/{2 * N}")
+
 
             lcpw_rgp = mesh.basis_function(i,r  ,negative_axis=negative_axis)
             lcpw_rip = mesh.basis_function(i,rip,negative_axis=negative_axis)
@@ -468,12 +469,12 @@ def test_LagrangeMesh_interpolate2D():
     """"""
     d = 1.
     N = 2
-    ng = 61
-    r = np.linspace(-2,2,num=ng)
+    nip = 61
+    r = np.linspace(-2,2,num=nip)
     xy = create_mesh(r, r)
     xy += 1e-9
-    x = xy[:,0].reshape((ng,ng), order='F')
-    y = xy[:,1].reshape((ng,ng), order='F')
+    x = xy[:,0].reshape((nip,nip), order='F')
+    y = xy[:,1].reshape((nip,nip), order='F')
 
     for reduced in [ (False, False)
                    # , (False, True)
@@ -486,21 +487,21 @@ def test_LagrangeMesh_interpolate2D():
             for ibfy in range(2*N):
                 # values of the basis function at the grid points (with a very small offset)
                 bf_xy = mesh.basis_function((ibfx,ibfy), xy) # the interpolated quantity
-                bf_real = bf_xy[:, 0].reshape((ng, ng), order='F')
-                bf_imag = bf_xy[:, 1].reshape((ng, ng), order='F')
+                bf_real = bf_xy[:, 0].reshape((nip, nip), order='F')
+                bf_imag = bf_xy[:, 1].reshape((nip, nip), order='F')
 
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
                 plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
                 ax.plot_surface(x, y, bf_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
                 fig.savefig(test_folder / f"basis_function_({ibfx},{ibfy}).png")
-                plt.show()
+                # plt.show()
                 plt.close(fig)
 
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
                 plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
                 ax.plot_surface(x, y, bf_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
                 fig.savefig(test_folder / f"BF_real({ibfx},{ibfy}).png")
-                plt.show()
+                # plt.show()
                 plt.close(fig)
 
                 # compute the values of the basis function at the grid points
@@ -510,41 +511,70 @@ def test_LagrangeMesh_interpolate2D():
 
                 # interpolate Q at xy
                 Qxy = mesh.interpolate(Q, xy)
-                Qxy_real = Qxy[:, 0].reshape((ng, ng), order='F')
-                Qxy_imag = Qxy[:, 1].reshape((ng, ng), order='F')
+                Qxy_real = Qxy[:, 0].reshape((nip, nip), order='F')
+                Qxy_imag = Qxy[:, 1].reshape((nip, nip), order='F')
 
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
                 plt.title(f'BF real x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
                 ax.plot_surface(x, y, Qxy_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
                 fig.savefig(test_folder / f"BF_real({ibfx},{ibfy})_interpolated.png")
-                plt.show()
+                # plt.show()
                 plt.close(fig)
 
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
                 plt.title(f'BF imag x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
                 ax.plot_surface(x, y, Qxy_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
                 fig.savefig(test_folder / f"BF_real({ibfx},{ibfy})_interpolated.png")
-                plt.show()
+                # plt.show()
                 plt.close(fig)
 
-                print(f"({ibfx}, {ibfy})")
+                print(f"{reduced=} bf = ({ibfx}, {ibfy})")
                 for i in range(len(Qxy_real)):
                     assert Qxy[i,0] == pytest.approx(bf_xy[i,0]), f"{i=} {Qxy[i,0]} != {bf_xy[i,0]}, |diff|={abs(Qxy[i,0]-bf_xy[i,0])}"
                     assert Qxy[i,1] == pytest.approx(bf_xy[i,1]), f"{i=} {Qxy[i,1]} != {bf_xy[i,1]}, |diff|={abs(Qxy[i,1]-bf_xy[i,1])}"
 
 
 def test_LagrangeMesh_interpolate3D():
-    d = 0.5
-    mesh  = LagrangeMesh(dim=1, M=6, d=d, reduced=False)
-    Q = Observable( np.ones((mesh.n_gridpoints(),), dtype=float), symmetry=1)
-    N = len(mesh.gridx)//2
-    r = np.linspace(-N*d, N*d, num=61)
-    for i in range(61):
-        if r[i] in mesh.gridx:
-            r[i] += 1e-9
+    d = 1.
+    N = 2
+    nip = 21
+    r = np.linspace(-2,2,num=nip)
+    xyz = create_mesh(r, r, r)
+    xyz += 1e-9
+    x = xyz[:,0].reshape((nip,nip,nip), order='F')
+    y = xyz[:,1].reshape((nip,nip,nip), order='F')
+    z = xyz[:,2].reshape((nip,nip,nip), order='F')
 
-    Qr = mesh.interpolate(Q, r)
-    print(Qr)
+    for reduced in [ (False, False, False)
+                   # , (False, True)
+                   # , (True, False)
+                   # , (True, True)
+                   ]:
+        mesh = LagrangeMesh(dim=3, M=2*N, d=d, reduced=reduced)
+
+        for ibfx in range(2 * N):
+            for ibfy in range(2 * N):
+                for ibfz in range(2 * N):
+                    # values of the basis function at the grid points (with a very small offset)
+                    bf_xyz = mesh.basis_function((ibfx,ibfy,ibfz), xyz) # the interpolated quantity
+        
+                    # compute the values of the basis function at the grid points
+                    bf_xyz_g = mesh.basis_function((ibfx,ibfy,ibfz), mesh.grid)
+                    # wrap the interpolated quantity in an observable
+                    Q = Observable( bf_xyz_g, symmetry=[1,-1])
+    
+                    # interpolate Q at xy
+                    Qxyz = mesh.interpolate(Q, xyz)
+
+                    print(f"{reduced=} bf = ({ibfx}, {ibfy}, {ibfz})")
+                    debug =False
+                    if debug:
+                        for i in range(Qxyz.shape[0]):
+                            assert Qxyz[i,0] == pytest.approx(bf_xyz[i,0]), f"{i=} {Qxyz[i,0]} != {bf_xyz[i,0]}, |diff|={abs(Qxyz[i,0]-bf_xyz[i,0])}"
+                            assert Qxyz[i,1] == pytest.approx(bf_xyz[i,1]), f"{i=} {Qxyz[i,1]} != {bf_xyz[i,1]}, |diff|={abs(Qxyz[i,1]-bf_xyz[i,1])}"
+                    else:
+                        assert Qxyz == pytest.approx(bf_xyz)
+
 
 def test_create_mesh():
     # Because create_mesh(gx,gy,gz) internally calls create_mesh(gx,gy), we do not need a separate test for the 2D case
@@ -609,16 +639,16 @@ def test_LagrangeMesh_lagrange_function_plot2D():
     M = 4
     d = 1
     mesh = LagrangeMesh(dim=2, M=M, d=d, reduced=False)
-    ng = 61
-    r = np.linspace(-2,2,num=ng)
+    nip = 61
+    r = np.linspace(-2,2,num=nip)
     xy = create_mesh(r, r)
-    x = xy[:,0].reshape((ng,ng), order='F')
-    y = xy[:,1].reshape((ng,ng), order='F')
+    x = xy[:,0].reshape((nip,nip), order='F')
+    y = xy[:,1].reshape((nip,nip), order='F')
     for i in range(M):
         for j in range(M):
             ij = (i,j)
             lf_ij = mesh.lagrange_function(xy, ij)[0]
-            lf_ij = lf_ij.reshape((ng,ng), order='F')
+            lf_ij = lf_ij.reshape((nip,nip), order='F')
             fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
             plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]}')
             ax.plot_surface(x, y, lf_ij, label='real', cmap=cm.coolwarm, linewidth=0, antialiased=False)
