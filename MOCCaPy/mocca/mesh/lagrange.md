@@ -67,7 +67,7 @@ $$A_i(x)=\frac{\pi}{dx}(x-x_idx)=\pi(\frac{x}{dx}-x_i)$$
 This can be exploited for efficiency in a computation.
 An arbitrary function $h(x)$ taking the values $h_i =h(x_i)$ on the grid points can be interpolated on an arbitrary point $x\in[−Ndx,Ndx]$ as:
 [eq 9]
-$$h(x)= \sum_{i=0}^{2N-1} f_i h(x_i)(x)$$
+$$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
 This is essentially a dot product $\mathbf{f}\cdot\mathbf{h}$ .
 ### Derivatives
 The 1st and 2nd order derivatives of the Lagrange interpolation functions are:
@@ -158,7 +158,7 @@ The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mat
 $$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
 where the number of discretization points does not have to be the same in each direction. 
 
-Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
+Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis, and the grid spacing is not necessarily the same.
 ### Derivatives
  In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
 ### Basis functions
