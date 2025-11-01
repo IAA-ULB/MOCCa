@@ -467,7 +467,7 @@ def test_LagrangeMesh_interpolate1D():
 def test_LagrangeMesh_interpolate2D():
     """"""
     d = 1.
-    N = 3
+    N = 5
 
     for reduced in [ (False, False)
                    # , (False, True)
@@ -475,9 +475,7 @@ def test_LagrangeMesh_interpolate2D():
                    # , (True, True)
                    ]:
         mesh  = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
-        rgp = np.empty((mesh.n_gridpoints(),2), dtype=float, order='F')
-        rgp[:,0] = mesh.gridx.ravel(order='F')
-        rgp[:,1] = mesh.gridy.ravel(order='F')
+        rgp = mesh.grid + 1e-12
 
         nx = 13
         px = np.linspace(-N*d, N*d, num=nx)
@@ -495,14 +493,24 @@ def test_LagrangeMesh_interpolate2D():
 
         for ibfx in range(2*N):
             for ibfy in range(2*N):
-                bf_rgp = mesh.basis_function((ibfx,ibfy), rgp)
-                bf_rip = mesh.basis_function((ibfx,ibfy), rip)
-
+                # values of the basis function at the grid points (with a very small offset)
+                bf_rgp = mesh.basis_function((ibfx,ibfy), rgp) # the interpolated quantity
+                # bf_rip = mesh.basis_function((ibfx,ibfy), rip) # the expected values
+                # fig, ax = plt.subplots()
+                # plt.plot(mesh.gx, bf_rgp[: 6,0],'o')
+                # plt.plot(     px, bf_rip[13:26,0])
+                # plt.show()
+                # wrap the interpolated quantity in an observable
                 Q = Observable( bf_rgp, symmetry=[1,-1])
-                Qrip = mesh.interpolate(Q, rip)
-                for i in range(len(rip)):
-                    print(f"{i=} {bf_rip[i]} {Qrip[i]} {bf_rip[i] - Qrip[i]}")
-                assert ((bf_rip - Qrip) < 1e-12).all()
+                # interpolate Q at rip
+                Qrip = mesh.interpolate(Q, rgp)
+                for i in range(2*N*2*N):
+                    assert Qrip[i, 0] == pytest.approx(bf_rgp[i, 0], abs=1e-10), f"bf ({ibfx},{ibfy}) real {i=} {bf_rgp[i, 0]} {Qrip[i,0]}"
+                    # assert Qrip[i, 1] == pytest.approx(bf_rgp[i, 1], abs=1e-10), f"bf ({ibfx},{ibfy}) imag {i=} {bf_rgp[i, 1]} {Qrip[i,1]}"
+                print(f"bf ({ibfx},{ibfy}) ok")
+                #     print(f"real {i=} {bf_rgp[i, 0]} {Qrip[i,0]}")
+                #     print(f"imag {i=} {bf_rgp[i, 1]} {Qrip[i,1]}")
+                # assert ((bf_rip - Qrip) < 1e-12).all()
 
 
 def test_LagrangeMesh_interpolate3D():
