@@ -616,8 +616,8 @@ def test_LagrangeMesh_interpolate2D_bell(debug=False):
     prev = None
     for k,v in error.items():
         if prev is not None:
-            for (one,two) in zip(prev,v):
-                assert one == pytest.approx(two)
+            for i in range(v.shape[0]):
+                assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
 def test_LagrangeMesh_interpolate2D_bellx(debug=False):
@@ -680,47 +680,94 @@ def test_LagrangeMesh_interpolate2D_bellx(debug=False):
     prev = None
     for k,v in error.items():
         if prev is not None:
-            for (one,two) in zip(prev,v):
-                assert one == pytest.approx(two)
+            for i in range(v.shape[0]):
+                assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
 
-def test_LagrangeMesh_interpolate3D(debug=False):
+def test_LagrangeMesh_interpolate3D_bell(debug=False):
+    """"""
     d = 1.
-    N = 2
+    N = 10
     nip = 21
     r = np.linspace(-2,2,num=nip)
     xyz = create_mesh(r, r, r)
     xyz += 1e-9
-    x = xyz[:,0].reshape((nip,nip,nip), order='F')
-    y = xyz[:,1].reshape((nip,nip,nip), order='F')
-    z = xyz[:,2].reshape((nip,nip,nip), order='F')
 
-    for reduced in [ (False, False, False) # other cases do not apply to basis functions
-                   ]:
+    sigma = 1.0
+    bell = gauss(xyz, sigma=sigma)
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    error = {}
+    for reduced in [
+        (False, False, False),
+        (False, False, True),
+        (False, True, False),
+        (False, True, True ),
+        (True, False, False),
+        (True, False, True),
+        (True, True, False),
+        (True, True, True),
+    ]:
+        print(f"{reduced=}")
         mesh = LagrangeMesh(dim=3, M=2*N, d=d, reduced=reduced)
+        bell_g = gauss(mesh.grid, sigma=sigma)
 
-        for ibfx in range(2 * N):
-            for ibfy in range(2 * N):
-                for ibfz in range(2 * N):
-                    # values of the basis function at the grid points (with a very small offset)
-                    bf_xyz = mesh.basis_function((ibfx,ibfy,ibfz), xyz) # the interpolated quantity
-        
-                    # compute the values of the basis function at the grid points
-                    bf_xyz_g = mesh.basis_function((ibfx,ibfy,ibfz), mesh.grid)
-                    # wrap the interpolated quantity in an observable
-                    Q = Observable( mesh, data=bf_xyz_g)
-    
-                    # interpolate Q at xy
-                    Qxyz = mesh.interpolate(Q, xyz)
+        # wrap the interpolated quantity in an observable
+        Q = Observable(mesh, data=bell_g, symmetry=1)
+        # interpolate Q at xy
+        Qxyz = mesh.interpolate(Q, xyz)
 
-                    print(f"{reduced=} bf = ({ibfx}, {ibfy}, {ibfz})")
-                    if debug:
-                        for i in range(Qxyz.shape[0]):
-                            assert Qxyz[i,0] == pytest.approx(bf_xyz[i,0]), f"{i=} {Qxyz[i,0]} != {bf_xyz[i,0]}, |diff|={abs(Qxyz[i,0]-bf_xyz[i,0])}"
-                            assert Qxyz[i,1] == pytest.approx(bf_xyz[i,1]), f"{i=} {Qxyz[i,1]} != {bf_xyz[i,1]}, |diff|={abs(Qxyz[i,1]-bf_xyz[i,1])}"
-                    else:
-                        assert Qxyz == pytest.approx(bf_xyz)
+        err = np.abs(Qxyz-bell)
+        error[reduced] = err
+        # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
+    prev = None
+    for k,v in error.items():
+        if prev is not None:
+            for i in range(v.shape[0]):
+                assert v[i,0] == pytest.approx(prev[i,0])
+        prev = v
+
+def test_LagrangeMesh_interpolate3D_bellx(debug=False):
+    """"""
+    d = 1.
+    N = 10
+    nip = 21
+    r = np.linspace(-2,2,num=nip)
+    xyz = create_mesh(r, r, r)
+    xyz += 1e-9
+
+    sigma = 1.0
+    bellx = gauss(xyz, sigma=sigma) * xyz[:,0]
+
+    error = {}
+    for reduced in [
+        (False, False, False),
+        (False, False, True),
+        (False, True, False),
+        (False, True, True ),
+        (True, False, False),
+        (True, False, True),
+        (True, True, False),
+        (True, True, True),
+    ]:
+        print(f"{reduced=}")
+        mesh = LagrangeMesh(dim=3, M=2*N, d=d, reduced=reduced)
+        bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
+
+        # wrap the interpolated quantity in an observable
+        Q = Observable(mesh, data=bellx_g, symmetry=[[-1],[1],[1]])
+        # interpolate Q at xy
+        Qxyz = mesh.interpolate(Q, xyz)
+
+        err = np.abs(Qxyz-bellx)
+        error[reduced] = err
+        # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
+    prev = None
+    for k,v in error.items():
+        if prev is not None:
+            for i in range(v.shape[0]):
+                assert v[i,0] == pytest.approx(prev[i,0])
+        prev = v
 
 
 def test_create_mesh():
