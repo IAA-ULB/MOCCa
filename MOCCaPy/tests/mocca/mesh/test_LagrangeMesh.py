@@ -474,7 +474,7 @@ def test_LagrangeMesh_interpolate1D(debug=False):
         assert ((lcpw_rip - Qrip) < 1e-12).all()
 
 
-def test_LagrangeMesh_interpolate2D(debug=False):
+def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
     """"""
     d = 1.
     N = 2
@@ -546,6 +546,143 @@ def test_LagrangeMesh_interpolate2D(debug=False):
                 for i in range(len(Qxy_real)):
                     assert Qxy[i,0] == pytest.approx(bf_xy[i,0]), f"{i=} {Qxy[i,0]} != {bf_xy[i,0]}, |diff|={abs(Qxy[i,0]-bf_xy[i,0])}"
                     assert Qxy[i,1] == pytest.approx(bf_xy[i,1]), f"{i=} {Qxy[i,1]} != {bf_xy[i,1]}, |diff|={abs(Qxy[i,1]-bf_xy[i,1])}"
+
+def gauss(x, sigma):
+    if x.shape[1] == 3:
+        r2 = x[:,0]**2 + x[:,1]**2 + x[:,2]**2
+    elif x.shape[1] == 2:
+        r2 = x[:,0]**2 + x[:,1]**2
+    else:
+        r2 = x**2
+    return np.exp(-0.5*r2/sigma**2)/(sigma*np.sqrt(2*np.pi))
+
+def test_LagrangeMesh_interpolate2D_bell(debug=False):
+    """"""
+    d = 1.
+    N = 40
+    nip = 61
+    r = np.linspace(-2,2,num=nip)
+    xy = create_mesh(r, r)
+    xy += 1e-9
+    x = xy[:,0].reshape((nip,nip), order='F')
+    y = xy[:,1].reshape((nip,nip), order='F')
+
+    sigma = 1.0
+    bell = gauss(xy, sigma=sigma)
+    bell_plot = bell.reshape((nip,nip), order='F')
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    plt.title(f'bell')
+    ax.plot_surface(x, y, bell_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    fig.savefig(test_folder / "bell.png")
+    if debug:
+        plt.show()
+    plt.close(fig)
+    error = {}
+    for reduced in [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True )
+    ]:
+        mesh = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
+        bell_g = gauss(mesh.grid, sigma=sigma)
+
+        # wrap the interpolated quantity in an observable
+        Q = Observable(mesh, data=bell_g, symmetry=1)
+        # interpolate Q at xy
+        Qxy = mesh.interpolate(Q, xy)
+        Qxy_plot = Qxy.reshape((nip, nip), order='F')
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bell interpolated ({reduced=})')
+        ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(test_folder / f"bell_interpolated_({reduced=}).png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
+        err = np.abs(Qxy_plot-bell_plot)
+        error[reduced] = err
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bell interpolated error ({reduced=})')
+        ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(test_folder / f"bell_interpolated_error_({reduced=}).png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
+        # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
+    prev = None
+    for k,v in error.items():
+        if prev is not None:
+            for (one,two) in zip(prev,v):
+                assert one == pytest.approx(two)
+        prev = v
+
+def test_LagrangeMesh_interpolate2D_bellx(debug=False):
+    """"""
+    d = 1.
+    N = 40
+    nip = 61
+    r = np.linspace(-2,2,num=nip)
+    xy = create_mesh(r, r)
+    xy += 1e-9
+    x = xy[:,0].reshape((nip,nip), order='F')
+    y = xy[:,1].reshape((nip,nip), order='F')
+
+    sigma = 1.0
+    bellx = gauss(xy, sigma=sigma) * xy[:,0]
+    bellx_plot = bellx.reshape((nip,nip), order='F')
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    plt.title(f'bellx')
+    ax.plot_surface(x, y, bellx_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    fig.savefig(test_folder / "bellx.png")
+    if debug:
+        plt.show()
+    plt.close(fig)
+    error = {}
+    for reduced in [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True )
+    ]:
+        mesh = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
+        bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
+
+        # wrap the interpolated quantity in an observable
+        Q = Observable(mesh, data=bellx_g, symmetry=[[-1],[1]])
+        # interpolate Q at xy
+        Qxy = mesh.interpolate(Q, xy)
+        Qxy_plot = Qxy.reshape((nip, nip), order='F')
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bellx interpolated ({reduced=})')
+        ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(test_folder / f"bellx_interpolated_({reduced=}).png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
+        err = np.abs(Qxy_plot-bellx_plot)
+        error[reduced] = err
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bellx interpolated error ({reduced=})')
+        ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(test_folder / f"bellx_interpolated_error_({reduced=}).png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
+        # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
+    prev = None
+    for k,v in error.items():
+        if prev is not None:
+            for (one,two) in zip(prev,v):
+                assert one == pytest.approx(two)
+        prev = v
 
 
 def test_LagrangeMesh_interpolate3D(debug=False):
