@@ -38,6 +38,10 @@ $$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{2N-3}{2}, \pm\frac{2N-1}{2}$$
 or, since $kdx$ is a grid point, say, the $i$-th, $x_i$:
 [eq 5.1]
 $$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}\frac{x_i}{dx}x})=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix})$$
+>[!Note] 
+>Since $\exp(\mathrm{i}z)=\cos{z}+\mathrm{i}\sin{z}$ the real component of the 1D basis function is symmetric and the imaginary component is skew-symmetric. Consequently, we can use them for testing interpolation with Lagrange functions (see below) also on reduced grids.
+
+
 When $x$ is a grid point, e.g. $x=x_j$, we have 
 $$\phi_{x_i}(x_j)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{Ldx}x_ix_j}) =\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{2Ndxdx}(\frac{1}{2}+i-N)dx(\frac{1}{2}+j-N)dx}))$$
 $$=\frac{1}{\sqrt{L}}\exp({\frac{\pi\mathrm{i}}{N}(\frac{1}{2}+i-N)(\frac{1}{2}+j-N)})$$
@@ -102,14 +106,23 @@ $$x_i=(i+\frac{1}{2})dx$$
 $$i=0..N-1$$
 (In de case of reduced axis a shift $\sigma<dx$ may be subtracted from each grid point.)
 ### Interpolation
-An arbitrary function $h(x)$, $x\in[0,Ndx]$ taking the values $h_i =h(x_i)$ on the grid points on a reduced axis can be interpolated as :
-[eq 15]
-$$h(x)= \sum_{i=0}^{2N-1}h_i[f_i(x)\pm f_{-i}(x)]$$
-where $+$, resp. $-$, is selected if $h(x)$ is symmetric, resp. antisymmetric, and $f_{-i}(x)$ is the Lagrange interpolation function corresponding to the $i$-th grid point to the left of the origin:
-[eq 16]
+According to (eq 9) an arbitrary function $h(x)$ can be interpolated as:
+
+$$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
+If the $x$-axis is reduced, i.e. we require $h(x)$ to be symmetric ($h(-x)=h(x)$) or skew-symmetric ($h(-x)=-h(x)$), then the above equation becomes:
+$$h(x)=\sum_{i=0}^{N-1} h(x_i) f_i(x) + \sum_{i=0}^{N-1} h(-x_i) f_{-i}(x) $$
+where $f_{-i}(x)$ is the Lagrange interpolation function corresponding to the $i$-th grid point to the left of the origin
+[eq 14.1]
 $$f_{-i}(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x-x_{-i}dx))}{\sin(\frac{\pi}{dx}\frac{x-x_{-i}dx}{2N})}=\frac{1}{2N}\frac{\sin(\frac{\pi}{dx}(x+(\frac{1}{2}+i)dx))}{\sin(\frac{\pi}{dx}\frac{x+(\frac{1}{2}+i)dx}{2N})}$$
-This time we have a sum or a difference of two dot products $\mathbf{h}\cdot\mathbf{f_+} \pm \mathbf{h}\cdot\mathbf{f_-}$ 
-Again the the arguments of the two sine functions are the same, apart from a factor ${1}/{2N}$.
+which then becomes:
+$$h(x)= \sum_{i=0}^{N-1} \begin{cases} h(x_i)(f_i(x)+f_{-i}(x)), & h \text{ is symmetric} \\
+h(x_i)(f_i(x)-f_{-i}(x)), & h \text{ is skew-symmetric}
+\end{cases}$$
+or
+[eq 15]
+$$h(x)=\sum_{i=0}^{N-1} h(x_i)(f_i(x)\pm f_{-i})= \mathbf{h}\cdot\mathbf{f_{\pm}}$$
+where the $\pm$ is $+$ for the symmetric case and $-$ for the skew-symmetric case, and $\mathbf{f_{\pm}} = \mathbf{f_{+}} \pm \mathbf{f_{-}}$ 
+. 
 #### General remark on interpolation with Lagrange functions
 On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the interval $[-1.5,1.5]$, these are the 6 Lagrange functions:
 ![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_0.png)![]()
@@ -127,7 +140,7 @@ The formula for the derivative of a function $h$ expanded on a reduced grid is f
 $$\begin{bmatrix}\mathbf{\pm g}\\
 --\\
 \mathbf{h}\end{bmatrix}$$
-with $\mathbf{g}$ containing the same elements as $\mathbf{h}$ but in reverse order, if the function $h$ is symmetric, and its negatives in reverse order, if it antisymmetric as if they were mirrored by a horizontal line between the two, and then forming the matrix product 
+with $\mathbf{g}$ containing the same elements as $\mathbf{h}$ but in reverse order, if the function $h$ is symmetric, and its negatives in reverse order, if it skew-symmetric as if they were mirrored by a horizontal line between the two, and then forming the matrix product 
 [eq 18]
 $$\mathbf{D}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}=\begin{bmatrix}\mathbf{D^-}\\
@@ -136,7 +149,7 @@ $$\mathbf{D}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}\\----\\
 \mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}$$
-The upper half of $\mathbf{D}$, $\mathbf{D^-}$,  produces the derivatives on the negative $x$-axis, and the lower half of $\mathbf{D}$, $\mathbf{D^+}$,  produces the derivatives on the positive $x$-axis. The upper part and the lower part are obviously related by symmetry: if the function $h(x)$ is symmetric, then the derivative is antisymmetric and *vice versa*. Thus we are only interested in the lower part. Writing $\mathbf{D}^+$
+The upper half of $\mathbf{D}$, $\mathbf{D^-}$,  produces the derivatives on the negative $x$-axis, and the lower half of $\mathbf{D}$, $\mathbf{D^+}$,  produces the derivatives on the positive $x$-axis. The upper part and the lower part are obviously related by symmetry: if the function $h(x)$ is symmetric, then the derivative is skew-symmetric and *vice versa*. Thus we are only interested in the lower part. Writing $\mathbf{D}^+$
 as $[\mathbf{D}_{ll}|\mathbf{D}_{lr}]$ ($ll$ stands for lower-left and $lr$ for lower-right quadrant of $\mathbf{D}$) we find:
 [eq 19]
 $$\mathbf{D^+}\begin{bmatrix}\mathbf{\pm g}\\
@@ -177,6 +190,16 @@ Note that $\phi_k$, $\phi_l$ and $\phi_m$ are generally different objects, even 
 Alternatively, in the spirit of eq 5.1:
 [eq 24.1]
 $$\mathbf{k}=\begin{bmatrix}\frac{x_i}{L_xdx} & \frac{y_j}{L_ydy} & \frac{z_k}{L_zdz}\end{bmatrix}$$where the $x_i$, $y_j$, $z_k$ are grid coordinates in the $x$, $y$ and $z$ directions.
+
+>[!Note]
+Contrary to the 1D case, it is generally not true for the 2D and 3D cases that the basis functions are symmetric or skew-symmetric. 
+
+E.g. changing the sign of the $x$-coordinate in $\exp(2\pi\mathrm{i}(\mathbf{k}\cdot \mathbf{r}) = \exp(2\pi\mathrm{i}(\mathbf{k}\cdot [-x,y,z])$ yields
+$$\cos(-k_xx+k_yy+k_zz)+\mathrm{i}\sin(-k_xx+k_yy+k_zz)$$
+and $\cos(-k_xx+k_yy+k_zz)=\cos(k_xx+k_yy+k_zz)$ only if $k_yy+k_zz$ is a multiple of $2\pi$, which is generally not true. This can also be seen in the figures below. The plane waves are periodic only in the direction of the wave vector.
+![2D basis function real](MOCCaPy/tests/mocca/mesh/2D_basis_function_1_real.png) 
+
+![2D basis function real](MOCCaPy/tests/mocca/mesh/2D_basis_function_1_imag.png) 
 ### Interpolation
 As described by eq 23 Interpolating a scalar quantity $h$ at a single point requires a sum over all grid points which may be costly (speaking of working interactively). If $h$ needs to be interpolated on a large number of points, $p$,
 $$\mathbf{r} = \begin{bmatrix}x_0 & y_0 & z_0 \\
@@ -199,5 +222,5 @@ for all grid points ijk:
 	for all components h of H
 		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2])  
 ```
-Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$, where the sign is $+$ if $f$ is symmetric and $-$ if $f$ is antisymmetric.
+Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$, where the sign is $+$ if $h$ is symmetric w.r.t. $x$ and $-$ if $h$ is skew-symmetric w.r.t. $x$ . 
 

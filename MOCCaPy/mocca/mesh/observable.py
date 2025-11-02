@@ -3,41 +3,49 @@ import numpy as np
 
 class Observable:
     """Base class for observables."""
-    def __init__(self, data, symmetry=1):
+    def __init__(self, mesh, data=None, n_components=None, symmetry=1):
         """
         Args:
             data (np.array): Observable values on the mesh points. this array is reshaped as (n_gridpoints,n_components),
         """
-        self.data = data
-        self.n_gridpoints = data.shape[0]
+        self.mesh = mesh
 
-        if len(data.shape) == 1:
-            self.n_components = 1
-            self.data = data.reshape((self.n_gridpoints,1))
-            self.shape = (1,) # the shape or the observable itself, e.g. a rank-2 tensor in 3D has shape (3,3)
-            assert isinstance(symmetry, int)
-            self.symmetry = np.array([symmetry], order='F')
-
+        if data is None:
+            assert(n_components is not None)
+            self.data = np.empty((mesh.n_gridpoints(), n_components), dtype=float, order='F')
         else:
-            self.shape = data.shape[1:]
-            self.n_components = int(np.prod(self.shape))
-            self.data = data.reshape((self.n_gridpoints, self.n_components), order='F')
-            if isinstance(symmetry,(int,float)):
-                self.symmetry = symmetry * np.ones((self.n_components,), dtype=float, order='F')
-            else:
-                if not isinstance(symmetry,np.ndarray):
-                    self.symmetry = np.array(symmetry, dtype=float, order='F')
-                else:
-                    self.symmetry = symmetry
-                assert self.symmetry.shape == self.shape
-                self.symmetry = self.symmetry.reshape((self.n_components,), order='F')
+            assert data.shape[0] == mesh.n_gridpoints()
+            if len(data.shape) == 1:
+                data = np.reshape(data, (mesh.n_gridpoints(), 1))
+            if n_components is not None:
+                assert(n_components == data.shape[1])
+            self.data = data
 
-        for symm in self.symmetry:
-            assert symm == 1. or symm == -1.
+        self.n_components = self.data.shape[1]
+
+        self.symmetry = np.empty((mesh.dim, self.n_components), dtype=int, order='F')
+        if isinstance(symmetry, int):
+            self.symmetry[:,:] = symmetry
+        elif isinstance(symmetry, (tuple,list)):
+            assert(len(symmetry) == self.n_components)
+            for iq in range(self.n_components):
+                self.symmetry[:, iq] = symmetry[iq]
+        else:
+            assert(symmetry.shape == (mesh.dim, self.n_components))
+            self.symmetry = symmetry
+        for s in self.symmetry.ravel():
+            assert s in [1,-1]
+
+    @property
+    def n_gridpoints(self):
+        return self.mesh.n_gridpoints()
 
     def __getitem__(self, i) -> np.ndarray:
         """Get i-th component of the observable."""
         return self.data[:,i]
 
-    def get_symmetry(self, i) -> int:
-        return self.symmetry[i]
+    def integrate(self):
+        return self.mesh.integrate(self)
+
+    def sign(self,iq):
+        return self.symmetry[:,iq].ravel()
