@@ -743,7 +743,7 @@ jobs:
       matrix:
         COMPILER: [ gfortran, ifx]
         THREADS : [ 1 , 2, 4 ]
-        PARALLEL: [serial, OpenMP]
+        PARALLEL: [ OpenMP]
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
@@ -878,10 +878,10 @@ jobs:
         CONFIG  : [ NLO-T    ]
         COMPILER: [ gfortran]
         CALCTYPE: [ NUCLEI  ]
-        MPI     : [ false   ]
+        PARALLEL: [ serial   ]
     env:
       # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.${{ matrix.PARALLEL }}
     steps:
       # Ensure the testing scripts are available
       - name: Checkout code

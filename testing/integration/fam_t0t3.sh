@@ -329,8 +329,8 @@ fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $check_
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
-	echo -e "  tantalus : $tantalus_check, fam    : $fam_check, fam_T : $fam_T_check"
-	echo -e "  E_hf     : $check_energy, S20    : $check_strength, S20_T : $check_strength_T"
+	echo -e "  tantalus : $tantalus_check, fam    : $fam_check, fam_T : $fam_T_check, fam_P : $fam_P_check"
+	echo -e "  E_hf     : $check_energy, S20    : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P"
 else
 	echo -e "test FAM t0t3 :\033[1;31m failed ! tant : $tantalus_check, fam : $fam_check, E_hf : $check_energy, S20 : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P \033[0m"
 fi

@@ -107,14 +107,6 @@ program run_FAM
   !---------------------------------------------------------------------------------
   ! Evaluate the energy weighted sum rule
   ewsr = calc_EWSR()
-
-
-  !---------------------------------------------------------------------------------
-  ! create the FAM output file
-  call init_fam_file_new(famfile)
-
-
-
   !---------------------------------------------------------------------------------
   ! allocate the single-particle hamiltonians 
   if(.not. allocated(dH_flat)) then
