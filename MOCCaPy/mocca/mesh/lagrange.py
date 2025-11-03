@@ -406,20 +406,110 @@ class LagrangeMesh:
         result *= factor
         return result
 
-    def derive1(self, Q:npt.NDArray):
-        """Compute the 1st order derivative of a scalar quantity `q` on the mesh.
+
+    def derive1(self, Q, iq:int|None=None, axis:int=None, out:npt.NDArray=None) -> None:
+        """Compute the 1st order derivative of this Observable.
 
         Args:
-            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
-                to True
-
+            Q: An observable,
+            Axis: coordinate axis to which the derivative is taken. None, which means taking derivatives in all
+                directions, or an int in [0,Q.mesh.dim]. All components of Q are derived.
         Returns:
-
-
-        Raises:
-            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+            Nothing. The derivatives are stored in the observable Q
         """
         # TODO : implement
+        # TODO : test
+
+        if axis is None:
+            axes = [a for a in range(Q.mesh.dim)]
+        else:
+            axes = [axis]
+
+        shape = (Q.n_gridpoints, len(axes) * (1 if (iq is not None) else
+                                              Q.n_components))
+        if out is None:
+            out_ = np.empty(shape, dtype=float, order='F')
+        else:
+            assert out.shape == shape
+            out_ = out
+        iqax = 0
+        for iq in (range(Q.n_components) if (iq is None) else
+                   [iq]):
+            for ax in axes:
+                self._derive1(Q[iq], ax, out= out_[:,iqax])
+                iqax += 1
+
+        return out_
+
+    def _derive1(self, q:npt.NDArray, axis:int, sign:int=1, out:npt.NDArray=None) -> None:
+        """Compute a single 1st order derivative d_q/d_axis.
+
+        Args:
+            q: a component of an observable
+            axis: differentiate q wrt axis 0|1|2
+            sign: symmetry behaviour of q wrt axis 1|-1
+            out: where to store the result
+        Result:
+            an array containing dq/d_axis
+
+        Using [eq 10.1] in lagrange.md.
+        """
+        assert q.shape == (self.n_gridpoints(),)
+        assert 0 <= axis < self.dim
+        assert sign in (1,-1)
+
+        if out is None:
+            out_ = np.empty_like(q)
+        else:
+            assert out.shape == q.shape
+            out_ = out
+
+        D1 = self.get_D1(axis)
+        np.matmul(D1, q, out=out_)
+
+        return out_
+
+    def get_D1(self, axis: int) -> None:
+        """Return the matrix D1 (see eq 10.1 in lagrange.md) for axis."""
+        if not hasattr(self, 'D1'):
+            self.D1 = self.dim * [None]
+        if self.D1[axis] is None:
+            # Check if there is already a D1 for an other axis with the same characteristics
+            for ax in range(self.dim):
+                if ax != axis:
+                    if  (not self.D1[ax] is None)    and \
+                        (self.M[axis] == self.M[ax]) and \
+                        (self.d[axis] == self.d[ax]) and \
+                        (self.reduced[axis] == self.reduced[ax]):
+                        self.D1[axis] = self.D1[ax]
+                        break
+            else: # no break
+                self.D1[axis] = self.compute_D1(axis)
+        return self.D1[axis]
+
+    def compute_D1(self, axis) -> None:
+        """Compute the matrix D1 (see eq 10.1 in lagrange.md) for axis."""
+        if not self.reduced[axis]:
+            # eq 10.1 in lagrange.md
+            ng = self.n_gridpoints()
+            alternating_sign = np.empty((ng+1), dtype=float)
+            alternating_sign[::2] = 1
+            alternating_sign[1::2] = -1
+            i = np.linspace(0, ng-1, ng)
+            D1 = np.empty((ng,ng), dtype=float)
+            for j in range(ng):
+                row  = i-j
+                row *= (np.pi / ng) # ng = 2N
+                row = (np.pi / (ng * self.d[axis])) / np.sin(row)
+                if j % 2 == 0: # j is even
+                    row = row * alternating_sign[:ng]
+                else:          # j is odd
+                    row = row * alternating_sign[1:]
+                row[j] = .0
+                D1[j, :] = row
+        else:
+            raise NotImplementedError
+        return D1
 
     def derive2(self, Q:npt.NDArray):
         """Compute the 2nd order derivative of a scalar quantity `q` on the mesh.
@@ -462,7 +552,7 @@ class LagrangeMesh:
 
 
     def n_gridpoints(self):
-        return np.prod(self.shape)
+        return int(np.prod(self.shape))
     
     def get_number_of_components(self, Q:npt.NDArray):
         """compute the number of components in agrid quantity `Q`.
@@ -484,6 +574,7 @@ class LagrangeMesh:
             Q: representation of a scalar quantity on the grid.
             r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p, self.dim)'
         """
+        # TODO (?) speed this stuff up... Performance may be wrecked by numerous nested python loops.
         self.flatten()
         
         if self.dim == 3:

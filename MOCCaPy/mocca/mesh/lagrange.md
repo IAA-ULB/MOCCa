@@ -75,13 +75,14 @@ $$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
 This is essentially a dot product $\mathbf{f}\cdot\mathbf{h}$ .
 ### Derivatives
 The 1st and 2nd order derivatives of the Lagrange interpolation functions are:
-[eq 10]
+[eq 10.1]
 $$D_{ji}^{(1)}=\left.{\frac{df_i(x)}{dx}}\right\rvert_{x=x_j}=
 \begin{cases}
     (-1)^{i-j}\frac{\pi}{2Ndx}\frac{1}{sin({\pi(i-j)}/{2N})}, & \text{for $i\neq j$}.\\
     0, & \text{for $i=j$}.
   \end{cases}
 $$
+[eq 10.2]
 $$D_{ji}^{(2)}=\left.{\frac{d^2f_i(x)}{dx^2}}\right\rvert_{x=x_j}=
 \begin{cases}
     (-1)^{i-j+1}2(\frac{\pi}{2Ndx})^2\frac{cos({\pi(i-j)}/{2N})}{sin^2({\pi(i-j)}/{2N})}, & \text{for $i\neq j$}.\\
@@ -90,10 +91,10 @@ $$D_{ji}^{(2)}=\left.{\frac{d^2f_i(x)}{dx^2}}\right\rvert_{x=x_j}=
 $$
 By applying these to the expansion $\phi(x)= \sum_{i=0}^{2N-1}\phi(x_i) f_i(x)$ we obtain 
 [eq 11]
-$$\frac{\mathbf{dh}}{\mathbf{dx}}=\left.\frac{dh(x)}{dx}\right\rvert_{x=x_j}= \sum_{i=0}^{2N-1}\left.\frac{df_i(x)}{dx}\right\rvert_{x=x_j}h(x_i)= \sum_{i=0}^{2N-1}D_{ji}^{(1)}h(x_i)=\mathbf{D}^{(1)}\mathbf{h}$$
+$$\frac{d\mathbf{h}}{dx}=\left.\frac{dh(x)}{dx}\right\rvert_{x=x_j}= \sum_{i=0}^{2N-1}\left.\frac{df_i(x)}{dx}\right\rvert_{x=x_j}h(x_i)= \sum_{i=0}^{2N-1}D_{ji}^{(1)}h(x_i)=\mathbf{D}^{(1)}\mathbf{h}$$
 So, the column vector $\frac{\mathbf{dh}}{\mathbf{dx}}$ of the derivatives of $\mathbf{h}$ at all grid points is found as a matrix product of $\mathbf{D^{(1)}}$ with the column vector of the values of $\mathbf{h}$ at all the gridpoints. As the 2nd derivative forms a matrix as well, we also have
 [eq 12]
-$$\frac{\mathbf{d}^2\mathbf{h}}{\mathbf{dx^2}}==\mathbf{D}^{(2)}\mathbf{h}$$
+$$\frac{d^2\mathbf{h}}{dx^2}=\mathbf{D}^{(2)}\mathbf{h}$$
 ## Reduced axes
 
 ### Grid points

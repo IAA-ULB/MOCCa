@@ -12,8 +12,9 @@ project_folder = Path(__file__)
 while project_folder.name != 'tantalus_full':
     project_folder = project_folder.parent
 test_folder = project_folder/f"MOCCaPy/tests/mocca/mesh"
+test_png = test_folder/f"png"
 # remove all .png files
-for png in test_folder.glob('*.png'):
+for png in test_png.glob('*.png'):
     png.unlink()
 
 def test_LagrangeMesh_ctor_n_d():

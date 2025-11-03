@@ -46,7 +46,17 @@ class Observable:
             assert(symmetry.shape == (mesh.dim, self.n_components))
             self.symmetry = symmetry
         for s in self.symmetry.ravel():
-            assert s in [1,-1]
+           assert s in [1,-1]
+
+        self.data_dd1 = None # placeholder for 1st order derivatives
+        self.data_dd2 = None # placeholder for 2nd order derivatives
+
+        self.data_d1 = None
+        self.data_d2 = None
+
+    @property
+    def dim(self):
+        return self.mesh.dim
 
     @property
     def n_gridpoints(self):
@@ -56,8 +66,45 @@ class Observable:
         """Get i-th component of the observable."""
         return self.data[:,i]
 
+    def sign(self,iq):
+        return self.symmetry[:,iq].ravel()
+
+    def dqdx(self, iq:int, axis:int) -> np.ndarray:
+        """Access the 1st derivative of the observable component iq wrt x/y/z.
+        Args:
+            iq (int): selects which component to use.
+        Returns:
+            A view on an internal numpy array
+        """
+        if self.data_dd1 is None:
+            self.data_dd1 = np.empty((self.n_gridpoints, self.dim * self.n_components), dtype=float, order='F')
+            self.derive1(out=self.data_dd1)
+        return self.data_d1[:, self.mesh.dim * iq + axis]
+
+    # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
+    # LagrangeMesh methods directly on the Observable.
     def integrate(self):
         return self.mesh.integrate(self)
 
-    def sign(self,iq):
-        return self.symmetry[:,iq].ravel()
+    def derive1(self, iq=None, axis=None, out=None):
+        """Compute the 1st order derivative of component iq of this observable.
+        Args:
+            iq (int): selects which component to differentiate.
+            axis (int): axis to differentiate.
+            out: optional array to store the result.
+        Returns:
+            an array with the requested derivatives.
+        """
+        # TODO add assertions to the tests
+        # TODO add test for 3D case
+        # TODO add tests for reduced axes
+        # TODO add the sign_d (symmetry signs of the derivatives)
+        result = self.mesh.derive1(self, iq=iq, axis=axis, out=out)
+        if iq is None and axis is None:
+            self.data_d = result
+
+        return result
+
+    def derive2(self,axis=None):
+        """Compute the 2nd order derivative of the observable wrt axis"""
+        self.mesh.derive1(self,axis=axis)
