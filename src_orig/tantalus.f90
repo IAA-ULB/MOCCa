@@ -514,13 +514,69 @@ subroutine solve_spectrum()
   ! Alternate run-mode for solving the single-particle spectrum only.
   !
   !
-  !
+  ! TODO: change input behaviour for LOBPCG_SEARCH_SIZE
   !---------------------------------------------------------------------------
-  use evolution, only: solve_LOBPCG
-  real(KIND=dp), allocatable :: spectrum(:,:,:), eigenvalues(:)
-  integer :: blocks(8) = 1000
+  use evolution, only        : solve_LOBPCG, LOBPCG_SEARCH_SIZE
+  use wavefunctions, only    : hfblocks, hfpsi
+  real(KIND=dp), allocatable :: spectrum(:,:,:), eigenvalues(:), copy_hfpsi(:,:,:)
+  real(KIND=dp), allocatable :: copy_psi(:,:,:), copy_eigen(:)   
+  integer                    :: blocks(8) = 0, B, si, N, Emax, max_spe
 
-  call solve_LOBPCG(spectrum, eigenvalues, blocks)  
+  Emax = 10
+  deallocate(HFPsi) ! just erase everything
+
+  ! Let's first ensure we got the lowest part completely right 
+  blocks    = hfblocks
+  si = 0 
+  do B = 1, 8
+    if(HFBlocks(B).eq.0) cycle
+    N = blocks(B) + LOBPCG_SEARCH_SIZE ! arrays are larger than the actual target number of eigenvectors
+
+    ! First ensure we got the mean-field spectrum right ...
+    allocate(spectrum(nx*ny*nz, 4, N))
+    call RANDOM_NUMBER(spectrum)
+    allocate(eigenvalues(N)) ; eigenvalues = 0.0_dp
+    call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), .true.)  
+
+    max_spe = maxval(eigenvalues)
+    do while(max_spe.lt.Emax)
+      ! Increase the size of the block 
+      blocks(B) = blocks(B) + 20 
+      N         = N +         20  
+
+      ! Store old spectrum
+      copy_psi   = spectrum
+      copy_eigen = eigenvalues
+
+      ! Allocate new arrays
+      deallocate(spectrum); allocate(spectrum(nx*ny*nz, 4, N))
+      deallocate(eigenvalues); allocate(eigenvalues(N)) ; eigenvalues = 0.0_dp
+
+      call RANDOM_NUMBER(spectrum)
+      ! Copy old spectrum into new arrays
+      spectrum(:,:,1:size(copy_psi,3)) = copy_psi   ; deallocate(copy_psi)
+      eigenvalues(1:size(copy_eigen))  = copy_eigen ; deallocate(copy_eigen)
+
+      ! Solve again
+      call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), .true.)  
+
+      max_spe = maxval(eigenvalues(1:blocks(B)))
+    enddo 
+    ! Store final spectrum
+    if(B .ne. 1) then
+      copy_hfpsi = HFPsi 
+      deallocate(HFPSI)
+      allocate(HFPSI(nx*ny*nz,4,size(copy_hfpsi,3)+blocks(B)))
+      HFPSI(:,:,1:size(copy_hfpsi,3)) = copy_hfpsi ; deallocate(copy_hfpsi)
+      HFPSI(:,:,size(copy_hfpsi,3)+1:size(copy_hfpsi,3)+blocks(B)) = &
+            spectrum(:,:,1:blocks(B))
+    else
+      HFPSI = spectrum(:,:,1:blocks(B))
+    endif
+
+    deallocate(spectrum); deallocate(eigenvalues)    
+    si = si + N
+  enddo
 
 end subroutine solve_spectrum
 

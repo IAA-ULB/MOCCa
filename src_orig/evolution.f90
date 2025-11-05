@@ -122,8 +122,9 @@ module evolution
     real*8, allocatable :: preconZ(:,:,:,:) 
 
     !---------------------------------------------------------------------------
-    ! TODO DOCUMENT
-    integer :: LOBPCG_BLOCK = 0, LOBPCG_BLOCK_SIZE(8) = 0
+    ! Module-wide variable for the LOBPCG solver; there is no other way to 
+    ! communicate the symmetry-block size to the diaglib library.
+    integer :: LOBPCG_BLOCK = 0, LOBPCG_SEARCH_SIZE = 10
 
     
 contains
@@ -880,57 +881,64 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
     end subroutine update_sphamil_constraints
 
-    subroutine solve_LOBPCG( psi, eigenvalues, blocks)
+      subroutine solve_LOBPCG( psi, eigenvalues, block, block_size, verbose)
       !-------------------------------------------------------------------------
-      ! TTODO: document
+      ! Use the LOBPCG algorithm implemented in the diaglib library to solve 
+      ! for the lowest eigenstates of the single-particle hamiltonian with 
+      ! FIXED mean-field potentials.
       !
+      ! Input 
+      !   block      : symmetry block in which we are operating
+      !   block_size : number of eigenstates to be calculated in this block
+      !   verbose    : logical flag for verbosity
       !
+      ! Input/Output
+      !   psi        : on input, initial guess for the eigenstates
+      !                on output, the calculated eigenstates
+      ! Output
+      !   eigenvalues: calculated eigenvalues
       !
       !-------------------------------------------------------------------------
       use diaglib
 
-      integer, intent(in)                       :: blocks(8)
-      real(KIND=dp), intent(inout), allocatable :: psi(:,:,:) 
-      real(KIND=dp), intent(out), allocatable   :: eigenvalues(:)
-      integer       :: LOBPCG_iter = 50, N, offset, B
-      real(KIND=dp) :: LOBPCG_tol  = 1d-7, fac
+      integer, intent(in)          :: block, block_size
+      real(KIND=dp), intent(inout) :: psi(mv,4,block_size    + LOBPCG_SEARCH_SIZE ) 
+      real(KIND=dp), intent(out)   :: eigenvalues(block_size + LOBPCG_SEARCH_SIZE )
+      logical, intent(in)          :: verbose
+      integer       :: LOBPCG_iter = 1000
+      real(KIND=dp) :: LOBPCG_tol  = 1d-5, fac
       logical       :: success
 
-      allocate(psi(nx*ny*nz,4,sum(blocks))) ; psi = 0.d0
-      allocate(eigenvalues(sum(blocks)))    ; eigenvalues = 0.0d0
-      LOBPCG_BLOCK_SIZE = blocks ! set module wide variable
+      if(block_size .eq. 0 ) return
 
-      do B=1,8
-       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! The function sphamil_as_matvec depends on quantum numbers, but the 
-        ! diaglib library does not allow passing additional arguments to the 
-        ! user-supplied matvec and prcnd routines. Hence we set a module-wide
-        ! variable that sphamil_as_matvec and prcnd can look for. 
-        LOBPCG_BLOCK = B
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! The function sphamil_as_matvec depends on quantum numbers, but the 
+      ! diaglib library does not allow passing additional arguments to the 
+      ! user-supplied matvec and prcnd routines. Hence we set a module-wide
+      ! variable that sphamil_as_matvec and prcnd can look for. 
+      LOBPCG_BLOCK      = block 
         
-        N = LOBPCG_BLOCK_SIZE(B)
-        offset = sum(LOBPCG_BLOCK_SIZE(1:LOBPCG_BLOCK-1))
-        if(N .eq. 0 ) cycle
-        
-        print *, 'BLOCK = ', B, 'asking for N = ', N, ' eigenstates.'
-        call lobpcg_driver(.true.,.false.,4*nx*ny*nz,N,N,                      &
+      print *, 'BLOCK = ', block, 'asking for N = ', block_size, &
+      &        ' eigenstates in a search space of size ', block_size + LOBPCG_SEARCH_SIZE
+      call lobpcg_driver(verbose,.false.,4*nx*ny*nz,block_size,                & 
+        &                  block_size+LOBPCG_SEARCH_SIZE,                      &
         &                  LOBPCG_iter,LOBPCG_tol, 0.0d0,                      &
         &                  sphamil_as_matvec,  & ! matvec routine for DIAGLIB
         &                  prcnd,              & ! preconditioning routine 
         &                  prcnd,              & ! unreferenced metric
-        &                  eigenvalues(offset+1:offset+N),        & ! eigenvalues
-        &                  psi(1:4*nx*ny*nz,1,offset+1:offset+N),& 
+        &                  eigenvalues,        & ! eigenvalues
+        &                  psi,                & 
         &                  success)
 
-        if(.not. success) then
-          print *, 'Problem in LOBPCG'
-        endif
-        ! Attention, the DIAGLIB library provides spwfs that are orthonormal 
-        ! with respect to the inproduct of vectors in hfpsi. This does not 
-        ! incorporate the volume element dv, hence we rescale.
-        fac = 1.0/sqrt(dv)
-        psi(1:4*nx*ny*nz,1,offset+1:offset+N) = psi(1:4*nx*ny*nz,1,offset+1:offset+N)*fac
-      enddo
+      if(.not. success) then
+        print *, 'Problem in LOBPCG'
+        stop
+      endif
+      ! Attention, the DIAGLIB library provides spwfs that are orthonormal 
+      ! with respect to the inproduct of vectors in hfpsi. This does not 
+      ! incorporate the volume element dv, hence we rescale.
+      fac = 1.0/sqrt(dv)
+      psi = psi*fac
 
     end subroutine solve_LOBPCG
 
