@@ -316,6 +316,9 @@ module wavefunctions
   module procedure transform_spwfs_inplace_real
   module procedure transform_spwfs_inplace_complex
  end interface
+ !------------------------------------------------------------------------------
+ ! TODO: document
+ real(KIND=dp) :: E_spectrum = -1000.0_dp
 
 contains 
 
@@ -335,7 +338,7 @@ contains
 
     namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
     &              max_spwf_per_rank, max_drop_ranks, ini_strategy, &
-    &              random_numbers
+    &              random_numbers, E_spectrum
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then

@@ -88,6 +88,8 @@ subroutine Run_Tantalus(file_number,input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood(iteration, iomsg)
+
+ call solve_spectrum()
  !------------------------------------------------------------------------------
  ! Perform analysis on the final many-body state
  ! (i) calculate and print the collective moment of inertias
@@ -506,6 +508,22 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
     enddo
 end subroutine ReachForWaterAndFood
+
+subroutine solve_spectrum()
+  !---------------------------------------------------------------------------
+  ! Alternate run-mode for solving the single-particle spectrum only.
+  !
+  !
+  !
+  !---------------------------------------------------------------------------
+  use evolution, only: solve_LOBPCG
+  real(KIND=dp), allocatable :: spectrum(:,:,:), eigenvalues(:)
+  integer :: blocks(8) = 1000
+
+  call solve_LOBPCG(spectrum, eigenvalues, blocks)  
+
+end subroutine solve_spectrum
+
 #endif
 
 subroutine printsummary(iter, potentials_frozen)

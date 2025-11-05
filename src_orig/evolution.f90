@@ -120,6 +120,12 @@ module evolution
     real*8, allocatable :: preconX(:,:,:,:)
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
+
+    !---------------------------------------------------------------------------
+    ! TODO DOCUMENT
+    integer :: LOBPCG_BLOCK = 0, LOBPCG_BLOCK_SIZE(8) = 0
+
+    
 contains
     
     subroutine ReadEvolution(file_number)
@@ -873,6 +879,109 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         call stop_timer(T_update_sph)
 
     end subroutine update_sphamil_constraints
+
+    subroutine solve_LOBPCG( psi, eigenvalues, blocks)
+      !-------------------------------------------------------------------------
+      ! TTODO: document
+      !
+      !
+      !
+      !-------------------------------------------------------------------------
+      use diaglib
+
+      integer, intent(in)                       :: blocks(8)
+      real(KIND=dp), intent(inout), allocatable :: psi(:,:,:) 
+      real(KIND=dp), intent(out), allocatable   :: eigenvalues(:)
+      integer       :: LOBPCG_iter = 50, N, offset, B
+      real(KIND=dp) :: LOBPCG_tol  = 1d-7, fac
+      logical       :: success
+
+      allocate(psi(nx*ny*nz,4,sum(blocks))) ; psi = 0.d0
+      allocate(eigenvalues(sum(blocks)))    ; eigenvalues = 0.0d0
+      LOBPCG_BLOCK_SIZE = blocks ! set module wide variable
+
+      do B=1,8
+       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! The function sphamil_as_matvec depends on quantum numbers, but the 
+        ! diaglib library does not allow passing additional arguments to the 
+        ! user-supplied matvec and prcnd routines. Hence we set a module-wide
+        ! variable that sphamil_as_matvec and prcnd can look for. 
+        LOBPCG_BLOCK = B
+        
+        N = LOBPCG_BLOCK_SIZE(B)
+        offset = sum(LOBPCG_BLOCK_SIZE(1:LOBPCG_BLOCK-1))
+        if(N .eq. 0 ) cycle
+        
+        print *, 'BLOCK = ', B, 'asking for N = ', N, ' eigenstates.'
+        call lobpcg_driver(.true.,.false.,4*nx*ny*nz,N,N,                      &
+        &                  LOBPCG_iter,LOBPCG_tol, 0.0d0,                      &
+        &                  sphamil_as_matvec,  & ! matvec routine for DIAGLIB
+        &                  prcnd,              & ! preconditioning routine 
+        &                  prcnd,              & ! unreferenced metric
+        &                  eigenvalues(offset+1:offset+N),        & ! eigenvalues
+        &                  psi(1:4*nx*ny*nz,1,offset+1:offset+N),& 
+        &                  success)
+
+        if(.not. success) then
+          print *, 'Problem in LOBPCG'
+        endif
+        ! Attention, the DIAGLIB library provides spwfs that are orthonormal 
+        ! with respect to the inproduct of vectors in hfpsi. This does not 
+        ! incorporate the volume element dv, hence we rescale.
+        fac = 1.0/sqrt(dv)
+        psi(1:4*nx*ny*nz,1,offset+1:offset+N) = psi(1:4*nx*ny*nz,1,offset+1:offset+N)*fac
+      enddo
+
+    end subroutine solve_LOBPCG
+
+    subroutine sphamil_as_matvec(n,m,x,ax)
+      !-------------------------------------------------------------------------
+      ! Documentation to be written
+      ! subroutine matvec(n,m,x,ax)
+      !-------------------------------------------------------------------------
+      integer, intent(in)                  :: n,m
+      real(KIND=dp), intent(in), target    :: x(n,m)
+      real(KIND=dp), intent(out), target   :: ax(n,m)
+
+      integer                      :: wave, iso, sxw(4), syw(4), szw(4)
+      integer                      :: offset
+      real(KIND=dp), pointer       :: psi(:,:), hpsi(:,:)
+      real(KIND=dp), allocatable   :: dummy_d(:,:,:), dummy_dd(:,:,:)
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Selecting the right isospin and quantum numbers based on the 
+      ! module-wide communication variable LOBPCG_BLOCK.
+      if(LOBPCG_BLOCK .le. 4) then
+        iso =-1
+      else
+        iso =+1  
+      endif
+      offset = sum(HFBlocks(1:LOBPCG_BLOCK-1)) ! Note: this is HFBlocks because sx/sy/sz 
+                                               ! only have that dimension 
+      sxw  = sx(:,offset+1) ; syw  = sy(:,offset+1) ;  szw  = sz(:,offset+1)
+
+      allocate(dummy_d(nx*ny*nz,4,3), dummy_dd(nx*ny*nz,4,6))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      do wave=1,m
+        psi (1:nx*ny*nz,1:4) => x(1:4*nx*ny*nz,wave) 
+        hpsi(1:nx*ny*nz,1:4) =>ax(1:4*nx*ny*nz,wave) 
+        hpsi = apply_sphamil(psi, dummy_d, dummy_dd, sxw,syw,szw,iso,.true., potentials)
+      enddo
+    end subroutine sphamil_as_matvec
+    
+    subroutine prcnd(n,m,shift, x,ax)
+      !-------------------------------------------------------------------------
+      ! Documentation to be written
+      integer, intent(in)          :: n,m
+      real(KIND=dp), intent(in)    :: shift
+      real(KIND=dp), intent(in)    :: x(n,m)
+      real(KIND=dp), intent(out)   :: ax(n,m)
+      
+      ! do nothing for now
+      ax = x
+    
+    end subroutine prcnd
+
 !===============================================================================
 ! Utility routines 
 !===============================================================================
