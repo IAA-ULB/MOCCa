@@ -132,7 +132,7 @@ else:
 
 #List of FORTRAN files needed for a functional code.
 FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90',
-              'constants.f90'     , 'printing.f90'     , 'HFB.f90',
+              'constants.f90'     , 'diaglib.f90'      ,  'printing.f90'     , 'HFB.f90',
               'HFB_gradient.f90'  , 'HFB_direct.f90'   , 'folding.f90' ,
               'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   ,
               'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',

@@ -173,7 +173,7 @@ endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Tantalus source files
-MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90 diaglib.f90
 ifeq ($(USE_HDF5),1)
 MF_SRC    +=   hdf5_auxiliary.f90
 endif
@@ -190,7 +190,7 @@ MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
-FAM_SRC :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+FAM_SRC :=   compilation.f90 geninfo.f90 timing.f90 constants.f90 diaglib.f90
 ifeq ($(USE_HDF5),1)
 FAM_SRC    +=   hdf5_auxiliary.f90
 endif

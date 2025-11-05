@@ -108,7 +108,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessMoments(fname, src, target, so, fam_active)
     if(fname=='constants.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='diag.f90'):
+    if(fname=='diaglib.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='evolution.f90'):
         ProcessGeneric(fname, src, target, so, fam_active)
