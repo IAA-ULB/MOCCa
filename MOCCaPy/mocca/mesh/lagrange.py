@@ -387,62 +387,77 @@ class LagrangeMesh:
         result *= np.sqrt(1/L)
         return result
 
-    def basis_function(self, ijk, r, negative_axis=False):
+    def basis_function(self, ijk, r, ijk_sign=1):
         """Evaluate the plane wave basis function corresponding to grid point `x_ijk = [x_i,y_j,z_k]` 
         at position `r`. The wave vector `k` is related to `x_i` as `k = x_i/dx`.
 
         According to [eq 5.1] in https://github.com/IAA-nuclear/tantalus_full/blob/MOCCaPy/MOCCaPy/mocca/mesh/lagrange.pdf
 
         Args:
-            ijk: grid point index. A D-tuple of grid indices with `D == self.dim'.
             r: array of coordinates at which to evaluate the plane wave basis function.
+            ijk: grid point index. A D-tuple of grid indices with `D == self.dim'. Positive integers
+                are preferred. For reduced axes mesh points on the negative axis are selected by setting the
+                corresponding entry in ijk_sign to -1.
+            ijk_sign: optional sign of the mesh point coordinates. Only necessary if an index is zero. (-0 would select
+                the first mesh point on the positive axis, rather than on the negative axis. This is fixed by setting
+                the corresponding entry in ijk_sign to -1.)
+                (ignored for non-reduced axes).
+        Returns:
+            Array of values of the basis function at r.
         """
+        assert isinstance(r, np.ndarray)
+
+        if isinstance(ijk_sign,int):
+            ijk_sign = self.dim * (ijk_sign,)
+
         if self.dim == 3:
+            assert r.shape[1] == 3
             i = ijk[0]
             j = ijk[1]
             k = ijk[2]
             two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                 self.gx[i] if i>0 else
-                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
+                                                 self.gx[i] * ijk_sign[0]
+                                               ) / (self.box_width[0] * self.d[0])
                                 , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
-                                                 self.gy[j] if i>0 else
-                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
+                                                 self.gy[j] * ijk_sign[1]
+                                               ) / (self.box_width[1] * self.d[1])
                                 , 2. * np.pi * ( self.gz[k] if not self.reduced[0] else
-                                                 self.gz[k] if i>0 else
-                                                -self.gz[k] ) / (self.box_width[2] * self.d[2])
+                                                 self.gz[k] * ijk_sign[2]
+                                               ) / (self.box_width[2] * self.d[2])
                                 ], dtype=float, order='F')
-            arg = r @ two_pi_K
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
 
         elif self.dim == 2:
+            assert r.shape[1] == 2
             i = ijk[0]
             j = ijk[1]
             two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                 self.gx[i] if i>0 else
-                                                -self.gx[i] ) / (self.box_width[0] * self.d[0])
+                                                 self.gx[i] * ijk_sign[0]
+                                               ) / (self.box_width[0] * self.d[0])
                                 , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
-                                                 self.gy[j] if i>0 else
-                                                -self.gy[j] ) / (self.box_width[1] * self.d[1])
+                                                 self.gy[j] * ijk_sign[1]
+                                               ) / (self.box_width[1] * self.d[1])
                                 ], dtype=float, order='F')
-            arg = r @ two_pi_K
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
 
         elif self.dim == 1:
+            if len(r.shape) == 1:
+                r = r.reshape((r.shape[0], 1), order='F')
+            assert r.shape[1] == 1
             # ijk == i
             i = ijk
-            two_pi_K = 2. * np.pi * self.gx[i]  / (self.box_width[0] * self.d[0])
-            if self.reduced[0] and negative_axis:
-                arg = r * (-two_pi_K)
-            else:
-                arg = r * two_pi_K
-
+            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
+                                                self.gx[i] * ijk_sign[0]
+                                               ) / (self.box_width[0] * self.d[0])
+                                ], dtype=float, order='F')
             factor = np.sqrt(1 / self.box_width[0])
 
-        nr = r.shape[0]
-        result = np.empty((nr,2), dtype=float, order='F')
-        result[:,0] = np.cos(arg)
-        result[:,1] = np.sin(arg)
+        arg = r @ two_pi_K
+        result = np.empty((r.shape[0],2), dtype=float, order='F')
+        np.cos(arg, out=result[:,0])
+        np.sin(arg, out=result[:,1])
         result *= factor
+
         return result
 
 

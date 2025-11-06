@@ -381,20 +381,17 @@ def test_LagrangeMesh_interpolate1D(debug=False):
         for ii in range(2*N):
             if not mesh.reduced[0]:
                 i = ii
-                negative_axis = False
                 print(f"{reduced=} bf={i}/{2*N}")
             else:
                 i = ii//2
                 if ii % 2 == 0:
-                    negative_axis = False
                     print(f"{reduced=} bf={i}/{2 * N}")
                 else:
-                    negative_axis = True
                     print(f"{reduced=} bf=-{i}/{2 * N}")
 
 
-            lcpw_rgp = mesh.basis_function(i,r  ,negative_axis=negative_axis)
-            lcpw_rip = mesh.basis_function(i,rip,negative_axis=negative_axis)
+            lcpw_rgp = mesh.basis_function(i,r  )
+            lcpw_rip = mesh.basis_function(i,rip)
 
             Q = Observable( mesh, data=lcpw_rgp, symmetry=[1,-1]) # real/imag component is symmetric/skew-symmetric
             # Q = Observable( lcpw_rgp, symmetry=1)
@@ -433,9 +430,9 @@ def test_LagrangeMesh_interpolate1D(debug=False):
             lcpw_rip = coeff[0] * mesh.basis_function(0, rip)
         else:
             lcpw_rgp = coeff[0] * mesh.basis_function(0, r  ) + \
-                       coeff[1] * mesh.basis_function(0, r  , negative_axis=True)
+                       coeff[1] * mesh.basis_function(0, r  , ijk_sign=-1)
             lcpw_rip = coeff[0] * mesh.basis_function(0, rip) + \
-                       coeff[1] * mesh.basis_function(0, rip, negative_axis=True)
+                       coeff[1] * mesh.basis_function(0, rip, ijk_sign=-1)
 
         if not mesh.reduced[0]:
             for i in range(1,2*N):
@@ -444,9 +441,9 @@ def test_LagrangeMesh_interpolate1D(debug=False):
         else:
             for i in range(1,N):
                 lcpw_rgp += coeff[2*i  ] * mesh.basis_function(i,r  ) + \
-                            coeff[2*i+1] * mesh.basis_function(i,r  , negative_axis=True)
+                            coeff[2*i+1] * mesh.basis_function(i,r  , ijk_sign=-1)
                 lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip) + \
-                            coeff[2*i+1] * mesh.basis_function(i,rip, negative_axis=True)
+                            coeff[2*i+1] * mesh.basis_function(i,rip, ijk_sign=-1)
 
         Q = Observable(mesh, data=lcpw_rgp, symmetry=[1,-1])
         Qrip = mesh.interpolate(Q, rip)
