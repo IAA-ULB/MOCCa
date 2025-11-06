@@ -395,6 +395,7 @@ class LagrangeMesh:
 
         Args:
             ijk: grid point index. A D-tuple of grid indices with `D == self.dim'.
+            r: array of coordinates at which to evaluate the plane wave basis function.
         """
         if self.dim == 3:
             i = ijk[0]
