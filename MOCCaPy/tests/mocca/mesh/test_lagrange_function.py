@@ -6,9 +6,17 @@ from mocca.mesh.lagrange import LagrangeMesh
 from mocca.mesh.lagrange_function import lagrange_function
 
 from pathlib import Path
-project_folder = Path(__file__)
+
+this_file = Path(__file__).resolve()
+project_folder = this_file
 while project_folder.name != 'tantalus_full':
     project_folder = project_folder.parent
+test_folder = project_folder/f"MOCCaPy/tests/mocca/mesh"
+png_folder = test_folder/"png"/this_file.stem
+png_folder.mkdir(exist_ok=True)
+# remove all .png files
+for png in png_folder.glob('*.png'):
+    png.unlink()
 
 
 def test_lagrange_function():
@@ -57,10 +65,10 @@ def test_lagrange_function_plot():
         ax.plot(x, f)
         axi.plot(x, f)
 
-        figi.savefig(project_folder/f"MOCCaPy/tests/mocca/mesh/lagrange_function_{i}.png")
+        figi.savefig(png_folder/f"lagrange_function_{i}.png")
         plt.close(figi)
 
-    fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/lagrange_functions.png")
+    fig.savefig(png_folder/"lagrange_functions.png")
     plt.close(fig)
 
     # A constant function cannot be interpolated by the Lagrange Functions because
@@ -70,7 +78,7 @@ def test_lagrange_function_plot():
     # which puts a one on each grid point would interpolate the constant function.
     fig, ax = plt.subplots()
     ax.plot(x, sumf)
-    fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/sum_lagrange_functions.png")
+    fig.savefig(png_folder/"sum_lagrange_functions.png")
     plt.close(fig)
 
 def test_lagrange_function_plot2():
@@ -100,10 +108,10 @@ def test_lagrange_function_plot2():
         axi.plot(mesh.gridx, (2*N)*[0], 'sr')
         axi.plot(2*[mesh.gridx[i]],  [0,1], 'sg-')
 
-        figi.savefig(project_folder/f"MOCCaPy/tests/mocca/mesh/lagrange_function_{i}.png")
+        figi.savefig(png_folder/f"lagrange_function_{i}.png")
         plt.close(figi)
 
-    fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/lagrange_functions.png")
+    fig.savefig(png_folder/"lagrange_functions.png")
     plt.close(fig)
 
     # A constant function cannot be interpolated by the Lagrange Functions because
@@ -113,5 +121,5 @@ def test_lagrange_function_plot2():
     # which puts a one on each grid point would interpolate the constant function.
     fig, ax = plt.subplots()
     ax.plot(x, sumf)
-    fig.savefig(project_folder/"MOCCaPy/tests/mocca/mesh/sum_lagrange_functions.png")
+    fig.savefig(png_folder/"sum_lagrange_functions.png")
     plt.close(fig)

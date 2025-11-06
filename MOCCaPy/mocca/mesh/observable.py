@@ -3,7 +3,7 @@ import numpy as np
 
 class Observable:
     """Base class for observables."""
-    def __init__(self, mesh, data=None, n_components=None, symmetry=1):
+    def __init__(self, mesh, data=None, n_components=None, symmetry=1, name=''):
         """
         Args:
             mesh: a LagrangeMesh object
@@ -17,7 +17,10 @@ class Observable:
                 of component iq on all coordinate axes. If a np.ndarray is provided, then symmetry.shape must eaual
                 (mesh.dim, n_components) and symmetry[i,iq] prescribes the symmetry of component iq on the i-th
                 coordinate axis. All values must be either 1 (symmetric) or -1 (skew-symmetric).
+            name: optional name of the observable.
         """
+        self.name = name
+
         self.mesh = mesh
 
         if data is None:
@@ -30,8 +33,6 @@ class Observable:
             if n_components is not None:
                 assert(n_components == data.shape[1])
             self.data = data
-
-        self.n_components = self.data.shape[1]
 
         self.symmetry = np.empty((mesh.dim, self.n_components), dtype=int, order='F')
         if isinstance(symmetry, int):
@@ -48,15 +49,22 @@ class Observable:
         for s in self.symmetry.ravel():
            assert s in [1,-1]
 
-        self.data_dd1 = None # placeholder for 1st order derivatives
-        self.data_dd2 = None # placeholder for 2nd order derivatives
-
-        self.data_d1 = None
-        self.data_d2 = None
+        self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
+            # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
+            # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
+        self._derivative_isvalid = {}
 
     @property
     def dim(self):
         return self.mesh.dim
+
+    @property
+    def shape(self):
+        return self.data.shape
+
+    @property
+    def n_components(self):
+        return self.data.shape[1]
 
     @property
     def n_gridpoints(self):
@@ -67,44 +75,61 @@ class Observable:
         return self.data[:,i]
 
     def sign(self,iq):
+        """Return the symmetry signs of component iq for the different coordinate axes. A 1 implies symmetric and -1 is
+        skew-symmetric."""
         return self.symmetry[:,iq].ravel()
 
-    def dqdx(self, iq:int, axis:int) -> np.ndarray:
-        """Access the 1st derivative of the observable component iq wrt x/y/z.
-        Args:
-            iq (int): selects which component to use.
+    # Differentiation
+    #---------------------------------------------------------------------------
+    def differentiate(self, axes:str|list[str], recompute:bool=True):
+        """Compute some spatial derivative(s) of this observable. all components are differentiated
+
+         Args:
+             axes: See doc-string of  LagrangeMesh.differentiate
+             recompute: Recompute all the derivatives specified in axes. If False, previously computed derivatives are
+                recycled, and the method behaves as a getter. Derivatives that hadn't been computed yet, are computed.
+                After modifying `self.data`, `self.differentiate` should, obviously, be called with 'recompute=True'.
+                Ideally, you request all needed derivatives at once in a single call. You may want to split the
+                >>> Q = Observable(...)
+                >>> Q.data = ... # modify the observable's data, derivatives are now outdated
+                Recompute the derivative for the new `Q.data`
+                >>> Q.differentiate(axes=['x','y','z']) # recompute=True by default
+                >>> Q.differentiate(axes=['Laplacian'], recompute=False) # The Laplacian can reuse 1st orde derivatives
         Returns:
-            A view on an internal numpy array
+            the derivative if a single derivative or derivative tensor (e.g. 'Grad') was requested. If a list of
+            derivatives was requested, `None` is returned and the user must access the derivatives via the dict
+            `Q.derivatives`.
         """
-        if self.data_dd1 is None:
-            self.data_dd1 = np.empty((self.n_gridpoints, self.dim * self.n_components), dtype=float, order='F')
-            self.derive1(out=self.data_dd1)
-        return self.data_d1[:, self.mesh.dim * iq + axis]
+        # TODO: find a way of automatically calling invalidate_derivatives() after updating the Observable's data member?
+        #       that would avoid specifying recompute.
+
+        # design constraints:
+        # -V store results internally (dict self.derivatives)
+        # -V honour symmetry of derivatives 'xyx' == 'xxy' must be computed and stored only once
+        # -V enable reusing previous computations: if we need 'xxy' and 'xx' is known, compute as D1y * 'xx', if 'y' is
+        #    known, compute as D2x * 'y', otherwise compute (from scratch) as D2x * D1y * q
+
+        if recompute:
+            self.invalidate_derivatives()
+
+        result = self.mesh.differentiate(self, axes=axes)
+        return result
+
+    def invalidate_derivatives(self):
+        for axes, derivative in self._derivative_isvalid.items():
+            self._derivative_isvalid[axes] = False
+        for axes, derivative in self.derivatives.items():
+            self._derivative_isvalid[axes] = False
+
+    def derivative_isvalid(self, axes, value=None):
+        if value is None:
+            # Get value
+            self._derivative_isvalid.get(axes, False)
+        else:
+            # Set value
+            self._derivative_isvalid[axes] = value
 
     # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
     # LagrangeMesh methods directly on the Observable.
     def integrate(self):
         return self.mesh.integrate(self)
-
-    def derive1(self, iq=None, axis=None, out=None):
-        """Compute the 1st order derivative of component iq of this observable.
-        Args:
-            iq (int): selects which component to differentiate.
-            axis (int): axis to differentiate.
-            out: optional array to store the result.
-        Returns:
-            an array with the requested derivatives.
-        """
-        # TODO add assertions to the tests
-        # TODO add test for 3D case
-        # TODO add tests for reduced axes
-        # TODO add the sign_d (symmetry signs of the derivatives)
-        result = self.mesh.derive1(self, iq=iq, axis=axis, out=out)
-        if iq is None and axis is None:
-            self.data_d = result
-
-        return result
-
-    def derive2(self,axis=None):
-        """Compute the 2nd order derivative of the observable wrt axis"""
-        self.mesh.derive1(self,axis=axis)

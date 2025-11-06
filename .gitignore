@@ -67,7 +67,7 @@ MOCCaPy/scripts/tryout.py
 MOCCaPy/mocca/data/parameterizations
 .obsidian
 
-MOCCaPy/tests/mocca/mesh/*.png
+MOCCaPy/tests/mocca/mesh/png/
 MOCCaPy/.python-version
 MOCCaPy/uv.lock
 

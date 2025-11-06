@@ -3,6 +3,8 @@
 
 The necessary theory - for non-reduced axes - is found in [Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)](../../literature/Ryssens%20et%20al.%20-%202015%20-%20Numerical%20accuracy%20of%20mean-field%20calculations%20in%20coordinate%20space.pdf) _section III.B Lagrange-mesh representation_.
 
+> [!Note]
+> The figures in this document are created by the tests. If the document complains `blablablah.png could not be found.`, please run the tests (`pytest tests` from folder `MOCCaPy`)
 ## Non-reduced axes
 
 (As from [Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)](../../literature/Ryssens%20et%20al.%20-%202015%20-%20Numerical%20accuracy%20of%20mean-field%20calculations%20in%20coordinate%20space.pdf) _section III.B Lagrange-mesh representation_)
@@ -95,6 +97,7 @@ $$\frac{d\mathbf{h}}{dx}=\left.\frac{dh(x)}{dx}\right\rvert_{x=x_j}= \sum_{i=0}^
 So, the column vector $\frac{\mathbf{dh}}{\mathbf{dx}}$ of the derivatives of $\mathbf{h}$ at all grid points is found as a matrix product of $\mathbf{D^{(1)}}$ with the column vector of the values of $\mathbf{h}$ at all the gridpoints. As the 2nd derivative forms a matrix as well, we also have
 [eq 12]
 $$\frac{d^2\mathbf{h}}{dx^2}=\mathbf{D}^{(2)}\mathbf{h}$$
+Note, that single differentiation toggles the symmetry behavior of the function: if $h(x)$ is a symmetric function, $h'(x)$ is skew-symmetric, and *vice versa*. Consequentially, double differentiation toggles it twice, hence keeps the symmetry behaviour the same.
 ## Reduced axes
 
 ### Grid points
@@ -126,14 +129,14 @@ where the $\pm$ is $+$ for the symmetric case and $-$ for the skew-symmetric cas
 . 
 #### General remark on interpolation with Lagrange functions
 On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the interval $[-1.5,1.5]$, these are the 6 Lagrange functions:
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_0.png)![]()
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_1.png)
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_2.png) 
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_3.png)
-![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_4.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_function_5.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/lagrange_functions.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_0.png)![]()
+![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_1.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_2.png) 
+![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_3.png)
+![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_4.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_5.png)![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_functions.png)
 Clearly, each one yields 1 at one grid point and 0 at the others. Note also that they are antiperiodic: they reenter the box at the opposite edge, but **with a sign change**.
 Consequently, a constant function cannot be interpolated because it is periodic. The sum of the 6 Lagrange functions is shown below. it is definitely not the constant function $f(x)=1$.
-![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/sum_lagrange_functions.png)
+![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/sum_lagrange_functions.png)
 According to the discussion in [github issue 52](https://github.com/IAA-nuclear/tantalus_full/issues/52) periodic functions can be interpolated with Lagrange functions provided they vanish at the boundary of the interval.
 ### Derivatives
 The formula for the derivative of a function $h$ expanded on a reduced grid is found easily by extending the column vector $\mathbf{h}$ (of length $N$) on the reduced grid as 
@@ -175,6 +178,10 @@ where the number of discretization points does not have to be the same in each d
 Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis, and the grid spacing is not necessarily the same.
 ### Derivatives
  In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
+ $$\left.{\frac{d\Phi}{dx}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ljk}}$$
+$$\left.{\frac{d\Phi}{dy}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ilk}}$$
+$$\left.{\frac{d\Phi}{dz}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ijl}}$$
+The summation is over the index of $\Phi_{ijk}$ that corresponds to the axis wrt which the derivative is taken: the derivative wrt $x$/$y$/$z$ sums over the 1st/2nd/3rd index. The same holds for 2nd, 3rd, 4th order derivatives ($\frac{d^n}{du^n}$, $u=x,y,z$, $n\ge0$). 
 ### Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
@@ -198,9 +205,9 @@ Contrary to the 1D case, it is generally not true for the 2D and 3D cases that t
 E.g. changing the sign of the $x$-coordinate in $\exp(2\pi\mathrm{i}(\mathbf{k}\cdot \mathbf{r}) = \exp(2\pi\mathrm{i}(\mathbf{k}\cdot [-x,y,z])$ yields
 $$\cos(-k_xx+k_yy+k_zz)+\mathrm{i}\sin(-k_xx+k_yy+k_zz)$$
 and $\cos(-k_xx+k_yy+k_zz)=\cos(k_xx+k_yy+k_zz)$ only if $k_yy+k_zz$ is a multiple of $2\pi$, which is generally not true. This can also be seen in the figures below. The plane waves are periodic only in the direction of the wave vector.
-![2D basis function real](MOCCaPy/tests/mocca/mesh/2D_basis_function_1_real.png) 
+![2D basis function real](MOCCaPy/tests/mocca/mesh/png/test_LagrangeMesh/2D_basis_function_1_real.png) 
 
-![2D basis function real](MOCCaPy/tests/mocca/mesh/2D_basis_function_1_imag.png) 
+![2D basis function real](MOCCaPy/tests/mocca/mesh/png/test_LagrangeMesh/2D_basis_function_1_imag.png) 
 ### Interpolation
 As described by eq 23 Interpolating a scalar quantity $h$ at a single point requires a sum over all grid points which may be costly (speaking of working interactively). If $h$ needs to be interpolated on a large number of points, $p$,
 $$\mathbf{r} = \begin{bmatrix}x_0 & y_0 & z_0 \\

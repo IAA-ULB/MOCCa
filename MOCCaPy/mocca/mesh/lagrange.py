@@ -2,6 +2,7 @@ from selectors import SelectSelector
 
 import numpy as np
 import numpy.typing as npt
+from mocca.mesh import ijk
 
 from mocca.mesh.observable import Observable
 from mocca.mesh.lagrange_function import lagrange_function
@@ -52,6 +53,7 @@ class LagrangeMesh:
                        bc:str='antiperiodic',
                        reduced:tuple|bool=True,
                        shift:tuple|float=.0,
+                       highest_derivative_order:int=2
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
@@ -212,6 +214,8 @@ class LagrangeMesh:
         self.shape = self.gridx.shape
         self.flat_shape = (int(np.prod(self.shape)),)
 
+        self._setup_D_matrices(highest_derivative_order)
+
     def flatten(self, array=None):
         """Flatten the mesh array.
 
@@ -288,6 +292,43 @@ class LagrangeMesh:
                 shape = tuple(shape)
                 return array.reshape(shape, order='F')
 
+    def is_flat(self, Q: Observable) -> bool:
+        """Determine if `q` is flat.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return Q.data.shape[0] == self.flat_shape[0]
+
+    def is_unflattened(self, Q: npt.NDArray) -> bool:
+        """Determine if `q` is unflattened.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return Q.shape[0:self.dim] == self.shape
+
+    def is_grid_quantity(self, Q: npt.NDArray) -> bool:
+        """Determine if `Q` is a grid quantity.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        return self.is_flat(Q) or self.is_unflattened(Q)
+
+    def n_gridpoints(self):
+        return int(np.prod(self.shape))
+
+    def get_number_of_components(self, Q: npt.NDArray):
+        """compute the number of components in agrid quantity `Q`.
+        Args:
+            Q: a quantity discretised on the grid.
+        """
+        # TODO: does this belong here? It probably dates from before the Observable class
+        return len(Q) // self.flat_shape[0]
+
+    def get_component(self, Q: npt.NDArray, i: int):
+        """Get the i-th component of `Q`."""
+        # TODO: does this belong here? It probably dates from before the Observable class
+        return Q[i * self.flat_shape[0]:(i + 1) * self.flat_shape[0]]
+
     def apply(self, function):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
 
@@ -301,10 +342,9 @@ class LagrangeMesh:
         Raises:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
-        # TODO use arguments for output variables?
+        # TODO: use arguments for output variables? as in numpy out=
         self.flatten()
         return function(self.gridx, self.gridy, self.gridz)
-
 
     def integrate(self, Q):
         """Compute the integral of a scalar quantity `q` on the mesh.
@@ -324,7 +364,6 @@ class LagrangeMesh:
             q = Q[ic]
             result[ic] = q.sum() * self.dv
         return result if n_components > 1 else result[0]
-
 
     def plane_wave_1D(self, L:float, k:float, r:np.array):
         """Evaluate the plane wave basis function at with wave vector `k` at position `r`.
@@ -347,7 +386,6 @@ class LagrangeMesh:
         result[:,1] = np.sin(arg)
         result *= np.sqrt(1/L)
         return result
-
 
     def basis_function(self, ijk, r, negative_axis=False):
         """Evaluate the plane wave basis function corresponding to grid point `x_ijk = [x_i,y_j,z_k]` 
@@ -407,88 +445,11 @@ class LagrangeMesh:
         return result
 
 
-    def derive1(self, Q, iq:int|None=None, axis:int=None, out:npt.NDArray=None) -> None:
-        """Compute the 1st order derivative of this Observable.
-
-        Args:
-            Q: An observable,
-            Axis: coordinate axis to which the derivative is taken. None, which means taking derivatives in all
-                directions, or an int in [0,Q.mesh.dim]. All components of Q are derived.
-        Returns:
-            Nothing. The derivatives are stored in the observable Q
-        """
-        # TODO : implement
-        # TODO : test
-
-        if axis is None:
-            axes = [a for a in range(Q.mesh.dim)]
-        else:
-            axes = [axis]
-
-        shape = (Q.n_gridpoints, len(axes) * (1 if (iq is not None) else
-                                              Q.n_components))
-        if out is None:
-            out_ = np.empty(shape, dtype=float, order='F')
-        else:
-            assert out.shape == shape
-            out_ = out
-        iqax = 0
-        for iq in (range(Q.n_components) if (iq is None) else
-                   [iq]):
-            for ax in axes:
-                self._derive1(Q[iq], ax, out= out_[:,iqax])
-                iqax += 1
-
-        return out_
-
-    def _derive1(self, q:npt.NDArray, axis:int, sign:int=1, out:npt.NDArray=None) -> None:
-        """Compute a single 1st order derivative d_q/d_axis.
-
-        Args:
-            q: a component of an observable
-            axis: differentiate q wrt axis 0|1|2
-            sign: symmetry behaviour of q wrt axis 1|-1
-            out: where to store the result
-        Result:
-            an array containing dq/d_axis
-
-        Using [eq 10.1] in lagrange.md.
-        """
-        assert q.shape == (self.n_gridpoints(),)
-        assert 0 <= axis < self.dim
-        assert sign in (1,-1)
-
-        if out is None:
-            out_ = np.empty_like(q)
-        else:
-            assert out.shape == q.shape
-            out_ = out
-
-        D1 = self.get_D1(axis)
-        np.matmul(D1, q, out=out_)
-
-        return out_
-
-    def get_D1(self, axis: int) -> None:
-        """Return the matrix D1 (see eq 10.1 in lagrange.md) for axis."""
-        if not hasattr(self, 'D1'):
-            self.D1 = self.dim * [None]
-        if self.D1[axis] is None:
-            # Check if there is already a D1 for an other axis with the same characteristics
-            for ax in range(self.dim):
-                if ax != axis:
-                    if  (not self.D1[ax] is None)    and \
-                        (self.M[axis] == self.M[ax]) and \
-                        (self.d[axis] == self.d[ax]) and \
-                        (self.reduced[axis] == self.reduced[ax]):
-                        self.D1[axis] = self.D1[ax]
-                        break
-            else: # no break
-                self.D1[axis] = self.compute_D1(axis)
-        return self.D1[axis]
-
-    def compute_D1(self, axis) -> None:
+    # Differentiation methods
+    # ---------------------------------------------------------------------------
+    def _compute_D1(self, axis) -> None:
         """Compute the matrix D1 (see eq 10.1 in lagrange.md) for axis."""
+
         if not self.reduced[axis]:
             # eq 10.1 in lagrange.md
             ng = self.n_gridpoints()
@@ -498,75 +459,225 @@ class LagrangeMesh:
             i = np.linspace(0, ng-1, ng)
             D1 = np.empty((ng,ng), dtype=float)
             for j in range(ng):
-                row  = i-j
+                row = i-j
                 row *= (np.pi / ng) # ng = 2N
+                row[j] = .1 # avoid division by 0 in row[j] below
                 row = (np.pi / (ng * self.d[axis])) / np.sin(row)
-                if j % 2 == 0: # j is even
-                    row = row * alternating_sign[:ng]
-                else:          # j is odd
-                    row = row * alternating_sign[1:]
+                # division by 0 in row[j] yields `inf`, to be replaced by 0, (l'Hopitals rule)
                 row[j] = .0
+                if j % 2 == 0: # j is even
+                    row = row * alternating_sign[1:]
+                else:          # j is odd
+                    row = row * alternating_sign[:ng]
                 D1[j, :] = row
         else:
-            raise NotImplementedError
+            D1 = None
+            # raise NotImplementedError
+            # TODO: implement
         return D1
 
-    def derive2(self, Q:npt.NDArray):
-        """Compute the 2nd order derivative of a scalar quantity `q` on the mesh.
+    def _setup_D_matrices(self, highest_derivative_order):
+        """setup D matrices infrastructure"""
+        if True in self.reduced:
+            return # FIXME: handle reduced cases
 
+        self.D = np.empty((3, highest_derivative_order), dtype=np.ndarray)
+        self.D[0, 0] = self._compute_D1(0)
+        if self.dim > 1:
+            if (self.M[1] == self.M[0]) and \
+                    (self.d[1] == self.d[0]) and \
+                    (self.reduced[1] == self.reduced[0]):
+                self.D[1, 0] = self.D[0, 0]
+            else:
+                self.D[1, 0] = self._compute_D1(1)
+
+            if self.dim > 2:
+                if (self.M[2] == self.M[0]) and \
+                        (self.d[2] == self.d[0]) and \
+                        (self.reduced[2] == self.reduced[0]):
+                    self.D[2, 0] = self.D[0, 0]
+                elif (self.M[2] == self.M[1]) and \
+                        (self.d[2] == self.d[1]) and \
+                        (self.reduced[2] == self.reduced[1]):
+                    self.D[2, 0] = self.D[1, 0]
+                else:
+                    self.D[2, 0] = self._compute_D1(2)
+
+        for i in range(self.dim):
+            for j in range(1, highest_derivative_order):
+                self.D[i, j] = self.D[i, 0] * self.D[i, j - 1]
+
+    def _get_D(self, iaxis, order):
+        return self.D[iaxis, order - 1]
+
+    def differentiate(self, Q, axes, accumulate_in=None):
+        """Differentiate Q wrt axes.
         Args:
-            q: scalar quantity discretised on the grid. Thus `q.shape in [self.shape, self.flat_shape]` evaluates
-                to True
-
+            Q: Observable to be differentiated.
+            axes: Axes to be differentiated.
+                A single derivative can be requested as a `str` combining the characters 'x', 'y', 'z'. E.g. the
+                 `str` 'xyz' requests d^3/dxdydz. Multiple derivatives can be requested too:
+                   - 'Grad': all first order derivatives
+                   - 'Hessian': all second order derivatives
+                   - 'Laplacian' d^2/dx^2 + d^2/dy^2 + d^2/dz^2)
+                   - 'Tensor3': all third order derivatives
+                   - 'Tensor4': all fourth order derivatives
+                 In principle the order of the 'xyz' characters in axes is immaterial. Axes is sorted and repeating
+                 characters are combined. E.g. 'xyx' -> 'xxy' is computed as D2x x D1y x Q.
+                 Furthermore, axes can be a `list` of such strings, requesting the computation of many different
+                 derivatives. The list is sorted from low to high differentiation order, and higher order derivatives
+                 will reuse previously computed derivatives. E.g., if `xx` has been computed and
         Returns:
-
-
-        Raises:
-            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+            If a single derivative is requested, returns a `ndarray` containing the requested derivative. (The Laplacian
+            counts as a single derivative too). Otherwise a tensor is returned containing `ndarray`s with the individual
+            derivatives.
         """
-        # TODO : implement
-        
-    
-    def is_flat(self, Q:Observable) -> bool:
-        """Determine if `q` is flat.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return Q.data.shape[0] == self.flat_shape[0]
-    
-    
-    def is_unflattened(self, Q:npt.NDArray) -> bool:
-        """Determine if `q` is unflattened.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return Q.shape[0:self.dim] == self.shape        
+        # TODO: we need a better mechanism for reusing previously computed deriatives for differentiation order > 2.
+        if isinstance(axes, str):
+            if axes[0].isupper():
+                assert self.dim >= 2
+                if axes == 'Grad':
+                    result = np.empty((self.dim,), dtype=np.ndarray)
+                    result[0] = self.differentiate(Q, axes='x')
+                    result[1] = self.differentiate(Q, axes='y')
+                    if self.dim == 3:
+                        result[2] = self.differentiate(Q, axes='z')
 
+                    return result
 
-    def is_grid_quantity(self, Q:npt.NDArray) -> bool:
-        """Determine if `Q` is a grid quantity.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return self.is_flat(Q) or self.is_unflattened(Q)
+                elif axes == 'Hessian':
+                    result = np.empty((self.dim,self.dim), dtype=np.ndarray)
+                    if self.dim == 2:
+                        self.differentiate(Q, axes=['x', 'y'], accumulate_in=result)
+                    else:
+                        self.differentiate(Q, axes=['x', 'y', 'z'], accumulate_in=result)
+                    result[0, 0] = self.differentiate(Q, axes='xx')
+                    result[0, 1] = self.differentiate(Q, axes='xy')
+                    result[1, 0] = self.differentiate(Q, axes='yx')
+                    result[1, 1] = self.differentiate(Q, axes='yy')
+                    if self.dim == 3:
+                        result[0, 2] = self.differentiate(Q, axes='xz')
+                        result[1, 2] = self.differentiate(Q, axes='yz')
+                        result[2, 0] = self.differentiate(Q, axes='zx')
+                        result[2, 1] = self.differentiate(Q, axes='zy')
+                        result[2, 2] = self.differentiate(Q, axes='zz')
 
+                    return result
 
-    def n_gridpoints(self):
-        return int(np.prod(self.shape))
-    
-    def get_number_of_components(self, Q:npt.NDArray):
-        """compute the number of components in agrid quantity `Q`.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return len(Q)//self.flat_shape[0]
-    
-    
-    def get_component(self, Q:npt.NDArray, i:int):
-        """Get the i-th component of `Q`."""
-        return Q[i*self.flat_shape[0]:(i+1)*self.flat_shape[0]]
+                elif axes == 'Laplacian':
+                    assert self.dim >= 2
+                    if axes in Q.derivatives:
+                        out = Q.derivatives[axes]
+                    else:
+                        out = np.zeros_like(self.data)
+                        Q.derivatives[axes] = out
 
+                    self.differentiate(Q, axes='xx', accumulate_in=out)
+                    self.differentiate(Q, axes='yy', accumulate_in=out)
+                    if self.dim >= 2:
+                        self.differentiate(Q, axes='zz', accumulate_in=out)
 
+                    return out
+
+                elif axes == 'Tensor3':
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+
+                if axes == 'Tensor4':
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+
+                else:
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+
+            else:
+                axes = ''.join(sorted(axes)) # 'zyxx' -> 'xxyz'
+
+                if axes in Q.derivatives:
+                    out = Q.derivatives[axes]
+                    if Q.derivative_isvalid[axes]:
+                        # no need to recompute: already computed and valid
+                        return out
+                else:
+                    out = np.empty((*self.shape,Q.n_components), dtype=float, order='F')
+                    Q.derivatives[axes] = out
+
+                nx = axes.count('x')
+                ny = axes.count('y')
+                nz = axes.count('z')
+                assert nx + ny + nz == len(axes), f"Extraneous characters in {axes=}, only 'xyz' allowed."
+
+                # We need to reshape Q from a linear array over all the grid points to a dimD array over the true grid
+                # to levarage np.einsum for computing the differentiation matrix products.
+                Qg = Q.data.reshape((*self.shape,Q.n_components), order='F')
+
+                op2 = Qg
+                for partial_axes in (axes[i:] for i in range(1, len(axes))):
+                    if  partial_axes in Q.derivatives and \
+                        Q.derivative_isvalid(partial_axes):
+                        # Reuse previously computed derivative as a starting point.
+                        op2 = Q.derivatives[partial_axes]
+
+                out_touched = False
+                if nz > 0:
+                    Dnz = self._get_D(2, nz)
+                    # apply Dnz
+                    np.einsum('il,jklq', Dny, op2, out=out)
+                    out_touched = True
+
+                if ny > 0:
+                    subscripts = 'il,jlq' if (self.dim == 2) else \
+                                 'il,jlkq'
+                    Dny = self._get_D(1, ny)
+                    op2 = out if out_touched else Qg
+                    # apply Dny
+                    np.einsum(subscripts, Dny, op2, out=out)
+                    out_touched = True
+
+                if nx > 0:
+                    subscripts = 'il,lq'  if (self.dim == 1) else \
+                                 'il,ljq' if (self.dim == 2) else \
+                                 'il,ljkq'
+                    Dnx = self._get_D(0, nx)
+                    op2 = out if out_touched else Qg
+                    # apply Dnx to Q
+                    np.einsum(subscripts, Dnx, op2, out=out)
+                    out_touched = True
+
+            Q.derivative_isvalid(axes, True)
+            return out
+
+        elif isinstance(axes, list):
+            # Sort the list according to differentiation order and single derivatives first
+            order = {1: [], 2: [], 3: [], 4: []}
+            for ax in axes:
+                if ax[0].islower():  # combination of xyz
+                    order[len(ax)].append(ax)
+                else:
+                    if ax == 'Grad':
+                        order[1].append(ax)
+                    elif ax == 'Hessian':
+                        order[2].append(ax)
+                    elif ax == 'Laplacian':
+                        order[2].append(ax)
+                    elif ax == 'Tensor3':
+                        order[3].append(ax)
+                    elif ax == 'Tensor4':
+                        order[4].append(ax)
+                    else:
+                        raise ValueError(f"Axes {ax} not supported.")
+                    # Make sure that Hessian comes before Laplacian, so that the latter can  be computed as
+                    # 'xx' + 'yy' + 'zz' without recomputing the derivatives.
+                    if 'Hessian' in order[2] and 'Laplacian' in order[3]:
+                        order[2].remove('Laplacian').append('Laplacian')
+            axes = order[1] + order[2] + order[3] + order[4]
+            for ax in axes:
+                self.differentiate(Q, axes=ax)
+            return None  # returning a list would make no sense, the user must access the requeted derivatives via
+                         # `Q.derivatives`
+
+        raise ValueError(f"Axes {axes} not supported.")
+
+    # Interpolation methods
+    #---------------------------------------------------------------------------
     def interpolate(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
@@ -802,3 +913,4 @@ class LagrangeMesh:
                 fx =   lagrange_function(x,  x_i, self.d[0], self.M[0])
 
             return fx
+
