@@ -558,7 +558,7 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
  14 format (' Incrementing space by             = ',i3,' states at each failure ')
   2 format (' SYMMETRY BLOCK = ',i3)
   3 format ('  -> got ',i3,' states   ; resulting  (E - \lambda)_max = ',f10.3, ' MeV')
- 31 format ('     .... and retained ',i3,' states, (E - \lambda)_max = ',f10.3, ' MeV')
+ 31 format ('     .... and retained ',i3,' E= ' f10.3, ' E - \lambda = ',f10.3, ' MeV')
   4 format (' ------------------------------------------------------------------ ')
   5 format ('       Final statistics                                             ')
   6 format (' nwt = ',i5,' (nwn = ',i5,', nwp = ',i5,')                     ')
@@ -640,10 +640,10 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
     ! Counting how much states we retain
     blocks(B) = 0
     do i=1, size(eigenvalues) - LOBPCG_SEARCH_SIZE ! don't take the unconverged guys
-      print *,i, eigenvalues(i) - FermiEnergyHF(it), blocks(B) + 1
+      print *,i, eigenvalues(i), blocks(B) + 1
       if(eigenvalues(i) - FermiEnergyHF(it) .le. Emax) blocks(B) = blocks(B) + 1
     enddo
-    print 31, blocks(B), eigenvalues(blocks(B)) - FermiEnergyHF(it)
+    print 31, blocks(B),eigenvalues(blocks(B)), eigenvalues(blocks(B)) - FermiEnergyHF(it)
 
     if(B .ne. 1) then
       copy_hfpsi = HFPsi
