@@ -542,12 +542,14 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   !                        spectrum up to Emax (overwriting any previous content).
   !
   !---------------------------------------------------------------------------
+  use timing, only           : start_timer, stop_timer, T_solve_spectrum
   use pairing, only          : FermiEnergyHF, pairingtype, rho_can, SolvePairing
   use evolution, only        : solve_LOBPCG, calc_sphamil
   use functional, only       : potentials
   use wavefunctions, only    : hfblocks, hfpsi, spenergies, nwn, nwp, nwt, HFBLocks
   use wavefunctions, only    : HFTRANSFO, sphamil, allocate_memory_derivatives
-  use wavefunctions, only    : nwt_local, sx, sy, sz
+  use wavefunctions, only    : nwt_local, sx, sy, sz, rank_map, spwf_map, spwf_inverse
+  use wavefunctions, only    : HFBlocks_global, HFBlocks, loadbalance
 
   1 format (' -------- Obtaining a more complete spectrum with LOBPCG ---------- ')
  11 format (' Targetting max. energy (w.r.t. Fermi) Emax = ',f10.3,' MeV ') 
@@ -555,7 +557,8 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
  13 format (' LOBPCG tolerance                  = ',e10.3)
  14 format (' Incrementing space by             = ',i3,' states at each failure ')
   2 format (' SYMMETRY BLOCK = ',i3)
-  3 format ('  -> got ',i3,' eigenstates; resulting  E - \lambda = ',f10.3, ' MeV')
+  3 format ('  -> got ',i3,' states   ; resulting  (E - \lambda)_max = ',f10.3, ' MeV')
+ 31 format ('     .... and retained ',i3,' states, (E - \lambda)_max = ',f10.3, ' MeV')
   4 format (' ------------------------------------------------------------------ ')
   5 format ('       Final statistics                                             ')
   6 format (' nwt = ',i5,' (nwn = ',i5,', nwp = ',i5,')                     ')
@@ -583,6 +586,8 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   print 13, tol
   print 14, LOBPCG_INCREMENT
   print 4
+
+  call start_timer(T_solve_spectrum)
 
   deallocate(HFPsi) ! just erase everything of the previous wavefunctions
 
@@ -631,11 +636,20 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
       print 3, blocks(B), max_spe 
     enddo 
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Store final spectrum in HFPSI & spenergies
+    ! Store final spectrum in HFPSI & spenergies 
+    ! Counting how much states we retain
+    blocks(B) = 0
+    do i=1, size(eigenvalues) - LOBPCG_SEARCH_SIZE ! don't take the unconverged guys
+      print *,i, eigenvalues(i) - FermiEnergyHF(it), blocks(B) + 1
+      if(eigenvalues(i) - FermiEnergyHF(it) .le. Emax) blocks(B) = blocks(B) + 1
+    enddo
+    print 31, blocks(B), eigenvalues(blocks(B)) - FermiEnergyHF(it)
+
     if(B .ne. 1) then
       copy_hfpsi = HFPsi
       copy_eigen = spenergies
       deallocate(HFPSI,spenergies)
+
       allocate(HFPSI(nx*ny*nz,4,size(copy_hfpsi,3)+blocks(B)))
       allocate(spenergies(size(copy_eigen)+blocks(B)))
 
@@ -656,9 +670,13 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   enddo
   !----------------------------------------------------------------------
   ! Do some administration to prepare for writing a wavefunction file
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! In 
   sa = 0 
   sb = 0
-  allocate(sx_copy(4, size(HFPSI,3)), sy_copy(4, size(HFPSI,3)), sz_copy(4, size(HFPSI,3)))
+  allocate(sx_copy(4, size(HFPSI,3)))
+  allocate(sy_copy(4, size(HFPSI,3)))
+  allocate(sz_copy(4, size(HFPSI,3)))
   do B=1,8
     do i=sb+1,sb+blocks(B)
       sx_copy(:,i) = sx(:,sa+1)
@@ -672,7 +690,7 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   sy = sy_copy
   sz = sz_copy
 
-  HFBLocks = blocks 
+  HFBLocks = blocks ; HFBLOCKS_GLOBAL = blocks
   nwn = sum(HFBlocks(1:4)) ; nwp = sum(HFBlocks(5:8)) ; nwt = nwn + nwp
   nwt_local = nwt
   print 4 
@@ -688,10 +706,13 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   enddo
   call allocate_memory_derivatives(pairingtype)
   sphamil = calc_sphamil(potentials, .true.)
-
   deallocate(rho_can)
   call solvepairing(0,ifail)
 
+  deallocate(RANK_map, spwf_map, spwf_inverse)
+  call loadbalance(HFBlocks_global,HFBlocks,spwf_map, rank_map,spwf_inverse)
+
+  call stop_timer(T_solve_spectrum)
 end subroutine solve_spectrum
 #endif
 
@@ -1035,6 +1056,7 @@ subroutine initialize_all_timers(fam)
    call add_timer('Calculation of h in subspace', T_calc_sph)
    call add_timer('Matrix elements of h'        , T_calc_sph_me)
    call add_timer('Update of h in subspace'     , T_update_sph)
+   call add_timer('Solving the HF spectrum'     , T_solve_spectrum)
 #if( USE_MPI > 0)
    call add_timer('Layout transfer: 1D -> 2D'   , T_transfer_psi_1to2)
    call add_timer('Layout transfer: 2D -> 1D'   , T_transfer_psi_2to1)

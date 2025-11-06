@@ -33,6 +33,7 @@ module timing
   integer :: T_fam, T_ZPE
   integer :: T_den_perturbed, T_den_perturbed_sym, T_den_perturbed_asym
   integer :: T_spme_perturbed, T_spme_perturbed_sym, T_spme_perturbed_asym
+  integer :: T_solve_spectrum
 #if(USE_MPI > 0)
   integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
 #endif
