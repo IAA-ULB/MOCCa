@@ -113,6 +113,10 @@ program run_FAM
   ! create the FAM output file
   call init_fam_file_new(famfile)
 
+  if(xyfile .ne. '') then
+    call init_xy_file(xyfile)
+  endif
+
 
 
   !---------------------------------------------------------------------------------
@@ -273,6 +277,10 @@ program run_FAM
     ! call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
 
     call append_fam_file_new(S_decomp, num_iter, famfile)
+
+    if(xyfile .ne. '') then
+      call append_xy_file(xyfile)
+    endif
 
     omega_curr = omega_curr + omega_step
 

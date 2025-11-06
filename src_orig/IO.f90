@@ -63,7 +63,7 @@ implicit none
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile='', famfile=''
+  character(len=80)   :: inertfile='', famfile='', xyfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
@@ -167,7 +167,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, N_inertia
+    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -294,7 +294,8 @@ contains
              & '    TO file        = ', a80, / & 
              & '    BLOCK file     = ', a80, / &
              & '    INERT file     = ', a80, / &
-             & '    FAM file       = ', a80) 
+             & '    FAM file       = ', a80, / &
+             & '    XY file        = ', a80) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
@@ -359,7 +360,7 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE
       if(present(file_number)) then
         print 1111,  adjustl(trim(input_file)), file_number
       endif
@@ -1854,6 +1855,80 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     close(1)
 
   end subroutine append_fam_file_new
+
+  subroutine init_xy_file(fname)
+    !---------------------------------------------------------------------------
+    ! Create file to write X and Y amplitudes for each freq obtained from FAMtalus
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! The complex matrices X_ph Y_ph are written in a sparse format as 
+    !    p    h    X_ph%re   X_ph%im     Y_ph%re   Y_ph%im
+    ! The file is appended for each FAM frequency, different blocks seperated by 
+    ! a single line:
+    !   & omega = [omega]  [smear]
+    !---------------------------------------------------------------------------
+    use fam
+    character(len=*), intent(in)      :: fname
+    integer                           :: io
+
+    print *, ' writing XY to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+
+    2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
+    3 format('#', 5x, 'p', 6x, 'h',18x, 'X_ph_re', 18x, 'X_ph_im', 18x, 'Y_ph_re', 18x, 'Y_ph_im') 
+
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2) ewsr ! write sum rules  
+    write(1, fmt=3)      ! write column names
+
+    close(1)
+
+
+  end subroutine init_xy_file
+
+
+  subroutine append_xy_file(fname)
+    use fam
+    character(len=*), intent(in)      :: fname
+    integer                           :: io, h, p
+
+    1 format ( '& omega = ', f10.3, f10.3) 
+    2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, fmt=1) omega_fam, smear
+
+    do h = 1, nwt
+      do p = 1, nwt
+        if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
+          write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
+        end if
+      enddo
+    enddo
+
+    close(1)
+
+  end subroutine append_xy_file
 
 #endif
 
