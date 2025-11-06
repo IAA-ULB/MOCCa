@@ -32,6 +32,7 @@ subroutine Run_Tantalus(file_number,input_file)
  use IO
  use timing
  use fission_MOI
+ use evolution, only: LOBPCG_SEARCH_SIZE
  use version, only: print_header
 
 
@@ -88,8 +89,6 @@ subroutine Run_Tantalus(file_number,input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood(iteration, iomsg)
-
- call solve_spectrum()
  !------------------------------------------------------------------------------
  ! Perform analysis on the final many-body state
  ! (i) calculate and print the collective moment of inertias
@@ -102,6 +101,12 @@ subroutine Run_Tantalus(file_number,input_file)
  !---------------------------------------------------------------------------
  ! Write other (optional) output files
  call write_advanced_output(iteration-1,iomsg)
+ !----------------------------------------------------------------------------
+ ! Solve for a larger part of the spectrum if asked for
+ if(spectrum_max_energy .ne. -1000.0d0 ) then
+   call solve_spectrum(spectrum_max_energy, spectrum_search_size, &
+        &                  spectrum_increment, spectrum_tolerance)
+ endif
  !---------------------------------------------------------------------------
  ! Write output to the outputfile, i.e. the full wavefunction file
  call writewavefunction(12, outputfilename)
@@ -509,77 +514,185 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     enddo
 end subroutine ReachForWaterAndFood
 
-subroutine solve_spectrum()
+subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   !---------------------------------------------------------------------------
   ! Alternate run-mode for solving the single-particle spectrum only.
+  ! 
+  ! Input:  
+  !   Emax               : maximum energy (w.r.t. to the Fermi energy)
+  !                        up to which the spectrum is solved
+  !                                       
+  !   LOBPCG_SEARCH_SIZE : number of extra states to include in the LOBPCG
+  !                        calculation to ensure convergence of the highest
+  !                        states represented. 
+  !   LOBPCG_INCREMENT   : number of states by which to increase the targeted
+  !                        number of eigenstates if the maximum energy is not 
+  !                        yet reached.
+  !   tol                : tolerance for the LOBPCG solver.
   !
+  ! Output:
+  !    None 
+  ! 
+  ! Side effects:
+  !   HFPsi              : updated to contain the solved spectrum up to Emax
+  !                        (overwriting any previous content).
+  !  sx/sy/sz            : updated to reflect the new number of states in HFPsi
+  !  HFTRANSFO           :  updated to reflect the new number of states in HFPsi
+  !  spenergies          : updated to contain the eigenenergies of the solved
+  !                        spectrum up to Emax (overwriting any previous content).
   !
-  ! TODO: change input behaviour for LOBPCG_SEARCH_SIZE
   !---------------------------------------------------------------------------
-  use evolution, only        : solve_LOBPCG, LOBPCG_SEARCH_SIZE
-  use wavefunctions, only    : hfblocks, hfpsi
+  use pairing, only          : FermiEnergyHF, pairingtype, rho_can, SolvePairing
+  use evolution, only        : solve_LOBPCG, calc_sphamil
+  use functional, only       : potentials
+  use wavefunctions, only    : hfblocks, hfpsi, spenergies, nwn, nwp, nwt, HFBLocks
+  use wavefunctions, only    : HFTRANSFO, sphamil, allocate_memory_derivatives
+  use wavefunctions, only    : nwt_local, sx, sy, sz
+
+  1 format (' -------- Obtaining a more complete spectrum with LOBPCG ---------- ')
+ 11 format (' Targetting max. energy (w.r.t. Fermi) Emax = ',f10.3,' MeV ') 
+ 12 format (' Extra LOBPCG search size          = ',i3)
+ 13 format (' LOBPCG tolerance                  = ',e10.3)
+ 14 format (' Incrementing space by             = ',i3,' states at each failure ')
+  2 format (' SYMMETRY BLOCK = ',i3)
+  3 format ('  -> got ',i3,' eigenstates; resulting  E - \lambda = ',f10.3, ' MeV')
+  4 format (' ------------------------------------------------------------------ ')
+  5 format ('       Final statistics                                             ')
+  6 format (' nwt = ',i5,' (nwn = ',i5,', nwp = ',i5,')                     ')
+  7 format (' Blocks = ',8i5)
+
+  real(kind=dp), intent(in)  :: Emax, tol
+  integer, intent(IN)        :: LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT
+  real(KIND=dp)              :: max_spe 
   real(KIND=dp), allocatable :: spectrum(:,:,:), eigenvalues(:), copy_hfpsi(:,:,:)
-  real(KIND=dp), allocatable :: copy_psi(:,:,:), copy_eigen(:)   
-  integer                    :: blocks(8) = 0, B, si, N, Emax, max_spe
+  real(KIND=dp), allocatable :: copy_psi(:,:,:), copy_eigen(:)
+  integer, allocatable       :: sx_copy(:,:), sy_copy(:,:), sz_copy(:,:)
+  integer                    :: blocks(8) = 0, B, si, N, it, i, ifail, sa, sb
 
-  Emax = 10
-  deallocate(HFPsi) ! just erase everything
+  if(pairingtype.ne.0) then
+    call stp('Subroutine solve_spectrum is not capable of HF+BCS or HFB calculations yet.')
+  endif
+  
+  if(MPI_RANK .gt. 0) then 
+    call stp('subroutine solve_spectrum can only be run in serial mode.')
+  endif
 
-  ! Let's first ensure we got the lowest part completely right 
+  print 1
+  print 11, Emax
+  print 12, LOBPCG_SEARCH_SIZE
+  print 13, tol
+  print 14, LOBPCG_INCREMENT
+  print 4
+
+  deallocate(HFPsi) ! just erase everything of the previous wavefunctions
+
   blocks    = hfblocks
   si = 0 
   do B = 1, 8
     if(HFBlocks(B).eq.0) cycle
+
+    print 2, B
     N = blocks(B) + LOBPCG_SEARCH_SIZE ! arrays are larger than the actual target number of eigenvectors
 
+    it = 1
+    if(B.ge.5) it = 2
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! First ensure we got the mean-field spectrum right ...
     allocate(spectrum(nx*ny*nz, 4, N))
     call RANDOM_NUMBER(spectrum)
     allocate(eigenvalues(N)) ; eigenvalues = 0.0_dp
-    call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), .true.)  
+    call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), N, tolerance=tol)  
+    max_spe = maxval(eigenvalues(1:blocks(B))) - FermiEnergyHF(it)
+    print 3, blocks(B), max_spe 
 
-    max_spe = maxval(eigenvalues)
     do while(max_spe.lt.Emax)
-      ! Increase the size of the block 
-      blocks(B) = blocks(B) + 20 
-      N         = N +         20  
+      ! Increase the size of the block and search space by twenty states 
+      blocks(B) = blocks(B) + LOBPCG_INCREMENT 
+      N         = N +         LOBPCG_INCREMENT
 
       ! Store old spectrum
-      copy_psi   = spectrum
-      copy_eigen = eigenvalues
+      copy_psi   = spectrum ; copy_eigen = eigenvalues
 
       ! Allocate new arrays
-      deallocate(spectrum); allocate(spectrum(nx*ny*nz, 4, N))
+      deallocate(spectrum); allocate(spectrum(nx*ny*nz, 4, N)) 
       deallocate(eigenvalues); allocate(eigenvalues(N)) ; eigenvalues = 0.0_dp
 
+      ! Ensure that orthonormalization does not crash on zero'd arrays
       call RANDOM_NUMBER(spectrum)
       ! Copy old spectrum into new arrays
       spectrum(:,:,1:size(copy_psi,3)) = copy_psi   ; deallocate(copy_psi)
       eigenvalues(1:size(copy_eigen))  = copy_eigen ; deallocate(copy_eigen)
 
-      ! Solve again
-      call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), .true.)  
+      ! Solve for more states
+      call solve_LOBPCG(spectrum, eigenvalues, B, blocks(B), N, tolerance=tol)  
 
-      max_spe = maxval(eigenvalues(1:blocks(B)))
+      max_spe = maxval(eigenvalues(1:blocks(B))) - FermiEnergyHF(it)
+      print 3, blocks(B), max_spe 
     enddo 
-    ! Store final spectrum
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Store final spectrum in HFPSI & spenergies
     if(B .ne. 1) then
-      copy_hfpsi = HFPsi 
-      deallocate(HFPSI)
+      copy_hfpsi = HFPsi
+      copy_eigen = spenergies
+      deallocate(HFPSI,spenergies)
       allocate(HFPSI(nx*ny*nz,4,size(copy_hfpsi,3)+blocks(B)))
+      allocate(spenergies(size(copy_eigen)+blocks(B)))
+
       HFPSI(:,:,1:size(copy_hfpsi,3)) = copy_hfpsi ; deallocate(copy_hfpsi)
+      spenergies(1:size(copy_eigen))  = copy_eigen ; deallocate(copy_eigen)
+
       HFPSI(:,:,size(copy_hfpsi,3)+1:size(copy_hfpsi,3)+blocks(B)) = &
             spectrum(:,:,1:blocks(B))
+      spenergies(size(copy_eigen)+1:size(copy_eigen)+blocks(B)) = &
+            eigenvalues(1:blocks(B))
     else
-      HFPSI = spectrum(:,:,1:blocks(B))
+      HFPSI      = spectrum(:,:,1:blocks(B))
+      spenergies = eigenvalues(1:blocks(B))
     endif
 
     deallocate(spectrum); deallocate(eigenvalues)    
     si = si + N
   enddo
+  !----------------------------------------------------------------------
+  ! Do some administration to prepare for writing a wavefunction file
+  sa = 0 
+  sb = 0
+  allocate(sx_copy(4, size(HFPSI,3)), sy_copy(4, size(HFPSI,3)), sz_copy(4, size(HFPSI,3)))
+  do B=1,8
+    do i=sb+1,sb+blocks(B)
+      sx_copy(:,i) = sx(:,sa+1)
+      sy_copy(:,i) = sy(:,sa+1)
+      sz_copy(:,i) = sz(:,sa+1)
+    enddo    
+    sa = sa +HFBlocks(B)
+    sb = sb +blocks(b)
+  enddo
+  sx = sx_copy
+  sy = sy_copy
+  sz = sz_copy
+
+  HFBLocks = blocks 
+  nwn = sum(HFBlocks(1:4)) ; nwp = sum(HFBlocks(5:8)) ; nwt = nwn + nwp
+  nwt_local = nwt
+  print 4 
+  print 5
+  print 6, nwt, nwn, nwp
+  print 7, HFBlocks
+  print 4
+
+  deallocate(HFTransfo)
+  allocate(HFTransfo(nwt, nwt)); HFTRANSFO = 0
+  do i=1,nwt 
+    HFTRANSFO(i,i) = 1.0_dp
+  enddo
+  call allocate_memory_derivatives(pairingtype)
+  sphamil = calc_sphamil(potentials, .true.)
+
+  deallocate(rho_can)
+  call solvepairing(0,ifail)
 
 end subroutine solve_spectrum
-
 #endif
 
 subroutine printsummary(iter, potentials_frozen)

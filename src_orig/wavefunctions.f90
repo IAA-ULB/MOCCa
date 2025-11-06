@@ -317,8 +317,18 @@ module wavefunctions
   module procedure transform_spwfs_inplace_complex
  end interface
  !------------------------------------------------------------------------------
- ! TODO: document
- real(KIND=dp) :: E_spectrum = -1000.0_dp
+ ! Variables dealing with the optional extra diagonalisation of h at the end of
+ ! iterations. 
+ !
+ ! Highest energy for MOCCa to attempt to resolve the s.p. spectrum.
+ real(KIND=dp)  :: spectrum_max_energy = -1000.0_dp
+ ! Increment of the spectrum
+ integer        :: spectrum_increment = 10 
+ ! Additional number of s.p. states to search for beyond the expected maximum
+ integer        :: spectrum_search_size = 10
+ ! Tolerance for he LOBPCG solver 
+ real(KIND=dp)  :: spectrum_tolerance = 1e-5  
+ !------------------------------------------------------------------------------
 
 contains 
 
@@ -330,15 +340,15 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-
     integer(dp), intent(in), optional   :: file_number
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
 
-    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
-    &              max_spwf_per_rank, max_drop_ranks, ini_strategy, &
-    &              random_numbers, E_spectrum
+    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties,           &
+    &              max_spwf_per_rank, max_drop_ranks, ini_strategy,         &
+    &              random_numbers, spectrum_max_energy, spectrum_increment, &
+    &              spectrum_search_size, spectrum_tolerance
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -403,6 +413,15 @@ contains
       alloc_size = nwt_local
     else
       alloc_size = 1
+    endif
+
+    if(allocated(HFdPsi))     deallocate(HFdPsi)
+    if(allocated(HFddPsi))    deallocate(HFddPsi)
+$N3 if(allocated(HFdddPsi))   deallocate(HFdddPsi)
+    if(ptype.eq.2) then
+      if(allocated(CANdPsi))     deallocate(CANdPsi)
+      if(allocated(CANddPsi))    deallocate(CANddPsi)
+$N3   if(allocated(CANdddPsi))   deallocate(CANdddPsi)
     endif
 
     allocate(HFdPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order

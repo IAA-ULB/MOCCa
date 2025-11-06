@@ -881,7 +881,8 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
     end subroutine update_sphamil_constraints
 
-      subroutine solve_LOBPCG( psi, eigenvalues, block, block_size, verbose)
+      subroutine solve_LOBPCG( psi, eigenvalues, block, block_size, search_size, &
+      &                        max_iterations, tolerance,verbose)
       !-------------------------------------------------------------------------
       ! Use the LOBPCG algorithm implemented in the diaglib library to solve 
       ! for the lowest eigenstates of the single-particle hamiltonian with 
@@ -890,7 +891,10 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       ! Input 
       !   block      : symmetry block in which we are operating
       !   block_size : number of eigenstates to be calculated in this block
+      !   search_size: size of the search space
+      !                   search_size >= block_size
       !   verbose    : logical flag for verbosity
+      !   TODO: correct
       !
       ! Input/Output
       !   psi        : on input, initial guess for the eigenstates
@@ -901,15 +905,37 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       !-------------------------------------------------------------------------
       use diaglib
 
-      integer, intent(in)          :: block, block_size
-      real(KIND=dp), intent(inout) :: psi(mv,4,block_size    + LOBPCG_SEARCH_SIZE ) 
-      real(KIND=dp), intent(out)   :: eigenvalues(block_size + LOBPCG_SEARCH_SIZE )
-      logical, intent(in)          :: verbose
-      integer       :: LOBPCG_iter = 1000
+      integer, intent(in)                 :: block, block_size, search_size
+      integer, intent(in), optional       :: max_iterations
+      logical, intent(in), optional       :: verbose
+      real(KIND=dp), intent(in), optional :: tolerance 
+      real(KIND=dp), intent(inout)    :: psi(mv*4,search_size ) 
+      real(KIND=dp), intent(out)      :: eigenvalues(search_size )
+      integer       :: LOBPCG_iter 
       real(KIND=dp) :: LOBPCG_tol  = 1d-5, fac
-      logical       :: success
+      logical       :: success, LOBPCG_verbose
 
+      !-------------------------------------------------------------------------
+      ! Input verification
       if(block_size .eq. 0 ) return
+
+      if(present(max_iterations)) then
+        LOBPCG_iter = max_iterations
+      else
+        LOBPCG_iter = 1000
+      endif 
+
+      if(PRESENT(tolerance)) then
+        LOBPCG_tol = tolerance  
+      else 
+        LOBPCG_tol = 1d-5
+      endif 
+
+      if(present(verbose)) then
+        LOBPCG_verbose = verbose
+      else
+        LOBPCG_verbose = .false.
+      endif 
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! The function sphamil_as_matvec depends on quantum numbers, but the 
@@ -917,13 +943,11 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       ! user-supplied matvec and prcnd routines. Hence we set a module-wide
       ! variable that sphamil_as_matvec and prcnd can look for. 
       LOBPCG_BLOCK      = block 
-        
-      print *, 'BLOCK = ', block, 'asking for N = ', block_size, &
-      &        ' eigenstates in a search space of size ', block_size + LOBPCG_SEARCH_SIZE
-      call lobpcg_driver(verbose,.false.,4*nx*ny*nz,block_size,                & 
-        &                  block_size+LOBPCG_SEARCH_SIZE,                      &
-        &                  LOBPCG_iter,LOBPCG_tol, 0.0d0,                      &
-        &                  sphamil_as_matvec,  & ! matvec routine for DIAGLIB
+      !-------------------------------------------------------------------------  
+      call lobpcg_driver(LOBPCG_verbose,.false.,4*nx*ny*nz, &
+        &                  block_size,  search_size,        & 
+        &                  LOBPCG_iter,LOBPCG_tol, 0.0d0,   &
+        &                  sphamil_as_matvec,  & ! matvec routine for  DIAGLIB
         &                  prcnd,              & ! preconditioning routine 
         &                  prcnd,              & ! unreferenced metric
         &                  eigenvalues,        & ! eigenvalues
@@ -931,9 +955,16 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         &                  success)
 
       if(.not. success) then
-        print *, 'Problem in LOBPCG'
+        print *, '-------------------------------------------------------'
+        print *, 'Nonconvergent LOBPCG calculation in block ', block
+        print *, '  block_size    = ', block_size
+        print *, '  search_size   = ', search_size
+        print *, '  max_iterations= ', LOBPCG_iter
+        print *, '  tolerance     = ', LOBPCG_tol
+        print *, '-------------------------------------------------------'
         stop
       endif
+      
       ! Attention, the DIAGLIB library provides spwfs that are orthonormal 
       ! with respect to the inproduct of vectors in hfpsi. This does not 
       ! incorporate the volume element dv, hence we rescale.
