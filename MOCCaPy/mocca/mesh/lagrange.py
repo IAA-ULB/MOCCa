@@ -482,9 +482,9 @@ class LagrangeMesh:
                 # division by 0 in row[j] yields `inf`, to be replaced by 0, (l'Hopitals rule)
                 row[j] = .0
                 if j % 2 == 0: # j is even
-                    row = row * alternating_sign[:ng]
-                else:          # j is odd
                     row = row * alternating_sign[1:]
+                else:          # j is odd
+                    row = row * alternating_sign[:ng]
                 D1[j, :] = row
         else:
             D1 = None

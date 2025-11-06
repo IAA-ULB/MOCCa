@@ -18,6 +18,37 @@ png_folder.mkdir(exist_ok=True)
 for png in png_folder.glob('*.png'):
     png.unlink()
 
+def bf(mesh, i, r, i_sign=1):
+    two_pi_K = 2. * np.pi * ( mesh.gx[i] if not mesh.reduced[0] else
+                              mesh.gx[i] * i_sign
+                            ) / (mesh.box_width[0] * mesh.d[0])
+
+    factor = np.sqrt(1. / mesh.box_width[0])
+
+    arg = two_pi_K * r
+    result = np.empty((r.shape[0], 2), dtype=float, order='F')
+    result[:, 0] = np.cos(arg)
+    result[:, 1] = np.sin(arg)
+    result *= factor
+
+    return result
+
+
+def dbf_dx(mesh, i, r, i_sign=1):
+    two_pi_K = 2. * np.pi * ( mesh.gx[i] if not mesh.reduced[0] else
+                              mesh.gx[i] * i_sign
+                            ) / (mesh.box_width[0] * mesh.d[0])
+
+    factor = np.sqrt(1. / mesh.box_width[0])
+
+    arg = two_pi_K * r
+    result = np.empty((r.shape[0], 2), dtype=float, order='F')
+    result[:, 0] = -np.sin(arg)
+    result[:, 1] =  np.cos(arg)
+    result *= (factor*two_pi_K)
+
+    return result
+
 
 def test_Observable_ctor():
     mesh = LagrangeMesh(dim=1, M=4, d=1., reduced=False)
@@ -37,6 +68,7 @@ def test_differentiate_1D_x(debug=False):
         mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced, highest_derivative_order=1)
         D1 = mesh.D[0,0]
         pw = mesh.basis_function(0, r)
+
         for i in range(2*N):
             for j in range(2*N):
                 if i == j:
@@ -56,6 +88,9 @@ def test_differentiate_1D_x(debug=False):
         ax.plot(r, pw[:,1], label='imag')
 
         Q = Observable(mesh, data = mesh.basis_function(ijk=0, r=mesh.gx))
+        Q_expected = bf(mesh, i=0, r=mesh.gx)
+        for i in range(2*N):
+            print(f"{Q.data[i,0]} {Q_expected[i,0]} {Q.data[i,1]} {Q_expected[i,1]} ")
         Qx = Q.differentiate(axes='x')
 
         DQ0 = np.zeros((6,),dtype=float)
@@ -71,25 +106,39 @@ def test_differentiate_1D_x(debug=False):
 
         ratio = Qx[:, 0] / Q.data[:, 1]
         print(f"QxR/QI={Qx[:, 0] / Q.data[:, 1]}")
-        for r in ratio:
-            assert r == pytest.approx(ratio[0])
+        for rt in ratio:
+            assert rt == pytest.approx(ratio[0])
 
         ratio = Qx[:, 1] / Q.data[:, 0]
         print(f"QxI/QR={ratio}")
-        for r in ratio:
-            assert r == pytest.approx(ratio[0])
+        for rt in ratio:
+            assert rt == pytest.approx(ratio[0])
 
-        ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
-        ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
-        ax.plot(mesh.gx, Qx[:,0], 'yo', label='dQ/dx real')
-        ax.plot(mesh.gx, Qx[:,1], 'y*', label='dQ/dx imag')
+        Qx_expected = dbf_dx(mesh, i=0, r=mesh.gx)
+        for i in range(6):
+            print(f"{i=}: real {Qx[i,0]} {Qx_expected[i,0]}")
+            assert Qx[i, 0] == pytest.approx(Qx_expected[i, 0])
+
+            print(f"{i=}: imag {Qx[i,1]} {Qx_expected[i,1]}")
+            assert Qx[i, 1] == pytest.approx(Qx_expected[i, 1])
+
+        # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
+        # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
+
+        ax.plot(mesh.gx, Qx_expected[:,0], 'y--', label='dbf/dx real')
+        ax.plot(mesh.gx, Qx_expected[:,1], '--', label='dbf/dx imag')
+
+        # ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
+        # ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
+        ax.plot(mesh.gx, Qx[:,0], 'yx', label='dQ/dx real')
+        ax.plot(mesh.gx, Qx[:,1], '*', label='dQ/dx imag')
 
         plt.legend()
         fig.savefig(png_folder/f"1D_basis_function_{0}_differentiation.png")
         plt.close(fig)
 
-        print(f"Q={Q.data}")
-        print(f"dQ/dx={Qx}")
+        # print(f"Q={Q.data}")
+        # print(f"dQ/dx={Qx}")
 
         print("test_differentiate_1D finished")
 
