@@ -452,7 +452,7 @@ class LagrangeMesh:
 
         if not self.reduced[axis]:
             # eq 10.1 in lagrange.md
-            ng = self.n_gridpoints()
+            ng = self.M[axis]
             alternating_sign = np.empty((ng+1), dtype=float)
             alternating_sign[::2] = 1
             alternating_sign[1::2] = -1
@@ -466,9 +466,9 @@ class LagrangeMesh:
                 # division by 0 in row[j] yields `inf`, to be replaced by 0, (l'Hopitals rule)
                 row[j] = .0
                 if j % 2 == 0: # j is even
-                    row = row * alternating_sign[1:]
-                else:          # j is odd
                     row = row * alternating_sign[:ng]
+                else:          # j is odd
+                    row = row * alternating_sign[1:]
                 D1[j, :] = row
         else:
             D1 = None

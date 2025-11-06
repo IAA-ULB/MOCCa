@@ -34,10 +34,11 @@ def test_differentiate_1D_x(debug=False):
         for i in range(2*N):
             for j in range(2*N):
                 if i == j:
-                    assert D1[i,j] == 0
+                    assert D1[j,i] == 0
                 else:
-                    d1ij = (-1)**(i-j) * np.pi / (2 * N * d * np.sin(np.pi*(i-j)/(2*N)))
-                    assert D1[i,j] == pytest.approx(d1ij), f"({i},{j}): {D1[i,j]=}, {d1ij=}"
+                    d1ji = (-1)**(i-j) * np.pi / (2 * N * d * np.sin(np.pi*(i-j)/(2*N)))
+                    print(f"D1[{j},{i}]: {D1[j,i]=}, {d1ji=}, diff={D1[j,i]-d1ji}")
+                    assert D1[j,i] == pytest.approx(d1ji), f"D1[{j},{i}]: {D1[j,i]=}, {d1ji=}, diff={D1[j,i]-d1ji}"
 
         fig, ax = plt.subplots()
         plt.title(f'{0}, x_i={mesh.gx[0]}')
