@@ -147,7 +147,7 @@ The formula for the derivative of a function $h$ expanded on a reduced grid is f
 $$\begin{bmatrix}\mathbf{\pm g}\\
 --\\
 \mathbf{h}\end{bmatrix}$$
-with $\mathbf{g}$ containing the same elements as $\mathbf{h}$ but in reverse order, if the function $h$ is symmetric, and its negatives in reverse order, if it skew-symmetric as if they were mirrored by a horizontal line between the two, and then forming the matrix product 
+with $\mathbf{g}$ containing the same elements as $\mathbf{h}$ but in reverse order, as if they were mirrored by a horizontal line between the two. The full vector then corresponds to the $\mathbf{h}_\mathrm{non-reduced}$ case. This allows for the matrix product :
 [eq 18]
 $$\mathbf{D}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}=\begin{bmatrix}\mathbf{D^-}\\
@@ -156,22 +156,15 @@ $$\mathbf{D}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}\\----\\
 \mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}$$
-The upper half of $\mathbf{D}$, $\mathbf{D^-}$,  produces the derivatives on the negative $x$-axis, and the lower half of $\mathbf{D}$, $\mathbf{D^+}$,  produces the derivatives on the positive $x$-axis. The upper part and the lower part are obviously related by symmetry: if the function $h(x)$ is symmetric, then the derivative is skew-symmetric and *vice versa*. Thus we are only interested in the lower part. Writing $\mathbf{D}^+$
-as $[\mathbf{D}_{ll}|\mathbf{D}_{lr}]$ ($ll$ stands for lower-left and $lr$ for lower-right quadrant of $\mathbf{D}$) we find:
-[eq 19]
-$$\mathbf{D^+}\begin{bmatrix}\mathbf{\pm g}\\
-\mathbf{h}\end{bmatrix}=[\mathbf{D}_{ll}|\mathbf{D}_{lr}]\begin{bmatrix}\mathbf{\pm g}\\
-\mathbf{h}\end{bmatrix}=[\mathbf{E}_{ll}|\mathbf{D}_{lr}]\begin{bmatrix}\mathbf{\pm h}\\
-\mathbf{h}\end{bmatrix}$$
-where $\mathbf{E}_{ll}$ is obtained from $\mathbf{D}_{ll}$ by reversing the order of the rows. Reversing the order of the rows of $\mathbf{D}_{ll}$ forces us to also reverse the order of the elements of $\pm \mathbf{g}$, which then becomes, by definition $\pm \mathbf{h}$. Finally, we obtain:
-[eq 20]
-$$\pm\mathbf{E}_{ll}\mathbf{h}+\mathbf{D}_{lr}\mathbf{h} = [\mathbf{D}_{lr} \pm\mathbf{E}_{ll}]\mathbf{h}$$
-or
-[eq 21]
-$$\frac{\mathbf{dh}}{\mathbf{dx}}=[\mathbf{D}^{(1)}_{lr} \pm\mathbf{E}_{ll}^{(1)}]\mathbf{h}$$
-where we have reintroduced the superscript $^{(1)}$ to indicate the first order derivative. By the same reasoning, we obtain for the 2nd derivative:
-[eq 22]
-$$\frac{\mathbf{d}^2\mathbf{h}}{\mathbf{dx}^2}=[\mathbf{D}^{(2)}_{lr} \pm\mathbf{E}_{ll}^{(2)}]\mathbf{h}$$
+The upper half of $\mathbf{D}$, $\mathbf{D}^-$,  produces the derivatives on the negative $x$-axis, and the lower half of $\mathbf{D}$, $\mathbf{D^+}$,  produces the derivatives on the positive $x$-axis. 
+
+> [!Note]
+> It can be demonstrated that $\mathbf{D}^T=-\mathbf{D}$, but apart from that $\mathbf{D}^-$ and $\mathbf{D}^+$ are unrelated. Thus $\mathbf{D}$ cannot be reduced to a rectangular matrix that can be applied to a reduced $\mathbf{h}$. (E.g. the transpose of the lower half of $\mathbf{D}$ cannot recover its upper left quadrant.)
+
+The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix from the extended mesh point vector 
+$$\begin{bmatrix}-x_{N-1}&-x_{N-2}&...&-x_1&-x_0&|&x_0&x_1&...&x_{N-2}&x_{N-1}
+\end{bmatrix}$$
+and then applying eq 17.
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]

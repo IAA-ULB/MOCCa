@@ -150,7 +150,6 @@ def test_differentiate_1D_x(debug=False):
         for rt in ratio:
             assert rt == pytest.approx(ratio[0])
 
-
         # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
         # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
 
