@@ -124,6 +124,9 @@ def test_differentiate_1D_x(debug=False):
 
         # check dQdx against dbf_dx
         dQdx_expected = dbf_dx(mesh, i=0, r=mesh.gx)
+        #   the derivative apart from a factor that makes sure that the real part of dbf_dx conincides
+        #   with the imaginary part of Q (because the latter is proportional to the derivative of the
+        #   real part of Q).
         ax.plot(mesh.gx, dQdx_expected[:, 0], 'yo--', label='dbf/dx real')
         ax.plot(mesh.gx, dQdx_expected[:, 0]*two_pi_K, 'yo', label='dbf/dx real*')
 
@@ -137,20 +140,19 @@ def test_differentiate_1D_x(debug=False):
 
         ratio = dQdx[:, 0] / Q.data[:, 1]
         print(f"dQdxR/QI={dQdx[:, 0] / Q.data[:, 1]}")
-        # assert ratio[0] > 0
-        # for rt in ratio:
-        #     assert rt == pytest.approx(ratio[0])
+        assert ratio[0] > 0
+        for rt in ratio:
+            assert rt == pytest.approx(ratio[0])
 
         ratio = dQdx[:, 1] / Q.data[:, 0]
         print(f"dQdxI/QR={ratio}")
-        # assert ratio[0] < 0
-        # for rt in ratio:
-        #     assert rt == pytest.approx(ratio[0])
+        assert ratio[0] < 0
+        for rt in ratio:
+            assert rt == pytest.approx(ratio[0])
 
 
         # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
         # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
-
 
         # ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
         # ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
