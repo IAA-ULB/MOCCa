@@ -161,10 +161,10 @@ The upper half of $\mathbf{D}$, $\mathbf{D}^-$,  produces the derivatives on the
 > [!Note]
 > It can be demonstrated that $\mathbf{D}^T=-\mathbf{D}$, but apart from that $\mathbf{D}^-$ and $\mathbf{D}^+$ are unrelated. Thus $\mathbf{D}$ cannot be reduced to a rectangular matrix that can be applied to a reduced $\mathbf{h}$. (E.g. the transpose of the lower half of $\mathbf{D}$ cannot recover its upper left quadrant.)
 
-The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix from the extended mesh point vector 
-$$\begin{bmatrix}-x_{N-1}&-x_{N-2}&...&-x_1&-x_0&|&x_0&x_1&...&x_{N-2}&x_{N-1}
-\end{bmatrix}$$
-and then applying eq 17.
+The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix and then applying eq 17.
+
+> [!Note]
+> According to eqs 10.1 and 10.2 the $\mathbf{D}$-matrix depends on the mesh only through $N$ (or $M=2N$) and $\Delta$, not on the coordinates of the individual mesh points. So, its computation need not distinguish between the reduced and non-reduced case.
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]

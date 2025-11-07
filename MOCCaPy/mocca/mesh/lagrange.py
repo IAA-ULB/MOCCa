@@ -466,50 +466,45 @@ class LagrangeMesh:
     def _compute_D1(self, axis) -> None:
         """Compute the matrix D1 (see eq 10.1 in lagrange.md) for axis."""
 
-        if not self.reduced[axis]:
-            # eq 10.1 in lagrange.md
-            ng = self.M[axis]
-            alternating_sign = np.empty((ng+1), dtype=float)
-            alternating_sign[::2] = 1
-            alternating_sign[1::2] = -1
-            # alternating_sign = [1, -1, 1, -1, ...]
-            # In agreement with the Warning following equations 10.1 and 10.2 in lagrange.md, which demands
-            # an extra sign flip because they use (i-j) in the sine argements instead of (j-i)
-            # i = np.linspace(0, ng - 1, ng)
-            minus_i = -np.linspace(0, ng - 1, ng)
-            D1 = np.empty((ng,ng), dtype=float) # deliberately not order='F' for performance reasons
-            # In agreement with the formulas in Ryssens et al 2015 (eq 18),
-            # j is the row index and i the column index (D_ji)
-            for j in range(ng):
-                # row = i-j
-                row = minus_i+j # j-i
-                row *= (np.pi / ng) # ng = 2N
-                row[j] = .1 # avoid division by 0 in row[j] below
-                row = (np.pi / (ng * self.d[axis])) / np.sin(row)
-                # division by 0 in row[j] yields `inf`, to be replaced by 0, (l'Hopitals rule)
-                row[j] = .0
-                if j % 2 == 0: # j is even
-                    # flip the sign of entries 1 3 5 ... i.e. those with odd i
-                    # since j is even, i-j is odd iff i is odd: (-1)^(i-j) is -1 for odd i
-                    row = row * alternating_sign[:ng]
-                    # assert alternating_sign[0] == 1 # True by construction
-                else:          # j is odd
-                    # flip the sign of entries 0 2 4 ... i.e. those with even i
-                    # since j is odd, i-j is odd iff i is even  and (-1)^(i-j) is -1 for even i
-                    row = row * alternating_sign[1:]  # flip sign of entries 0 2 4 ...
-                    # assert alternating_sign[1] == -1  # True by construction
-                D1[j, :] = row
-        else:
-            D1 = None
-            # raise NotImplementedError
-            # TODO: implement
+        # There is no need to distinguish between the reduced and non-reduced case
+        # (See the Note following eq 17 in `MOCCaPy/mocca/mesh/lagrange.md`)
+        # eq 10.1 in lagrange.md (caveat: the Warning following it)
+        twoN = self.M[axis]
+        D1 = np.empty((twoN,twoN), dtype=float) # deliberately not order='F' for performance reasons
+        alternating_sign = np.empty((twoN+1), dtype=float)
+        alternating_sign[::2] = 1
+        alternating_sign[1::2] = -1
+        # alternating_sign = [1, -1, 1, -1, ...]
+        # In agreement with the Warning following equations 10.1 and 10.2 in lagrange.md, which demands
+        # an extra sign flip because they use (i-j) in the sine argements instead of (j-i)
+        # i = np.linspace(0, twoN - 1, twoN)
+        minus_i = -np.linspace(0, twoN - 1, twoN)
+        # In agreement with the formulas in Ryssens et al 2015 (eq 18),
+        # j is the row index and i the column index (D_ji)
+        for j in range(twoN):
+            # row = i-j
+            row = minus_i+j # j-i
+            row *= (np.pi / twoN) # twoN = 2N
+            row[j] = .1 # avoid division by 0 in row[j] below
+            row = (np.pi / (twoN * self.d[axis])) / np.sin(row)
+            # division by 0 in row[j] yields `inf`, to be replaced by 0, (l'Hopitals rule)
+            row[j] = .0
+            if j % 2 == 0: # j is even
+                # flip the sign of entries 1 3 5 ... i.e. those with odd i
+                # since j is even, i-j is odd iff i is odd: (-1)^(i-j) is -1 for odd i
+                row = row * alternating_sign[:twoN]
+                # assert alternating_sign[0] == 1 # True by construction
+            else:          # j is odd
+                # flip the sign of entries 0 2 4 ... i.e. those with even i
+                # since j is odd, i-j is odd iff i is even  and (-1)^(i-j) is -1 for even i
+                row = row * alternating_sign[1:]  # flip sign of entries 0 2 4 ...
+                # assert alternating_sign[1] == -1  # True by construction
+            D1[j, :] = row
+
         return D1
 
     def _setup_D_matrices(self, highest_derivative_order):
         """setup D matrices infrastructure"""
-        if True in self.reduced:
-            return # FIXME: handle reduced cases
-
         self.D = np.empty((3, highest_derivative_order), dtype=np.ndarray)
         self.D[0, 0] = self._compute_D1(0)
         if self.dim > 1:
@@ -536,8 +531,8 @@ class LagrangeMesh:
             for j in range(1, highest_derivative_order):
                 self.D[i, j] = self.D[i, 0] * self.D[i, j - 1]
 
-    def _get_D(self, iaxis, order):
-        return self.D[iaxis, order - 1]
+    def _get_D(self, axis:int, order:int):
+        return self.D[axis, order - 1]
 
     def differentiate(self, Q, axes, accumulate_in=None):
         """Differentiate Q wrt axes.
