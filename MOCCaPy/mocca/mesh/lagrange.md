@@ -36,15 +36,21 @@ $$i=-(N-1)..(N-1)$$
 The basis functions are plane waves:
 [eq 5]
 $$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{j}}{L}kx})$$
-where we choose $\mathrm{j}$ for the imaginary unit (rather than $\mathrm{i}$, as $\mathrm{j}$ and $j$ are a bit better distinguishable than $\mathrm{i}$ and $i$), and
+where we choose $\mathrm{j}$ for the imaginary unit (rather than $\mathrm{j}$, as $\mathrm{j}$ and $j$ are a bit better distinguishable than $\mathrm{j}$ and $i$), and
 $$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{2N-3}{2}, \pm\frac{2N-1}{2}$$
 or, since $k\Delta$ is a grid point, say, the $i$-th, $x_i$:
 [eq 5]
-$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L}\frac{x_i}{\Delta}x})=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{i}}{L\Delta}x_ix})$$
+$$\phi_{x_i}(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{j}}{L}\frac{x_i}{\Delta}x})=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{j}}{L\Delta}x_ix})$$
 >[!Note] 
->Since $\exp(\mathrm{i}z)=\cos{z}+\mathrm{i}\sin{z}$ the real component of the 1D basis function is symmetric and the imaginary component is skew-symmetric. Consequently, we can use them for testing interpolation with Lagrange functions (see below) also on reduced grids.
+>Since $\exp(\mathrm{j}z)=\cos{z}+\mathrm{j}\sin{z}$ the real component of the 1D basis function is symmetric and the imaginary component is skew-symmetric. Consequently, we can use them for testing interpolation with Lagrange functions (see below) also on reduced grids.
 
-### Interpolation
+$$\mathrm{Re}(\phi_{x_i}(x))=\frac{1}{\sqrt{L}}\cos({\frac{2\pi}{L\Delta}x_ix})$$
+$$\mathrm{Im}(\phi_{x_i}(x))=\frac{1}{\sqrt{L}}\sin({\frac{2\pi}{L\Delta}x_ix})$$
+First order derivatives are:
+$$\frac{d}{dx}\mathrm{Re}(\phi_{x_i}(x))=-\frac{1}{\sqrt{L}}\frac{2\pi}{L\Delta}\sin({\frac{2\pi}{L\Delta}x_ix})$$
+$$\mathrm{Im}(\phi_{x_i}(x))=\frac{1}{\sqrt{L}}\frac{2\pi}{L\Delta}\cos({\frac{2\pi}{L\Delta}x_ix})$$
+
+### Interpolation 
 The Lagrange interpolation functions are:
 [eq 6]
 $$f_i(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(x-x_i))}{\sin(\frac{\pi}{\Delta}\frac{x-x_i}{2N})}$$
@@ -84,6 +90,9 @@ $$D_{ji}^{(2)}=\left.{\frac{d^2f_i(x)}{dx^2}}\right\rvert_{x=x_j}=
     -\frac{\pi^2}{3\Delta^2}(1-\frac{1}{(2N)^2}), & \text{for $i=j$}.
   \end{cases}
 $$
+> [!Warning]
+>  I suspect that there is a subtle problem with these formulas. When coding them the unit test failed giving the right values but the opposite sign. While attempting to derive the formulas i discovered that using the definition in eq 6, taking derivatives and evaluating in $x_j$ leads to $(x_j-x_i)$ in the arguments of the sine functions, which is equal to  $(j-i)\Delta$, and NOT $(i-j)$ as written in the formulas. The derivation proceeds by considering separate cases for odd and even $(j-i)$  and noting that $\cos\pi(2n)$ and $\sin\pi(2n+1)$ vanish, yielding the sign factor in eq 10.1 and 10.2., $(-1)^{(i-j)}=(-1)^{(j-i)}$, but obviously the change from $(i-j)$ to $(j-i)$ in the sign functions yields a sign flip.
+
 By applying these to the expansion $\phi(x)= \sum_{i=0}^{2N-1}\phi(x_i) f_i(x)$ we obtain 
 [eq 11]
 $$\frac{d\mathbf{h}}{dx}=\left.\frac{dh(x)}{dx}\right\rvert_{x=x_j}= \sum_{i=0}^{2N-1}\left.\frac{df_i(x)}{dx}\right\rvert_{x=x_j}h(x_i)= \sum_{i=0}^{2N-1}D_{ji}^{(1)}h(x_i)=\mathbf{D}^{(1)}\mathbf{h}$$
@@ -182,13 +191,13 @@ The summation is over the index of $\Phi_{ijk}$ that corresponds to the axis wrt
 ### Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
-$$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{i}}{L_x}kx})\exp({\frac{2\pi\mathrm{i}}{L_y}ly})\exp({\frac{2\pi\mathrm{i}}{L_z}mz})$$
-$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\frac{kx}{L_x}+\frac{ly}{L_y}+\frac{mz}{L_z})$$
+$$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{j}}{L_x}kx})\exp({\frac{2\pi\mathrm{j}}{L_y}ly})\exp({\frac{2\pi\mathrm{j}}{L_z}mz})$$
+$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{j}(\frac{kx}{L_x}+\frac{ly}{L_y}+\frac{mz}{L_z})$$
 $$k=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_x-1}{2}$$
 $$l=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_y-1}{2}$$
 $$m=\pm\frac{1}{2}, \pm\frac{3}{2}, ..., \pm\frac{N_z-1}{2}$$
 
-$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{i}(\mathbf{k}\cdot\mathbf{r})$$
+$$=\frac{1}{\sqrt{L_xL_yL_z}}\exp(2\pi\mathrm{j}(\mathbf{k}\cdot\mathbf{r})$$
 $$\mathbf{k}=\begin{bmatrix}\frac{k}{L_x} & \frac{l}{L_y} & \frac{m}{L_z}\end{bmatrix}$$
 $$\mathbf{x}=\begin{bmatrix} x & y & z\end{bmatrix}$$
 Note that $\phi_k$, $\phi_l$ and $\phi_m$ are generally different objects, even if accidentally the indices $k$, $l$ and $m$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis.
@@ -199,8 +208,8 @@ $$\mathbf{k}=\begin{bmatrix}\frac{x_i}{L_x\Delta_x} & \frac{y_j}{L_y\Delta_y} & 
 >[!Note]
 Contrary to the 1D case, it is generally not true for the 2D and 3D cases that the basis functions are symmetric or skew-symmetric. 
 
-E.g. changing the sign of the $x$-coordinate in $\exp(2\pi\mathrm{i}(\mathbf{k}\cdot \mathbf{r}) = \exp(2\pi\mathrm{i}(\mathbf{k}\cdot [-x,y,z])$ yields
-$$\cos(-k_xx+k_yy+k_zz)+\mathrm{i}\sin(-k_xx+k_yy+k_zz)$$
+E.g. changing the sign of the $x$-coordinate in $\exp(2\pi\mathrm{j}(\mathbf{k}\cdot \mathbf{r}) = \exp(2\pi\mathrm{j}(\mathbf{k}\cdot [-x,y,z])$ yields
+$$\cos(-k_xx+k_yy+k_zz)+\mathrm{j}\sin(-k_xx+k_yy+k_zz)$$
 and $\cos(-k_xx+k_yy+k_zz)=\cos(k_xx+k_yy+k_zz)$ only if $k_yy+k_zz$ is a multiple of $2\pi$, which is generally not true. This can also be seen in the figures below. The plane waves are periodic only in the direction of the wave vector.
 ![2D basis function real](MOCCaPy/tests/mocca/mesh/png/test_LagrangeMesh/2D_basis_function_1_real.png) 
 
