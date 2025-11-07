@@ -117,6 +117,10 @@ program run_FAM
     call init_xy_file(xyfile)
   endif
 
+  if(DENFILE .ne. '') then
+    call init_perturbed_denfile(DENFILE)
+  endif
+
 
 
   !---------------------------------------------------------------------------------
@@ -280,6 +284,11 @@ program run_FAM
 
     if(xyfile .ne. '') then
       call append_xy_file(xyfile)
+    endif
+
+
+    if(DENFILE .ne. '') then
+      call append_perturbed_denfile(dRs, dRa, DENFILE)
     endif
 
     omega_curr = omega_curr + omega_step

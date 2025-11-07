@@ -1930,6 +1930,117 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
   end subroutine append_xy_file
 
+
+subroutine init_perturbed_denfile(fname)
+    !---------------------------------------------------------------------------
+    ! Create file named "fname"to write the following perturbed densities 
+    !    drho(neutron), drho(proton), drho(charge)
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by a dedicated line explaining the content of each column.
+    ! The format of the body of said file is
+    ! 
+    !   x, y, z, drho_n_sym%re, drho_n_sym%im, drho_n_asym%re, drho_n_asym%im, 
+    !     drho_p_sym%re, drho_p_sym%im, drho_p_asym%re, drho_p_asym%im, 
+    !     drho_c_sym%re, drho_c_sym%im, drho_c_asym%re, drho_c_asym%im
+    !
+    ! where the first three numbers are the Cartesian coordinates in fm, withµ
+    ! the densities all in their natural units. The mesh points are traverse in 
+    ! column-major order ('Fortran order'), which might not be how your favorite 
+    ! plotting tool prefers it. Note that the densities are written "as-is" to 
+    ! file, i.e. only in part of the box that is actually represented 
+    ! numerically. It is up to postprocessing to construct the densities in the 
+    ! simulation volume.
+    !---------------------------------------------------------------------------
+    use fam
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io
+
+    print *, ' writing perturbed densities to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+
+    2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
+    3 format('#', 19x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]',  &
+      & 12x, 'drho_n_sym_re', 12x , 'drho_n_sym_im', 11x, 'drho_n_asym_re', 11x , 'drho_n_asym_im', &
+      & 12x, 'drho_p_sym_re', 12x , 'drho_p_sym_im', 11x, 'drho_p_asym_re', 11x , 'drho_p_asym_im', &
+      & 12x, 'drho_c_sym_re', 12x , 'drho_c_sym_im', 11x, 'drho_c_asym_re', 11x , 'drho_c_asym_im')
+
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2) ewsr ! write sum rules  
+    write(1, fmt=3)      ! write column names
+
+    close(1)
+
+  end subroutine init_perturbed_denfile
+
+subroutine append_perturbed_denfile(Rs, Ra, fname)
+    !---------------------------------------------------------------------------
+    ! Append the the file named "fname" the following perturbed densities 
+    !    drho(neutron), drho(proton), drho(charge)
+    !---------------------------------------------------------------------------
+    ! Different blocks corresponding to different fam frequencies omega are 
+    ! separated by a single line 
+    !     & omega = [omega%re] [omega%im]
+    !---------------------------------------------------------------------------
+    use fam
+    type(DensityVector), intent(in), target :: Rs, Ra
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io, i,j,k, mi
+
+
+    1 format ( '& omega = ', f10.3, f10.3) 
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then 
+      print *, 'Something went wrong with writing a density to file.'
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, fmt=1) omega_fam, smear
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for most of the densities
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The ordinary and charge density; always defined
+          write(1, fmt='(2es25.12)', advance='no') Rs%D_I_I(mi,1)%re,Rs%D_I_I(mi,1)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%D_I_I(mi,1)%re,Ra%D_I_I(mi,1)%im
+          write(1, fmt='(2es25.12)', advance='no') Rs%D_I_I(mi,2)%re,Rs%D_I_I(mi,2)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%D_I_I(mi,2)%re,Ra%D_I_I(mi,2)%im
+          write(1, fmt='(2es25.12)', advance='no') Rs%chargedensity(i,j,k)%re,Rs%chargedensity(i,j,k)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%chargedensity(i,j,k)%re,Ra%chargedensity(i,j,k)%im
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! We are done writing this line in the output
+          write(1, fmt='()') !  newline character
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine append_perturbed_denfile
+
 #endif
 
   function force_halfinteger(j) result(jforced)
