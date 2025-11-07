@@ -556,7 +556,6 @@ class LagrangeMesh:
             counts as a single derivative too). Otherwise a tensor is returned containing `ndarray`s with the individual
             derivatives.
         """
-        # TODO: we need a better mechanism for reusing previously computed deriatives for differentiation order > 2.
         if isinstance(axes, str):
             if axes[0].isupper():
                 assert self.dim >= 2
@@ -630,7 +629,7 @@ class LagrangeMesh:
                 assert nx + ny + nz == len(axes), f"Extraneous characters in {axes=}, only 'xyz' allowed."
 
                 # We need to reshape Q from a linear array over all the grid points to a dimD array over the true grid
-                # to levarage np.einsum for computing the differentiation matrix products.
+                # to leverage np.einsum for computing the differentiation matrix products.
                 Qg = Q.data.reshape((*self.shape,Q.n_components), order='F')
 
                 op2 = Qg

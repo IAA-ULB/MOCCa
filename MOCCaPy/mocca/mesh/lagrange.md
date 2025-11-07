@@ -161,10 +161,50 @@ The upper half of $\mathbf{D}$, $\mathbf{D}^-$,  produces the derivatives on the
 > [!Note]
 > It can be demonstrated that $\mathbf{D}^T=-\mathbf{D}$, but apart from that $\mathbf{D}^-$ and $\mathbf{D}^+$ are unrelated. Thus $\mathbf{D}$ cannot be reduced to a rectangular matrix that can be applied to a reduced $\mathbf{h}$. (E.g. the transpose of the lower half of $\mathbf{D}$ cannot recover its upper left quadrant.)
 
-The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix and then applying eq 17.
+The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix and then applying eqs 17 and 18. 
 
 > [!Note]
 > According to eqs 10.1 and 10.2 the $\mathbf{D}$-matrix depends on the mesh only through $N$ (or $M=2N$) and $\Delta$, not on the coordinates of the individual mesh points. So, its computation need not distinguish between the reduced and non-reduced case.
+
+Because of the symmetry properties of $h$ and differentiation, we only need, in fact 
+$$\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}}$$
+An interesting question, from the performance point of view, is wether we can compute this result without explicitly constructing 
+$$\mathbf{h}^\textdagger=\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}$$
+which requires copying $\mathbf{h}$ twice. 
+We have, with $i=0\text{, ..., }2N-1$:
+$$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}}\end{bmatrix}_i
+=\sum_{l=0}^{l=2N-1}D_{il}^+h_l^\textdagger
+$$$$
+=\sum_{l=0}^{l=N-1}D_{il}^+h_l^\textdagger+\sum_{l=N}^{l=2N-1}D_{il}^+h_l^\textdagger
+$$
+where the first sum acts on $\mathbf{\pm g}$ and the second sum acts on $\mathbf{h}$.
+$$
+=\sum_{l=0}^{l=N-1}D_{il}^+(\pm h_{N-1-l})
++\sum_{l=N}^{l=2N-1}D_{il}^+h_{l-N}
+$$
+$$
+=\pm\sum_{l=0}^{l=N-1}D_{il}^+h_{N-1-l}
++\sum_{l=0}^{l=N-1}D_{i,N+l}^+h_{l}
+$$
+If we divide $\mathbf{D}$ in 4 $N \times N$ quadrants:
+$$\mathbf{D}
+= \begin{bmatrix}\mathbf{D}^\mathrm{ul}&\mathbf{D}^\mathrm{ur}\\
+\mathbf{D}^\mathrm{ll}&\mathbf{D}^\mathrm{lr}\end{bmatrix}$$
+$$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}}\end{bmatrix}_i
+=\pm\sum_{l=0}^{l=N-1}D_{il}^\mathrm{ll}h_{N-1-l}
++\sum_{l=0}^{l=N-1}D_{i,l}^\mathrm{lr
+}h_{l}
+$$
+now with $i=0\text{, ..., }N-1$. 
+
+> [!Note]
+> The second sum can be implemented using `numpy.einsum`, as in the non-reduced case. For the first sum, this is perhaps not possible because the access to $h$ is reversed.
+
+This expression does not necessitate the explicit construction of $\mathbf{h}^\textdagger$, but complicates the implementation. At this point, it seems wise to keep the implementation as simple as possible, sacrificing - perhaps, this is not even sure - a bit of performance.
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]
