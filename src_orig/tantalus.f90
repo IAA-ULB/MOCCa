@@ -544,6 +544,7 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   !---------------------------------------------------------------------------
   use timing, only           : start_timer, stop_timer, T_solve_spectrum
   use pairing, only          : FermiEnergyHF, pairingtype, rho_can, SolvePairing
+  use pairingcutoffs, only   : PCutoffs
   use evolution, only        : solve_LOBPCG, calc_sphamil
   use functional, only       : potentials
   use wavefunctions, only    : hfblocks, hfpsi, spenergies, nwn, nwp, nwt, HFBLocks
@@ -706,7 +707,7 @@ subroutine solve_spectrum( Emax, LOBPCG_SEARCH_SIZE, LOBPCG_INCREMENT, tol)
   enddo
   call allocate_memory_derivatives(pairingtype)
   sphamil = calc_sphamil(potentials, .true.)
-  deallocate(rho_can)
+  deallocate(rho_can, pcutoffs)
   call solvepairing(0,ifail)
 
   deallocate(RANK_map, spwf_map, spwf_inverse)
