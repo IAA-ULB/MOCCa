@@ -92,6 +92,7 @@ $$D_{ji}^{(2)}=\left.{\frac{d^2f_i(x)}{dx^2}}\right\rvert_{x=x_j}=
 $$
 > [!Warning]
 >  I suspect that there is a subtle problem with these formulas. When coding them the unit test failed giving the right values but the opposite sign. While attempting to derive the formulas i discovered that using the definition in eq 6, taking derivatives and evaluating in $x_j$ leads to $(x_j-x_i)$ in the arguments of the sine functions, which is equal to  $(j-i)\Delta$, and NOT $(i-j)$ as written in the formulas. The derivation proceeds by considering separate cases for odd and even $(j-i)$  and noting that $\cos\pi(2n)$ and $\sin\pi(2n+1)$ vanish, yielding the sign factor in eq 10.1 and 10.2., $(-1)^{(i-j)}=(-1)^{(j-i)}$, but obviously the change from $(i-j)$ to $(j-i)$ in the sign functions yields a sign flip.
+>  (suspicion confirmed)
 
 By applying these to the expansion $\phi(x)= \sum_{i=0}^{2N-1}\phi(x_i) f_i(x)$ we obtain 
 [eq 11]

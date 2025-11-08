@@ -2,7 +2,7 @@ from selectors import SelectSelector
 
 import numpy as np
 import numpy.typing as npt
-from mocca.mesh import ijk
+# from mocca.mesh import ijk
 
 from mocca.mesh.observable import Observable
 from mocca.mesh.lagrange_function import lagrange_function
@@ -44,6 +44,72 @@ def create_mesh(gx, gy=None, gz=None):
         return gxy
     else:
         return gx
+
+
+def can_reuse(axes, Q):
+    """Return a derivative that can be reused or None."""
+    return Q.derivative_is_uptodate(axes) if Q.derivatives.get(axes, None) else \
+           None
+
+
+def _split_axes(axes, op2, Q):
+    """split axes in a part that is already computed and a part that still has to be computed.
+    Args:
+        axes: a sorted string of 'x'|'y'|'z' characters
+        op2: the operand to which next D matrices must be applied.
+        Q: the observable to be differentiated.
+    Returns:
+        (remaining_axes, op2):
+            remaining_axes: a sorted string of 'x'|'y'|'z' characters with the remaining differentations,
+            op2: the operand to be differentiated, not necessarily the same as the input parameter
+    """
+    # Can we reuse the axes-derivative?
+    dQ = can_reuse(axes, Q)
+    if dQ is not None:
+        # The derivative was already computed.
+        return '', dQ
+
+    # Can we reuse the 'yz' part?
+    yz = axes.replace('x', '')
+    dQyz = can_reuse(yz, Q)
+    if dQyz is not None:
+        return axes.replace(yz, ''), dQyz
+
+    else:
+        # Can we reuse the 'z' part?
+        z = yz.replace('y', '')
+        dQz = can_reuse(z, Q)
+        if dQz is not None:
+            return axes.replace(z, ''), dQz
+
+        # Can we reuse the 'y' part?
+        y = yz.replace('z', '')
+        dQy = can_reuse(y, Q)
+        if dQy is not None:
+            return axes.replace(y, ''), dQy
+
+    # Can we reuse the 'xy' part?
+    xy = axes.replace('z', '')
+    dQxy = can_reuse(xy, Q)
+    if dQxy is not None:
+        return axes.replace(xy, ''), dQxy
+
+    # Can we reuse the 'xz' part?
+    xz = axes.replace('y', '')
+    dQxz = can_reuse(xz, Q)
+    if dQxz is not None:
+        return axes.replace('x', '').replace('z', ''), dQyz
+
+    # Can we reuse the 'x' part?
+    x = axes.replace('y', '').replace('z', '')
+    dQx = can_reuse(x, Q)
+    if dQx is not None:
+        return axes.replace('x', ''), dQx
+
+    # nothing can be reused
+    return axes, op2
+
+    # Interpolation methods
 
 
 class LagrangeMesh:
@@ -558,6 +624,7 @@ class LagrangeMesh:
         """
         if isinstance(axes, str):
             if axes[0].isupper():
+                # All multi-component derivatives, i.e. those requiring at least two simple derivatives
                 assert self.dim >= 2
                 if axes == 'Grad':
                     result = np.empty((self.dim,), dtype=np.ndarray)
@@ -612,60 +679,64 @@ class LagrangeMesh:
                     raise NotImplementedError(f"{axes=} is not implemented.")
 
             else:
-                axes = ''.join(sorted(axes)) # 'zyxx' -> 'xxyz'
-
-                if axes in Q.derivatives:
-                    out = Q.derivatives[axes]
-                    if Q.derivative_isvalid[axes]:
-                        # no need to recompute: already computed and valid
-                        return out
-                else:
-                    out = np.empty((*self.shape,Q.n_components), dtype=float, order='F')
-                    Q.derivatives[axes] = out
-
-                nx = axes.count('x')
-                ny = axes.count('y')
-                nz = axes.count('z')
-                assert nx + ny + nz == len(axes), f"Extraneous characters in {axes=}, only 'xyz' allowed."
+                # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
+                # sort the `axes` str, as the order of differentiation is immaterial
+                axes = ''.join(sorted(axes)) # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
 
                 # We need to reshape Q from a linear array over all the grid points to a dimD array over the true grid
                 # to leverage np.einsum for computing the differentiation matrix products.
-                Qg = Q.data.reshape((*self.shape,Q.n_components), order='F')
+                Qg = Q.data.reshape((*self.shape, Q.n_components), order='F')
 
-                op2 = Qg
-                for partial_axes in (axes[i:] for i in range(1, len(axes))):
-                    if  partial_axes in Q.derivatives and \
-                        Q.derivative_isvalid(partial_axes):
-                        # Reuse previously computed derivative as a starting point.
-                        op2 = Q.derivatives[partial_axes]
+                # Find out if we can reuse a previously computed derivative as a starting point. E.g.:
+                # - axes = 'xyz', if 'z' is already computed, use it as a starting point and apply D1x*D1y to dQdz
+                # - axes = 'xyz', if 'y' is already computed, use it as a starting point and apply D1x*D1z to dQdy
+                # - axes = 'xyz', if 'yz' is already computed, use it as a starting point and apply D1x to d2Qdydz
+                # - axes = 'xx',  if 'x' is already computed, do NOT it as a starting point and apply D2x  to Q
+                # We prefer to reuse component with 'y' and 'z', because the einsum operations imply non-contiguous
+                # memory access
+                remaining_axes, op2 = _split_axes(axes, Qg, Q)
+                if not remaining_axes: # axes was already computed.
+                    return op2
 
-                out_touched = False
+                # remaining_axes is not empty, there is still some work to be done
+
+                # Reuse previously allocated memory, or allocate
+                if axes in Q.derivatives:
+                    # Reuse previously allocated memory
+                    out = Q.derivatives[axes]
+                else:
+                    # allocate memory for the derivative.
+                    out = np.empty((*self.shape,Q.n_components), dtype=float, order='F')
+                    Q.derivatives[axes] = out
+
+                nx = remaining_axes.count('x') # number of 'x's in axes, used to select Dx1, Dx2, ...
+                ny = remaining_axes.count('y') # number of 'y's in axes, used to select Dy1, Dy2, ...
+                nz = remaining_axes.count('z') # number of 'z's in axes, used to select Dz1, Dz2, ...
+                assert nx + ny + nz == len(remaining_axes), f"Extraneous characters in {axes=}, only 'x|y|z' allowed."
+
                 if nz > 0:
-                    Dnz = self._get_D(2, nz)
+                    Dnz = self._get_D(axis=2, order=nz)
                     # apply Dnz
-                    np.einsum('il,jklq', Dny, op2, out=out)
-                    out_touched = True
+                    np.einsum('il,jklq', Dnz, op2, out=out)
+                    op2 = out
 
                 if ny > 0:
                     subscripts = 'il,jlq' if (self.dim == 2) else \
                                  'il,jlkq'
-                    Dny = self._get_D(1, ny)
-                    op2 = out if out_touched else Qg
+                    Dny = self._get_D(axis=1, order=ny)
                     # apply Dny
                     np.einsum(subscripts, Dny, op2, out=out)
-                    out_touched = True
+                    op2 = out
 
                 if nx > 0:
                     subscripts = 'il,lq'  if (self.dim == 1) else \
                                  'il,ljq' if (self.dim == 2) else \
                                  'il,ljkq'
-                    Dnx = self._get_D(0, nx)
-                    op2 = out if out_touched else Qg
-                    # apply Dnx to Q
+                    Dnx = self._get_D(axis=0, order=nx)
+                    # apply Dnx
                     np.einsum(subscripts, Dnx, op2, out=out)
-                    out_touched = True
 
-            Q.derivative_isvalid(axes, True)
+            Q.derivative_set_uptodate(axes)
             return out
 
         elif isinstance(axes, list):
@@ -699,7 +770,6 @@ class LagrangeMesh:
 
         raise ValueError(f"Axes {axes} not supported.")
 
-    # Interpolation methods
     #---------------------------------------------------------------------------
     def interpolate(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.

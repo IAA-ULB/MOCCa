@@ -52,7 +52,7 @@ class Observable:
         self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
             # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
             # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
-        self._derivative_isvalid = {}
+        self._derivative_is_uptodate = {}
 
     @property
     def dim(self):
@@ -116,18 +116,19 @@ class Observable:
         return result
 
     def invalidate_derivatives(self):
-        for axes, derivative in self._derivative_isvalid.items():
-            self._derivative_isvalid[axes] = False
-        for axes, derivative in self.derivatives.items():
-            self._derivative_isvalid[axes] = False
+        for axes in self._derivative_is_uptodate.keys():
+            self._derivative_is_uptodate[axes] = False
+        for axes in self.derivatives.keys():
+            self._derivative_is_uptodate[axes] = False
 
-    def derivative_isvalid(self, axes, value=None):
-        if value is None:
-            # Get value
-            self._derivative_isvalid.get(axes, False)
-        else:
-            # Set value
-            self._derivative_isvalid[axes] = value
+    def derivative_set_uptodate(self, axes, value=True):
+        """Indicate that the derivative wrt axes was computed after modifying the observable's data,
+        and, thus, that the derivative uptodate relative to the observable's data."""
+        self._derivative_is_uptodate[axes] = value
+
+    def derivative_is_uptodate(self, axes):
+        """Is the derivative wrt axes upto date?"""
+        self._derivative_is_uptodate.get(axes, False)
 
     # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
     # LagrangeMesh methods directly on the Observable.
