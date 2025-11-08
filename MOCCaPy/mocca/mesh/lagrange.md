@@ -158,15 +158,6 @@ $$\mathbf{D}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}$$
 The upper half of $\mathbf{D}$, $\mathbf{D}^-$,  produces the derivatives on the negative $x$-axis, and the lower half of $\mathbf{D}$, $\mathbf{D^+}$,  produces the derivatives on the positive $x$-axis. 
-
-> [!Note]
-> It can be demonstrated that $\mathbf{D}^T=-\mathbf{D}$, but apart from that $\mathbf{D}^-$ and $\mathbf{D}^+$ are unrelated. Thus $\mathbf{D}$ cannot be reduced to a rectangular matrix that can be applied to a reduced $\mathbf{h}$. (E.g. the transpose of the lower half of $\mathbf{D}$ cannot recover its upper left quadrant.)
-
-The obvious way to proceed with differentiation for reduced axes is to construct the full $\mathbf{D}$-matrix and then applying eqs 17 and 18. 
-
-> [!Note]
-> According to eqs 10.1 and 10.2 the $\mathbf{D}$-matrix depends on the mesh only through $N$ (or $M=2N$) and $\Delta$, not on the coordinates of the individual mesh points. So, its computation need not distinguish between the reduced and non-reduced case.
-
 Because of the symmetry properties of $h$ and differentiation, we only need, in fact 
 $$\mathbf{D^{+}\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}
