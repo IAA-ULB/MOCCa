@@ -201,26 +201,23 @@ $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 +\sum_{l=0}^{l=N-1}D_{i,l}^\mathrm{lr
 }h_{l}
 $$
-now with $i=0\text{, ..., }N-1$. 
-
-> [!Note]
-> The second sum can be implemented using `numpy.einsum`, as in the non-reduced case. For the first sum, this is perhaps not possible because the access to $h$ is reversed.
-
-the expression above can be further elaborated:
+now with $i=0\text{, ..., }N-1$. The second sum can be implemented using `numpy.einsum`, as in the non-reduced case. For the first sum, this is perhaps not possible because the access to  is reversed. We can eliminate the reversed access to $h$, by reversing the access to $D_{ij}^\mathrm{ll}$:
+[eq 19]
 $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}_i
 =\pm\sum_{l=0}^{l=N-1}D_{il}^\mathrm{ll}h_{N-1-l}
 +\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr
 }h_{l}$$
-$$=\pm\sum_{l=0}^{l=N-1}D_{i,N-1-k
-l}^\mathrm{ll}h_{l}
+$$=\pm\sum_{l=0}^{l=N-1}D_{i,N-1-l}^\mathrm{ll}h_{l}
 +\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr}h_{l}$$
-$$=\sum_{l=0}^{l=N-1}[\pm D_{i,N-1-k}^\mathrm{ll}
+$$=\sum_{l=0}^{l=N-1}[\pm D_{i,N-1-l}^\mathrm{ll}
 +D_{il}^\mathrm{lr}]h_{l}$$
-This expression does not necessitate the explicit construction of $\mathbf{h}^\textdagger$, but complicates the implementation. 
-
-> [!Tip]
-> At this point, it seems wise to keep the implementation as simple as possible, sacrificing - perhaps (this is not even sure, and certainly not measured) - a bit of performance. 
+$$=\sum_{l=0}^{l=N-1}[\pm E_{il}^\mathrm{ll}
++D_{il}^\mathrm{lr}]h_{l}
+=\sum_{l=0}^{l=N-1}[D_{il}^\mathrm{lr}
+\pm E_{il}^\mathrm{ll}
+]h_{l}$$
+Thus, by reversing the order of the colums in $D_{ij}^\mathrm{ll}$ we can avoid explicit construction of $\mathbf{h}^\textdagger$, and allow for an `numpy.einsum` implementation. This is a one time cost, when the D matrices are constructed.
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]
