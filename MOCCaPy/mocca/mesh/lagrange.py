@@ -685,6 +685,7 @@ class LagrangeMesh:
 
                 # We need to reshape Q from a linear array over all the grid points to a dimD array over the true grid
                 # to leverage np.einsum for computing the differentiation matrix products.
+                ### Whatever the shape of Q, we need to convert it to `self.M`, building on eq  
                 Qg = Q.data.reshape((*self.shape, Q.n_components), order='F')
 
                 # Find out if we can reuse a previously computed derivative as a starting point. E.g.:

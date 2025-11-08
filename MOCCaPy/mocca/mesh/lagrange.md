@@ -168,8 +168,9 @@ The obvious way to proceed with differentiation for reduced axes is to construct
 > According to eqs 10.1 and 10.2 the $\mathbf{D}$-matrix depends on the mesh only through $N$ (or $M=2N$) and $\Delta$, not on the coordinates of the individual mesh points. So, its computation need not distinguish between the reduced and non-reduced case.
 
 Because of the symmetry properties of $h$ and differentiation, we only need, in fact 
-$$\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
-\mathbf{h}\end{bmatrix}}$$
+$$\mathbf{D^{+}\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}}
+=\mathbf{D^{+}}\mathbf{h}^\textdagger$$
 An interesting question, from the performance point of view, is wether we can compute this result without explicitly constructing 
 $$\mathbf{h}^\textdagger=\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}$$
@@ -205,7 +206,21 @@ now with $i=0\text{, ..., }N-1$.
 > [!Note]
 > The second sum can be implemented using `numpy.einsum`, as in the non-reduced case. For the first sum, this is perhaps not possible because the access to $h$ is reversed.
 
-This expression does not necessitate the explicit construction of $\mathbf{h}^\textdagger$, but complicates the implementation. At this point, it seems wise to keep the implementation as simple as possible, sacrificing - perhaps, this is not even sure - a bit of performance.
+the expression above can be further elaborated:
+$$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
+\mathbf{h}\end{bmatrix}}\end{bmatrix}_i
+=\pm\sum_{l=0}^{l=N-1}D_{il}^\mathrm{ll}h_{N-1-l}
++\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr
+}h_{l}$$
+$$=\pm\sum_{l=0}^{l=N-1}D_{i,N-1-k
+l}^\mathrm{ll}h_{l}
++\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr}h_{l}$$
+$$=\sum_{l=0}^{l=N-1}[\pm D_{i,N-1-k}^\mathrm{ll}
++D_{il}^\mathrm{lr}]h_{l}$$
+This expression does not necessitate the explicit construction of $\mathbf{h}^\textdagger$, but complicates the implementation. 
+
+> [!Tip]
+> At this point, it seems wise to keep the implementation as simple as possible, sacrificing - perhaps (this is not even sure, and certainly not measured) - a bit of performance. 
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]
