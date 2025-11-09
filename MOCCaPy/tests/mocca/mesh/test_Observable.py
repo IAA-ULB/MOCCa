@@ -263,15 +263,29 @@ def test_differentiate_1D_xxx():
     print("test_differentiate_1D finished")
 
 
-def test_differentiate_2D(debug=False):
+def test_differentiate_2D_Hessian(debug=False):
     N = 3
     d = 1.
+    dim = 2
     for reduced in [
         False,
         # True,
     ]:
-        mesh = LagrangeMesh(dim=2, M=2*N, d=1., reduced=reduced)
+        mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
         Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0), r=mesh.grid))
         Q.differentiate(axes=['Hessian'])
-        print("test_differentiate_2D finished")
+        print("test_differentiate_2D_Hessian finished")
+
+def test_differentiate_3D_Hessian(debug=False):
+    N = 3
+    d = 1.
+    dim = 3
+    for reduced in [
+        False,
+        # True,
+    ]:
+        mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
+        Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0,0), r=mesh.grid))
+        Q.differentiate(axes=['Hessian'])
+        print("test_differentiate_3D_Hessian finished")
 
