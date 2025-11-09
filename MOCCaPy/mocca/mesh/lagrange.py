@@ -123,6 +123,15 @@ def _split_axes(axes, Q):
             return 1, ny, Q.derivatives[reused_axes]
 
 
+def is_composite(axes:str) -> bool:
+    return axes[0].isupper()
+
+
+def sort_axes(axes:str) -> str:
+    return f"{len(axes)}{axes}" if not is_composite(axes) else \
+           axes
+
+
 class LagrangeMesh:
     def __init__(self, M: int|tuple,
                        d: int|float|tuple,
@@ -665,9 +674,15 @@ class LagrangeMesh:
             counts as a single derivative too). Otherwise a tensor is returned containing `ndarray`s with the individual
             derivatives.
         """
+        if getattr(self, 'differentiate_recursive_call', False) == False and is_composite(axes):
+            raise ValueError(f"Composite derivatives, like '{axes}' must appear in a list: \n"
+                             f"\tobservable.differentiate(axes=['{axes}']) # OK\n"
+                             f"\tobservable.differentiate(axes='{axes}')   # ValueError"
+                             )
+
         if isinstance(axes, str):
             if axes[0].isupper():
-                # All multi-component derivatives, i.e. those requiring at least two simple derivatives
+                # axes is a multi-component derivative. Hence, self.dim >= 2 must hold.
                 assert self.dim >= 2
                 if axes == 'Grad':
                     result = np.empty((self.dim,), dtype=np.ndarray)
@@ -680,21 +695,20 @@ class LagrangeMesh:
 
                 elif axes == 'Hessian':
                     result = np.empty((self.dim,self.dim), dtype=np.ndarray)
-                    if self.dim == 2:
-                        self.differentiate(Q, axes=['x', 'y'], accumulate_in=result)
-                    else:
-                        self.differentiate(Q, axes=['x', 'y', 'z'], accumulate_in=result)
-                    result[0, 0] = self.differentiate(Q, axes='xx')
-                    result[0, 1] = self.differentiate(Q, axes='xy')
-                    result[1, 0] = self.differentiate(Q, axes='yx')
-                    result[1, 1] = self.differentiate(Q, axes='yy')
-                    if self.dim == 3:
-                        result[0, 2] = self.differentiate(Q, axes='xz')
-                        result[1, 2] = self.differentiate(Q, axes='yz')
-                        result[2, 0] = self.differentiate(Q, axes='zx')
-                        result[2, 1] = self.differentiate(Q, axes='zy')
-                        result[2, 2] = self.differentiate(Q, axes='zz')
-
+                    try:
+                        result[0, 0] = Q.derivatives['xx']
+                        result[0, 1] = Q.derivatives['xy']
+                        result[1, 0] = Q.derivatives['xy']
+                        result[1, 1] = Q.derivatives['yy']
+                        if self.dim == 3:
+                            result[0, 2] = Q.derivatives['xz']
+                            result[2, 0] = Q.derivatives['xz']
+                            result[1, 2] = Q.derivatives['yz']
+                            result[2, 1] = Q.derivatives['yz']
+                            result[2, 2] = Q.derivatives['zz']
+                    except KeyError as e:
+                        raise KeyError(e,"Composite derivativatives like 'Hessian' must be called in a list: Observable.differentiate(axes=['Hessian'])q")
+                    Q.derivatives[axes] = result
                     return result
 
                 elif axes == 'Laplacian':
@@ -770,7 +784,7 @@ class LagrangeMesh:
                             if nx % 2:
                                 symmetry[0, iq] *= -1
 
-                elif axis == 1: # y-axis
+                elif self.dim >=1 and axis == 1: # y-axis
                     subscripts = 'il,jlq' if (self.dim == 2) else \
                                  'il,jlkq'
                     if not self.reduced[axis]:
@@ -787,7 +801,7 @@ class LagrangeMesh:
                             if ny % 2:
                                 symmetry[1, iq] *= -1
 
-                else: # z-axis
+                elif self.dim == 2 : # z-axis
                     subscripts = 'il,jklq'
                     if not self.reduced[axis]:
                         D = self._get_D(axis=2, order=order)
@@ -801,11 +815,12 @@ class LagrangeMesh:
                                 symmetry[2, iq] *= -1
 
             Q.derivative_set_uptodate(axes)
+            self.differentiate_recursive_call = False
             return out
 
         elif isinstance(axes, list):
             # Add components to allow reuse of derivatives:
-            # every compose
+            assert self.dim > 1, f"1D LagrangeMeshes do not support composite derivatives '{axes}'."
             if 'Grad' in axes:
                 axes = ['x', 'y', 'z'] + axes
 
@@ -853,16 +868,14 @@ class LagrangeMesh:
                         ] + axes
                 # all starting with 'x' and order < 4 are dropped.
 
+            if self.dim == 2:
+                axes = [ax for ax in axes if 'z' not in ax ]
             axes = list(set(axes)) # now every entry occurs only once
             # sort the list in-place:
-            # - composite derivatives come first, simple derivatives in alphabetical order and 'x' < 'xx'
-            axes.sort()
-            # move the composite derivatives (starting with a capital) to the back.
-            while axes[0][0].isupper():
-                composite = axes.pop(0)
-                axes.append(composite)
+            axes.sort(key=sort_axes)
 
             for ax in axes:
+                self.differentiate_recursive_call = True
                 self.differentiate(Q, axes=ax)
 
             return None  # returning a list would make no sense, the user must access the requested derivatives via

@@ -59,6 +59,7 @@ def test_Observable_ctor():
 
     data = np.zeros((mesh.n_gridpoints(), 2), order='F')
 
+
 def test_differentiate_1D_x(debug=False):
     N = 3
     d = 1.
@@ -181,6 +182,7 @@ def test_differentiate_1D_x(debug=False):
 
     print("test_differentiate_1D finished")
 
+
 def test_differentiate_1D_xx():
     N = 3
     d = 1.
@@ -221,11 +223,10 @@ def test_differentiate_1D_xx():
 
     print("test_differentiate_1D finished")
 
+
 def test_differentiate_1D_xxx():
     N = 3
     d = 1.
-    r = np.linspace(-N * d, N * d, num=241)
-
     # TODO: True case below
     for reduced in [
         False,
@@ -262,15 +263,15 @@ def test_differentiate_1D_xxx():
     print("test_differentiate_1D finished")
 
 
-# def test_differentiate_2D_x(debug=False):
-#     for reduced in [
-#         False,
-#         # True,
-#     ]:
-#         mesh = LagrangeMesh(dim=2, M=4, d=1., reduced=reduced)
-#         Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0), r=mesh.grid))
-#         Q.differentiate(axes=['x', 'y'])
-#         print("test_differentiate_2D finished")
+def test_differentiate_2D(debug=False):
+    N = 3
+    d = 1.
+    for reduced in [
+        False,
+        # True,
+    ]:
+        mesh = LagrangeMesh(dim=2, M=2*N, d=1., reduced=reduced)
+        Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0), r=mesh.grid))
+        Q.differentiate(axes=['Hessian'])
+        print("test_differentiate_2D finished")
 
-def test_order_of_D():
-    pass
