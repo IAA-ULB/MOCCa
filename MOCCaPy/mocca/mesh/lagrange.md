@@ -169,18 +169,18 @@ which requires copying $\mathbf{h}$ twice.
 We have, with $i=0\text{, ..., }2N-1$:
 $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}_i
-=\sum_{l=0}^{l=2N-1}D_{il}^+h_l^\textdagger
+=\sum_{l=0}^{2N-1}D_{il}^+h_l^\textdagger
 $$$$
-=\sum_{l=0}^{l=N-1}D_{il}^+h_l^\textdagger+\sum_{l=N}^{l=2N-1}D_{il}^+h_l^\textdagger
+=\sum_{l=0}^{N-1}D_{il}^+h_l^\textdagger+\sum_{l=N}^{2N-1}D_{il}^+h_l^\textdagger
 $$
 where the first sum acts on $\mathbf{\pm g}$ and the second sum acts on $\mathbf{h}$.
 $$
-=\sum_{l=0}^{l=N-1}D_{il}^+(\pm h_{N-1-l})
-+\sum_{l=N}^{l=2N-1}D_{il}^+h_{l-N}
+=\sum_{l=0}^{N-1}D_{il}^+(\pm h_{N-1-l})
++\sum_{l=N}^{2N-1}D_{il}^+h_{l-N}
 $$
 $$
-=\pm\sum_{l=0}^{l=N-1}D_{il}^+h_{N-1-l}
-+\sum_{l=0}^{l=N-1}D_{i,N+l}^+h_{l}
+=\pm\sum_{l=0}^{N-1}D_{il}^+h_{N-1-l}
++\sum_{l=0}^{N-1}D_{i,N+l}^+h_{l}
 $$
 If we divide $\mathbf{D}$ in 4 $N \times N$ quadrants:
 $$\mathbf{D}
@@ -188,27 +188,54 @@ $$\mathbf{D}
 \mathbf{D}^\mathrm{ll}&\mathbf{D}^\mathrm{lr}\end{bmatrix}$$
 $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}_i
-=\pm\sum_{l=0}^{l=N-1}D_{il}^\mathrm{ll}h_{N-1-l}
-+\sum_{l=0}^{l=N-1}D_{i,l}^\mathrm{lr
+=\pm\sum_{l=0}^{N-1}D_{il}^\mathrm{ll}h_{N-1-l}
++\sum_{l=0}^{N-1}D_{i,l}^\mathrm{lr
 }h_{l}
 $$
 now with $i=0\text{, ..., }N-1$. The second sum can be implemented using `numpy.einsum`, as in the non-reduced case. For the first sum, this is perhaps not possible because the access to  is reversed. We can eliminate the reversed access to $h$, by reversing the access to $D_{ij}^\mathrm{ll}$:
 [eq 19]
 $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}_i
-=\pm\sum_{l=0}^{l=N-1}D_{il}^\mathrm{ll}h_{N-1-l}
-+\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr
+=\pm\sum_{l=0}^{N-1}D_{il}^\mathrm{ll}h_{N-1-l}
++\sum_{l=0}^{N-1}D_{il}^\mathrm{lr
 }h_{l}$$
-$$=\pm\sum_{l=0}^{l=N-1}D_{i,N-1-l}^\mathrm{ll}h_{l}
-+\sum_{l=0}^{l=N-1}D_{il}^\mathrm{lr}h_{l}$$
-$$=\sum_{l=0}^{l=N-1}[\pm D_{i,N-1-l}^\mathrm{ll}
+$$=\pm\sum_{l=0}^{N-1}D_{i,N-1-l}^\mathrm{ll}h_{l}
++\sum_{l=0}^{N-1}D_{il}^\mathrm{lr}h_{l}$$
+$$=\sum_{l=0}^{N-1}[\pm D_{i,N-1-l}^\mathrm{ll}
 +D_{il}^\mathrm{lr}]h_{l}$$
-$$=\sum_{l=0}^{l=N-1}[\pm E_{il}^\mathrm{ll}
+$$=\sum_{l=0}^{N-1}[\pm E_{il}^\mathrm{ll}
 +D_{il}^\mathrm{lr}]h_{l}
-=\sum_{l=0}^{l=N-1}[D_{il}^\mathrm{lr}
-\pm E_{il}^\mathrm{ll}
-]h_{l}$$
-Thus, by reversing the order of the colums in $D_{ij}^\mathrm{ll}$ we can avoid explicit construction of $\mathbf{h}^\textdagger$, and allow for an `numpy.einsum` implementation. This is a one time cost, when the D matrices are constructed.
+=\sum_{l=0}^{N-1}[D_{il}^\mathrm{lr}\pm E_{il}^\mathrm{ll}]h_{l}$$
+Thus, by reversing the order of the colums in $D_{ij}^\mathrm{ll}$ we can avoid explicit construction of $\mathbf{h}^\textdagger$, and allow for an `numpy.einsum` implementation. This is a one time cost, incurred when the D matrices are constructed. The $\pm$ is a $+$ when $h$ is symmetric and a $-$ when $h$ is skew-symmetric. 
+Higher order $\mathbf{D}$ matrices are constructed by multiplying them, e.g.:
+$$\mathbf{D}^2=\mathbf{D}^1\mathbf{D}^1$$
+Thus, the superscript indicating the order of the differentiation can be interpreted as a power. This implies that constructing the higher order $\mathbf{E}^{ll}$ and $\mathbf{D}^{lr}$ matrices have to be constructed from the full higher order $\mathbf{D}^n$ matrices. 
+
+> [!warning]
+> I am not quite sure this is correct... This approach seems to ignore the effect of $\pm$ in eq 19. On the other hand, the derivation of eq 19 seems independent of whether $\mathbf{D}^+$ corresponds to $\mathbf{D}^1$, $\mathbf{D}^2$, ...
+> Testing will reveal the truth. 
+
+Likewise, 
+$$\frac{d^2h}{dx^2}
+=\frac{d}{dx}(\sum_{l=0}^{N-1}[D_{il}^\mathrm{lr}\pm E_{il}^\mathrm{ll}]h_{l})$$
+$$=\sum_{k=0}^{N-1}[D_{ik}^\mathrm{lr}\pm E_{ik}^\mathrm{ll}]
+\sum_{l=0}^{N-1}[D_{kl}^\mathrm{lr}\pm E_{kl}^\mathrm{ll}]h_{l}$$
+$$=(\mathbf{D}\mp\mathbf{E})(\mathbf{D}\pm\mathbf{E})\mathbf{h}$$
+Here, the sign of $\mathbf{E}$, $\mp$, in the first factor is the opposite of $\mathbf{E}$ in the second factor because differentiation flips the symmetry (symmetric becomes skew-symmetric and v.v.). Thus if $h$ is symmetric (skew-symmetric) the formula reads
+$$\frac{d^2\mathbf{h}}{dx^2}
+=(\mathbf{D}-\mathbf{E})(\mathbf{D}+\mathbf{E})\mathbf{h}_{\mathrm{symmetric}}$$
+$$\frac{d^2\mathbf{h}}{dx^2}
+=(\mathbf{D}+\mathbf{E})(\mathbf{D}-\mathbf{E})\mathbf{h}_{\mathrm{skew-symmetric}}$$
+
+> [!Note]
+> There is an additional catch when applying the $\mathbf{D}\pm\mathbf{E}$ formulas, namely that they depend on the symmetry of $\mathbf{h}$. As the different components of an observable may have different symmetries, we must apply it to each component separately. This complicates the implementation, and may impact the performance. However, the memory use is 1/4th of the full matrix ($N\times N$ vs $2N\times2N$).
+
+> [!Note]
+> Keeping track of the symmetry is non-trivial. It is perhaps better to first implement the full matrix approach for reduced axes and then use that to validate the approach based on eq 19. On the other hand, completing $h_{ijk}$ to a non-reduced grid isn't easy either.
+
+> [!Note]
+> Rather then storing  $\mathbf{D}$ and $\mathbf{E}$, it is more efficient to store  $\mathbf{D}+\mathbf{E}$ and  $\mathbf{D}-\mathbf{E}$.
+
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]

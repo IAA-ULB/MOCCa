@@ -86,15 +86,17 @@ class Observable:
 
          Args:
              axes: See doc-string of  LagrangeMesh.differentiate
-             recompute: Recompute all the derivatives specified in axes. If False, previously computed derivatives are
-                recycled, and the method behaves as a getter. Derivatives that hadn't been computed yet, are computed.
-                After modifying `self.data`, `self.differentiate` should, obviously, be called with 'recompute=True'.
+             recompute: If true (=default) all the derivatives specified in axes are recomputed. If False,
+                derivatives computed in previous calls to `Observable.differentiate()` can be reused as a
+                starting point for the requested derivatives.
+                After modifying the Observable, `differentiate` should, obviously, be called with 'recompute=True'.
                 Ideally, you request all needed derivatives at once in a single call. You may want to split the
                 >>> Q = Observable(...)
                 >>> Q.data = ... # modify the observable's data, derivatives are now outdated
                 Recompute the derivative for the new `Q.data`
-                >>> Q.differentiate(axes=['x','y','z']) # recompute=True by default
-                >>> Q.differentiate(axes=['Laplacian'], recompute=False) # The Laplacian can reuse 1st orde derivatives
+                >>> Q.differentiate(axes=['x','y','z']) # recompute=True by default, pre-existing derivatives are
+                >>>                                     # considered invalid.
+                >>> Q.differentiate(axes=['Hessian'], recompute=False) # 1st order derivatives can be reused
         Returns:
             the derivative if a single derivative or derivative tensor (e.g. 'Grad') was requested. If a list of
             derivatives was requested, `None` is returned and the user must access the derivatives via the dict
