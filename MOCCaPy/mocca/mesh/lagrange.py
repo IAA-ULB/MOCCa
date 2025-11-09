@@ -616,7 +616,7 @@ class LagrangeMesh:
 
         for axis in range(self.dim):
             for order in range(1, highest_derivative_order):
-                self.D[axis, order] = self.D[axis, 0] * self.D[axis, order - 1]
+                self.D[axis, order] = self.D[axis, 0] @ self.D[axis, order - 1]
 
             if self.reduced[axis]:
                 N = self.M[axis]//2

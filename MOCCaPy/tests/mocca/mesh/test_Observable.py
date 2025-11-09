@@ -201,8 +201,52 @@ def test_differentiate_1D_xx():
             # Re{d2Qdx2} is proportional to -Re{Q}
             # Im{d2Qdx2} is proportional to -Im{Q}
             for i in range(2 * N):
-                assert d2Qdx2[i,0] / Q.data[i,0] == d2Qdx2[0,0] / Q.data[0,0]
-                assert d2Qdx2[i,1] / Q.data[i,1] == d2Qdx2[0,1] / Q.data[0,1]
+                print(f"real {i=}: {d2Qdx2[i, 0] / Q.data[i, 0]}")
+                assert d2Qdx2[i,0] / Q.data[i,0] == pytest.approx(d2Qdx2[0, 0] / Q.data[0, 0]), f"real {i=}: {d2Qdx2[i, 0] / Q.data[i, 0]}"
+
+            for i in range(2 * N):
+                print(f"imag {i=}: {d2Qdx2[i, 1] / Q.data[i, 1]}")
+                assert d2Qdx2[i,1] / Q.data[i,1] == pytest.approx(d2Qdx2[0, 1] / Q.data[0, 1]), f"imag {i=}: {d2Qdx2[i, 1] / Q.data[i, 1]}"
+
+        else:
+            # reduced == True case
+            # Assert that a reduce mesh and a non-reduced mesh with the same parameters
+            # yield identical D1 matrices.
+            D1_reduced = mesh._get_D(axis=0, order=1)
+            mesh_non_reduced = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False, highest_derivative_order=1)
+            D1_non_reduced = mesh_non_reduced._get_D(axis=0, order=1)
+            for i in range(2*N):
+                for j in range(2*N):
+                    assert D1_reduced[i,j] == pytest.approx(D1_non_reduced[i,j])
+
+    print("test_differentiate_1D finished")
+
+def test_differentiate_1D_xxx():
+    N = 3
+    d = 1.
+    r = np.linspace(-N * d, N * d, num=241)
+
+    # TODO: True case below
+    for reduced in [
+        False,
+        # True,
+    ]:
+        mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced, highest_derivative_order=3)
+
+        if reduced == False:
+
+            Q = Observable(mesh, data = mesh.basis_function(ijk=0, r=mesh.gx))
+            d3Qdx3 = Q.differentiate(axes='xxx')
+
+            # Re{d3Qdx3} is proportional to Im{Q}
+            # Im{d3Qdx3} is proportional to Re{Q}
+            for i in range(1,2 * N):
+                print(f"real {i=}: {d3Qdx3[i, 0] / Q.data[i, 1]}")
+                assert d3Qdx3[i, 0] / Q.data[i, 1] == pytest.approx(d3Qdx3[0, 0] / Q.data[0, 1]), f"real {i=}: {d3Qdx3[i, 0] / Q.data[i, 1]} {d3Qdx3[0, 0] / Q.data[0, 1]}"
+
+            for i in range(1,2 * N):
+                print(f"imag {i=}: {d3Qdx3[i, 1] / Q.data[i, 0]}")
+                assert d3Qdx3[i, 1] / Q.data[i, 0] == pytest.approx(d3Qdx3[0, 1] / Q.data[0, 0]), f"imag {i=}: {d3Qdx3[i, 1] / Q.data[i, 1]} {d3Qdx3[0, 1] / Q.data[0, 0]}"
 
         else:
             # reduced == True case
