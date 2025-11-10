@@ -127,7 +127,8 @@ class LagrangeMesh:
                        bc:str='antiperiodic',
                        reduced:tuple|bool=True,
                        shift:tuple|float=.0,
-                       highest_derivative_order:int=2
+                       highest_derivative_order:int=2,
+                       name=''
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
@@ -142,6 +143,7 @@ class LagrangeMesh:
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
             reduced: restrict the mesh to the positive half-axis.
             shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
+            name: optional name for the mesh.
 
         Raises:
             AssertionError: in case of invalid choices
@@ -151,6 +153,8 @@ class LagrangeMesh:
              of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
              we content with explicitly indicating which coordinate axes must be 'reduced'
         """
+        self.name = name
+
         # initialize M and d as dim-tuples
         if dim == 0 and isinstance(M, tuple):
             self.dim = len(M)
@@ -289,6 +293,11 @@ class LagrangeMesh:
         self.linear_size = int(np.prod(self.mesh_shape))
 
         self._setup_D_matrices(highest_derivative_order)
+
+    def __repr__(self):
+        reduced = ''.join(['T' if r else 'F' for r in self.reduced])
+        return f"{self.__class__.__name__} {self.name}: {reduced=} shape={self.mesh_shape}, size={self.linear_size}"
+
 
     # ---------------------------------------------------------------------------
     # Casting arrays between linear and mesh shape
@@ -547,6 +556,8 @@ class LagrangeMesh:
         #   stores nothing if the axis is not reduced,
         #   and the reduced matrix difference D-E otherwise.
         self.D[0, 0] = self._compute_D1(0)
+        for i in range(6):
+            print(self.D[0,0][i,:])
         if self.dim > 1:
             if (self.M[1] == self.M[0]) and \
                     (self.d[1] == self.d[0]) and \
@@ -573,18 +584,21 @@ class LagrangeMesh:
 
             if self.reduced[axis]:
                 N = self.M[axis]//2
-                for order in range(1, highest_derivative_order):
-                    # Storing D
-                    E = np.empty((N, N), dtype=float)
+                for order in range(highest_derivative_order):
                     D = np.empty((N, N), dtype=float)
+                    E = np.empty((N, N), dtype=float)
 
                     # Reverse the columns of the lower left quadrant Dll and copy into ED
                     # Copy the first column of Dll
 
                     for icol in range(N):
-                        E[:,N-1-icol] = self.D[axis, order][N:,icol] # reverse the order of Dll (lower left quadrant)
                         D[:,icol] = self.D[axis, order][N:,N+icol]   # copy Dlr (lower right quadrant)
-                    self.D[axis, order] = D + E # replaces the full D matrix
+                        E[:,N-1-icol] = self.D[axis, order][N:,icol] # reverse the order of Dll (lower left quadrant)
+                    for i in range(3):
+                        print(D[i, :])
+                    for i in range(3):
+                        print(E[i, :])
+                    self.D  [axis, order] = D + E # replaces the full D matrix
                     self.DmE[axis, order] = D - E
 
 
@@ -627,7 +641,7 @@ class LagrangeMesh:
         # - axes = 'xx',  if 'x' is already computed, do NOT it as a starting point and apply D2x  to Q
         # We prefer to reuse component with 'y' and 'z', because the einsum operations imply non-contiguous
 
-        axis, order, op2, symmetry = _split_axes(axes, Q)
+        axis, order, op2 = _split_axes(axes, Q)
 
         # Symmetry considerations.
         # The scheme for reusing derivatives is as follows:
@@ -650,13 +664,14 @@ class LagrangeMesh:
                 D = self._get_D(axis=0, order=order)
                 np.einsum(subscripts, D, op2, out=out)
             else:
+                subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=0, order=order) if Q.symmetry[0, iq] == 1 else \
                          self._get_DmE(axis=0, order=order)
                     op2_iq = op2[:, :, :, iq] if (self.dim == 3) else \
                              op2[:, :, iq]    if (self.dim == 2) else \
                              op2[:, iq]
-                    np.einsum(subscripts, DE, op2_iq, out=out)
+                    np.einsum(subscripts, DE, op2_iq, out=out[:,iq])
 
         elif self.dim >=1 and axis == 1: # y-axis
             subscripts = 'il,jlkq' if (self.dim == 3) else \
