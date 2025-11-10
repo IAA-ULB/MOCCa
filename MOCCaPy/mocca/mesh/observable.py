@@ -96,7 +96,7 @@ class Observable:
             self.derivatives[axes] = np.empty(shape, dtype=np.ndarray)
         return self.derivatives[axes]
 
-    def differentiate(self, axes:str|list[str], recompute:bool=True):
+    def differentiate(self, axes:str|list[str], recompute:bool=True, debug=False):
         """Compute some spatial derivative(s) of this observable. all components are differentiated
 
          Args:
@@ -149,7 +149,9 @@ class Observable:
         # -V honour symmetry of derivatives 'xyx' == 'xxy' must be computed and stored only once
         # -V enable reusing previous computations: if we need 'xxy' and 'xx' is known, compute as D1y * 'xx', if 'y' is
         #    known, compute as D2x * 'y', otherwise compute (from scratch) as D2x * D1y * q
-        # print(f"{axes=}")
+        if debug:
+            print(f"Debug log>  {axes=}")
+
         if recompute:
             self.invalidate_derivatives()
             # Cast self.data in mesh shape which is required for the einsum calls.
@@ -160,16 +162,22 @@ class Observable:
         if isinstance(axes, str):
             if self.derivative_is_uptodate(axes):
                 # Uptodate derivative already available. This method can be used as a getter.
+                if debug:
+                    print(f"Debug log>  reusing {axes=}")
                 return self.derivatives[axes]
 
             if is_composite(axes):
                 # axes is a multi-component derivative. Hence, self.dim >= 2 must hold.
                 assert self.dim >= 2
+                if not axes in ['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']:
+                    if debug:
+                        print(f"Debug log>  {axes=} unknown composite derivative.")
+                    raise ValueError(f"Unknown composite derivatve {axes}, allowed={['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']}")
 
                 # Wrap axes in a list to allow manipulations for reusing intermediate results
                 if not axes in self._composite_done:
                     self._composite_done.add(axes)
-                    self.differentiate(axes=[axes], recompute=False)
+                    self.differentiate(axes=[axes], recompute=False, debug=debug)
 
                 # Use the above computed partial derivatives to compute the result
                 if axes == 'Grad':
@@ -236,7 +244,8 @@ class Observable:
 
                 # This is where the responsibility of Observable ends and the responsibility of
                 # the mesh object (typically, LagrangeMesh) begins.
-                # print(f"mesh.differentiate(Q=self, axes='{axes}', out=out)")
+                if debug:
+                    print(f"Debug log>  mesh.differentiate(Q=self, axes='{axes}', out=out)")
                 self.mesh.differentiate(Q=self, axes=axes, out=out)
 
                 self.derivative_set_uptodate(axes)
@@ -306,10 +315,11 @@ class Observable:
             # Sort the list in-place (the sorting key ensures that low order derivatives are
             # computed first, enabling optimal reuse):
             axes.sort(key=sort_axes)
-
+            if debug:
+                print(f"Debug log>  {axes=}")
             # Process the list:
             for ax in axes:
-                self.differentiate(axes=ax, recompute=False)
+                self.differentiate(axes=ax, recompute=False, debug=debug)
 
             return None  # returning a list would make no sense, the user must access the requested derivatives via
                          # `self.derivatives`
