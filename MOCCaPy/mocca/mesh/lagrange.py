@@ -106,7 +106,7 @@ def _split_axes(axes, Q):
                1 if ny else \
                2
         order = n
-        return axis, order, Q.data.reshape((*Q.mesh.shape, Q.n_components), order='F')
+        return axis, order, Q.data
 
     else:
         if nx:
@@ -118,15 +118,6 @@ def _split_axes(axes, Q):
             # note that this case implies nx==0, ny!=0 and nz!=0.
             reused_axes = axes.replace('y', '')
             return 1, ny, Q.derivatives[reused_axes]
-
-
-def is_composite(axes:str) -> bool:
-    return axes[0].isupper()
-
-
-def sort_axes(axes:str) -> str:
-    return f"{len(axes)}{axes}" if not is_composite(axes) else \
-           axes
 
 
 class LagrangeMesh:
@@ -545,6 +536,21 @@ class LagrangeMesh:
 
     # Differentiation methods
     # ---------------------------------------------------------------------------
+    def cast_observable_in_mesh_shape(self, Q):
+        mesh_shape = (*self.shape, Q.n_components)
+        if Q.data.shape != mesh_shape:
+            Q.data = Q.data.reshape(mesh_shape, order='F')
+
+    def cast_observable_in_linear_shape(self, Q):
+        linear_shape = (int(np.prod(self.shape),), Q.n_components)
+        if Q.data.shape != linear_shape:
+            Q.data = Q.data.reshape(linear_shape, order='F')
+
+    def check_observable_shape(self, Q):
+        return 'mesh' if not (Q.data.shape == (*self.shape, Q.n_components)) else \
+               'linear' if not (Q.data.shape == (int(np.prod(self.shape),), Q.n_components)) else \
+               'unknown' # this shouldn't happen
+
     def _compute_D1(self, axis) -> None:
         """Compute the full matrix D1 (see eq 10.1 in lagrange.md) for axis
         (wether it is reduced or not).
@@ -649,7 +655,7 @@ class LagrangeMesh:
     def _get_DmE(self, axis:int, order:int):
         return self.DmE[axis, order - 1]
 
-    def differentiate(self, Q, axes, accumulate_in=None):
+    def differentiate(self, Q, axes, out):
         """Differentiate Q wrt axes.
         Args:
             Q: Observable to be differentiated.
@@ -671,214 +677,74 @@ class LagrangeMesh:
             counts as a single derivative too). Otherwise a tensor is returned containing `ndarray`s with the individual
             derivatives.
         """
-        if getattr(self, 'differentiate_recursive_call', False) == False and is_composite(axes):
-            raise ValueError(f"Composite derivatives, like '{axes}' must appear in a list: \n"
-                             f"\tobservable.differentiate(axes=['{axes}']) # OK\n"
-                             f"\tobservable.differentiate(axes='{axes}')   # ValueError"
-                             )
 
-        if isinstance(axes, str):
-            if axes[0].isupper():
-                # axes is a multi-component derivative. Hence, self.dim >= 2 must hold.
-                assert self.dim >= 2
-                if axes == 'Grad':
-                    result = np.empty((self.dim,), dtype=np.ndarray)
-                    result[0] = self.differentiate(Q, axes='x')
-                    result[1] = self.differentiate(Q, axes='y')
-                    if self.dim == 3:
-                        result[2] = self.differentiate(Q, axes='z')
+        # Typically, the first call requests a list, which allows to add intermediate reusable steps
+        # in the requested derivatives. Next, a call is issued for each entry in the list.
+        assert isinstance(axes, str)
+        # Handle single entries:
 
-                    return result
+        # TODO: The D matrix products for differentiation require Q in grid shape, instead of flattened.
+        #       The resulting derivatives are also in grid shape. Devise a mechanism to keep track of the shape.
 
-                elif axes == 'Hessian':
-                    result = np.empty((self.dim,self.dim), dtype=np.ndarray)
-                    try:
-                        result[0, 0] = Q.derivatives['xx']
-                        result[0, 1] = Q.derivatives['xy']
-                        result[1, 0] = Q.derivatives['xy']
-                        result[1, 1] = Q.derivatives['yy']
-                        if self.dim == 3:
-                            result[0, 2] = Q.derivatives['xz']
-                            result[2, 0] = Q.derivatives['xz']
-                            result[1, 2] = Q.derivatives['yz']
-                            result[2, 1] = Q.derivatives['yz']
-                            result[2, 2] = Q.derivatives['zz']
-                    except KeyError as e:
-                        raise KeyError(e,"Composite derivativatives like 'Hessian' must be called in a list: Observable.differentiate(axes=['Hessian'])q")
-                    Q.derivatives[axes] = result
-                    return result
+        # Find out if we can reuse a previously computed derivative as a starting point. E.g.:
+        # - axes = 'xyz', if 'z' is already computed, use it as a starting point and apply D1x*D1y to dQdz
+        # - axes = 'xyz', if 'y' is already computed, use it as a starting point and apply D1x*D1z to dQdy
+        # - axes = 'xyz', if 'yz' is already computed, use it as a starting point and apply D1x to d2Qdydz
+        # - axes = 'xx',  if 'x' is already computed, do NOT it as a starting point and apply D2x  to Q
+        # We prefer to reuse component with 'y' and 'z', because the einsum operations imply non-contiguous
 
-                elif axes == 'Laplacian':
-                    assert self.dim >= 2
-                    if axes in Q.derivatives:
-                        out = Q.derivatives[axes]
-                    else:
-                        out = np.zeros_like(self.data)
-                        Q.derivatives[axes] = out
+        axis, order, op2 = _split_axes(axes, Q)
 
-                    self.differentiate(Q, axes='xx', accumulate_in=out)
-                    self.differentiate(Q, axes='yy', accumulate_in=out)
-                    if self.dim >= 2:
-                        self.differentiate(Q, axes='zz', accumulate_in=out)
-
-                    return out
-
-                elif axes == 'Tensor3':
-                    raise NotImplementedError(f"{axes=} is not implemented.")
-
-                if axes == 'Tensor4':
-                    raise NotImplementedError(f"{axes=} is not implemented.")
-
-                else:
-                    raise NotImplementedError(f"{axes=} is not implemented.")
-
+        if axis == 0: # x-axis
+            subscripts = 'il,lq'  if (self.dim == 1) else \
+                         'il,ljq' if (self.dim == 2) else \
+                         'il,ljkq'
+            if not self.reduced[axis]:
+                D = self._get_D(axis=0, order=order)
+                np.einsum(subscripts, D, op2, out=out)
             else:
-                # TODO: The D matrix products for differentiation require Q in grid shape, instead of flattened.
-                #       The resulting derivatives are also in grid shape. Devise a mechanism to keep track of the shape.
-
-                # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
-                # sort the `axes` str, as the order of differentiation is immaterial
-                axes = ''.join(sorted(axes)) # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
-                if Q.derivative_is_uptodate(axes):
-                    return Q.derivatives[axes]
-
-                # Find out if we can reuse a previously computed derivative as a starting point. E.g.:
-                # - axes = 'xyz', if 'z' is already computed, use it as a starting point and apply D1x*D1y to dQdz
-                # - axes = 'xyz', if 'y' is already computed, use it as a starting point and apply D1x*D1z to dQdy
-                # - axes = 'xyz', if 'yz' is already computed, use it as a starting point and apply D1x to d2Qdydz
-                # - axes = 'xx',  if 'x' is already computed, do NOT it as a starting point and apply D2x  to Q
-                # We prefer to reuse component with 'y' and 'z', because the einsum operations imply non-contiguous
-
-                # memory access
-                # Reuse previously allocated memory, or allocate
-                if axes in Q.derivatives:
-                    # Reuse previously allocated memory
-                    out = Q.derivatives[axes]
-                else:
-                    # allocate memory for the derivative.
-                    out = np.empty((*self.shape,Q.n_components), dtype=float, order='F')
-                    Q.derivatives[axes] = out
-
-                axis, order, op2 = _split_axes(axes, Q)
-
-                if axis == 0: # x-axis
-                    subscripts = 'il,lq'  if (self.dim == 1) else \
-                                 'il,ljq' if (self.dim == 2) else \
-                                 'il,ljkq'
-                    if not self.reduced[axis]:
-                        D = self._get_D(axis=0, order=order)
-                        np.einsum(subscripts, D, op2, out=out)
+                for iq in range(Q.n_components):
+                    DE = self._get_DpE(axis=0, order=order) if symmetry[0, iq] == 1 else \
+                         self._get_DmE(axis=0, order=order)
+                    if self.dim == 2:
+                        np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
+                    elif self.dim == 1:
+                        np.einsum(subscripts, DE, op2[:, :, iq], out=out)
                     else:
-                        for iq in range(Q.n_components):
-                            DE = self._get_DpE(axis=0, order=order) if symmetry[0, iq] == 1 else \
-                                 self._get_DmE(axis=0, order=order)
-                            if self.dim == 2:
-                                np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
-                            elif self.dim == 1:
-                                np.einsum(subscripts, DE, op2[:, :, iq], out=out)
-                            else:
-                                np.einsum(subscripts, DE, op2[:, iq], out=out)
-                            if nx % 2:
-                                symmetry[0, iq] *= -1
+                        np.einsum(subscripts, DE, op2[:, iq], out=out)
+                    if nx % 2:
+                        symmetry[0, iq] *= -1
 
-                elif self.dim >=1 and axis == 1: # y-axis
-                    subscripts = 'il,jlq' if (self.dim == 2) else \
-                                 'il,jlkq'
-                    if not self.reduced[axis]:
-                        D = self._get_D(axis=1, order=order)
-                        np.einsum(subscripts, D, op2, out=out)
+        elif self.dim >=1 and axis == 1: # y-axis
+            subscripts = 'il,jlq' if (self.dim == 2) else \
+                         'il,jlkq'
+            if not self.reduced[axis]:
+                D = self._get_D(axis=1, order=order)
+                np.einsum(subscripts, D, op2, out=out)
+            else:
+                for iq in range(Q.n_components):
+                    DE = self._get_DpE(axis=1, order=order) if symmetry[1, iq] == 1 else \
+                         self._get_DmE(axis=1, order=order)
+                    if self.dim == 2:
+                        np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
                     else:
-                        for iq in range(Q.n_components):
-                            DE = self._get_DpE(axis=1, order=order) if symmetry[1, iq] == 1 else \
-                                 self._get_DmE(axis=1, order=order)
-                            if self.dim == 2:
-                                np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
-                            else:
-                                np.einsum(subscripts, DE, op2[:, :, iq], out=out)
-                            if ny % 2:
-                                symmetry[1, iq] *= -1
+                        np.einsum(subscripts, DE, op2[:, :, iq], out=out)
+                    if ny % 2:
+                        symmetry[1, iq] *= -1
 
-                elif self.dim == 2 : # z-axis
-                    subscripts = 'il,jklq'
-                    if not self.reduced[axis]:
-                        D = self._get_D(axis=2, order=order)
-                        np.einsum(subscripts, D, op2, out=out)
-                    else:
-                        for iq in range(Q.n_components):
-                            DE = self._get_DpE(axis=2, order=order) if symmetry[2,iq] == 1 else \
-                                 self._get_DmE(axis=2, order=order)
-                            np.einsum(subscripts, DE, op2[:,:,:,iq], out=out)
-                            if nz % 2:
-                                symmetry[2, iq] *= -1
+        elif self.dim == 2 : # z-axis
+            subscripts = 'il,jklq'
+            if not self.reduced[axis]:
+                D = self._get_D(axis=2, order=order)
+                np.einsum(subscripts, D, op2, out=out)
+            else:
+                for iq in range(Q.n_components):
+                    DE = self._get_DpE(axis=2, order=order) if symmetry[2,iq] == 1 else \
+                         self._get_DmE(axis=2, order=order)
+                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out)
+                    if nz % 2:
+                        symmetry[2, iq] *= -1
 
-            Q.derivative_set_uptodate(axes)
-            self.differentiate_recursive_call = False
-            return out
-
-        elif isinstance(axes, list):
-            # Add components to allow reuse of derivatives:
-            assert self.dim > 1, f"1D LagrangeMeshes do not support composite derivatives '{axes}'."
-            if 'Grad' in axes:
-                axes = ['x', 'y', 'z'] + axes
-
-            if 'Laplacian' in axes:
-                axes = ['xx', 'yy', 'zz'] + axes
-
-            if 'Hessian' in axes:
-                axes = ['y', 'z',
-                        'xx', 'xy', 'xz',
-                              'yy', 'yz',
-                                    'zz'
-                       ] + axes
-                # As D2x*Q is computed equally efficient as D1x*dQdx and the the same holds for y and z,
-                # there is no point in reusing 'x' for 'xx'. However, reusing 'y' for 'xy' and 'z' for 'xz'
-                # and 'yz' is beneficial.
-                # The genaral rule is that everything starting with 'x' can be dropped, except the one needed
-                # by the composite, c.q 'Hessian'.
-
-            if 'Tensor3' in axes:
-                axes = ['y', 'z',
-                        'yy', 'yz', 'zz',
-                        'xxx', 'xxy', 'xxz',
-                               'xyy', 'xyz',
-                                      'xzz',
-                        'yyy', 'yyz',
-                               'yzz',
-                        'zzz',
-                       ] + axes
-                # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
-
-            if 'Tensor4' in axes:
-                axes = ['y', 'z',
-                        'yy', 'xz', 'yz', 'zz',
-                        'yyy', 'yyz', 'yzz', 'zzz',
-                        'xxxx', 'xxxy', 'xxxz',
-                                'xxyy', 'xxyz',
-                                        'xxzz',
-                                'xyyy', 'xyyz',
-                                        'xyzz',
-                                        'xzzz',
-                                'yyyy', 'yyyz',
-                                        'yyzz',
-                                        'yzzz',
-                                        'zzzz',
-                        ] + axes
-                # all starting with 'x' and order < 4 are dropped.
-
-            if self.dim == 2:
-                axes = [ax for ax in axes if 'z' not in ax ]
-            axes = list(set(axes)) # now every entry occurs only once
-            # sort the list in-place:
-            axes.sort(key=sort_axes)
-
-            for ax in axes:
-                self.differentiate_recursive_call = True
-                self.differentiate(Q, axes=ax)
-
-            return None  # returning a list would make no sense, the user must access the requested derivatives via
-                         # `Q.derivatives`
-
-        raise ValueError(f"Axes {axes} not supported.")
 
     # Interpolation methods
     #---------------------------------------------------------------------------

@@ -273,7 +273,7 @@ def test_differentiate_2D_Hessian(debug=False):
     ]:
         mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
         Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0), r=mesh.grid))
-        Q.differentiate(axes=['Hessian'])
+        H = Q.differentiate(axes='Hessian')
         print("test_differentiate_2D_Hessian finished")
 
 def test_differentiate_3D_Hessian(debug=False):
@@ -287,5 +287,11 @@ def test_differentiate_3D_Hessian(debug=False):
         mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
         Q = Observable(mesh, data=mesh.basis_function(ijk=(0,0,0), r=mesh.grid))
         Q.differentiate(axes=['Hessian'])
+
+        with pytest.raises(NotImplementedError):
+            Q.differentiate(axes=['Gradient'], recompute=False)
+
+        Q.differentiate(axes=['Grad'], recompute=False)
+
         print("test_differentiate_3D_Hessian finished")
 

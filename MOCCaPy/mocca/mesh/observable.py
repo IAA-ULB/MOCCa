@@ -1,6 +1,16 @@
 import numpy as np
 
 
+def is_composite(axes:str) -> bool:
+    """By convention composite derivative are represented by str object starting with a capital."""
+    return axes[0].isupper()
+
+
+def sort_axes(axes:str) -> str:
+    return f"{len(axes)}{axes}" if not is_composite(axes) else \
+           axes
+
+
 class Observable:
     """Base class for observables."""
     def __init__(self, mesh, data=None, n_components=None, symmetry=1, name=''):
@@ -81,26 +91,55 @@ class Observable:
 
     # Differentiation
     #---------------------------------------------------------------------------
+    def _get_result_array(self, axes, shape):
+        if not axes in self.derivatives:
+            self.derivatives[axes] = np.empty(shape, dtype=np.ndarray)
+        return self.derivatives[axes]
+
     def differentiate(self, axes:str|list[str], recompute:bool=True):
         """Compute some spatial derivative(s) of this observable. all components are differentiated
 
          Args:
-             axes: See doc-string of  LagrangeMesh.differentiate
-             recompute: If true (=default) all the derivatives specified in axes are recomputed. If False,
-                derivatives computed in previous calls to `Observable.differentiate()` can be reused as a
-                starting point for the requested derivatives.
-                After modifying the Observable, `differentiate` should, obviously, be called with 'recompute=True'.
-                Ideally, you request all needed derivatives at once in a single call. You may want to split the
+             axes:
+                str: a str of 'x'|'y'|'z' characters, indicating the differentiation order and axes.
+                    E.g. 'xxz' requests differentiation d^3/dxdxdz.
+                    Alternatetively, the name of a composite derivative:
+                    - 'Grad': all first order derivatives
+                    - 'Hessian': all second order derivatives
+                    - 'Laplacian' d^2/dx^2 + d^2/dy^2 + d^2/dz^2)
+                    - 'Tensor3': all third order derivatives
+                    - 'Tensor4': all fourth order derivatives
+                    These return an numpy array with the corresponding tensor of partial derivatives.
+                    'Laplacian', is an exception because it is a scalar differentiation operator, and
+                    therefor the result of d^2/dxdx + d^2/dy^2 + d^2/dz^2)Q is returned.
+                list: A list of the above strings is also accepted, requesting several derivatives
+                    at once. The list can internally be manipulated to allow storing intermediate
+                    derivatives that can be reused to speed up computation. E.g. when requesting 'xz'
+                    and 'yz', it is advantageous to compute d/dz first and apply d/dx and d/dy to it,
+                    thereby saving one matrix application.
+             recompute: If true (=default) all the derivatives needed by the axes request are recomputed.
+                If False, derivatives computed in previous calls to `Observable.differentiate()` can be
+                reused as a starting point for the requested derivatives.
+                After modifying the Observable, `differentiate` should, obviously, be called with
+                'recompute=True' (=default). It may be practical to request all needed derivatives
+                in a single differentate() call. Somtimes it may be more practical to split the
+                request over several calls where the first call uses `recompute=True` and succeeding
+                calls use `recompute=False`. The succeeding call could e.g. correspond to increasingly
+                higher order derivatives
                 >>> Q = Observable(...)
                 >>> Q.data = ... # modify the observable's data, derivatives are now outdated
-                Recompute the derivative for the new `Q.data`
-                >>> Q.differentiate(axes=['x','y','z']) # recompute=True by default, pre-existing derivatives are
-                >>>                                     # considered invalid.
-                >>> Q.differentiate(axes=['Hessian'], recompute=False) # 1st order derivatives can be reused
+                >>> Q.differentiate(axes=['Grad'])
+                >>> Q.differentiate(axes=['Hessian'], recompute=False)
+                The first call uses `recompute=True` and marks all previously computed derivatives as
+                not uptodate, then computes all 1st order derivatives. The second call proceeds to comppute
+                all 2nd order derivatives and reuse 'y' and 'z' computed in the first call in the computation
+                of the cross derivatives 'xy', 'xx' and 'yz'.
         Returns:
-            the derivative if a single derivative or derivative tensor (e.g. 'Grad') was requested. If a list of
-            derivatives was requested, `None` is returned and the user must access the derivatives via the dict
-            `Q.derivatives`.
+            If axes is a str, returns the result in the form of a numpy array of floats. For composite str
+            representing tensor differentiaton operators ('Grad, 'Hessian', ...) the returned result is a
+            numpy array (the tensor) of numpy arrays of floats.
+            In the case of a list, None is returned and the user must access the individual derivatives as
+            `self.derivatives[axes:str]`
         """
         # TODO: find a way of automatically calling invalidate_derivatives() after updating the Observable's data member?
         #       that would avoid specifying recompute.
@@ -110,12 +149,174 @@ class Observable:
         # -V honour symmetry of derivatives 'xyx' == 'xxy' must be computed and stored only once
         # -V enable reusing previous computations: if we need 'xxy' and 'xx' is known, compute as D1y * 'xx', if 'y' is
         #    known, compute as D2x * 'y', otherwise compute (from scratch) as D2x * D1y * q
-
+        # print(f"{axes=}")
         if recompute:
             self.invalidate_derivatives()
+            # Cast self.data in mesh shape which is required for the einsum calls.
+            # The data structures for the derivatives are then automatically in the right shape too.
+            self.mesh.cast_observable_in_mesh_shape(self)
+            self._composite_done = set()
 
-        result = self.mesh.differentiate(self, axes=axes)
-        return result
+        if isinstance(axes, str):
+            if self.derivative_is_uptodate(axes):
+                # Uptodate derivative already available. This method can be used as a getter.
+                return self.derivatives[axes]
+
+            if is_composite(axes):
+                # axes is a multi-component derivative. Hence, self.dim >= 2 must hold.
+                assert self.dim >= 2
+
+                # Wrap axes in a list to allow manipulations for reusing intermediate results
+                if not axes in self._composite_done:
+                    self._composite_done.add(axes)
+                    self.differentiate(axes=[axes], recompute=False)
+
+                # Use the above computed partial derivatives to compute the result
+                if axes == 'Grad':
+                    result = self._get_result_array(axes, (self.dim,))
+
+                    result[0] = self.derivatives['x']
+                    result[1] = self.derivatives['y']
+                    if self.dim == 3:
+                        result[2] = self.derivatives['z']
+
+                elif axes == 'Hessian':
+                    result = self._get_result_array(axes, (self.dim, self.dim))
+
+                    result[0, 0] = self.derivatives['xx']
+                    result[0, 1] = self.derivatives['xy']
+                    result[1, 0] = self.derivatives['xy']
+                    result[1, 1] = self.derivatives['yy']
+                    if self.dim == 3:
+                        result[0, 2] = self.derivatives['xz']
+                        result[2, 0] = self.derivatives['xz']
+                        result[1, 2] = self.derivatives['yz']
+                        result[2, 1] = self.derivatives['yz']
+                        result[2, 2] = self.derivatives['zz']
+
+                elif axes == 'Laplacian':
+                    if axes in self.derivatives:
+                        result = self.derivatives[axes]
+                    else:
+                        result = np.zeros_like(self.data)
+                        self.derivatives[axes] = result
+
+                    result += self.derivatives['xx']
+                    result += self.derivatives['yy']
+                    if self.dim >= 2:
+                        result += self.derivatives['zz']
+
+                elif axes == 'Tensor3':
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+                    result = self._get_result_array(axes, 3*(self.dim, ))
+                    # TODO: implement
+
+                elif axes == 'Tensor4':
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+                    result = self._get_result_array(axes, 4*(self.dim, ))
+                    # TODO: implement
+
+                else:
+                    raise NotImplementedError(f"{axes=} is not implemented.")
+
+                return result
+
+            else:  # not composite
+                # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
+                nx, ny, nz = axes.count('x'), axes.count('y'), axes.count('z')
+                assert nx + ny + nz == len(axes), \
+                       f"Extraneous characters in '{axes}', only 'x', 'y', 'and 'z' are allowed"
+                # sort the `axes` str, as the order of differentiation is immaterial
+                axes = nx*'x' + ny*'y' + nz*'z' # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
+
+                if not axes in self.derivatives:
+                    # allocate memory
+                    self.derivatives[axes] = np.empty_like(self.data)
+                out = self.derivatives[axes]
+
+                # This is where the responsibility of Observable ends and the responsibility of
+                # the mesh object (typically, LagrangeMesh) begins.
+                # print(f"mesh.differentiate(Q=self, axes='{axes}', out=out)")
+                self.mesh.differentiate(Q=self, axes=axes, out=out)
+
+                self.derivative_set_uptodate(axes)
+
+                return out
+
+        elif isinstance(axes, list):
+            # Handle lists of derivatives
+            # Add components to allow reuse of derivatives:
+            if 'Grad' in axes:
+                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                axes = ['x', 'y', 'z'] + axes
+
+            if 'Laplacian' in axes:
+                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                axes = ['xx', 'yy', 'zz'] + axes
+
+            if 'Hessian' in axes:
+                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                axes = ['y', 'z',
+                        'xx', 'xy', 'xz',
+                        'yy', 'yz',
+                        'zz'
+                        ] + axes
+                # As D2x*Q is computed equally efficient as D1x*dQdx and the the same holds for y and z,
+                # there is no point in reusing 'x' for 'xx'. However, reusing 'y' for 'xy' and 'z' for 'xz'
+                # and 'yz' is beneficial.
+                # The genaral rule is that everything starting with 'x' can be dropped, except the one needed
+                # by the composite, c.q 'Hessian'.
+
+            if 'Tensor3' in axes:
+                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                axes = ['y', 'z',
+                        'yy', 'yz', 'zz',
+                        'xxx', 'xxy', 'xxz',
+                        'xyy', 'xyz',
+                        'xzz',
+                        'yyy', 'yyz',
+                        'yzz',
+                        'zzz',
+                        ] + axes
+                # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
+
+            if 'Tensor4' in axes:
+                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                axes = ['y', 'z',
+                        'yy', 'xz', 'yz', 'zz',
+                        'yyy', 'yyz', 'yzz', 'zzz',
+                        'xxxx', 'xxxy', 'xxxz',
+                        'xxyy', 'xxyz',
+                        'xxzz',
+                        'xyyy', 'xyyz',
+                        'xyzz',
+                        'xzzz',
+                        'yyyy', 'yyyz',
+                        'yyzz',
+                        'yzzz',
+                        'zzzz',
+                        ] + axes
+                # all starting with 'x' and order < 4 are dropped.
+
+            if self.dim == 2:
+                # Remove entries containing 'z':
+                axes = [ax for ax in axes if 'z' not in ax]
+            # Remove duplicate entries:
+            axes = list(set(axes))
+            # Sort the list in-place (the sorting key ensures that low order derivatives are
+            # computed first, enabling optimal reuse):
+            axes.sort(key=sort_axes)
+
+            # Process the list:
+            for ax in axes:
+                self.differentiate(axes=ax, recompute=False)
+
+            return None  # returning a list would make no sense, the user must access the requested derivatives via
+                         # `self.derivatives`
+
+        else: # Axes should be eiter str or list
+            raise ValueError(f"Axes of type {type(axes)} not supported ({axes=}).")
+
 
     def invalidate_derivatives(self):
         for axes in self._derivative_is_uptodate.keys():
@@ -130,7 +331,7 @@ class Observable:
 
     def derivative_is_uptodate(self, axes):
         """Is the derivative wrt axes upto date?"""
-        self._derivative_is_uptodate.get(axes, False)
+        return self._derivative_is_uptodate.get(axes, False)
 
     # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
     # LagrangeMesh methods directly on the Observable.
