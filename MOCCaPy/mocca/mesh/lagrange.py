@@ -601,35 +601,24 @@ class LagrangeMesh:
 
 
     def differentiate(self, Q, axes, out):
-        """Differentiate Q wrt axes.
+        """Differentiate Observable Q wrt axes.
+
         Args:
             Q: Observable to be differentiated.
             axes: Axes to be differentiated.
                 A single derivative can be requested as a `str` combining the characters 'x', 'y', 'z'. E.g. the
                  `str` 'xyz' requests d^3/dxdydz. Multiple derivatives can be requested too:
-                   - 'Grad': all first order derivatives
-                   - 'Hessian': all second order derivatives
-                   - 'Laplacian' d^2/dx^2 + d^2/dy^2 + d^2/dz^2)
-                   - 'Tensor3': all third order derivatives
-                   - 'Tensor4': all fourth order derivatives
                  In principle the order of the 'xyz' characters in axes is immaterial. Axes is sorted and repeating
                  characters are combined. E.g. 'xyx' -> 'xxy' is computed as D2x x D1y x Q.
-                 Furthermore, axes can be a `list` of such strings, requesting the computation of many different
-                 derivatives. The list is sorted from low to high differentiation order, and higher order derivatives
-                 will reuse previously computed derivatives. E.g., if `xx` has been computed and
         Returns:
-            If a single derivative is requested, returns a `ndarray` containing the requested derivative. (The Laplacian
-            counts as a single derivative too). Otherwise a tensor is returned containing `ndarray`s with the individual
-            derivatives.
+            A `ndarray` of the same shape as Q.data containing the requested derivative.
+
+        Note that
+        - Q.data must have shape (*self.mesh_shape, n_components) be in mesh_shape and that the caller is responsible for this.
+        - this is a low-level method, to be called by Observable.differentiate()
+
         """
-
-        # Typically, the first call requests a list, which allows to add intermediate reusable steps
-        # in the requested derivatives. Next, a call is issued for each entry in the list.
-        assert isinstance(axes, str)
-        # Handle single entries:
-
-        # TODO: The D matrix products for differentiation require Q in grid shape, instead of flattened.
-        #       The resulting derivatives are also in grid shape. Devise a mechanism to keep track of the shape.
+# Handle single entries:
 
         # Find out if we can reuse a previously computed derivative as a starting point. E.g.:
         # - axes = 'xyz', if 'z' is already computed, use it as a starting point and apply D1x*D1y to dQdz
@@ -638,44 +627,50 @@ class LagrangeMesh:
         # - axes = 'xx',  if 'x' is already computed, do NOT it as a starting point and apply D2x  to Q
         # We prefer to reuse component with 'y' and 'z', because the einsum operations imply non-contiguous
 
-        axis, order, op2 = _split_axes(axes, Q)
+        axis, order, op2, symmetry = _split_axes(axes, Q)
+
+        # Symmetry considerations.
+        # The scheme for reusing derivatives is as follows:
+        # - if nothing is reused the derivative is applies as Dnx * Dny * Dnz * Q
+        # - if some precomputed derivative is reused, this is
+        #   - either: Dnx * Dny * Q_nz with Q_nz = d^nzQ/dz^nz
+        #   - or    : Dnx * Q_nynz  with Q_nynz = d^(ny+nz)Q/dy^ny.dz^nz
+        # Hence none of the matrix multiplications acts on a precomputed axis. As a consequence the symmetry
+        # sign of the part acted on is simply given by Q.symmetry.
+        # The symmetry of the result is given by :
+        #   (-1)^nx * Q.symmetry[0,:]
+        #   (-1)^ny * Q.symmetry[1,:]
+        #   (-1)^nz * Q.symmetry[2,:]
 
         if axis == 0: # x-axis
-            subscripts = 'il,lq'  if (self.dim == 1) else \
-                         'il,ljq' if (self.dim == 2) else \
-                         'il,ljkq'
+            subscripts = 'il,ljkq' if (self.dim == 3) else \
+                         'il,ljq'  if (self.dim == 2) else \
+                         'il,lq'   #  (self.dim == 1)
             if not self.reduced[axis]:
                 D = self._get_D(axis=0, order=order)
                 np.einsum(subscripts, D, op2, out=out)
             else:
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=0, order=order) if symmetry[0, iq] == 1 else \
+                    DE = self._get_DpE(axis=0, order=order) if Q.symmetry[0, iq] == 1 else \
                          self._get_DmE(axis=0, order=order)
-                    if self.dim == 2:
-                        np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
-                    elif self.dim == 1:
-                        np.einsum(subscripts, DE, op2[:, :, iq], out=out)
-                    else:
-                        np.einsum(subscripts, DE, op2[:, iq], out=out)
-                    if nx % 2:
-                        symmetry[0, iq] *= -1
+                    op2_iq = op2[:, :, :, iq] if (self.dim == 3) else \
+                             op2[:, :, iq]    if (self.dim == 2) else \
+                             op2[:, iq]
+                    np.einsum(subscripts, DE, op2_iq, out=out)
 
         elif self.dim >=1 and axis == 1: # y-axis
-            subscripts = 'il,jlq' if (self.dim == 2) else \
-                         'il,jlkq'
+            subscripts = 'il,jlkq' if (self.dim == 3) else \
+                         'il,jlq'  #  (self.dim == 2)
             if not self.reduced[axis]:
                 D = self._get_D(axis=1, order=order)
                 np.einsum(subscripts, D, op2, out=out)
             else:
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=1, order=order) if symmetry[1, iq] == 1 else \
+                    DE = self._get_DpE(axis=1, order=order) if Q.symmetry[1, iq] == 1 else \
                          self._get_DmE(axis=1, order=order)
-                    if self.dim == 2:
-                        np.einsum(subscripts, DE, op2[:, :, :, iq], out=out)
-                    else:
-                        np.einsum(subscripts, DE, op2[:, :, iq], out=out)
-                    if ny % 2:
-                        symmetry[1, iq] *= -1
+                    op2_iq = op2[:, :, :, iq] if (self.dim == 3) else \
+                             op2[:, :, iq]    #  (self.dim == 2)
+                    np.einsum(subscripts, DE, op2_iq, out=out)
 
         elif self.dim == 2 : # z-axis
             subscripts = 'il,jklq'
@@ -684,11 +679,10 @@ class LagrangeMesh:
                 np.einsum(subscripts, D, op2, out=out)
             else:
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=2, order=order) if symmetry[2,iq] == 1 else \
+                    DE = self._get_DpE(axis=2, order=order) if Q.symmetry[2,iq] == 1 else \
                          self._get_DmE(axis=2, order=order)
                     np.einsum(subscripts, DE, op2[:,:,:,iq], out=out)
-                    if nz % 2:
-                        symmetry[2, iq] *= -1
+
 
     # ---------------------------------------------------------------------------
     # Interpolation methods
