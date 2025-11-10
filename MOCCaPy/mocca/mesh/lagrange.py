@@ -438,7 +438,9 @@ class LagrangeMesh:
                 the corresponding entry in ijk_sign to -1.)
                 (ignored for non-reduced axes).
         Returns:
-            Array of values of the basis function at r.
+            (data, symmetry)
+            data: Array of values of the basis function at r.
+            symmetry: the symmetry sign of the basis function (+1 for real components, -1 for imaginary components).
         """
         assert isinstance(r, np.ndarray)
 
@@ -461,6 +463,9 @@ class LagrangeMesh:
                                                ) / (self.box_width[2] * self.d[2])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
+            symmetry = np.array([[1, -1],
+                                 [1, -1],
+                                 [1, -1]], dtype=float, order='F')
 
         elif self.dim == 2:
             assert r.shape[1] == 2
@@ -474,6 +479,8 @@ class LagrangeMesh:
                                                ) / (self.box_width[1] * self.d[1])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
+            symmetry = np.array([[1,-1],
+                                 [1,-1]], dtype=float, order='F')
 
         elif self.dim == 1:
             if len(r.shape) == 1:
@@ -486,6 +493,7 @@ class LagrangeMesh:
                                                ) / (self.box_width[0] * self.d[0])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1 / self.box_width[0])
+            symmetry = [1,-1]
 
         arg = r @ two_pi_K
         result = np.empty((r.shape[0],2), dtype=float, order='F')
@@ -493,7 +501,7 @@ class LagrangeMesh:
         np.sin(arg, out=result[:,1])
         result *= factor
 
-        return result
+        return result, symmetry
 
 
     # ---------------------------------------------------------------------------
@@ -556,8 +564,6 @@ class LagrangeMesh:
         #   stores nothing if the axis is not reduced,
         #   and the reduced matrix difference D-E otherwise.
         self.D[0, 0] = self._compute_D1(0)
-        for i in range(6):
-            print(self.D[0,0][i,:])
         if self.dim > 1:
             if (self.M[1] == self.M[0]) and \
                     (self.d[1] == self.d[0]) and \
@@ -594,10 +600,6 @@ class LagrangeMesh:
                     for icol in range(N):
                         D[:,icol] = self.D[axis, order][N:,N+icol]   # copy Dlr (lower right quadrant)
                         E[:,N-1-icol] = self.D[axis, order][N:,icol] # reverse the order of Dll (lower left quadrant)
-                    for i in range(3):
-                        print(D[i, :])
-                    for i in range(3):
-                        print(E[i, :])
                     self.D  [axis, order] = D + E # replaces the full D matrix
                     self.DmE[axis, order] = D - E
 

@@ -13,7 +13,7 @@ def sort_axes(axes:str) -> str:
 
 class Observable:
     """Base class for observables."""
-    def __init__(self, mesh, data=None, n_components=None, symmetry=1, name=''):
+    def __init__(self, mesh, n_components=None, data=None, symmetry=1, name=''):
         """
         Args:
             mesh: a LagrangeMesh object
