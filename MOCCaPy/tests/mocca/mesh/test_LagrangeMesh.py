@@ -247,7 +247,7 @@ def test_LagrangeMesh_plane_wave_1D():
     L = n*d
     r = mesh.gridx[:,0,0]
     pw = mesh.plane_wave_1D(L=L, k=k, r=r)
-    
+
     arg = (2*np.pi * k / L) * r
     real_part = np.sqrt(1/L) * np.cos(arg)
     imag_part = np.sqrt(1/L) * np.sin(arg)
@@ -258,24 +258,24 @@ def test_LagrangeMesh_plane_wave_1D():
 def test_LagrangeMesh_reshape():
     """Test reshaping of the mesh."""
     mesh = LagrangeMesh(dim=3, M=4, d=.5)
-    assert mesh.shape == (2,2,2)
-    assert mesh.flat_shape == (8,)
+    assert mesh.mesh_shape == (2,2,2)
+    assert mesh.linear_size == 8
 
     assert mesh.gridx.shape == (2,2,2)
-    mesh.flatten()
-    assert mesh.gridx.shape == (8,)
-    mesh.flatten() # already flat
-    assert mesh.gridx.shape == (8,)
-    mesh.unflatten()
-    assert mesh.gridx.shape == (2, 2, 2)
-    mesh.unflatten() # already unflattened
-    assert mesh.gridx.shape == (2, 2, 2)
+    mesh.gridx = mesh.cast2linear(mesh.gridx)
+    assert mesh.gridx.shape == (8,1)
+    mesh.gridx = mesh.cast2linear(mesh.gridx) # already linearized
+    assert mesh.gridx.shape == (8,1)
+    mesh.gridx = mesh.cast2mesh(mesh.gridx)
+    assert mesh.gridx.shape == (2,2,2,1)
+    mesh.gridx = mesh.cast2mesh(mesh.gridx)   # already to mesh
+    assert mesh.gridx.shape == (2,2,2,1)
 
-    a = np.ones((2,2,2,5,5))
-    a_flat = mesh.flatten(a)
-    assert a_flat.shape == (8,5,5)
-    a = mesh.unflatten(a_flat)
-    assert a.shape == (2,2,2,5,5)
+    a = np.ones((2,2,2,5))
+    a_linear = mesh.cast2linear(a)
+    assert a_linear.shape == (8,5)
+    a = mesh.cast2mesh(a_linear)
+    assert a.shape == (2,2,2,5)
 
 
 def test_LagrangeMesh_basis_function_1D():
@@ -313,7 +313,7 @@ def test_LagrangeMesh_basis_function_2D():
     for i in range(nr1):
         r[i*nr1:(i+1)*nr1, 0] = x
         r[i*nr1:(i+1)*nr1, 1] = y[i]
-    
+
     x = r[:,0].reshape((nr1,nr1), order='F')
     y = r[:,1].reshape((nr1,nr1), order='F')
     for i in range(N):
@@ -348,7 +348,7 @@ def norm(x, y, z):
 def test_LagrangeMesh_apply():
     mesh = LagrangeMesh(dim=3, M=10, d=.5)
     r_xyz = mesh.apply(norm)
-    for i in range(mesh.flat_shape[0]):
+    for i in range(mesh.linear_size):
         assert r_xyz[i] == np.sqrt(mesh.gridx[i]**2 + mesh.gridy[i]**2 + mesh.gridz[i]**2)
 
 
@@ -356,10 +356,10 @@ def test_LagrangeMesh_integrate():
     mesh = LagrangeMesh(dim=3, M=10, d=.5)
     # integrate a constant function.
 
-    q = np.ones((mesh.n_gridpoints(),))
+    q = np.ones((mesh.linear_size,))
     Q= Observable(mesh,data=q)
     integral_of_Q = Q.integrate()
-    assert integral_of_Q == mesh.n_gridpoints() * mesh.dv
+    assert integral_of_Q == mesh.linear_size * mesh.dv
 
 
 def test_LagrangeMesh_interpolate1D(debug=False):
@@ -371,7 +371,7 @@ def test_LagrangeMesh_interpolate1D(debug=False):
     ]:
         str_reduced = "(reduced)" if reduced else ""
         mesh  = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced)
-        r = np.empty((mesh.n_gridpoints(),), dtype=float, order='F')
+        r = np.empty((mesh.linear_size,), dtype=float, order='F')
         r = mesh.gx
         rip = np.linspace(-N*d, N*d, num=61)
         for ip in range(len(rip)):
@@ -388,7 +388,6 @@ def test_LagrangeMesh_interpolate1D(debug=False):
                     print(f"{reduced=} bf={i}/{2 * N}")
                 else:
                     print(f"{reduced=} bf=-{i}/{2 * N}")
-
 
             lcpw_rgp = mesh.basis_function(i,r  )
             lcpw_rip = mesh.basis_function(i,rip)

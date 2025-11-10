@@ -57,7 +57,7 @@ def test_Observable_ctor():
     mesh = LagrangeMesh(dim=1, M=4, d=1., reduced=False)
     Q = Observable(mesh, n_components=1)
 
-    data = np.zeros((mesh.n_gridpoints(), 2), order='F')
+    data = np.zeros((mesh.linear_size, 2), order='F')
 
 
 def test_differentiate_1D_x(debug=False):

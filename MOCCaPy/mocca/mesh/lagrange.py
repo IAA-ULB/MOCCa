@@ -285,124 +285,64 @@ class LagrangeMesh:
             self.gridx = g1D[0]
             # print(f"{self.gridx=}")
 
-        self.shape = self.gridx.shape
-        self.flat_shape = (int(np.prod(self.shape)),)
+        self.mesh_shape   = self.gridx.shape
+        self.linear_size = int(np.prod(self.mesh_shape))
 
         self._setup_D_matrices(highest_derivative_order)
 
-    def flatten(self, array=None):
-        """Flatten the mesh array.
+    # ---------------------------------------------------------------------------
+    # Casting arrays between linear and mesh shape
+    # (n_gridpoints, n_components) <--> (Nx, Ny, Nz, n_components
+    #---------------------------------------------------------------------------
+    def cast2mesh(self, a):
+        """Cast an array a to shape (*self.mesh_shape, n_components).
 
-        Args:
-            array: if None, self.gridx|y|z are flattened. Otherwise, array is flattened.
-
-        Returns:
-            None or the flattened array.
-
-        Raises:
-            AssertionError: if array.shape != self.shape.
-        """
-        if array is None:
-            # self._reshape(flat=True)
-            if len(self.gridx.shape) == 1:
-                # gridx/gridy/gridz already flat
-                # (We assume that either all or none of them are flat or unflattened at the same time)
-                return None
-            else:
-                try:
-                    self.gridx = self.flatten(self.gridx)
-                    # AttributeError raised if one of gridy/z does not exist
-                    self.gridy = self.flatten(self.gridy)
-                    self.gridz = self.flatten(self.gridz)
-                except AttributeError:
-                    pass
-
-        else:
-            if array.shape[0] == self.flat_shape[0]:
-                # already flat
-                return array
-            else:
-                # collapse the first dim dimensions into one and copy the remaining dimensions:
-                flat_shape = list(self.flat_shape) # a single element
-                for d in array.shape[self.dim:]:
-                    flat_shape.append(d)
-                flat_shape = tuple(flat_shape)
-                return array.reshape(flat_shape, order='F')
-
-    def unflatten(self, array=None) -> None:
-        """Unflatten the mesh array. For most computations
-
-        Args:
-            array: if None, self.gridx|y|z are unflattened. Otherwise, array is unflattened.
-
-        Returns:
-            None or the unflattened array.
+        Note that this casts an array af shape (self.linear_size,) into an array
+        of shape (self.linear_size, 1)
 
         Raises:
-            AssertionError: if array.shape != self.flat_shape.
+            ValueError if a is not commensurate. I.e. its size is not a multiple
+            of self.linear_size.
         """
-        if array is None:
-            if len(self.gridx.shape) == self.dim:
-                # gridx/gridy/gridz already unflattened
-                # (We assume that either all or none of them are flat or unflattened at the same time)
-                return None
-            else:
-                try:
-                    self.gridx = self.unflatten(self.gridx)
-                    # AttributeError raised if one of gridy/z does not exist
-                    self.gridy = self.unflatten(self.gridy)
-                    self.gridz = self.unflatten(self.gridz)
-                except AttributeError:
-                    pass
-        else:
-            if array.shape[0:self.dim] == self.shape[0]:
-                # already unflattened
-                return array
-            else:
-                # Take the unflattened shape and append the multicomponent dimensions of array
-                shape = list(self.shape)
-                for d in array.shape[1:]:
-                    shape.append(d)
-                shape = tuple(shape)
-                return array.reshape(shape, order='F')
+        if a.size % self.linear_size != 0:
+            raise ValueError(f"Array is not commensurate with shape {self.mesh_shape}")
 
-    def is_flat(self, Q: Observable) -> bool:
-        """Determine if `q` is flat.
+        mesh_shape_a = (*self.mesh_shape, a.size // self.linear_size)
+        return a if (a.shape == mesh_shape_a) else \
+               a.reshape(mesh_shape_a, order='F')
+
+
+    def cast2linear(self, a):
+        """Cast an array a to shape (self.linear_size, n_components).
+
+        Raises:
+            ValueError if a is not commensurate. I.e. its size is not a multiple
+            of self.linear_size.
+        """
+        if a.size % self.linear_size != 0:
+            raise ValueError(f"Array is not commensurate with linear shape ({self.linear_shape},)")
+
+        linear_shape_a = (self.linear_size, a.size // self.linear_size)
+        return a if (a.shape == linear_shape_a) else \
+               a.reshape(linear_shape_a, order='F')
+
+
+    def check_observable_shape(self, Q):
+        return 'mesh' if not (Q.data.shape == (*self.shape, Q.n_components)) else \
+               'linear' if not (Q.data.shape == (int(np.prod(self.shape),), Q.n_components)) else \
+               'unknown' # this shouldn't happen
+
+
+    def is_commensurate(self, a: npt.NDArray) -> bool:
+        """Determine if array a is commensurate with the mesh
         Args:
             Q: a quantity discretised on the grid.
         """
-        return Q.data.shape[0] == self.flat_shape[0]
+        return a.size % self.linear_size == 0
 
-    def is_unflattened(self, Q: npt.NDArray) -> bool:
-        """Determine if `q` is unflattened.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return Q.shape[0:self.dim] == self.shape
-
-    def is_grid_quantity(self, Q: npt.NDArray) -> bool:
-        """Determine if `Q` is a grid quantity.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        return self.is_flat(Q) or self.is_unflattened(Q)
-
-    def n_gridpoints(self):
-        return int(np.prod(self.shape))
-
-    def get_number_of_components(self, Q: npt.NDArray):
-        """compute the number of components in agrid quantity `Q`.
-        Args:
-            Q: a quantity discretised on the grid.
-        """
-        # TODO: does this belong here? It probably dates from before the Observable class
-        return len(Q) // self.flat_shape[0]
-
-    def get_component(self, Q: npt.NDArray, i: int):
-        """Get the i-th component of `Q`."""
-        # TODO: does this belong here? It probably dates from before the Observable class
-        return Q[i * self.flat_shape[0]:(i + 1) * self.flat_shape[0]]
-
+    # ---------------------------------------------------------------------------
+    # functions on the mesh
+    # ---------------------------------------------------------------------------
     def apply(self, function):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
 
@@ -417,8 +357,17 @@ class LagrangeMesh:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
         # TODO: use arguments for output variables? as in numpy out=
-        self.flatten()
-        return function(self.gridx, self.gridy, self.gridz)
+        self.gridx = self.cast2linear(self.gridx)
+        if self.dim > 1:
+            self.gridy = self.cast2linear(self.gridy)
+            if self.dim > 2:
+                self.gridz = self.cast2linear(self.gridz)
+                return function(self.gridx, self.gridy, self.gridz)
+            else:
+                return function(self.gridx, self.gridy)
+        else:
+            return function(self.gridx)
+
 
     def integrate(self, Q):
         """Compute the integral of a scalar quantity `q` on the mesh.
@@ -439,6 +388,9 @@ class LagrangeMesh:
             result[ic] = q.sum() * self.dv
         return result if n_components > 1 else result[0]
 
+    # ---------------------------------------------------------------------------
+    # Basis functions
+    # ---------------------------------------------------------------------------
     def plane_wave_1D(self, L:float, k:float, r:np.array):
         """Evaluate the plane wave basis function at with wave vector `k` at position `r`.
 
@@ -534,23 +486,10 @@ class LagrangeMesh:
 
         return result
 
-    # Differentiation methods
+
     # ---------------------------------------------------------------------------
-    def cast_observable_in_mesh_shape(self, Q):
-        mesh_shape = (*self.shape, Q.n_components)
-        if Q.data.shape != mesh_shape:
-            Q.data = Q.data.reshape(mesh_shape, order='F')
-
-    def cast_observable_in_linear_shape(self, Q):
-        linear_shape = (int(np.prod(self.shape),), Q.n_components)
-        if Q.data.shape != linear_shape:
-            Q.data = Q.data.reshape(linear_shape, order='F')
-
-    def check_observable_shape(self, Q):
-        return 'mesh' if not (Q.data.shape == (*self.shape, Q.n_components)) else \
-               'linear' if not (Q.data.shape == (int(np.prod(self.shape),), Q.n_components)) else \
-               'unknown' # this shouldn't happen
-
+    # Differentiation
+    # ---------------------------------------------------------------------------
     def _compute_D1(self, axis) -> None:
         """Compute the full matrix D1 (see eq 10.1 in lagrange.md) for axis
         (wether it is reduced or not).
@@ -593,9 +532,11 @@ class LagrangeMesh:
 
         return D1
 
+
     @property
     def highest_derivative_order(self):
         return self.D.shape[1]
+
 
     def _setup_D_matrices(self, highest_derivative_order):
         """setup D matrices infrastructure"""
@@ -646,14 +587,18 @@ class LagrangeMesh:
                     self.D[axis, order] = D + E # replaces the full D matrix
                     self.DmE[axis, order] = D - E
 
+
     def _get_D(self, axis:int, order:int):
         return self.D[axis, order - 1]
+
 
     def _get_DpE(self, axis:int, order:int):
         return self.D[axis, order - 1]
 
+
     def _get_DmE(self, axis:int, order:int):
         return self.DmE[axis, order - 1]
+
 
     def differentiate(self, Q, axes, out):
         """Differentiate Q wrt axes.
@@ -745,9 +690,9 @@ class LagrangeMesh:
                     if nz % 2:
                         symmetry[2, iq] *= -1
 
-
+    # ---------------------------------------------------------------------------
     # Interpolation methods
-    #---------------------------------------------------------------------------
+    #----------------------------------------------------------------------------
     def interpolate(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
@@ -756,13 +701,18 @@ class LagrangeMesh:
             r: array of `p` points at which to interpolate the scalar quantity `q`. 'r.shape == (p, self.dim)'
         """
         # TODO (?) speed this stuff up... Performance may be wrecked by numerous nested python loops.
-        self.flatten()
-        
+
         if self.dim == 3:
+            self.gridx = self.cast2linear(self.gridx)
+            self.gridy = self.cast2linear(self.gridy)
+            self.gridz = self.cast2linear(self.gridz)
             return self._interpolate3D(Q, r)
         elif self.dim == 2:
+            self.gridx = self.cast2linear(self.gridx)
+            self.gridy = self.cast2linear(self.gridy)
             return self._interpolate2D(Q, r)
         else:
+            self.gridx = self.cast2linear(self.gridx)
             return self._interpolate1D(Q, r)
 
 
@@ -771,7 +721,7 @@ class LagrangeMesh:
         nr = r.shape[0]
         nq = Q.n_components
         Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
-        for ig in range(self.n_gridpoints()):
+        for ig in range(self.linear_size):
             for iq in range(nq):
                 q = Q[iq]
                 sign = Q.sign(iq)

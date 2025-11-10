@@ -18,7 +18,7 @@ class Observable:
         Args:
             mesh: a LagrangeMesh object
             data (np.array): Observable values on the mesh points. Array shape is (n_gridpoints,n_components),
-                if None, an empty array is created with shape (mesh.n_gridpoints(), n_components).
+                if None, an empty array is created with shape (mesh.linear_size, n_components).
             n_components (int): number of components to use. used if data is None. If both data and n_components
                 are provided, then n_components must equal data.shape[1]
             symmetry: symmetry of the observable. If an integer is provided, then all components have this symmetry
@@ -35,11 +35,11 @@ class Observable:
 
         if data is None:
             assert(n_components is not None)
-            self.data = np.empty((mesh.n_gridpoints(), n_components), dtype=float, order='F')
+            self.data = np.empty((mesh.linear_size, n_components), dtype=float, order='F')
         else:
-            assert data.shape[0] == mesh.n_gridpoints()
+            assert data.shape[0] == mesh.linear_size
             if len(data.shape) == 1:
-                data = np.reshape(data, (mesh.n_gridpoints(), 1))
+                data = np.reshape(data, (mesh.linear_size, 1))
             if n_components is not None:
                 assert(n_components == data.shape[1])
             self.data = data
@@ -78,7 +78,7 @@ class Observable:
 
     @property
     def n_gridpoints(self):
-        return self.mesh.n_gridpoints()
+        return self.mesh.linear_size
 
     def __getitem__(self, i) -> np.ndarray:
         """Get i-th component of the observable."""
@@ -156,7 +156,7 @@ class Observable:
             self.invalidate_derivatives()
             # Cast self.data in mesh shape which is required for the einsum calls.
             # The data structures for the derivatives are then automatically in the right shape too.
-            self.mesh.cast_observable_in_mesh_shape(self)
+            self.data = self.mesh.cast2mesh(self.data)
             self._composite_done = set()
 
         if isinstance(axes, str):
