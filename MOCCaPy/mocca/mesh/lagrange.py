@@ -1,11 +1,8 @@
 import numpy as np
 import numpy.typing as npt
-# from mocca.mesh import ijk
 
 from mocca.mesh.observable import Observable
 from mocca.mesh.lagrange_function import lagrange_function
-
-from src_heph.heph_symmetries import symmetry
 
 
 def create_mesh(gx, gy=None, gz=None):
