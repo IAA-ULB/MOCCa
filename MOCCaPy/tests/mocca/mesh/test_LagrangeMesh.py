@@ -288,7 +288,7 @@ def test_LagrangeMesh_basis_function_1D():
     r = np.linspace(-N*d/2, N*d/2, num=241)
 
     for i in range(N):
-        pw, _ = mesh.basis_function(i,r)
+        pw = mesh.basis_function(i,r)
         fig, ax = plt.subplots()
         plt.title(f'{i=}, x_i={mesh.gx[i]}')
         ax.plot([-N/2,N/2],[0,0],color='k')
@@ -319,7 +319,7 @@ def test_LagrangeMesh_basis_function_2D():
     for i in range(N):
         for j in range(N):
             ij = (i,j)
-            pw, _ = mesh.basis_function(ij,r)
+            pw = mesh.basis_function(ij,r)
             pw_real = pw[:,0].reshape((nr1,nr1), order='F')
             pw_imag = pw[:,1].reshape((nr1,nr1), order='F')
 
@@ -389,11 +389,10 @@ def test_LagrangeMesh_interpolate1D(debug=False):
                 else:
                     print(f"{reduced=} bf=-{i}/{2 * N}")
 
-            lcpw_rgp, symm_lcpw_rgp = mesh.basis_function(i,r  )
-            lcpw_rip, symm_lcpw_rip = mesh.basis_function(i,rip)
+            lcpw_rgp = mesh.basis_function(i,r  )
+            lcpw_rip = mesh.basis_function(i,rip)
 
-            Q = Observable( mesh, data=lcpw_rgp, symmetry=symm_lcpw_rgp) # real/imag component is symmetric/skew-symmetric
-            # Q = Observable( lcpw_rgp, symmetry=1)
+            Q = Observable( mesh, data=lcpw_rgp, symmetry=[1,-1]) # real/imag component is symmetric/skew-symmetric
 
             Qrip = mesh.interpolate(Q, rip)
 
@@ -425,24 +424,24 @@ def test_LagrangeMesh_interpolate1D(debug=False):
         )
         s = "sum of bf" if lc == 0 else "random lc of bf"
         if not mesh.reduced[0]:
-            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  )[0]
-            lcpw_rip = coeff[0] * mesh.basis_function(0, rip)[0]
+            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  )
+            lcpw_rip = coeff[0] * mesh.basis_function(0, rip)
         else:
-            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  )[0] + \
-                       coeff[1] * mesh.basis_function(0, r  , ijk_sign=-1)[0]
-            lcpw_rip = coeff[0] * mesh.basis_function(0, rip)[0] + \
-                       coeff[1] * mesh.basis_function(0, rip, ijk_sign=-1)[0]
+            lcpw_rgp = coeff[0] * mesh.basis_function(0, r  ) + \
+                       coeff[1] * mesh.basis_function(0, r  , ijk_sign=-1)
+            lcpw_rip = coeff[0] * mesh.basis_function(0, rip) + \
+                       coeff[1] * mesh.basis_function(0, rip, ijk_sign=-1)
 
         if not mesh.reduced[0]:
             for i in range(1,2*N):
-                lcpw_rgp += coeff[i] * mesh.basis_function(i,r)[0]
-                lcpw_rip += coeff[i] * mesh.basis_function(i,rip)[0]
+                lcpw_rgp += coeff[i] * mesh.basis_function(i,r)
+                lcpw_rip += coeff[i] * mesh.basis_function(i,rip)
         else:
             for i in range(1,N):
-                lcpw_rgp += coeff[2*i  ] * mesh.basis_function(i,r  )[0] + \
-                            coeff[2*i+1] * mesh.basis_function(i,r  , ijk_sign=-1)[0]
-                lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip)[0] + \
-                            coeff[2*i+1] * mesh.basis_function(i,rip, ijk_sign=-1)[0]
+                lcpw_rgp += coeff[2*i  ] * mesh.basis_function(i,r  ) + \
+                            coeff[2*i+1] * mesh.basis_function(i,r  , ijk_sign=-1)
+                lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip) + \
+                            coeff[2*i+1] * mesh.basis_function(i,rip, ijk_sign=-1)
 
         Q = Observable(mesh, data=lcpw_rgp, symmetry=[1,-1])
         Qrip = mesh.interpolate(Q, rip)
@@ -493,7 +492,7 @@ def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
         for ibfx in range(2*N):
             for ibfy in range(2*N):
                 # values of the basis function at the grid points (with a very small offset)
-                bf_xy,_ = mesh.basis_function((ibfx,ibfy), xy) # the interpolated quantity
+                bf_xy = mesh.basis_function((ibfx,ibfy), xy) # the interpolated quantity
                 bf_real = bf_xy[:, 0].reshape((nip, nip), order='F')
                 bf_imag = bf_xy[:, 1].reshape((nip, nip), order='F')
 
@@ -514,9 +513,9 @@ def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
                 plt.close(fig)
 
                 # compute the values of the basis function at the grid points
-                bf_xy_g, symm_bf_xy_g  = mesh.basis_function((ibfx,ibfy), mesh.grid)
+                bf_xy_g  = mesh.basis_function((ibfx,ibfy), mesh.grid)
                 # wrap the interpolated quantity in an observable
-                Q = Observable(mesh, data=bf_xy_g, symmetry=symm_bf_xy_g)
+                Q = Observable(mesh, data=bf_xy_g)
 
                 # interpolate Q at xy
                 Qxy = mesh.interpolate(Q, xy)

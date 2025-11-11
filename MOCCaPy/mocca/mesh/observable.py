@@ -36,13 +36,15 @@ class Observable:
         if data is None:
             assert(n_components is not None)
             self.data = np.empty((mesh.linear_size, n_components), dtype=float, order='F')
+            self.n_components = n_components
         else:
-            assert data.shape[0] == mesh.linear_size
+            assert data.shape[0] == mesh.linear_size, f"{data.shape[0]=} <> {mesh.linear_size=}"
             if len(data.shape) == 1:
-                data = np.reshape(data, (mesh.linear_size, 1))
+                data = np.reshape(data, (mesh.linear_size, 1), order='F')
             if n_components is not None:
                 assert(n_components == data.shape[1])
             self.data = data
+        self.n_components = self.data.size // mesh.linear_size
 
         self.symmetry = np.empty((mesh.dim, self.n_components), dtype=int, order='F')
         if isinstance(symmetry, int):
@@ -71,10 +73,6 @@ class Observable:
     @property
     def shape(self):
         return self.data.shape
-
-    @property
-    def n_components(self):
-        return self.data.shape[1]
 
     @property
     def n_gridpoints(self):

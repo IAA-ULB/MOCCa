@@ -22,13 +22,13 @@ def test_symmetry():
         for j in range(4):
             print(f"bf({i},{j})")
             r = np.random.rand(mesh.dim*n_test_points).reshape((n_test_points, mesh.dim), order='F')
-            bf_r, symm_r = mesh.basis_function((i,j),r)
+            bf_r = mesh.basis_function((i,j),r)
             rmx = r.copy()
             rmx[:,0] = -rmx[:,0]
-            bf_rmx, symm_bf_rmx = mesh.basis_function((i,j), rmx)
+            bf_rmx = mesh.basis_function((i,j), rmx)
             rmy = r.copy()
             rmy[:,1] = -rmy[:,1]
-            bf_rmy, symm_bf_rmy = mesh.basis_function((i,j), rmy)
+            bf_rmy = mesh.basis_function((i,j), rmy)
             for itp in range(n_test_points):
                 for ic in range(2):
                     if bf_rmx[itp,ic] == bf_r[itp,ic]:

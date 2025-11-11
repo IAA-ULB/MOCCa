@@ -68,7 +68,7 @@ def test_differentiate_1D_x_non_reduced(debug=False):
 
     mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False, highest_derivative_order=1)
     D1 = mesh._get_D(axis=0, order=1)
-    pw, _ = mesh.basis_function(0, r)
+    pw = mesh.basis_function(0, r)
     two_pi_K = abs(2. * np.pi * mesh.gx[0]) / (mesh.box_width[0] * mesh.d[0])
 
     # Validate D1 against a literal coding of the Ryssens et al 2015 eq 18
@@ -92,8 +92,8 @@ def test_differentiate_1D_x_non_reduced(debug=False):
     ax.plot(r, pw[:,0], label='real')
     ax.plot(r, pw[:,1], label='imag')
 
-    mbf, symm_mbf = mesh.basis_function(ijk=0, r=mesh.gx)
-    Q = Observable(mesh, data=mbf, symmetry=symm_mbf)
+    mbf = mesh.basis_function(ijk=0, r=mesh.gx)
+    Q = Observable(mesh, data=mbf, symmetry=[1,-1])
     # check Q against bf() above
     Q_expected = bf(mesh, i=0, r=mesh.gx)
     ax.plot(mesh.gx, Q_expected[:,0], 'bo', label='bf real')
@@ -175,8 +175,8 @@ def test_differentiate_1D_x_reduced(debug=False):
     mesh    = LagrangeMesh(dim=1, M=2*N, d=d, reduced=True , highest_derivative_order=1)
     mesh_nr = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False, highest_derivative_order=1)
 
-    bfr , symm_bfr  = mesh   .basis_function(ijk=0, r=mesh   .gx)
-    bfnr, symm_bfnr = mesh_nr.basis_function(ijk=3, r=mesh_nr.gx)
+    bfr  = mesh   .basis_function(ijk=0, r=mesh   .gx)
+    bfnr = mesh_nr.basis_function(ijk=3, r=mesh_nr.gx)
     for i in range(2*N):
         if i<N:
             print(f"bf{i} real: {bfnr[i,0]}")
@@ -191,8 +191,8 @@ def test_differentiate_1D_x_reduced(debug=False):
             print(f"bf{i} imag: {bfnr[i,1]} =? {bfr[i-N,1]}")
             assert bfnr[i, 1] == pytest.approx(bfr[i-N, 1])
 
-    Q = Observable(mesh   , data=bfr , symmetry=symm_bfr )
-    R = Observable(mesh_nr, data=bfnr, symmetry=symm_bfnr) # R for "R"eference.
+    Q = Observable(mesh   , data=bfr , symmetry=[1,-1] )
+    R = Observable(mesh_nr, data=bfnr, symmetry=[1,-1]) # R for "R"eference.
 
     dQdx = Q.differentiate(axes='x')
     dRdx = R.differentiate(axes='x')
@@ -227,8 +227,8 @@ def test_differentiate_1D_xx():
         mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced)
 
         if reduced == False:
-            bfq, symm_bfq = mesh.basis_function(ijk=0, r=mesh .gx)
-            Q = Observable(mesh, data=bfq, symmetry=symm_bfq)
+            bfq = mesh.basis_function(ijk=0, r=mesh .gx)
+            Q = Observable(mesh, data=bfq, symmetry=[1,-1])
             d2Qdx2 = Q.differentiate(axes='xx')
 
             # Re{d2Qdx2} is proportional to -Re{Q}
@@ -266,8 +266,8 @@ def test_differentiate_1D_xxx():
         mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced, highest_derivative_order=3)
 
         if reduced == False:
-            bfq, symm_bfq = mesh.basis_function(ijk=0, r=mesh .gx)
-            Q = Observable(mesh, data=bfq, symmetry=symm_bfq)
+            bfq = mesh.basis_function(ijk=0, r=mesh.gx)
+            Q = Observable(mesh, data=bfq, symmetry=[1,-1])
             d3Qdx3 = Q.differentiate(axes='xxx')
 
             # Re{d3Qdx3} is proportional to Im{Q}
@@ -303,28 +303,162 @@ def test_differentiate_2D_Hessian(debug=False):
         # True,
     ]:
         mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
-        bfq, symm_bfq = mesh.basis_function(ijk=(0,0), r=mesh.grid)
-        Q = Observable(mesh, data=bfq, symmetry=symm_bfq)
+        bfq = mesh.basis_function(ijk=(0,0), r=mesh.grid)
+        Q = Observable(mesh, data=bfq)
         H = Q.differentiate(axes='Hessian',debug=debug)
         print("test_differentiate_2D_Hessian finished")
 
-def test_differentiate_3D_Hessian(debug=False):
+def test_differentiate_3D_Hessian_non_reduced(debug=False):
     N = 3
     d = 1.
     dim = 3
-    for reduced in [
-        False,
-        # True,
-    ]:
-        mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
-        bfq, symm_bfq = mesh.basis_function(ijk=(0,0,0), r=mesh.grid)
-        Q = Observable(mesh, data=bfq, symmetry=symm_bfq)
-        Q.differentiate(axes='Hessian', debug=debug)
 
-        with pytest.raises(ValueError):
-            Q.differentiate(axes='Gradient', recompute=False, debug=debug)
+    mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=False)
+    bfq = mesh.basis_function(ijk=(0,0,0), r=mesh.grid)
+    Q = Observable(mesh, data=bfq)
+    Q.differentiate(axes='Hessian', debug=debug)
 
-        Q.differentiate(axes='Grad', recompute=False, debug=debug)
+    with pytest.raises(ValueError):
+        Q.differentiate(axes='Gradient', recompute=False, debug=debug)
 
-        print("test_differentiate_3D_Hessian finished")
+    Q.differentiate(axes='Grad', recompute=False, debug=debug)
 
+    print("test_differentiate_3D_Hessian_non_reduced finished")
+
+
+# def test_differentiate_2D_Grad_reduced(debug=False):
+#     N = 3
+#     d = 1.
+#     dim = 2
+#
+#     axes = 'x'
+#     # non reduced reference
+#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
+#     bfR, symm_bfR = meshR.basis_function(ijk=dim*(3,), r=meshR.grid)
+#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
+#     QR.differentiate(axes=axes, debug=debug)
+#
+#     mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=True, highest_derivative_order=1)
+#     bf, symm_bf = mesh.basis_function(ijk=dim*(0,), r=mesh.grid)
+#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
+#     Q.differentiate(axes=axes, debug=debug)
+#
+#     # verify that the symmetry of QR.data is correct
+#     for i in range(N,2*N):
+#         for j in range(N,2*N):
+#                 one = QR.data[i      ,j,0]
+#                 two = QR.data[2*N-1-i,j,0]
+#                 print(f"bf real ({i},{j}) : {one} {two}")
+#                 assert one == pytest.approx(two)
+#
+#     # verify that the input is the same QR.data vs Q.data
+#     for i in range(2*N):
+#         for j in range(2*N):
+#             if i >= N and j >= N:
+#                 # print(f"bf real ({i},{j}) : {QR.data[i,j,0]} {Q.data[i-N,j-N,0]}")
+#                 assert QR.data[i,j,0] == pytest.approx(Q.data[i-N,j-N,0])
+#
+#     for i in range(2*N):
+#         for j in range(2*N):
+#             if i >= N and j >= N:
+#                 # print(f"bf imag ({i},{j}) : {QR.data[i,j,1]} {Q.data[i-N,j-N,1]}")
+#                 assert QR.data[i,j,1] == pytest.approx(Q.data[i-N,j-N,1])
+#
+#     # verify the d/dx
+#     dQdx  = Q. derivatives['x']
+#     dQRdx = QR.derivatives['x']
+#
+#     for i in range(2*N):
+#         for j in range(2*N):
+#                 if i >= N and j >= N:
+#                     print(f"real d/dx ({i=},{j=}) : {dQRdx[i,j,0]} {dQdx[i-N,j-N,0]}")
+#                     # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
+#
+#     # dQdy = Q.derivatives['y']
+#     # dQRdy = QR.derivatives['y']
+#     #
+#     # for i in range(2 * N):
+#     #     for j in range(2 * N):
+#     #         if i >= N and j >= N:
+#     #             print(f"real d/dy ({i=},{j=}) : {dQRdy[i, j, 0]} {dQdy[i - N, j - N, 0]}")
+#     #             # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
+#
+#
+# print("test_differentiate_2D_Grad_non_reduced finished")
+#
+#
+# def test_differentiate_3D_Grad_reduced(debug=False):
+#     N = 3
+#     d = 1.
+#     dim = 3
+#
+#     # non reduced reference
+#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
+#     bfR, symm_bfR = meshR.basis_function(ijk=(3, 3, 3), r=meshR.grid)
+#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
+#     GR = QR.differentiate(axes='Grad', debug=debug)
+#
+#     mesh = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=True)
+#     bf, symm_bf = mesh.basis_function(ijk=(0, 0, 0), r=mesh.grid)
+#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
+#     Q.differentiate(axes='Grad', debug=debug)
+#
+#     # verify that the input is the same QR.data vs Q.data
+#     for i in range(2*N):
+#         for j in range(2*N):
+#             for k in range(2*N):
+#                 if i >= N and j >= N and k >= N:
+#                     print(f"bf real ({i},{j},{k}) : {QR.data[i,j,k,0]} {Q.data[i-N,j-N,k-N,0]}")
+#                     assert QR.data[i,j,k,0] == pytest.approx(Q.data[i-N,j-N,k-N,0])
+#
+#     for i in range(2*N):
+#         for j in range(2*N):
+#             for k in range(2*N):
+#                 if i >= N and j >= N and k >= N:
+#                     print(f"bf imag ({i},{j},{k}) : {QR.data[i,j,k,1]} {Q.data[i-N,j-N,k-N,1]}")
+#                     assert QR.data[i,j,k,1] == pytest.approx(Q.data[i-N,j-N,k-N,1])
+#
+#     # verify the d/dx
+#     dQdx  = Q. derivatives['x']
+#     dQRdx = QR.derivatives['x']
+#
+#     for i in range(2*N):
+#         for j in range(2*N):
+#             for k in range(2*N):
+#                 if i >= N and j >= N and k >+ N:
+#                     print(f"real d/dx ({i=},{j=},{k=}) : {dQRdx[i,j,k,0]} {dQdx[i-N,j-N,k-N,0]}")
+#                     # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
+#
+#     print("test_differentiate_3D_Grad_non_reduced finished")
+#
+#
+# def test_differentiate_3D_Hessian_reduced(debug=False):
+#     N = 3
+#     d = 1.
+#     dim = 3
+#
+#     # non reduced reference
+#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
+#     bfR, symm_bfR = meshR.basis_function(ijk=(3, 3, 3), r=meshR.grid)
+#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
+#     HR = QR.differentiate(axes='Hessian', debug=debug)
+#
+#     mesh = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=True)
+#     bf, symm_bf = mesh.basis_function(ijk=(0, 0, 0), r=mesh.grid)
+#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
+#     H = Q.differentiate(axes='Hessian', debug=debug)
+#
+#     for I in range(dim):
+#         for J in range(I,dim):
+#             hIJ  = H [I,J]
+#             hIJR = HR[I,J]
+#             for i in range(2*N):
+#                 for j in range(2*N):
+#                     for k in range(2*N):
+#                         if i >= N and j >= N and k >+ N:
+#                             print(f"real H({I},{J}) ({i=},{j=},{k=}) : {hIJR[i,j,k,0]} {hIJ[i-N,j-N,k-N,0]}")
+#                             # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
+#
+#
+#     print("test_differentiate_3D_Hessian_non_reduced finished")
+#

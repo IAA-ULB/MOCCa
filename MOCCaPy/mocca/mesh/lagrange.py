@@ -440,7 +440,6 @@ class LagrangeMesh:
         Returns:
             (data, symmetry)
             data: Array of values of the basis function at r.
-            symmetry: the symmetry sign of the basis function (+1 for real components, -1 for imaginary components).
         """
         assert isinstance(r, np.ndarray)
 
@@ -463,9 +462,6 @@ class LagrangeMesh:
                                                ) / (self.box_width[2] * self.d[2])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
-            symmetry = np.array([[1, -1],
-                                 [1, -1],
-                                 [1, -1]], dtype=float, order='F')
 
         elif self.dim == 2:
             assert r.shape[1] == 2
@@ -479,8 +475,6 @@ class LagrangeMesh:
                                                ) / (self.box_width[1] * self.d[1])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
-            symmetry = np.array([[1,-1],
-                                 [1,-1]], dtype=float, order='F')
 
         elif self.dim == 1:
             if len(r.shape) == 1:
@@ -493,7 +487,6 @@ class LagrangeMesh:
                                                ) / (self.box_width[0] * self.d[0])
                                 ], dtype=float, order='F')
             factor = np.sqrt(1 / self.box_width[0])
-            symmetry = [1,-1]
 
         arg = r @ two_pi_K
         result = np.empty((r.shape[0],2), dtype=float, order='F')
@@ -501,7 +494,7 @@ class LagrangeMesh:
         np.sin(arg, out=result[:,1])
         result *= factor
 
-        return result, symmetry
+        return result
 
 
     # ---------------------------------------------------------------------------
@@ -528,7 +521,7 @@ class LagrangeMesh:
         # In agreement with the formulas in Ryssens et al 2015 (eq 18),
         # j is the row index and i the column index (D_ji)
         for j in range(twoN):
-            # row = i-j
+            # row = j-i
             row = minus_i+j # j-i
             row *= (np.pi / twoN) # twoN = 2N
             row[j] = .1 # avoid division by 0 in row[j] below
@@ -566,40 +559,49 @@ class LagrangeMesh:
         self.D[0, 0] = self._compute_D1(0)
         if self.dim > 1:
             if (self.M[1] == self.M[0]) and \
-                    (self.d[1] == self.d[0]) and \
-                    (self.reduced[1] == self.reduced[0]):
+               (self.d[1] == self.d[0]) and \
+               (self.reduced[1] == self.reduced[0]):
+                # If M, d and reduced are the same for the y-axis as for the x-axis, it has the same D1 matrix as the x-axis
                 self.D[1, 0] = self.D[0, 0]
             else:
+                # otherwise, compute its D1-matrix
                 self.D[1, 0] = self._compute_D1(1)
 
             if self.dim > 2:
                 if (self.M[2] == self.M[0]) and \
-                        (self.d[2] == self.d[0]) and \
-                        (self.reduced[2] == self.reduced[0]):
+                   (self.d[2] == self.d[0]) and \
+                   (self.reduced[2] == self.reduced[0]):
+                    # If M, d and reduced are the same for the z-axis as for the x-axis, it has the same D1 matrix as the x-axis
                     self.D[2, 0] = self.D[0, 0]
                 elif (self.M[2] == self.M[1]) and \
-                        (self.d[2] == self.d[1]) and \
-                        (self.reduced[2] == self.reduced[1]):
+                     (self.d[2] == self.d[1]) and \
+                     (self.reduced[2] == self.reduced[1]):
+                    # If M, d and reduced are the same for the z-axis as for the y-axis, it has the same D1 matrix as the xy-axis
                     self.D[2, 0] = self.D[1, 0]
                 else:
+                    # otherwise, compute its D1-matrix
                     self.D[2, 0] = self._compute_D1(2)
 
         for axis in range(self.dim):
+            # compute the D2, D3,... matrices
             for order in range(1, highest_derivative_order):
                 self.D[axis, order] = self.D[axis, 0] @ self.D[axis, order - 1]
 
+            # for reduced axes derive Dlr and Ell
             if self.reduced[axis]:
                 N = self.M[axis]//2
                 for order in range(highest_derivative_order):
                     D = np.empty((N, N), dtype=float)
                     E = np.empty((N, N), dtype=float)
 
-                    # Reverse the columns of the lower left quadrant Dll and copy into ED
+                    # Reverse the columns of the lower left quadrant Dll and copy into E
                     # Copy the first column of Dll
 
                     for icol in range(N):
-                        D[:,icol] = self.D[axis, order][N:,N+icol]   # copy Dlr (lower right quadrant)
-                        E[:,N-1-icol] = self.D[axis, order][N:,icol] # reverse the order of Dll (lower left quadrant)
+                        D[:,icol]     = self.D[axis, order][N:,N+icol] # copy Dlr (lower right quadrant)
+                        E[:,N-1-icol] = self.D[axis, order][N:,  icol] # the 1st column of Dll becomes the last column of E
+                                                                       # the 2nd column of Dll becomes the second last column of E
+                                                                       # ...
                     self.D  [axis, order] = D + E # replaces the full D matrix
                     self.DmE[axis, order] = D - E
 
@@ -670,10 +672,10 @@ class LagrangeMesh:
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=0, order=order) if Q.symmetry[0, iq] == 1 else \
                          self._get_DmE(axis=0, order=order)
-                    op2_iq = op2[:, :, :, iq] if (self.dim == 3) else \
-                             op2[:, :, iq]    if (self.dim == 2) else \
-                             op2[:, iq]
-                    np.einsum(subscripts, DE, op2_iq, out=out[:,iq])
+                    op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
+                                   (op2[:, :, iq]   , out[:,:,iq]  ) if (self.dim == 2) else \
+                                   (op2[:, iq]      , out[:,iq]    )
+                    np.einsum(subscripts, DE, op2_iq, out=out_)
 
         elif self.dim >=1 and axis == 1: # y-axis
             subscripts = 'il,jlkq' if (self.dim == 3) else \
@@ -682,12 +684,13 @@ class LagrangeMesh:
                 D = self._get_D(axis=1, order=order)
                 np.einsum(subscripts, D, op2, out=out)
             else:
+                subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=1, order=order) if Q.symmetry[1, iq] == 1 else \
                          self._get_DmE(axis=1, order=order)
-                    op2_iq = op2[:, :, :, iq] if (self.dim == 3) else \
-                             op2[:, :, iq]    #  (self.dim == 2)
-                    np.einsum(subscripts, DE, op2_iq, out=out)
+                    op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
+                                   (op2[:, :, iq]   , out[:,:,iq]) #  (self.dim == 2)
+                    np.einsum(subscripts, DE, op2_iq, out=out_)
 
         elif self.dim == 2 : # z-axis
             subscripts = 'il,jklq'
@@ -695,10 +698,11 @@ class LagrangeMesh:
                 D = self._get_D(axis=2, order=order)
                 np.einsum(subscripts, D, op2, out=out)
             else:
+                subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=2, order=order) if Q.symmetry[2,iq] == 1 else \
                          self._get_DmE(axis=2, order=order)
-                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out)
+                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,iq])
 
 
     # ---------------------------------------------------------------------------

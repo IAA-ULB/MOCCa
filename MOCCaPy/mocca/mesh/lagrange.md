@@ -206,7 +206,7 @@ $$=\sum_{l=0}^{N-1}[\pm D_{i,N-1-l}^\mathrm{ll}
 $$=\sum_{l=0}^{N-1}[\pm E_{il}^\mathrm{ll}
 +D_{il}^\mathrm{lr}]h_{l}
 =\sum_{l=0}^{N-1}[D_{il}^\mathrm{lr}\pm E_{il}^\mathrm{ll}]h_{l}$$
-Thus, by reversing the order of the colums in $D_{ij}^\mathrm{ll}$ we can avoid explicit construction of $\mathbf{h}^\textdagger$, and allow for an `numpy.einsum` implementation. This is a one time cost, incurred when the D matrices are constructed. The $\pm$ is a $+$ when $h$ is symmetric and a $-$ when $h$ is skew-symmetric. 
+Thus, by reversing the order of the colums in $D_{ij}^\mathrm{ll}$ we can avoid explicit construction of $\mathbf{h}^\textdagger$, and allow for a `numpy.einsum` implementation. This is a one time cost, incurred when the D matrices are constructed. The $\pm$ is a $+$ when $h$ is symmetric and a $-$ when $h$ is skew-symmetric. 
 Higher order $\mathbf{D}$ matrices are constructed by multiplying them, e.g.:
 $$\mathbf{D}^2=\mathbf{D}^1\mathbf{D}^1$$
 Thus, the superscript indicating the order of the differentiation can be interpreted as a power. This implies that constructing the higher order $\mathbf{E}^{ll}$ and $\mathbf{D}^{lr}$ matrices have to be constructed from the full higher order $\mathbf{D}^n$ matrices. 
