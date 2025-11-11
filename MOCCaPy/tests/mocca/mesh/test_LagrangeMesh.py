@@ -246,7 +246,7 @@ def test_LagrangeMesh_plane_wave_1D():
     k = 1.5
     L = n*d
     r = mesh.gridx[:,0,0]
-    pw = mesh.plane_wave_1D(L=L, k=k, r=r)
+    pw = mesh.plane_wave(L=L, k=k, r=r)
 
     arg = (2*np.pi * k / L) * r
     real_part = np.sqrt(1/L) * np.cos(arg)

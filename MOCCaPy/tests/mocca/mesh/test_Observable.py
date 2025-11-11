@@ -1,11 +1,16 @@
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.observable import Observable
 
 from pathlib import Path
+
+from pandas.core.config_init import pc_width_doc
+
+from MOCCaPy.mocca.mesh.lagrange import create_mesh
 
 this_file = Path(__file__).resolve()
 project_folder = this_file
@@ -47,7 +52,7 @@ def dbf_dx(mesh, i, r, i_sign=1):
     result[:, 1] =  np.cos(arg)
     result *= factor
     # By leaving out the factor two_pi_K, the derivative has the same
-    # y-span as the basis function
+    # y_full-span as the basis function
     result *= -1 if two_pi_K < 0 else 1
 
     return result
@@ -100,7 +105,7 @@ def test_differentiate_1D_x_non_reduced(debug=False):
     assert Q.data == pytest.approx(Q_expected)
     # for i in range(2*N):
     #     print(f"{Q.data[i,0]} {Q_expected[i,0]} {Q.data[i,1]} {Q_expected[i,1]} ")
-    dQdx = Q.differentiate(axes='x')
+    dQdx = Q.differentiate(axes='x_full')
 
     # manually perform dQdx = D1 * Q.data - real part
     DQR = np.zeros((2*N,), dtype=float)
@@ -194,8 +199,8 @@ def test_differentiate_1D_x_reduced(debug=False):
     Q = Observable(mesh   , data=bfr , symmetry=[1,-1] )
     R = Observable(mesh_nr, data=bfnr, symmetry=[1,-1]) # R for "R"eference.
 
-    dQdx = Q.differentiate(axes='x')
-    dRdx = R.differentiate(axes='x')
+    dQdx = Q.differentiate(axes='x_full')
+    dRdx = R.differentiate(axes='x_full')
 
     for i in range(2*N):
         if i<N:
@@ -325,140 +330,264 @@ def test_differentiate_3D_Hessian_non_reduced(debug=False):
 
     print("test_differentiate_3D_Hessian_non_reduced finished")
 
+def compare(desc, a, b, doassert=True):
+    ok = (a == pytest.approx(b))
+    s = f"{desc} : {a} =? {b} -> {ok}"
 
-# def test_differentiate_2D_Grad_reduced(debug=False):
-#     N = 3
-#     d = 1.
-#     dim = 2
-#
-#     axes = 'x'
-#     # non reduced reference
-#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
-#     bfR, symm_bfR = meshR.basis_function(ijk=dim*(3,), r=meshR.grid)
-#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
-#     QR.differentiate(axes=axes, debug=debug)
-#
-#     mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=True, highest_derivative_order=1)
-#     bf, symm_bf = mesh.basis_function(ijk=dim*(0,), r=mesh.grid)
-#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
-#     Q.differentiate(axes=axes, debug=debug)
-#
-#     # verify that the symmetry of QR.data is correct
-#     for i in range(N,2*N):
-#         for j in range(N,2*N):
-#                 one = QR.data[i      ,j,0]
-#                 two = QR.data[2*N-1-i,j,0]
-#                 print(f"bf real ({i},{j}) : {one} {two}")
-#                 assert one == pytest.approx(two)
-#
-#     # verify that the input is the same QR.data vs Q.data
-#     for i in range(2*N):
-#         for j in range(2*N):
-#             if i >= N and j >= N:
-#                 # print(f"bf real ({i},{j}) : {QR.data[i,j,0]} {Q.data[i-N,j-N,0]}")
-#                 assert QR.data[i,j,0] == pytest.approx(Q.data[i-N,j-N,0])
-#
-#     for i in range(2*N):
-#         for j in range(2*N):
-#             if i >= N and j >= N:
-#                 # print(f"bf imag ({i},{j}) : {QR.data[i,j,1]} {Q.data[i-N,j-N,1]}")
-#                 assert QR.data[i,j,1] == pytest.approx(Q.data[i-N,j-N,1])
-#
-#     # verify the d/dx
-#     dQdx  = Q. derivatives['x']
-#     dQRdx = QR.derivatives['x']
-#
-#     for i in range(2*N):
-#         for j in range(2*N):
-#                 if i >= N and j >= N:
-#                     print(f"real d/dx ({i=},{j=}) : {dQRdx[i,j,0]} {dQdx[i-N,j-N,0]}")
-#                     # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
-#
-#     # dQdy = Q.derivatives['y']
-#     # dQRdy = QR.derivatives['y']
-#     #
-#     # for i in range(2 * N):
-#     #     for j in range(2 * N):
-#     #         if i >= N and j >= N:
-#     #             print(f"real d/dy ({i=},{j=}) : {dQRdy[i, j, 0]} {dQdy[i - N, j - N, 0]}")
-#     #             # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
-#
-#
-# print("test_differentiate_2D_Grad_non_reduced finished")
-#
-#
-# def test_differentiate_3D_Grad_reduced(debug=False):
-#     N = 3
-#     d = 1.
-#     dim = 3
-#
-#     # non reduced reference
-#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
-#     bfR, symm_bfR = meshR.basis_function(ijk=(3, 3, 3), r=meshR.grid)
-#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
-#     GR = QR.differentiate(axes='Grad', debug=debug)
-#
-#     mesh = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=True)
-#     bf, symm_bf = mesh.basis_function(ijk=(0, 0, 0), r=mesh.grid)
-#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
-#     Q.differentiate(axes='Grad', debug=debug)
-#
-#     # verify that the input is the same QR.data vs Q.data
-#     for i in range(2*N):
-#         for j in range(2*N):
-#             for k in range(2*N):
-#                 if i >= N and j >= N and k >= N:
-#                     print(f"bf real ({i},{j},{k}) : {QR.data[i,j,k,0]} {Q.data[i-N,j-N,k-N,0]}")
-#                     assert QR.data[i,j,k,0] == pytest.approx(Q.data[i-N,j-N,k-N,0])
-#
-#     for i in range(2*N):
-#         for j in range(2*N):
-#             for k in range(2*N):
-#                 if i >= N and j >= N and k >= N:
-#                     print(f"bf imag ({i},{j},{k}) : {QR.data[i,j,k,1]} {Q.data[i-N,j-N,k-N,1]}")
-#                     assert QR.data[i,j,k,1] == pytest.approx(Q.data[i-N,j-N,k-N,1])
-#
-#     # verify the d/dx
-#     dQdx  = Q. derivatives['x']
-#     dQRdx = QR.derivatives['x']
-#
-#     for i in range(2*N):
-#         for j in range(2*N):
-#             for k in range(2*N):
-#                 if i >= N and j >= N and k >+ N:
-#                     print(f"real d/dx ({i=},{j=},{k=}) : {dQRdx[i,j,k,0]} {dQdx[i-N,j-N,k-N,0]}")
-#                     # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
-#
-#     print("test_differentiate_3D_Grad_non_reduced finished")
-#
-#
-# def test_differentiate_3D_Hessian_reduced(debug=False):
-#     N = 3
-#     d = 1.
-#     dim = 3
-#
-#     # non reduced reference
-#     meshR = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=False)
-#     bfR, symm_bfR = meshR.basis_function(ijk=(3, 3, 3), r=meshR.grid)
-#     QR = Observable(meshR, data=bfR, symmetry=symm_bfR)
-#     HR = QR.differentiate(axes='Hessian', debug=debug)
-#
-#     mesh = LagrangeMesh(dim=dim, M=2 * N, d=1., reduced=True)
-#     bf, symm_bf = mesh.basis_function(ijk=(0, 0, 0), r=mesh.grid)
-#     Q = Observable(mesh, data=bf, symmetry=symm_bf)
-#     H = Q.differentiate(axes='Hessian', debug=debug)
-#
-#     for I in range(dim):
-#         for J in range(I,dim):
-#             hIJ  = H [I,J]
-#             hIJR = HR[I,J]
-#             for i in range(2*N):
-#                 for j in range(2*N):
-#                     for k in range(2*N):
-#                         if i >= N and j >= N and k >+ N:
-#                             print(f"real H({I},{J}) ({i=},{j=},{k=}) : {hIJR[i,j,k,0]} {hIJ[i-N,j-N,k-N,0]}")
-#                             # assert hIJR[i,j,k,0] == pytest.approx(hIJ[i-N,j-N,k-N,0])
-#
-#
-#     print("test_differentiate_3D_Hessian_non_reduced finished")
-#
+    # print(s)
+    if doassert:
+        assert a == pytest.approx(b), s
+
+def test_differentiate_2D_Grad_reduced(debug=False):
+    N = 3
+    M = 2*N
+    d = 1.
+    dim = 2
+
+    ############################################################################
+    # This monster has bitten me once again!
+    # Basis functions are NOT symmetric/skew-symmetric in 2D and 3D
+    ############################################################################
+
+    # We take a plane wave in the x_full-direction
+    k = 1.5
+    L = 2*N*d
+    axes = 'x'
+
+    mesh_2N = LagrangeMesh(dim=dim, M=M, d=1., reduced=False)
+    rx = np.linspace(-L/2, L/2, 100)
+    rxy = create_mesh(rx,mesh_2N.gy)
+
+    # r = mesh_2N.gridx[:,0,0].reshape((M*M,), order='F')
+    pw_full = mesh_2N.plane_wave(L=L, k=k, r=rxy[:,0])
+
+    x_full = rxy[:,0].reshape((100,M), order='F')
+    y_full = rxy[:,1].reshape((100,M), order='F')
+    pw_full_real = pw_full[:, 0].reshape((100,M), order='F')
+    pw_full_imag = pw_full[:, 1].reshape((100,M), order='F')
+
+    if debug:
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'plane wave x_full real')
+        ax.plot_surface(x_full, y_full, pw_full_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
+        plt.show()
+        plt.close(fig)
+    
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'plane wave x_full imag')
+        ax.plot_surface(x_full, y_full, pw_full_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
+        plt.show()
+        plt.close(fig)
+
+    mesh_N = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=True, highest_derivative_order=1)
+    pw_redu_real = pw_full_real[50:,3:]
+    pw_redu_imag = pw_full_imag[50:,3:]
+    x_redu = x_full[50:, 3:]
+    y_redu = y_full[50:, 3:]
+
+    pw_points = mesh_2N.plane_wave(L=L, k=k, r=mesh_2N.gridx.reshape((M*M,), order='F'))
+
+    if debug:
+        pw_points_real = pw_points[:, 0].reshape((M,M,), order='F')
+        pw_points_imag = pw_points[:, 1].reshape((M,M,), order='F')
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'plane wave x_full real')
+        ax.plot_surface(x_redu, y_redu, pw_redu_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+
+        for j in range(N,M):
+            for i in range(N,M):
+                ax.scatter(mesh_2N.gridx[i,j],mesh_2N.gridy[i,j],pw_points_real[i,j],marker='o',c='k')
+        # # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
+        plt.show()
+        plt.close(fig)
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'plane wave x_full imag')
+        ax.plot_surface(x_redu, y_redu, pw_redu_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        for j in range(N,M):
+            for i in range(N,M):
+                ax.scatter(mesh_2N.gridx[i,j],mesh_2N.gridy[i,j],pw_points_imag[i,j],marker='o',c='k')
+        # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
+        plt.show()
+        plt.close(fig)
+
+    QN = Observable(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2mesh(pw_points)[N:M, N:M, :]), symmetry=[1,-1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_points)                                  , symmetry=[1,-1], name='Q2N')
+
+    QN.differentiate(axes=axes, debug=debug)
+    Q2N.differentiate(axes=axes, debug=debug)
+
+    # verify that the full and reduced mesh both yield the same derivative
+    # verifying the x-direction
+    print(f"Verifying {axes=}")
+    dQN = mesh_N.cast2mesh(QN.derivatives['x'])
+    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['x'])
+    for i in range(N):
+        for j in range(N):
+                compare(f"Q real ({i},{j})",
+                        dQN[  i,  j,0],
+                        dQ2N[N+i,N+j,0],
+                        doassert=True
+                )
+    for i in range(N):
+        for j in range(N):
+                compare(f"Q imag ({i},{j})",
+                        dQN[  i,  j,1],
+                        dQ2N[N+i,N+j,1],
+                        doassert=True
+                )
+
+    # Now transpose the plane wave so that it goes in the y-direction and test the y-derivative:
+    axes = 'y'
+    pw_points = mesh_2N.cast2mesh(pw_points) # (M,M,2)
+    pw_y = np.empty_like(pw_points)
+    for i in range(M):
+        for j in range(M):
+            pw_y[i,j,:] = pw_points[j,i,:]
+
+    print(f"Verifying {axes=}")
+    QN = Observable(mesh_N, data=mesh_N.cast2linear(pw_y[N:M, N:M, :]), symmetry=[1,-1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_y)             , symmetry=[1,-1], name='Q2N')
+
+    QN.differentiate(axes=axes, debug=debug)
+    Q2N.differentiate(axes=axes, debug=debug)
+
+    # verify that the full and reduced mesh both yield the same derivative
+    dQN = mesh_N.cast2mesh(QN.derivatives['y'])
+    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['y'])
+    for i in range(N):
+        for j in range(N):
+                compare(f"Q real ({i},{j})",
+                        dQN[  i,  j,0],
+                        dQ2N[N+i,N+j,0],
+                        doassert=True
+                )
+    for i in range(N):
+        for j in range(N):
+                compare(f"Q imag ({i},{j})",
+                        dQN[  i,  j,1],
+                        dQ2N[N+i,N+j,1],
+                        doassert=True
+                )
+
+    print("test_differentiate_2D_Grad_non_reduced finished")
+
+
+def test_differentiate_3D_Grad_reduced(debug=False):
+    N = 3
+    M = 2 * N
+    d = 1.
+    dim = 3
+
+    ############################################################################
+    # This monster has bitten me once again!
+    # Basis functions are NOT symmetric/skew-symmetric in 2D and 3D
+    ############################################################################
+
+    # We take a plane wave in the x_full-direction
+    k = 1.5
+    L = 2 * N * d
+    axes = 'x'
+
+    mesh_2N = LagrangeMesh(dim=dim, M=M, d=1., reduced=False, highest_derivative_order=1)
+    mesh_N  = LagrangeMesh(dim=dim, M=M, d=1., reduced=True , highest_derivative_order=1)
+
+    pw_x = mesh_2N.plane_wave(L=L, k=k, r=mesh_2N.gridx.reshape((M * M * M,), order='F'))
+    pw_mesh = mesh_2N.cast2mesh(pw_x)
+    print(pw_mesh[N:M,0,0,0])
+    print(pw_mesh[N:M,0,0,1])
+
+    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_mesh[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_mesh)                  , symmetry=[1, -1], name='Q2N')
+
+    QN .differentiate(axes=axes, debug=debug)
+    Q2N.differentiate(axes=axes, debug=debug)
+
+    # verify that the full and reduced mesh both yield the same derivative
+    print(f"Verifying {axes=}")
+    dQN  = mesh_N .cast2mesh(QN .derivatives[axes])
+    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives[axes])
+    for iq in range(2):
+        part = 'real' if iq == 0 else 'imag'
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    compare(f"Q {part} ({i},{j},{k})",
+                        dQN [  i,   j,   k, iq],
+                        dQ2N[N+i, N+j, N+k, iq],
+                        doassert=True
+                        )
+
+    # Now transpose the plane wave so that it goes in the y-direction and test the y-derivative:
+    axes = 'y'
+
+    pw_y = np.empty_like(pw_mesh)
+    for i in range(M):
+        for j in range(M):
+            for j in range(M):
+                for k in range(M):
+                    pw_y[i, j, k, :] = pw_mesh[j, i, k, :]
+    print(pw_y[0,N:M,0,0])
+    print(pw_y[0,N:M,0,1])
+    assert pw_mesh[N:M, 0, 0, 0] == pytest.approx(pw_y[0,N:M,0,0])
+    assert pw_mesh[N:M, 0, 0, 1] == pytest.approx(pw_y[0,N:M,0,1])
+
+    print(f"Verifying {axes=}")
+    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_y[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_y)                  , symmetry=[1, -1], name='Q2N')
+
+    QN .differentiate(axes=axes, debug=debug)
+    Q2N.differentiate(axes=axes, debug=debug)
+
+    # verify that the full and reduced mesh both yield the same derivative
+    dQN  = mesh_N .cast2mesh(QN .derivatives['y'])
+    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['y'])
+    for iq in range(2):
+        part = 'real' if iq == 0 else 'imag'
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    compare(f"Q {part} ({i},{j},{k})",
+                        dQN [  i,   j,   k, iq],
+                        dQ2N[N+i, N+j, N+k, iq],
+                        doassert=True
+                        )
+
+    # Now transpose the plane wave so that it goes in the z-direction and test the yz-derivative:
+    axes = 'z'
+
+    pw_z = np.empty_like(pw_mesh)
+    for i in range(M):
+        for j in range(M):
+            for k in range(M):
+                pw_z[i, j, k, :] = pw_mesh[k, j, i, :]
+    print(pw_z[0,0,N:M,0])
+    print(pw_z[0,0,N:M, 1])
+    assert pw_mesh[N:M, 0, 0, 0] == pytest.approx(pw_z[0,0,N:M,0])
+    assert pw_mesh[N:M, 0, 0, 1] == pytest.approx(pw_z[0,0,N:M,1])
+
+    print(f"Verifying {axes=}")
+    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_z[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_z)                  , symmetry=[1, -1], name='Q2N')
+
+    QN .differentiate(axes=axes, debug=debug)
+    Q2N.differentiate(axes=axes, debug=debug)
+
+    # verify that the full and reduced mesh both yield the same derivative
+    dQN  = mesh_N .cast2mesh(QN .derivatives['z'])
+    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['z'])
+    for iq in range(2):
+        part = 'real' if iq == 0 else 'imag'
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    compare(f"Q {part} ({i},{j},{k})",
+                        dQN [  i,   j,   k, iq],
+                        dQ2N[N+i, N+j, N+k, iq],
+                        doassert=True
+                        )
+
+    print("test_differentiate_3D_Hessian_non_reduced finished")
+

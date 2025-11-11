@@ -49,6 +49,10 @@ class Observable:
 
         if symmetry is None:
             self.symmetry = None
+            if any(self.mesh.reduced):
+                raise UserWarning(f"Observable {self.name}: {symmetry=} was specified.\n"
+                                  f"\tThis will yield ValueErrors when taking derivatives or interpolating."
+                                  )
 
         else:
             self.symmetry = np.zeros((mesh.dim, self.n_components), dtype=int, order='F')
@@ -73,13 +77,16 @@ class Observable:
                     for iq in range(self.n_components):
                         if self.symmetry[idim,iq] == 0:
                             raise UserWarning(f"Observable {self.name}: No symmetry specified for component {iq}.\n"
-                                              f"\tThis will yield ValueErrors when taking derivatives."
+                                              f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                              )
 
         self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
             # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
             # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
         self._derivative_is_uptodate = {}
+
+    def __repr__(self):
+        return f"Observable {self.name} {self.data.shape}"
 
     @property
     def dim(self):

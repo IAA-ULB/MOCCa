@@ -400,13 +400,14 @@ class LagrangeMesh:
     # ---------------------------------------------------------------------------
     # Basis functions
     # ---------------------------------------------------------------------------
-    def plane_wave_1D(self, L:float, k:float, r:np.array):
+    def plane_wave(self, L:float, k:float, r:np.array):
         """Evaluate the plane wave basis function at with wave vector `k` at position `r`.
 
         According to Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015), eq(14)
         According to [eq 5.1] in https://github.com/IAA-nuclear/tantalus_full/blob/MOCCaPy/MOCCaPy/mocca/mesh/lagrange.pdf
 
         Args:
+            L: box width
             k: wave vector, shape is `(self.dim,)`. values must be odd half integers ±1/2, ±3/2, ...
             r: position vector, shape is `(self.dim, nr), nr being the number of evaluation points.
             as_complex: if True, return a complex array. otherwise return two arrays with the real and imaginary parts,
@@ -417,8 +418,8 @@ class LagrangeMesh:
         """
         arg = (2*np.pi * k / L) * r
         result = np.empty((len(r),2), dtype=float, order='F')
-        result[:,0] = np.cos(arg)
-        result[:,1] = np.sin(arg)
+        result[:,0] = np.cos(arg).ravel()
+        result[:,1] = np.sin(arg).ravel()
         result *= np.sqrt(1/L)
         return result
 
@@ -692,7 +693,7 @@ class LagrangeMesh:
                                    (op2[:, :, iq]   , out[:,:,iq]) #  (self.dim == 2)
                     np.einsum(subscripts, DE, op2_iq, out=out_)
 
-        elif self.dim == 2 : # z-axis
+        elif axis == 2 : # z-axis (self.dim == 3 obviously)
             subscripts = 'il,jklq'
             if not self.reduced[axis]:
                 D = self._get_D(axis=2, order=order)
@@ -702,7 +703,7 @@ class LagrangeMesh:
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=2, order=order) if Q.symmetry[2,iq] == 1 else \
                          self._get_DmE(axis=2, order=order)
-                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,iq])
+                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,:,:,iq])
 
 
     # ---------------------------------------------------------------------------
