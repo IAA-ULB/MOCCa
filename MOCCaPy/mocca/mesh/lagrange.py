@@ -133,37 +133,52 @@ class LagrangeMesh:
         """
         self.name = name
 
-        # initialize M and d as dim-tuples
-        if dim == 0 and isinstance(M, tuple):
-            self.dim = len(M)
+        expected_dim = None
+        tuples = [M, d, reduced, shift]
+        for tpl in tuples:
+            if isinstance(tpl, tuple):
+                if expected_dim is None:
+                    expected_dim = len(tpl)
+                else:
+                    assert expected_dim == len(tpl), ("All tuple arguments must have the same length "
+                                                      "(=spatial dimensionality).")
+        if expected_dim is None:
+            # there were no tuples
+            self.dim = dim if dim>0 else 3
         else:
-            self.dim = dim
+            # expected_dim must correspond to dim, unless dim == 0
+            if expected_dim != dim and dim != 0:
+                raise ValueError(F"LagrangeMesh constructor: ambiguous dimensionality {dim=}, but len(d|M|reduced|shift) != {dim}).")
+            self.dim = expected_dim
 
         assert 1 <= self.dim <= 3
 
-        if isinstance(M, int):
-            assert M > 0, "M must be strictly positive."
-            assert M % 2 == 0, "M must be an even number."
-            self.M = tuple(self.dim*[M])
-        else:
-            assert isinstance(M, tuple)
-            assert len(M) == self.dim
-            for mi in M:
-                assert mi >= 0, "M must be strictly positive."
-                assert mi % 2 == 0, "M must be an even number."
-            for mi in M:
-                assert isinstance(mi, int)
-            self.M = M
+        if not isinstance(M, tuple):
+            assert isinstance(M, int), "M parameter must be an int or a tuple of ints."
+            M = self.dim * (M,)
+        for mi in M:
+            assert mi > 0, "M must be strictly positive."
+            assert mi % 2 == 0, "M must be an even number."
+        self.M = M
 
-        # box spacing (ints are converted to floats)
-        if isinstance(d,tuple):
-            assert len(d) == self.dim
-            for di in d:
-                assert di > 0, "d must be strictly positive."
-            self.d = np.array([float(di) for di in d])
+        if not isinstance(d, tuple):
+            assert isinstance(d, (int,float)), "d parameter must be an int, float or a tuple of int/floats."
+            d = self.dim * (float(d),)
         else:
-            assert d > 0, "d must be strictly positive."
-            self.d = np.array(self.dim*[float(d)])
+            d = tuple([float(di) for di in d])
+        for di in d:
+            assert di > 0, "d must be strictly positive."
+        self.d = d
+
+        if not isinstance(reduced, tuple):
+            assert isinstance(reduced, bool), "reduced parameter must be an bool or a tuple of bools."
+            reduced = self.dim * (reduced,)
+        self.reduced = reduced
+
+        if not isinstance(shift, tuple):
+            assert isinstance(shift, float), "shift parameter must be an  float or a tuple of floats."
+            shift = self.dim * (shift,)
+        self.shift = shift
 
         # validate boundary condition
         assert bc in ['antiperiodic', 'periodic']

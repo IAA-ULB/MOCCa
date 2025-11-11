@@ -37,60 +37,61 @@ def test_LagrangeMesh_ctor_n_d():
     # valid 2D mesh constructions
     mesh = LagrangeMesh(dim=2, M=6, d=.5,)
     assert mesh.dim == 2
-    assert mesh.M == (6,6)
-    assert (mesh.d == [.5,.5]).all()
+    assert (mesh.M == np.array((6,6))).all()
+    assert (mesh.d == np.array([.5,.5])).all()
 
     mesh = LagrangeMesh(dim=2, M=6, d=(.5,.6))
     assert mesh.dim == 2
     assert mesh.M == (6,6)
-    assert (mesh.d == (.5,.6)).all()
+    assert mesh.d == (.5,.6)
 
     mesh = LagrangeMesh(M=(4,6), d=.5)
     assert mesh.dim == 2
     assert mesh.M == (4,6)
-    assert (mesh.d == (.5,.5)).all()
+    assert mesh.d == (.5,.5)
 
     mesh = LagrangeMesh(M=(4,6), d=(.5,.6))
     assert mesh.dim == 2
     assert mesh.M == (4,6)
-    assert (mesh.d == (.5,.6)).all()
+    assert mesh.d == (.5,.6)
 
     # valid 3D mesh constructions
     mesh = LagrangeMesh(dim=3, M=4, d=.5)
     assert mesh.dim == 3
     assert mesh.M == (4,4,4)
-    assert (mesh.d == (.5,.5,.5)).all()
+    assert mesh.d == (.5,.5,.5)
 
     mesh = LagrangeMesh(dim=3, M=(2,4,6), d=.5,)
     assert mesh.dim == 3
     assert mesh.M == (2,4,6)
-    assert (mesh.d == (.5,.5,.5)).all()
+    assert mesh.d == (.5,.5,.5)
 
     mesh = LagrangeMesh(dim=3, M=4, d=(.4,.5,.6))
     assert mesh.dim == 3
     assert mesh.M == (4,4,4)
-    assert (mesh.d == (.4,.5,.6)).all()
+    assert mesh.d == (.4,.5,.6)
 
     mesh = LagrangeMesh(M=(2,4,6), d=(.4,.5,.6))
     assert mesh.dim == 3
     assert mesh.M == (2,4,6)
-    assert (mesh.d == (.4,.5,.6)).all()
+    assert mesh.d == (.4,.5,.6)
 
     mesh = LagrangeMesh(M=(2,4,6), d=.5)
     assert mesh.dim == 3
     assert mesh.M == (2,4,6)
-    assert (mesh.d == (.5,.5,.5)).all()
+    assert mesh.d == (.5,.5,.5)
+
+    mesh = LagrangeMesh(M=4, d=.5) # 3D mesh is default
+    assert mesh.dim == 3
+    assert mesh.M == (4,4,4)
+    assert mesh.d == (.5,.5,.5)
+
 
     # Invalid 1D mesh constructions
-    with pytest.raises(AssertionError):
-        mesh = LagrangeMesh(M=4, d=.5)
-        # although this could be interpreted as a 1D mesh, the user might expect a 3D mesh.
-        # The user must either provide dim=1 or M=tuple(5,)
-
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=4, d=(.5,.5))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=(4,6), d=.5)
 
     # Invalid 2D mesh constructions
@@ -100,14 +101,14 @@ def test_LagrangeMesh_ctor_n_d():
     with pytest.raises(AssertionError):
         mesh = LagrangeMesh(dim=2, M=(2,4,6), d=(.4,.5))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=2, M=4, d=(.4,.5,.6))
 
     # Invalid 3D mesh constructions
     with pytest.raises(AssertionError):
         mesh = LagrangeMesh(M=(4,6), d=(.4,.5,.6))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=3, M=4, d=(.5,.6))
 
     # Invalid 4D mesh constructions
@@ -117,7 +118,7 @@ def test_LagrangeMesh_ctor_n_d():
     with pytest.raises(AssertionError):
         mesh = LagrangeMesh(M=(2,4,6,8), d=.5)
 
-    # invalid n
+    # invalid N
     with pytest.raises(AssertionError):
         mesh = LagrangeMesh(dim=1, M=3, d=.5) # odd n
 
