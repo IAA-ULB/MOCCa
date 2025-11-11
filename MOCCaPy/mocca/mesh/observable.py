@@ -226,18 +226,13 @@ class Observable:
                         result[2] = self.derivatives['z']
 
                 elif axes == 'Hessian':
-                    result = self._get_result_array(axes, (self.dim, self.dim))
-
-                    result[0, 0] = self.derivatives['xx']
-                    result[0, 1] = self.derivatives['xy']
-                    result[1, 0] = self.derivatives['xy']
-                    result[1, 1] = self.derivatives['yy']
-                    if self.dim == 3:
-                        result[0, 2] = self.derivatives['xz']
-                        result[2, 0] = self.derivatives['xz']
-                        result[1, 2] = self.derivatives['yz']
-                        result[2, 1] = self.derivatives['yz']
-                        result[2, 2] = self.derivatives['zz']
+                    result = self._get_result_array(axes, 2*(self.dim,))
+                    for i in range(self.dim):
+                        for j in range(self.dim):
+                                axes = ('xyz'[i] +
+                                        'xyz'[j])
+                                axes = ''.join(sorted(axes))
+                                result[i,j] = self.derivatives[axes]
 
                 elif axes == 'Laplacian':
                     if axes in self.derivatives:
@@ -252,14 +247,28 @@ class Observable:
                         result += self.derivatives['zz']
 
                 elif axes == 'Tensor3':
-                    raise NotImplementedError(f"{axes=} is not implemented.")
                     result = self._get_result_array(axes, 3*(self.dim, ))
-                    # TODO: implement
+                    for i in range(self.dim):
+                        for j in range(self.dim):
+                            for k in range(self.dim):
+                                axes = ('xyz'[i] +
+                                        'xyz'[j] +
+                                        'xyz'[k])
+                                axes = ''.join(sorted(axes))
+                                result[i,j,k] = self.derivatives[axes]
 
                 elif axes == 'Tensor4':
-                    raise NotImplementedError(f"{axes=} is not implemented.")
                     result = self._get_result_array(axes, 4*(self.dim, ))
-                    # TODO: implement
+                    for i in range(self.dim):
+                        for j in range(self.dim):
+                            for k in range(self.dim):
+                                for l in range(self.dim):
+                                    axes = ('xyz'[i] +
+                                            'xyz'[j] +
+                                            'xyz'[k] +
+                                            'xyz'[l])
+                                    axes = ''.join(sorted(axes))
+                                    result[i,j,k,l] = self.derivatives[axes]
 
                 else:
                     raise NotImplementedError(f"{axes=} is not implemented.")
@@ -329,7 +338,6 @@ class Observable:
                         'zzz',
                         ] + axes
                 # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
-                raise NotImplementedError("Tensor3 derivative is not implemented.")
 
             if 'Tensor4' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
@@ -349,7 +357,6 @@ class Observable:
                         'zzzz',
                         ] + axes
                 # all starting with 'x' and order < 4 are dropped.
-                raise NotImplementedError("Tensor4 derivative is not implemented.")
 
             if self.dim == 2:
                 # Remove entries containing 'z':
