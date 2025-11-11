@@ -98,8 +98,10 @@ class Observable:
         return self.data[:,i]
 
     def sign(self,iq):
-        """Return the symmetry signs of component iq for the different coordinate axes. A 1 implies symmetric and -1 is
-        skew-symmetric."""
+        """Return the symmetry signs of component iq for the different coordinate axes.
+        On reduced axes 1 implies symmetric and -1 skew-symmetric behavior.
+        On non-reduced axes a 1 is returned by default.
+        """
         result = np.ones((self.mesh.dim,), dtype=float, order='F')
         for idim in range(self.mesh.dim):
             if self.mesh.reduced[idim]:
@@ -110,6 +112,11 @@ class Observable:
                     raise ValueError(f"Observable {self.name}: No symmetry behavior specified for component {iq} on reduced axis {'xyz'[idim]}.\n"
                                      f"\tInterpolation not possible.")
                 result[idim] = self.symmetry[idim,iq]
+            else:
+                if self.symmetry is None:
+                    result[idim] = 0
+                else:
+                    result[idim] = self.symmetry[idim,iq]
         return result
 
     # Differentiation
