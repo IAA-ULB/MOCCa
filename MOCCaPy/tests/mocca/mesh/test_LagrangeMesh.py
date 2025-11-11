@@ -357,7 +357,7 @@ def test_LagrangeMesh_integrate():
     # integrate a constant function.
 
     q = np.ones((mesh.linear_size,))
-    Q= Observable(mesh,data=q)
+    Q= Observable(mesh, data=q)
     integral_of_Q = Q.integrate()
     assert integral_of_Q == mesh.linear_size * mesh.dv
 
@@ -515,7 +515,7 @@ def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
                 # compute the values of the basis function at the grid points
                 bf_xy_g  = mesh.basis_function((ibfx,ibfy), mesh.grid)
                 # wrap the interpolated quantity in an observable
-                Q = Observable(mesh, data=bf_xy_g)
+                Q = Observable(mesh, data=bf_xy_g, symmetry=[1,-1])
 
                 # interpolate Q at xy
                 Qxy = mesh.interpolate(Q, xy)

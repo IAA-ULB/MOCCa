@@ -13,7 +13,7 @@ def sort_axes(axes:str) -> str:
 
 class Observable:
     """Base class for observables."""
-    def __init__(self, mesh, n_components=None, data=None, symmetry=1, name=''):
+    def __init__(self, mesh, n_components=None, data=None, symmetry=None, name=''):
         """
         Args:
             mesh: a LagrangeMesh object
@@ -21,13 +21,14 @@ class Observable:
                 if None, an empty array is created with shape (mesh.linear_size, n_components).
             n_components (int): number of components to use. used if data is None. If both data and n_components
                 are provided, then n_components must equal data.shape[1]
-            symmetry: symmetry of the observable. If an integer is provided, then all components have this symmetry
-                on all coordinate axes. If a list|tuple of integers is provided, then len(symmetry) == n_components
-                must hold (if n_components is None, it is inferred from data), and symmtry[iq] prescribes the symmetry
-                of component iq on all coordinate axes. If a np.ndarray is provided, then symmetry.shape must eaual
-                (mesh.dim, n_components) and symmetry[i,iq] prescribes the symmetry of component iq on the i-th
-                coordinate axis. All values must be either 1 (symmetric) or -1 (skew-symmetric).
+            symmetry: symmetry behavior of the observable's components wrt the coordinate axes of the mesh.
+                The argument is converted to a numpy array of shape (mesh.dim, n_components). Possible values
+                are 0, 1, or -1 implying, resp. no symmetry, symmetric or skew-symmetric behavior of the selected
+                component on the selected coordinate axis. The value is critical for computing derivatives on
+                reduced axes.
             name: optional name of the observable.
+        Raises:
+            RuntimeWarning if symmetry is not set for reduced coordinate axes.
         """
         self.name = name
 
@@ -46,20 +47,34 @@ class Observable:
             self.data = data
         self.n_components = self.data.size // mesh.linear_size
 
-        self.symmetry = np.empty((mesh.dim, self.n_components), dtype=int, order='F')
-        if isinstance(symmetry, int):
-            self.symmetry[:,:] = symmetry
-        elif isinstance(symmetry, (tuple,list)) and not isinstance(symmetry[0], (tuple,list)):
-            assert(len(symmetry) == self.n_components)
-            for iq in range(self.n_components):
-                self.symmetry[:, iq] = symmetry[iq]
+        if symmetry is None:
+            self.symmetry = None
+
         else:
-            if not isinstance(symmetry, np.ndarray):
-                symmetry = np.array(symmetry)
-            assert(symmetry.shape == (mesh.dim, self.n_components))
-            self.symmetry = symmetry
-        for s in self.symmetry.ravel():
-           assert s in [1,-1]
+            self.symmetry = np.zeros((mesh.dim, self.n_components), dtype=int, order='F')
+            if isinstance(symmetry, int):
+                self.symmetry[:,:] = symmetry
+            elif isinstance(symmetry, (tuple,list)) and not isinstance(symmetry[0], (tuple,list)):
+                assert(len(symmetry) == self.n_components)
+                for iq in range(self.n_components):
+                    self.symmetry[:, iq] = symmetry[iq]
+            else:
+                if not isinstance(symmetry, np.ndarray):
+                    symmetry = np.array(symmetry)
+                assert(symmetry.shape == (mesh.dim, self.n_components))
+                self.symmetry = symmetry
+
+            for s in self.symmetry.ravel():
+               assert s in [1,0,-1]
+
+            # Verify that symmetry is specified for reduced axes.
+            for idim in range(self.dim):
+                if mesh.reduced[idim]:
+                    for iq in range(self.n_components):
+                        if self.symmetry[idim,iq] == 0:
+                            raise UserWarning(f"Observable {self.name}: No symmetry specified for component {iq}.\n"
+                                              f"\tThis will yield ValueErrors when taking derivatives."
+                                             )
 
         self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
             # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
@@ -85,7 +100,17 @@ class Observable:
     def sign(self,iq):
         """Return the symmetry signs of component iq for the different coordinate axes. A 1 implies symmetric and -1 is
         skew-symmetric."""
-        return self.symmetry[:,iq].ravel()
+        result = np.ones((self.mesh.dim,), dtype=float, order='F')
+        for idim in range(self.mesh.dim):
+            if self.mesh.reduced[idim]:
+                if self.symmetry is None:
+                    raise ValueError(f"Observable {self.name}: No symmetry behavior specified for all components on reduced axis {'xyz'[idim]}.\n"
+                                     f"\tInterpolation not possible.")
+                if self.symmetry[idim, iq] == 0:
+                    raise ValueError(f"Observable {self.name}: No symmetry behavior specified for component {iq} on reduced axis {'xyz'[idim]}.\n"
+                                     f"\tInterpolation not possible.")
+                result[idim] = self.symmetry[idim,iq]
+        return result
 
     # Differentiation
     #---------------------------------------------------------------------------
