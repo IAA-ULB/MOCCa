@@ -44,35 +44,6 @@ def create_mesh(gx, gy=None, gz=None):
         return gx
 
 
-def _can_reuse(axes, Q):
-    """Return a derivative that can be reused or None."""
-    if Q.derivative_is_uptodate(axes):
-        return Q.derivatives[axes], _get_symmetry(axes,Q)
-    else:
-        return None, None
-
-def _get_symmetry(axes, Q):
-    """Return the symmetry of the derivative of Q wrt axes components.
-    """
-    symmetry = Q.symmetry.copy()
-
-    # an even number of differentiations keeps the symmetry sign
-    # an odd number of differentiations flips the symmetry sign
-    # x-axis
-    if Q.mesh.reduced[0]:
-        if axes.count('x') % 2:
-            symmetry[0,:] *= -1
-    # y-axis
-    if Q.mesh.dim > 1 and Q.mesh.reduced[1]:
-        if axes.count('y') % 2:
-            symmetry[1,:] *= -1
-    # z-axis
-    if Q.mesh.dim > 2 and Q.mesh.reduced[2]:
-        if axes.count('z') % 2:
-            symmetry[2,:] *= -1
-
-    return symmetry
-
 def _split_axes(axes, Q):
     """split axes in a part that is already computed and a part that still has to be computed.
     Args:
@@ -134,20 +105,26 @@ class LagrangeMesh:
 
         Args:
             dim (int): dimension of mesh. if not specified, dim is guessed as len(M), where M must be a tuple.
-            M: tuple with number of grid points in the respective dimensions. Each component of M=2N must be even,
-                yielding N grid points at both sides of the origin. If a single M is specified, M is the same in every
-                direction.
-                The distinction between M and N is consistent with  Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)
-                section III.B Lagrange-mesh representation.
-            d: spacing of points in the respective dimensions. If d is a float or an int d is the same in each direction.
+            M: tuple with number of grid points in the respective dimensions. Each component of M=2N must be
+                even, yielding N grid points at both sides of the origin. If a single M is specified, M is the
+                same in every direction.
+                The distinction between M and N is consistent with  Ryssens et al, PHYSICAL REVIEW C 92, 064318
+                (2015) section III.B Lagrange-mesh representation.
+            d: spacing of points in the respective dimensions. If d is a float or an int, d is the same on each
+                coordinate axis.
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
-            reduced: restrict the mesh to the positive half-axis.
-            shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
-            highest_derivative_order: allow for differentiation up to this order.
+            reduced: Restrict the corresponding coordinate axis to the positive half-axis. This implies that all
+                quantities represented on the mesh are either symmetric or skew-symmetric with respect to that
+                axis. A single bool indicates that all coordinate axes are reduced. A tuple of bools can be used
+                to reduce some of the axes (True) and others not (False).
+            shift: subtract shift from the grid points. If non-zero, the corresponding `reduced` entry must be
+                `False`.
+            highest_derivative_order: allow for differentiation up to this order. D-matrices are pre-constructed
+                up to this order.
             name: optional name for the mesh.
 
         Raises:
-            AssertionError: in case of invalid choices
+            AssertionError: in case of invalid choices.
 
         Remark:
             The `reduced` parameter is derived from symmetry considerations and may at some point - when the complexity
@@ -305,7 +282,8 @@ class LagrangeMesh:
     # (n_gridpoints, n_components) <--> (Nx, Ny, Nz, n_components
     #---------------------------------------------------------------------------
     def cast2mesh(self, a):
-        """Cast an array a to shape (*self.mesh_shape, n_components).
+        """Cast an array a to shape (*self.mesh_shape, n_components). Data are
+        Not copied.
 
         Note that this casts an array af shape (self.linear_size,) into an array
         of shape (self.linear_size, 1)
@@ -323,7 +301,8 @@ class LagrangeMesh:
 
 
     def cast2linear(self, a):
-        """Cast an array a to shape (self.linear_size, n_components).
+        """Cast an array a to shape (self.linear_size, n_components). No data are
+        copied.
 
         Raises:
             ValueError if a is not commensurate. I.e. its size is not a multiple
@@ -503,11 +482,13 @@ class LagrangeMesh:
     # Differentiation
     # ---------------------------------------------------------------------------
     def _compute_D1(self, axis) -> None:
-        """Compute the full matrix D1 (see eq 10.1 in lagrange.md) for axis
-        (wether it is reduced or not).
+        """Compute the full matrix D1 for `axis` (whether it is reduced or not).
 
         Returns:
-            The full matrix D1 (see eq 10.1 in lagrange.md).
+            The full matrix D1
+
+        Remark:
+            see eq 10.1 in lagrange.md. Note that the paper by Ryssens et al 2015 has a sign error.
         """
         # We first compute the full D1, also for the reduced case. Then we comput $E^{ll}$ and $E^{lr}$
         twoN = self.M[axis]
@@ -517,7 +498,7 @@ class LagrangeMesh:
         alternating_sign[1::2] = -1
         # alternating_sign = [1, -1, 1, -1, ...]
         # In agreement with the Warning following equations 10.1 and 10.2 in lagrange.md, which demands
-        # an extra sign flip because they use (i-j) in the sine argements instead of (j-i)
+        # an extra sign flip because they use (i-j) in the sine arguments instead of (j-i)
         # i = np.linspace(0, twoN - 1, twoN)
         minus_i = -np.linspace(0, twoN - 1, twoN)
         # In agreement with the formulas in Ryssens et al 2015 (eq 18),
@@ -547,6 +528,8 @@ class LagrangeMesh:
 
     @property
     def highest_derivative_order(self):
+        """Highest differentiation order achievable by this Mesh. This can be chosen when constructing a
+        LagrangeMesh object."""
         return self.D.shape[1]
 
 
@@ -609,14 +592,23 @@ class LagrangeMesh:
 
 
     def _get_D(self, axis:int, order:int):
+        """Get the pre-computed D matrix for (non-reduced) coordinate axis `axis`,
+        for differentiation order `order`.
+        """
         return self.D[axis, order - 1]
 
 
     def _get_DpE(self, axis:int, order:int):
-        return self.D[axis, order - 1]
+        """Get the pre-computed D+E matrix for (reduced) coordinate axis `axis`,
+        for differentiation order `order`.
+        """
+        return self.D[axis, order - 1] # the original full D matrix was replaced
 
 
     def _get_DmE(self, axis:int, order:int):
+        """Get the pre-computed D-E matrix for (reduced) coordinate axis `axis`,
+        for differentiation order `order`.
+        """
         return self.DmE[axis, order - 1]
 
 

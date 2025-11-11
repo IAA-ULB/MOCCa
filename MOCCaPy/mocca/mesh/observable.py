@@ -7,6 +7,13 @@ def is_composite(axes:str) -> bool:
 
 
 def sort_axes(axes:str) -> str:
+    """A sort key for sorting axes lists according to these criteria.
+
+      - single partial derivatives before composite: e.g. `xyz` < 'Hessian'
+      - single partial derivatives in alphabetical order and increasing differentiation order: 'x' < 'y' < 'yy'
+      - composite derivatives from low to high differentiation order: e.g. `Grad` < 'Hessian' < 'Laplacian' < 'Tensor3'
+        < 'Tensor4'. (Happens to be alphabetical too).
+    """
     return f"{len(axes)}{axes}" if not is_composite(axes) else \
            axes
 
@@ -16,8 +23,8 @@ class Observable:
     def __init__(self, mesh, n_components=None, data=None, symmetry=None, name=''):
         """
         Args:
-            mesh: a LagrangeMesh object
-            data (np.array): Observable values on the mesh points. Array shape is (n_gridpoints,n_components),
+            mesh: a mesh object - Currently, only LagrangeMesh objects are supported.
+            data (np.array): Observable values on the mesh points. Array shape is (n_gridpoints, n_components),
                 if None, an empty array is created with shape (mesh.linear_size, n_components).
             n_components (int): number of components to use. used if data is None. If both data and n_components
                 are provided, then n_components must equal data.shape[1]
@@ -72,7 +79,7 @@ class Observable:
                assert s in [1,0,-1]
 
             # Verify that symmetry is specified for reduced axes.
-            for idim in range(self.dim):
+            for idim in range(self.mesh.dim):
                 if mesh.reduced[idim]:
                     for iq in range(self.n_components):
                         if self.symmetry[idim,iq] == 0:
@@ -89,10 +96,6 @@ class Observable:
         return f"Observable {self.name} {self.data.shape}"
 
     @property
-    def dim(self):
-        return self.mesh.dim
-
-    @property
     def shape(self):
         return self.data.shape
 
@@ -100,11 +103,11 @@ class Observable:
     def n_gridpoints(self):
         return self.mesh.linear_size
 
-    def __getitem__(self, i) -> np.ndarray:
-        """Get i-th component of the observable."""
-        return self.data[:,i]
+    def __getitem__(self, iq:int) -> np.ndarray:
+        """Get i-th component of the observable, by indexing the observable."""
+        return self.data[:,iq]
 
-    def sign(self,iq):
+    def sign(self, iq:int):
         """Return the symmetry signs of component iq for the different coordinate axes.
         On reduced axes 1 implies symmetric and -1 skew-symmetric behavior.
         On non-reduced axes a 1 is returned by default.
@@ -129,6 +132,10 @@ class Observable:
     # Differentiation
     #---------------------------------------------------------------------------
     def _get_result_array(self, axes, shape):
+        """Return a numpy array for a tensor derivative (Grad, Hessian, Tensor3, Tensor3),
+        the elemenst of which are numpy arrays themselves containing the corresponding partial
+        derivatives on the mesh points.
+        """
         if not axes in self.derivatives:
             self.derivatives[axes] = np.empty(shape, dtype=np.ndarray)
         return self.derivatives[axes]
@@ -204,8 +211,8 @@ class Observable:
                 return self.derivatives[axes]
 
             if is_composite(axes):
-                # axes is a multi-component derivative. Hence, self.dim >= 2 must hold.
-                assert self.dim >= 2
+                # axes is a multi-component derivative. Hence, self.mesh.dim >= 2 must hold.
+                assert self.mesh.dim >= 2
                 if not axes in ['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']:
                     if debug:
                         print(f"Debug log>  {axes=} unknown composite derivative.")
@@ -218,17 +225,17 @@ class Observable:
 
                 # Use the above computed partial derivatives to compute the result
                 if axes == 'Grad':
-                    result = self._get_result_array(axes, (self.dim,))
+                    result = self._get_result_array(axes, (self.mesh.dim,))
 
                     result[0] = self.derivatives['x']
                     result[1] = self.derivatives['y']
-                    if self.dim == 3:
+                    if self.mesh.dim == 3:
                         result[2] = self.derivatives['z']
 
                 elif axes == 'Hessian':
-                    result = self._get_result_array(axes, 2*(self.dim,))
-                    for i in range(self.dim):
-                        for j in range(self.dim):
+                    result = self._get_result_array(axes, 2*(self.mesh.dim,))
+                    for i in range(self.mesh.dim):
+                        for j in range(self.mesh.dim):
                                 axes = ('xyz'[i] +
                                         'xyz'[j])
                                 axes = ''.join(sorted(axes))
@@ -243,14 +250,14 @@ class Observable:
 
                     result += self.derivatives['xx']
                     result += self.derivatives['yy']
-                    if self.dim >= 2:
+                    if self.mesh.dim >= 2:
                         result += self.derivatives['zz']
 
                 elif axes == 'Tensor3':
-                    result = self._get_result_array(axes, 3*(self.dim, ))
-                    for i in range(self.dim):
-                        for j in range(self.dim):
-                            for k in range(self.dim):
+                    result = self._get_result_array(axes, 3*(self.mesh.dim, ))
+                    for i in range(self.mesh.dim):
+                        for j in range(self.mesh.dim):
+                            for k in range(self.mesh.dim):
                                 axes = ('xyz'[i] +
                                         'xyz'[j] +
                                         'xyz'[k])
@@ -258,11 +265,11 @@ class Observable:
                                 result[i,j,k] = self.derivatives[axes]
 
                 elif axes == 'Tensor4':
-                    result = self._get_result_array(axes, 4*(self.dim, ))
-                    for i in range(self.dim):
-                        for j in range(self.dim):
-                            for k in range(self.dim):
-                                for l in range(self.dim):
+                    result = self._get_result_array(axes, 4*(self.mesh.dim, ))
+                    for i in range(self.mesh.dim):
+                        for j in range(self.mesh.dim):
+                            for k in range(self.mesh.dim):
+                                for l in range(self.mesh.dim):
                                     axes = ('xyz'[i] +
                                             'xyz'[j] +
                                             'xyz'[k] +
@@ -302,17 +309,17 @@ class Observable:
             # Handle lists of derivatives
             # Add components to allow reuse of derivatives:
             if 'Grad' in axes:
-                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                 assert self.mesh.highest_derivative_order >= 1, f"Required by axes='Grad'."
                 axes = ['x', 'y', 'z'] + axes
 
             if 'Laplacian' in axes:
-                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                 assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Laplacian'."
                 axes = ['xx', 'yy', 'zz'] + axes
 
             if 'Hessian' in axes:
-                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                 assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Hessian'."
                 axes = ['y', 'z',
                         'xx', 'xy', 'xz',
@@ -326,7 +333,7 @@ class Observable:
                 # by the composite, c.q 'Hessian'.
 
             if 'Tensor3' in axes:
-                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                 assert self.mesh.highest_derivative_order >= 3, f"Required by axes='Tensor3'."
                 axes = ['y', 'z',
                         'yy', 'yz', 'zz',
@@ -340,7 +347,7 @@ class Observable:
                 # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
 
             if 'Tensor4' in axes:
-                assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                 assert self.mesh.highest_derivative_order >= 4, f"Required by axes='Tensor4'."
                 axes = ['y', 'z',
                         'yy', 'xz', 'yz', 'zz',
@@ -358,7 +365,7 @@ class Observable:
                         ] + axes
                 # all starting with 'x' and order < 4 are dropped.
 
-            if self.dim == 2:
+            if self.mesh.dim == 2:
                 # Remove entries containing 'z':
                 axes = [ax for ax in axes if 'z' not in ax]
             # Remove duplicate entries:
@@ -378,8 +385,30 @@ class Observable:
         else: # Axes should be eiter str or list
             raise ValueError(f"Axes of type {type(axes)} not supported ({axes=}).")
 
+    def derivative_symmetry(self, axes):
+        """Return the symmetry of the derivative of this observable wrt axes .
+        """
+        symmetry = self.symmetry.copy()
+
+        # an even number of differentiations keeps the symmetry sign
+        # an odd number of differentiations flips the symmetry sign
+        # x-axis
+        if self.mesh.reduced[0]:
+            if axes.count('x') % 2:
+                symmetry[0, :] *= -1
+        # y-axis
+        if self.mesh.dim > 1 and self.mesh.reduced[1]:
+            if axes.count('y') % 2:
+                symmetry[1, :] *= -1
+        # z-axis
+        if self.mesh.dim > 2 and self.mesh.reduced[2]:
+            if axes.count('z') % 2:
+                symmetry[2, :] *= -1
+
+        return symmetry
 
     def invalidate_derivatives(self):
+        """Mark all derivatives as outdated."""
         for axes in self._derivative_is_uptodate.keys():
             self._derivative_is_uptodate[axes] = False
         for axes in self.derivatives.keys():
@@ -397,4 +426,5 @@ class Observable:
     # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
     # LagrangeMesh methods directly on the Observable.
     def integrate(self):
+        """Integrate the observable over the simulation volume."""
         return self.mesh.integrate(self)
