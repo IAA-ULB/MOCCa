@@ -357,9 +357,10 @@ def test_LagrangeMesh_integrate():
     # integrate a constant function.
 
     q = np.ones((mesh.linear_size,))
-    Q= Observable(mesh, data=q)
-    integral_of_Q = Q.integrate()
-    assert integral_of_Q == mesh.linear_size * mesh.dv
+    with pytest.raises(UserWarning):
+        Q = Observable(mesh, data=q)
+        integral_of_Q = Q.integrate()
+        assert integral_of_Q == mesh.linear_size * mesh.dv
 
 
 def test_LagrangeMesh_interpolate1D(debug=False):

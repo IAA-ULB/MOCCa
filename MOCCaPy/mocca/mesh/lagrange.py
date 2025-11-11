@@ -143,6 +143,7 @@ class LagrangeMesh:
             bc: boundary condition type. 'antiperiodic' or 'periodic'.
             reduced: restrict the mesh to the positive half-axis.
             shift: subtract shift from the grid points. If non-zero, corresponding `reduced` entry must be `False`.
+            highest_derivative_order: allow for differentiation up to this order.
             name: optional name for the mesh.
 
         Raises:

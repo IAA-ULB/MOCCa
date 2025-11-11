@@ -2,15 +2,12 @@ import pytest
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from pathlib import Path
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.observable import Observable
+from mocca.mesh.lagrange import create_mesh
 
-from pathlib import Path
-
-from pandas.core.config_init import pc_width_doc
-
-from MOCCaPy.mocca.mesh.lagrange import create_mesh
 
 this_file = Path(__file__).resolve()
 project_folder = this_file
@@ -65,6 +62,31 @@ def test_Observable_ctor():
     data = np.zeros((mesh.linear_size, 2), order='F')
 
 
+def test_Observable_differentiate_bad_axes():
+    mesh = LagrangeMesh(dim=1, M=4, d=1., reduced=False)
+    Q = Observable(mesh, n_components=1)
+
+    with pytest.raises(AssertionError):
+        Q.differentiate(axes='xyzw')
+
+    with pytest.raises(AssertionError):
+        Q.differentiate(axes='Xyzw')
+
+    mesh = LagrangeMesh(dim=2, M=4, d=1., reduced=False)
+    Q = Observable(mesh, n_components=1)
+
+    with pytest.raises(ValueError):
+        Q.differentiate(axes='Xyzw')
+
+    with pytest.raises(AssertionError): # mesh.highest_derivative_order too low
+        Q.differentiate(axes='Tensor4')
+
+    mesh = LagrangeMesh(dim=2, M=4, d=1., reduced=False, highest_derivative_order=4)
+    Q = Observable(mesh, n_components=1)
+    with pytest.raises(NotImplementedError): # mesh.highest_derivative_order too low
+        Q.differentiate(axes='Tensor4')
+
+
 def test_differentiate_1D_x_non_reduced(debug=False):
     N = 3
     d = 1.
@@ -105,7 +127,7 @@ def test_differentiate_1D_x_non_reduced(debug=False):
     assert Q.data == pytest.approx(Q_expected)
     # for i in range(2*N):
     #     print(f"{Q.data[i,0]} {Q_expected[i,0]} {Q.data[i,1]} {Q_expected[i,1]} ")
-    dQdx = Q.differentiate(axes='x_full')
+    dQdx = Q.differentiate(axes='x')
 
     # manually perform dQdx = D1 * Q.data - real part
     DQR = np.zeros((2*N,), dtype=float)
@@ -199,8 +221,8 @@ def test_differentiate_1D_x_reduced(debug=False):
     Q = Observable(mesh   , data=bfr , symmetry=[1,-1] )
     R = Observable(mesh_nr, data=bfnr, symmetry=[1,-1]) # R for "R"eference.
 
-    dQdx = Q.differentiate(axes='x_full')
-    dRdx = R.differentiate(axes='x_full')
+    dQdx = Q.differentiate(axes='x')
+    dRdx = R.differentiate(axes='x')
 
     for i in range(2*N):
         if i<N:

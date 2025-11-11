@@ -294,14 +294,17 @@ class Observable:
             # Add components to allow reuse of derivatives:
             if 'Grad' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.highest_derivative_order >= 1, f"Required by axes='Grad'."
                 axes = ['x', 'y', 'z'] + axes
 
             if 'Laplacian' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Laplacian'."
                 axes = ['xx', 'yy', 'zz'] + axes
 
             if 'Hessian' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Hessian'."
                 axes = ['y', 'z',
                         'xx', 'xy', 'xz',
                         'yy', 'yz',
@@ -315,6 +318,7 @@ class Observable:
 
             if 'Tensor3' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.highest_derivative_order >= 3, f"Required by axes='Tensor3'."
                 axes = ['y', 'z',
                         'yy', 'yz', 'zz',
                         'xxx', 'xxy', 'xxz',
@@ -325,9 +329,11 @@ class Observable:
                         'zzz',
                         ] + axes
                 # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
+                raise NotImplementedError("Tensor3 derivative is not implemented.")
 
             if 'Tensor4' in axes:
                 assert self.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                assert self.mesh.highest_derivative_order >= 4, f"Required by axes='Tensor4'."
                 axes = ['y', 'z',
                         'yy', 'xz', 'yz', 'zz',
                         'yyy', 'yyz', 'yzz', 'zzz',
@@ -343,6 +349,7 @@ class Observable:
                         'zzzz',
                         ] + axes
                 # all starting with 'x' and order < 4 are dropped.
+                raise NotImplementedError("Tensor4 derivative is not implemented.")
 
             if self.dim == 2:
                 # Remove entries containing 'z':
