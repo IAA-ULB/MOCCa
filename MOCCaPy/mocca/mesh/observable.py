@@ -268,7 +268,7 @@ class Observable:
                         result[i,j,k,l] = self.derivativesG[axes]
         return result
 
-    def differentiate(self, axes:str|list[str], recompute:bool=True, debug=False):
+    def differentiate(self, axes:str|list[str], access='L', recompute:bool=True, debug=False):
         """Compute some spatial derivative(s) of this observable. all components are differentiated
 
          Args:
@@ -284,6 +284,8 @@ class Observable:
                     These return an numpy array with the corresponding tensor of partial derivatives.
                     'Laplacian', is an exception because it is a scalar differentiation operator, and
                     therefor the result of d^2/dxdx + d^2/dy^2 + d^2/dz^2)Q is returned.
+                access: access method for the result: 'L'=linear, 'G'=grid-based. This does not
+                    influence the computation.
                 list: A list of the above strings is also accepted, requesting several derivatives
                     at once. The list can internally be manipulated to allow storing intermediate
                     derivatives that can be reused to speed up computation. E.g. when requesting 'xz'
@@ -334,7 +336,9 @@ class Observable:
                 # The grid based accessor is returned.
                 if debug:
                     print(f"Debug log>  reusing {axes=}")
-                return self.derivativesG[axes]
+
+                return self.derivativesG[axes] if access=='G' else \
+                       self.derivatives [axes]
 
             if is_composite(axes):
                 # axes is a multi-component derivative. Hence, self.mesh.dim >= 2 must hold.
@@ -366,7 +370,9 @@ class Observable:
                         result[:,:,:] = self.derivativesG['xx'] + \
                                         self.derivativesG['yy'] + \
                                         self.derivativesG['zz']
-                    return result
+
+                    return result if access=='G' else \
+                           self.derivatives[axes]
 
             else:  # not composite
                 # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
@@ -392,7 +398,8 @@ class Observable:
 
                 self.derivative_set_uptodate(axes)
 
-                return out
+                return out if access=='G' else \
+                       self.derivatives[axes]
 
         elif isinstance(axes, list):
             # Handle lists of derivatives

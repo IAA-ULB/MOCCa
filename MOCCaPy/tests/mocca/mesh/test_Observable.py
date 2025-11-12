@@ -325,7 +325,7 @@ def test_differentiate_2D_Hessian(debug=False):
         mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
         bfq = mesh.basis_function(ijk=(0,0), r=mesh.grid)
         Q = Observable(mesh, data=bfq)
-        H = Q.differentiate(axes='Hessian',debug=debug)
+        Q.differentiate(axes='Hessian',debug=debug)
         print("test_differentiate_2D_Hessian finished")
 
 def test_differentiate_3D_Hessian_non_reduced(debug=False):
@@ -510,97 +510,97 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     mesh_N  = LagrangeMesh(dim=dim, M=M, d=1., reduced=True , highest_derivative_order=1)
 
     pw_x = mesh_2N.plane_wave(L=L, k=k, r=mesh_2N.gridx.reshape((M * M * M,), order='F'))
-    pw_mesh = mesh_2N.cast2grid(pw_x)
-    print(pw_mesh[N:M,0,0,0])
-    print(pw_mesh[N:M,0,0,1])
+    pwGx = mesh_2N.cast2grid(pw_x)
+    print(pwGx[N:M,0,0,0])
+    print(pwGx[N:M,0,0,1])
 
-    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_mesh[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_mesh)                  , symmetry=[1, -1], name='Q2N')
+    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pwGx[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pwGx)                  , symmetry=[1, -1], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
     print(f"Verifying {axes=}")
-    dQN  = mesh_N .cast2grid(QN .derivatives[axes])
-    dQ2N = mesh_2N.cast2grid(Q2N.derivatives[axes])
+    dQN_G = QN .derivativesG[axes]
+    dQ2NG = Q2N.derivativesG[axes]
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):
             for j in range(N):
                 for k in range(N):
                     compare(f"Q {part} ({i},{j},{k})",
-                        dQN [  i,   j,   k, iq],
-                        dQ2N[N+i, N+j, N+k, iq],
+                        dQN_G[  i,   j,   k, iq],
+                        dQ2NG[N+i, N+j, N+k, iq],
                         doassert=True
                         )
 
     # Now transpose the plane wave so that it goes in the y-direction and test the y-derivative:
     axes = 'y'
 
-    pw_y = np.empty_like(pw_mesh)
+    pwGy = np.empty_like(pwGx)
     for i in range(M):
         for j in range(M):
             for j in range(M):
                 for k in range(M):
-                    pw_y[i, j, k, :] = pw_mesh[j, i, k, :]
-    print(pw_y[0,N:M,0,0])
-    print(pw_y[0,N:M,0,1])
-    assert pw_mesh[N:M, 0, 0, 0] == pytest.approx(pw_y[0,N:M,0,0])
-    assert pw_mesh[N:M, 0, 0, 1] == pytest.approx(pw_y[0,N:M,0,1])
+                    pwGy[i, j, k, :] = pwGx[j, i, k, :]
+    print(pwGy[0,N:M,0,0])
+    print(pwGy[0,N:M,0,1])
+    assert pwGx[N:M, 0, 0, 0] == pytest.approx(pwGy[0,N:M,0,0])
+    assert pwGx[N:M, 0, 0, 1] == pytest.approx(pwGy[0,N:M,0,1])
 
     print(f"Verifying {axes=}")
-    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_y[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_y)                  , symmetry=[1, -1], name='Q2N')
+    QN = Observable(mesh_N , data=mesh_N .cast2linear(pwGy[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N= Observable(mesh_2N, data=mesh_2N.cast2linear(pwGy)                  , symmetry=[1, -1], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
-    dQN  = mesh_N .cast2grid(QN .derivatives['y'])
-    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['y'])
+    dQN_G = QN .derivativesG['y']
+    dQ2NG = Q2N.derivativesG['y']
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):
             for j in range(N):
                 for k in range(N):
                     compare(f"Q {part} ({i},{j},{k})",
-                        dQN [  i,   j,   k, iq],
-                        dQ2N[N+i, N+j, N+k, iq],
+                        dQN_G[  i,   j,   k, iq],
+                        dQ2NG[N+i, N+j, N+k, iq],
                         doassert=True
                         )
 
     # Now transpose the plane wave so that it goes in the z-direction and test the yz-derivative:
     axes = 'z'
 
-    pw_z = np.empty_like(pw_mesh)
+    pwGz = np.empty_like(pwGx)
     for i in range(M):
         for j in range(M):
             for k in range(M):
-                pw_z[i, j, k, :] = pw_mesh[k, j, i, :]
-    print(pw_z[0,0,N:M,0])
-    print(pw_z[0,0,N:M, 1])
-    assert pw_mesh[N:M, 0, 0, 0] == pytest.approx(pw_z[0,0,N:M,0])
-    assert pw_mesh[N:M, 0, 0, 1] == pytest.approx(pw_z[0,0,N:M,1])
+                pwGz[i, j, k, :] = pwGx[k, j, i, :]
+    print(pwGz[0,0,N:M,0])
+    print(pwGz[0,0,N:M, 1])
+    assert pwGx[N:M, 0, 0, 0] == pytest.approx(pwGz[0,0,N:M,0])
+    assert pwGx[N:M, 0, 0, 1] == pytest.approx(pwGz[0,0,N:M,1])
 
     print(f"Verifying {axes=}")
-    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pw_z[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_z)                  , symmetry=[1, -1], name='Q2N')
+    QN  = Observable(mesh_N , data=mesh_N .cast2linear(pwGz[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
+    Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pwGz)                  , symmetry=[1, -1], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
-    dQN  = mesh_N .cast2grid(QN .derivatives['z'])
-    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['z'])
+    dQN_G = QN .derivativesG['z']
+    dQ2NG = Q2N.derivativesG['z']
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):
             for j in range(N):
                 for k in range(N):
                     compare(f"Q {part} ({i},{j},{k})",
-                        dQN [  i,   j,   k, iq],
-                        dQ2N[N+i, N+j, N+k, iq],
+                        dQN_G[  i,   j,   k, iq],
+                        dQ2NG[N+i, N+j, N+k, iq],
                         doassert=True
                         )
 
