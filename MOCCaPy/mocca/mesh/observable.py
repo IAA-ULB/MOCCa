@@ -86,11 +86,15 @@ class Observable:
                             raise UserWarning(f"Observable {self.name}: No symmetry specified for component {iq}.\n"
                                               f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                              )
-
+        # Grid-based access
+        self.dataG = self.mesh.cast2mesh(self.data)
+        
         self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
             # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
             # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
+        self.derivativesG = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
         self._derivative_is_uptodate = {}
+        
 
     def __repr__(self):
         return f"Observable {self.name} {self.data.shape}"
@@ -103,10 +107,43 @@ class Observable:
     def n_gridpoints(self):
         return self.mesh.linear_size
 
-    def __getitem__(self, iq:int) -> np.ndarray:
-        """Get i-th component of the observable, by indexing the observable."""
-        return self.data[:,iq]
+    def __getitem__(self, index:tuple) -> np.ndarray:
+        """Access data and derivatives in linear or grid based way.
 
+        >> Q['L', l, iq] # linear access by linear index l and component index iq (slices work too!)
+        >> Q['G', i, j, k, iq] # Grid based access by grid index (i,j,k) and component index iq (slices work too!)
+        >> Q['xy', 'L', l, iq] # linear access of d2Q/dxdy by linear index l and component index iq (slices work too!)
+        >> Q['Laplacian', 'G', i, j, k, iq] # Grid based access of Laplacian derivative by grid index (i,j,k) and component index iq (slices work too!)
+
+        Args:
+            index (tuple): ([axes:str,] 'L'|'G', l | i[,i[,k]], iq), respectively
+                - an optional axes str indicating a simple derivative, e.g. 'xy', 'z', 'Laplacian', ... Composite derivatives
+                  like 'Grad', 'Hessian', 'Tensor3' and 'Tensor4' are not supported. The 'Laplacian' is an exception
+                  because it is a scalar.
+                - a str 'L' or 'G' requesting linear, resp. grid-based access.
+                - 'L' is followed by a single linear index l (int), 'G' is followed by a grid index i[,j[,k]] (ints).
+                  The number of ints must equal `self.mesh.dim`. Each int can be a slice too
+                - iq (int) component index or slice.
+
+        Remark:
+            Looping through data/derivatives using this mechanism will be slow.
+        """
+        if isinstance(index[1], str):
+            # Accessing derivatives
+            axes = index[0]
+            if is_composite(axes) and axes != 'Laplacian':
+                raise ValueError(f"Accessing composite derivatives, like '{axes}', of Observable ({name}) is forbidden"
+                                 f" (except for 'Laplacian'.")
+            assert index[1] in 'LG', f"Access identifier must be 'L' or 'G', got {index[1]}."
+            return self.derivatives [axes][index[2:]] if index[0] == 'L' else \
+                   self.derivativesG[axes][index[2:]]
+
+        else:
+            # Accessing data
+            assert index[0] in 'LG', f"Access identifier must be 'L' or 'G', got {index[1]}."
+            return self.data [axes][index[1:]] if index[0] == 'L' else \
+                   self.dataG[axes][index[1:]]
+        
     def sign(self, iq:int):
         """Return the symmetry signs of component iq for the different coordinate axes.
         On reduced axes 1 implies symmetric and -1 skew-symmetric behavior.
@@ -131,14 +168,105 @@ class Observable:
 
     # Differentiation
     #---------------------------------------------------------------------------
-    def _get_result_array(self, axes, shape):
+    def _get_tensor_of_derivatives(self, axes, shape):
         """Return a numpy array for a tensor derivative (Grad, Hessian, Tensor3, Tensor3),
         the elemenst of which are numpy arrays themselves containing the corresponding partial
         derivatives on the mesh points.
         """
-        if not axes in self.derivatives:
-            self.derivatives[axes] = np.empty(shape, dtype=np.ndarray)
-        return self.derivatives[axes]
+        if not axes in self.derivativesG:
+            self.derivativesG[axes] = np.empty(shape, dtype=np.ndarray)
+        return self.derivativesG[axes]
+
+    def grad(self, access='L'):
+        """Compose Grad = [d/dx d/dy d/dz] from current derivatives. As the individual
+        components the underlying data are automatically updated.
+
+        Args:
+            access: 'L' for linear access, 'G' grid based access.
+        Returns:
+            a 1-tensor represented by a numpy array of numpy arrays.
+        """
+        derivatives = self.derivatives if access == 'L' else \
+                      self.derivativesG
+
+        result = self._get_tensor_of_derivatives(axes, (self.mesh.dim,))
+        result[0] = derivatives['x']
+        result[1] = derivatives['y']
+        if self.mesh.dim == 3:
+            result[2] = self.derivatives['z']
+
+        return result
+
+    def hessian(self, access='L'):
+        """Compose the Hessian from current derivatives (=all 2nd order derivatives).
+        As the individual components the underlying data are automatically updated.
+
+        Args:
+            access: 'L' for linear access, 'G' grid based access.
+        Returns:
+            a 2-tensor represented by a numpy array of numpy arrays.
+        """
+        derivatives = self.derivatives if access == 'L' else \
+                      self.derivativesG
+
+        result = self._get_tensor_of_derivatives(axes, 2*(self.mesh.dim,))
+        for i in range(self.mesh.dim):
+            for j in range(self.mesh.dim):
+                    axes = ('xyz'[i] +
+                            'xyz'[j])
+                    axes = ''.join(sorted(axes))
+                    result[i,j] = derivatives[axes]
+
+        return result
+
+    def tensor3(self, access='L'):
+        """Compose the Tensor3 from current derivatives (=all 3rd order derivatives).
+        As the individual components the underlying data are automatically updated.
+
+        Args:
+            access: 'L' for linear access, 'G' grid based access.
+        Returns:
+            a 3-tensor represented by a numpy array of numpy arrays.
+        """
+        derivatives = self.derivatives if access == 'L' else \
+                      self.derivativesG
+
+        result = self._get_tensor_of_derivatives(axes, 3*(self.mesh.dim, ))
+        for i in range(self.mesh.dim):
+            for j in range(self.mesh.dim):
+                for k in range(self.mesh.dim):
+                    axes = ('xyz'[i] +
+                            'xyz'[j] +
+                            'xyz'[k])
+                    axes = ''.join(sorted(axes))
+                    result[i,j,k] = derivatives[axes]
+
+        return result
+
+    def tensor3(self, access='L'):
+        """Compose the Tensor4 from current derivatives (=all 4th order derivatives).
+        As the individual components the underlying data are automatically updated.
+
+        Args:
+            access: 'L' for linear access, 'G' grid based access.
+        Returns:
+            a 4-tensor represented by a numpy array of numpy arrays.
+        """
+        derivatives = self.derivatives if access == 'L' else \
+                      self.derivativesG
+
+        result = self._get_tensor_of_derivatives(axes, 4*(self.mesh.dim, ))
+        for i in range(self.mesh.dim):
+            for j in range(self.mesh.dim):
+                for k in range(self.mesh.dim):
+                    for l in range(self.mesh.dim):
+                        axes = ('xyz'[i] +
+                                'xyz'[j] +
+                                'xyz'[k] +
+                                'xyz'[l])
+                        axes = ''.join(sorted(axes))
+                        result[i,j,k,l] = self.derivativesG[axes]
+        return result
 
     def differentiate(self, axes:str|list[str], recompute:bool=True, debug=False):
         """Compute some spatial derivative(s) of this observable. all components are differentiated
@@ -183,13 +311,13 @@ class Observable:
             representing tensor differentiaton operators ('Grad, 'Hessian', ...) the returned result is a
             numpy array (the tensor) of numpy arrays of floats.
             In the case of a list, None is returned and the user must access the individual derivatives as
-            `self.derivatives[axes:str]`
+            `self.derivatives[axes:str]` or `self.derivativesG[axes:str]`
         """
         # TODO: find a way of automatically calling invalidate_derivatives() after updating the Observable's data member?
         #       that would avoid specifying recompute.
 
         # design constraints:
-        # -V store results internally (dict self.derivatives)
+        # -V store results internally (dict self.derivatives and self.derivativesG)
         # -V honour symmetry of derivatives 'xyx' == 'xxy' must be computed and stored only once
         # -V enable reusing previous computations: if we need 'xxy' and 'xx' is known, compute as D1y * 'xx', if 'y' is
         #    known, compute as D2x * 'y', otherwise compute (from scratch) as D2x * D1y * q
@@ -198,17 +326,15 @@ class Observable:
 
         if recompute:
             self.invalidate_derivatives()
-            # Cast self.data in mesh shape which is required for the einsum calls.
-            # The data structures for the derivatives are then automatically in the right shape too.
-            self.data = self.mesh.cast2mesh(self.data)
             self._composite_done = set()
 
         if isinstance(axes, str):
             if self.derivative_is_uptodate(axes):
                 # Uptodate derivative already available. This method can be used as a getter.
+                # The grid based accessor is returned.
                 if debug:
                     print(f"Debug log>  reusing {axes=}")
-                return self.derivatives[axes]
+                return self.derivativesG[axes]
 
             if is_composite(axes):
                 # axes is a multi-component derivative. Hence, self.mesh.dim >= 2 must hold.
@@ -223,64 +349,24 @@ class Observable:
                     self._composite_done.add(axes)
                     self.differentiate(axes=[axes], recompute=False, debug=debug)
 
-                # Use the above computed partial derivatives to compute the result
-                if axes == 'Grad':
-                    result = self._get_result_array(axes, (self.mesh.dim,))
-
-                    result[0] = self.derivatives['x']
-                    result[1] = self.derivatives['y']
-                    if self.mesh.dim == 3:
-                        result[2] = self.derivatives['z']
-
-                elif axes == 'Hessian':
-                    result = self._get_result_array(axes, 2*(self.mesh.dim,))
-                    for i in range(self.mesh.dim):
-                        for j in range(self.mesh.dim):
-                                axes = ('xyz'[i] +
-                                        'xyz'[j])
-                                axes = ''.join(sorted(axes))
-                                result[i,j] = self.derivatives[axes]
-
-                elif axes == 'Laplacian':
-                    if axes in self.derivatives:
-                        result = self.derivatives[axes]
+                if axes == 'Laplacian':
+                    # Reuse or allocate memory
+                    if axes in self.derivativesG:
+                        result = self.derivativesG[axes]
                     else:
-                        result = np.zeros_like(self.data)
-                        self.derivatives[axes] = result
+                        result = np.empty_like(self.dataG)
+                        self.derivativesG[axes] = result
+                        self.derivatives [axes] = self.mesh.cast2linear(result)
 
-                    result += self.derivatives['xx']
-                    result += self.derivatives['yy']
-                    if self.mesh.dim >= 2:
-                        result += self.derivatives['zz']
-
-                elif axes == 'Tensor3':
-                    result = self._get_result_array(axes, 3*(self.mesh.dim, ))
-                    for i in range(self.mesh.dim):
-                        for j in range(self.mesh.dim):
-                            for k in range(self.mesh.dim):
-                                axes = ('xyz'[i] +
-                                        'xyz'[j] +
-                                        'xyz'[k])
-                                axes = ''.join(sorted(axes))
-                                result[i,j,k] = self.derivatives[axes]
-
-                elif axes == 'Tensor4':
-                    result = self._get_result_array(axes, 4*(self.mesh.dim, ))
-                    for i in range(self.mesh.dim):
-                        for j in range(self.mesh.dim):
-                            for k in range(self.mesh.dim):
-                                for l in range(self.mesh.dim):
-                                    axes = ('xyz'[i] +
-                                            'xyz'[j] +
-                                            'xyz'[k] +
-                                            'xyz'[l])
-                                    axes = ''.join(sorted(axes))
-                                    result[i,j,k,l] = self.derivatives[axes]
-
-                else:
-                    raise NotImplementedError(f"{axes=} is not implemented.")
-
-                return result
+                    # Compute
+                    if self.mesh.dim == 2:
+                        result[:,:] = self.derivativesG['xx'] + \
+                                      self.derivativesG['yy']
+                    else:
+                        result[:,:,:] = self.derivativesG['xx'] + \
+                                        self.derivativesG['yy'] + \
+                                        self.derivativesG['zz']
+                    return result
 
             else:  # not composite
                 # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
@@ -290,10 +376,13 @@ class Observable:
                 # sort the `axes` str, as the order of differentiation is immaterial
                 axes = nx*'x' + ny*'y' + nz*'z' # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
 
-                if not axes in self.derivatives:
+                if not axes in self.derivativesG:
                     # allocate memory
-                    self.derivatives[axes] = np.empty_like(self.data)
-                out = self.derivatives[axes]
+                    a = np.empty_like(self.dataG)
+                    self.derivativesG[axes] = a
+                    self.derivatives [axes] = self.mesh.cast2linear(a)
+
+                out = self.derivativesG[axes]
 
                 # This is where the responsibility of Observable ends and the responsibility of
                 # the mesh object (typically, LagrangeMesh) begins.
@@ -379,8 +468,7 @@ class Observable:
             for ax in axes:
                 self.differentiate(axes=ax, recompute=False, debug=debug)
 
-            return None  # returning a list would make no sense, the user must access the requested derivatives via
-                         # `self.derivatives`
+            return None  # returning a list is impractical
 
         else: # Axes should be eiter str or list
             raise ValueError(f"Axes of type {type(axes)} not supported ({axes=}).")
@@ -411,7 +499,7 @@ class Observable:
         """Mark all derivatives as outdated."""
         for axes in self._derivative_is_uptodate.keys():
             self._derivative_is_uptodate[axes] = False
-        for axes in self.derivatives.keys():
+        for axes in self.derivativesG.keys():
             self._derivative_is_uptodate[axes] = False
 
     def derivative_set_uptodate(self, axes, value=True):

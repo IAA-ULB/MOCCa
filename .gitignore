@@ -64,6 +64,7 @@ MOCCaPy/scripts/Ca40.f90/*.param
 experiments/
 
 MOCCaPy/scripts/tryout.py
+MOCCaPy/scripts/sandbox.py
 MOCCaPy/mocca/data/parameterizations
 .obsidian
 

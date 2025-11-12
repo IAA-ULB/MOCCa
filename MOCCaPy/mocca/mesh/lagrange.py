@@ -77,18 +77,18 @@ def _split_axes(axes, Q):
                1 if ny else \
                2
         order = n
-        return axis, order, Q.data
+        return axis, order, Q.dataG
 
     else:
         if nx:
             reused_axes = axes.replace('x', '')
-            return 0, nx, Q.derivatives[reused_axes]
+            return 0, nx, Q.derivativesG[reused_axes]
             # we only need the symmetry in the x direction, which hasn't changed.
 
         else:
             # note that this case implies nx==0, ny!=0 and nz!=0.
             reused_axes = axes.replace('y', '')
-            return 1, ny, Q.derivatives[reused_axes]
+            return 1, ny, Q.derivativesG[reused_axes]
 
 
 class LagrangeMesh:
@@ -716,7 +716,6 @@ class LagrangeMesh:
                          self._get_DmE(axis=2, order=order)
                     np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,:,:,iq])
 
-
     # ---------------------------------------------------------------------------
     # Interpolation methods
     #----------------------------------------------------------------------------
@@ -750,10 +749,9 @@ class LagrangeMesh:
         Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
         for ig in range(self.linear_size):
             for iq in range(nq):
-                q = Q[iq]
                 sign = Q.sign(iq)
                 fx = self.lagrange_function(r, ig, sign)
-                Qr[:,iq] += q[ig] * fx
+                Qr[:,iq] += Q.data[ig, iq] * fx
 
         return Qr
 
@@ -776,10 +774,9 @@ class LagrangeMesh:
         for iy in range(Ny):
             for ix in range(Nx):
                 for iq in range(nq):
-                    q = Q[iq]
                     sign = Q.sign(iq)
                     fxy = self.lagrange_function(r, (ix,iy), sign)
-                    Qr[:,iq] += q[ig] * fxy
+                    Qr[:,iq] += Q.data[ig, iq] * fxy
                 ig += 1
 
         return Qr
@@ -803,10 +800,9 @@ class LagrangeMesh:
             for iy in range(Ny):
                 for ix in range(Nx):
                     for iq in range(nq):
-                        q = Q[iq]
                         sign = Q.sign(iq)
                         fxy = self.lagrange_function(r, (ix, iy,iz), sign)
-                        Qr[:, iq] += q[ig] * fxy
+                        Qr[:, iq] += Q.data[ig, iq] * fxy
                     ig += 1
         return Qr
 
