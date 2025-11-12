@@ -87,7 +87,7 @@ class Observable:
                                               f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                              )
         # Grid-based access
-        self.dataG = self.mesh.cast2mesh(self.data)
+        self.dataG = self.mesh.cast2grid(self.data)
         
         self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
             # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'

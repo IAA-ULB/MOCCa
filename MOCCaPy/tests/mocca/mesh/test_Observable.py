@@ -428,7 +428,7 @@ def test_differentiate_2D_Grad_reduced(debug=False):
         plt.show()
         plt.close(fig)
 
-    QN = Observable(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2mesh(pw_points)[N:M, N:M, :]), symmetry=[1,-1], name='QN')
+    QN = Observable(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2grid(pw_points)[N:M, N:M, :]), symmetry=[1,-1], name='QN')
     Q2N = Observable(mesh_2N, data=mesh_2N.cast2linear(pw_points)                                  , symmetry=[1,-1], name='Q2N')
 
     QN.differentiate(axes=axes, debug=debug)
@@ -437,8 +437,8 @@ def test_differentiate_2D_Grad_reduced(debug=False):
     # verify that the full and reduced mesh both yield the same derivative
     # verifying the x-direction
     print(f"Verifying {axes=}")
-    dQN = mesh_N.cast2mesh(QN.derivatives['x'])
-    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['x'])
+    dQN = mesh_N.cast2grid(QN.derivatives['x'])
+    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['x'])
     for i in range(N):
         for j in range(N):
                 compare(f"Q real ({i},{j})",
@@ -456,7 +456,7 @@ def test_differentiate_2D_Grad_reduced(debug=False):
 
     # Now transpose the plane wave so that it goes in the y-direction and test the y-derivative:
     axes = 'y'
-    pw_points = mesh_2N.cast2mesh(pw_points) # (M,M,2)
+    pw_points = mesh_2N.cast2grid(pw_points) # (M,M,2)
     pw_y = np.empty_like(pw_points)
     for i in range(M):
         for j in range(M):
@@ -470,8 +470,8 @@ def test_differentiate_2D_Grad_reduced(debug=False):
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
-    dQN = mesh_N.cast2mesh(QN.derivatives['y'])
-    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['y'])
+    dQN = mesh_N.cast2grid(QN.derivatives['y'])
+    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['y'])
     for i in range(N):
         for j in range(N):
                 compare(f"Q real ({i},{j})",
@@ -510,7 +510,7 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     mesh_N  = LagrangeMesh(dim=dim, M=M, d=1., reduced=True , highest_derivative_order=1)
 
     pw_x = mesh_2N.plane_wave(L=L, k=k, r=mesh_2N.gridx.reshape((M * M * M,), order='F'))
-    pw_mesh = mesh_2N.cast2mesh(pw_x)
+    pw_mesh = mesh_2N.cast2grid(pw_x)
     print(pw_mesh[N:M,0,0,0])
     print(pw_mesh[N:M,0,0,1])
 
@@ -522,8 +522,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
 
     # verify that the full and reduced mesh both yield the same derivative
     print(f"Verifying {axes=}")
-    dQN  = mesh_N .cast2mesh(QN .derivatives[axes])
-    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives[axes])
+    dQN  = mesh_N .cast2grid(QN .derivatives[axes])
+    dQ2N = mesh_2N.cast2grid(Q2N.derivatives[axes])
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):
@@ -557,8 +557,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
-    dQN  = mesh_N .cast2mesh(QN .derivatives['y'])
-    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['y'])
+    dQN  = mesh_N .cast2grid(QN .derivatives['y'])
+    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['y'])
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):
@@ -591,8 +591,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     Q2N.differentiate(axes=axes, debug=debug)
 
     # verify that the full and reduced mesh both yield the same derivative
-    dQN  = mesh_N .cast2mesh(QN .derivatives['z'])
-    dQ2N = mesh_2N.cast2mesh(Q2N.derivatives['z'])
+    dQN  = mesh_N .cast2grid(QN .derivatives['z'])
+    dQ2N = mesh_2N.cast2grid(Q2N.derivatives['z'])
     for iq in range(2):
         part = 'real' if iq == 0 else 'imag'
         for i in range(N):

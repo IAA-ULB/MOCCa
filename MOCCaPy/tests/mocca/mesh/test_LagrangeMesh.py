@@ -267,15 +267,15 @@ def test_LagrangeMesh_reshape():
     assert mesh.gridx.shape == (8,1)
     mesh.gridx = mesh.cast2linear(mesh.gridx) # already linearized
     assert mesh.gridx.shape == (8,1)
-    mesh.gridx = mesh.cast2mesh(mesh.gridx)
+    mesh.gridx = mesh.cast2grid(mesh.gridx)
     assert mesh.gridx.shape == (2,2,2,1)
-    mesh.gridx = mesh.cast2mesh(mesh.gridx)   # already to mesh
+    mesh.gridx = mesh.cast2grid(mesh.gridx)   # already to mesh
     assert mesh.gridx.shape == (2,2,2,1)
 
     a = np.ones((2,2,2,5))
     a_linear = mesh.cast2linear(a)
     assert a_linear.shape == (8,5)
-    a = mesh.cast2mesh(a_linear)
+    a = mesh.cast2grid(a_linear)
     assert a.shape == (2,2,2,5)
 
 

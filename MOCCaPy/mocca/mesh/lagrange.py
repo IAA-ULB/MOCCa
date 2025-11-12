@@ -296,9 +296,9 @@ class LagrangeMesh:
     # Casting arrays between linear and mesh shape
     # (n_gridpoints, n_components) <--> (Nx, Ny, Nz, n_components
     #---------------------------------------------------------------------------
-    def cast2mesh(self, a):
-        """Cast an array a to shape (*self.mesh_shape, n_components). Data are
-        Not copied.
+    def cast2grid(self, a):
+        """Cast an array `a` to shape (*self.mesh_shape, n_components).
+        Underlying data are not copied.
 
         Note that this casts an array af shape (self.linear_size,) into an array
         of shape (self.linear_size, 1)
