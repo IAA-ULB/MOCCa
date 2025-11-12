@@ -5,7 +5,9 @@ def started_finished(func):
     def wrapper():
         print()
         print( f" Started {func.__name__}".rjust(120, '-'))
+
         func()
+
         print(f" Finished {func.__name__}".rjust(120, '-'))
         print()
 
