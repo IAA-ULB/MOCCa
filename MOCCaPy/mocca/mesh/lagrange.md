@@ -214,6 +214,7 @@ Thus, the superscript indicating the order of the differentiation can be interpr
 > [!warning]
 > I am not quite sure this is correct... This approach seems to ignore the effect of $\pm$ in eq 19. On the other hand, the derivation of eq 19 seems independent of whether $\mathbf{D}^+$ corresponds to $\mathbf{D}^1$, $\mathbf{D}^2$, ...
 > Testing will reveal the truth. 
+> It probably is correct after all.
 
 Likewise, 
 $$\frac{d^2h}{dx^2}
@@ -228,13 +229,34 @@ $$\frac{d^2\mathbf{h}}{dx^2}
 =(\mathbf{D}+\mathbf{E})(\mathbf{D}-\mathbf{E})\mathbf{h}_{\mathrm{skew-symmetric}}$$
 
 > [!Note]
-> There is an additional catch when applying the $\mathbf{D}\pm\mathbf{E}$ formulas, namely that they depend on the symmetry of $\mathbf{h}$. As the different components of an observable may have different symmetries, we must apply it to each component separately. This complicates the implementation, and may impact the performance. However, the memory use is 1/4th of the full matrix ($N\times N$ vs $2N\times2N$).
+> There is an additional catch when applying the $\mathbf{D}\pm\mathbf{E}$ formulas, namely that they depend on the symmetry of $\mathbf{h}$. As the different components of an observable may have different symmetries, we must apply it to each component separately. This complicates the implementation, and may impact the performance. However, the memory use is 1/4th of the full matrix ($N\times N$ vs $2N\times2N$). As this part of the code will probably be memory-bound, the reduced approach is most probably faster.
+
+> [!Note] 
+> Keeping track of the symmetry is non-trivial. It is perhaps better to first implement the full matrix approach for reduced axes and then use that to validate the approach based on eq 19. On the other hand, completing $h_{ijk}$ to a non-reduced grid isn't easy either. 
+> After all keeping track of the symmetry turned out to be easy, provided the derivatives are computed as 
+> [Eq 22]
+> $$[\mathbf{F_x}^{n_x}][\mathbf{F_y}^{n_y}][\mathbf{F_z}^{n_z}]\mathbf{h}$$ (i.e. by grouping the derivatives wrt the same coordinate axis in a single matrix multiplication), where $\mathbf{F}=\mathbf{D}\pm\mathbf{E}$ with $\pm$ selected from the symmetry behavior of $\mathbf{h}$ for the corresponding coordinate axis. This is because each matrix-multiplication can only change the symmetry behavior of its outcome with respect to the axis of the differentiation, not with respect to the other axes. That is, the symmetry behavior of the $z$-component of $[\mathbf{F_z}^{n_z}]\mathbf{h}$ may have changed, depending of the differentiation order $n_z$, but its symmetry behavior with respect to the $x$- and $y$-axis are unchanged. Consequentially, we can rely on the symmetry behavior of $\mathbf{h}$ for each of the multiplications. 
+> Eq 22 presents also an optimal scheme for reusing previously computed derivatives. By incrementing the differentiation order by one and storing $[\mathbf{F_y}^{n_y}]\mathbf{h}$, $[\mathbf{F_z}^{n_z}]\mathbf{h}$ and $[\mathbf{F_y}^{n_y}][\mathbf{F_z}^{n_z}]\mathbf{h}$ every new derivative can be computed with a single matrix multiplication (because derivatives with respect to the same coordinate axis can be grouped in a single matrix multiplication). E.g to compute the Hessian, the following steps are taken:
+> $$\frac{d\mathbf{h}}{dx}=[\mathbf{F_x}^{1}]\mathbf{h}$$
+> $$\frac{d\mathbf{h}}{dy}=[\mathbf{F_y}^{1}]\mathbf{h}$$
+> $$\frac{d\mathbf{h}}{dz}=[\mathbf{F_z}^{1}]\mathbf{h}$$
+> $$\frac{d^2\mathbf{h}}{dx^2}=[\mathbf{F_x}^{2}]\mathbf{h}$$
+> $$\frac{d^2\mathbf{h}}{dy^2}=[\mathbf{F_y}^{2}]\mathbf{h}$$
+> $$\frac{d^2\mathbf{h}}{dz^2}=[\mathbf{F_z}^{2}]\mathbf{h}$$
+> $$\frac{d^2\mathbf{h}}{dxdy}=[\mathbf{F_x}^{1}][\mathbf{F_y}^{1}]\mathbf{h}
+> =[\mathbf{F_x}^{1}]\frac{d\mathbf{h}}{dy}$$
+> $$\frac{d^2\mathbf{h}}{dxdz}=[\mathbf{F_x}^{1}][\mathbf{F_z}^{1}]\mathbf{h}
+> =[\mathbf{F_x}^{1}]\frac{d\mathbf{h}}{dy}$$
+> $$\frac{d^2\mathbf{h}}{dydz}=[\mathbf{F_y}^{1}][\mathbf{F_z}^{1}]\mathbf{h}=
+> =[\mathbf{F_y}^{1}]\frac{d\mathbf{h}}{dz}$$
+> Every line requires only a single matrix multiplication, namely, the leftmost one as the operand to its right is either $\mathbf{h}$ or a or has been computed before. Furthermore, computing 
+> $$\frac{d^2\mathbf{h}}{dx^2}=[\mathbf{F_x}^{2}]\mathbf{h}$$
+> from scratch has the same cost as 
+> $$\frac{d^2\mathbf{h}}{dx^2}=[\mathbf{F_x}^{1}]\frac{d\mathbf{h}}{dx}$$
 
 > [!Note]
-> Keeping track of the symmetry is non-trivial. It is perhaps better to first implement the full matrix approach for reduced axes and then use that to validate the approach based on eq 19. On the other hand, completing $h_{ijk}$ to a non-reduced grid isn't easy either.
-
-> [!Note]
-> Rather then storing  $\mathbf{D}$ and $\mathbf{E}$, it is more efficient to store  $\mathbf{D}+\mathbf{E}$ and  $\mathbf{D}-\mathbf{E}$.
+> Rather then storing  $\mathbf{D}$ and $\mathbf{E}$, it is more efficient to store  $\mathbf{D}+\mathbf{E}$ and  $\mathbf{D}-\mathbf{E}$, where $\mathbf{D}=\mathbf{D}^{lr}$ and $\mathbf{E}=\mathbf{E}^{ll}$ are derived from the corresponding full higher order $\mathbf{D}$ matrix. So, for every differentiation order $n$,  a full $\mathbf{D}^{(n)}$ matrix is stored for non-reduced coordinate axes, and for reduced coordinates axes two $1/4$ matrices, $[\mathbf{D}^{(n)}+\mathbf{E}^{(n)}]$ and  $[\mathbf{D}^{(n)}-\mathbf{E}^{(n)}]$, are stored.
+ 
 
 ## $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by

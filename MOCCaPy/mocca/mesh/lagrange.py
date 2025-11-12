@@ -551,11 +551,14 @@ class LagrangeMesh:
     def _setup_D_matrices(self, highest_derivative_order):
         """setup D matrices infrastructure"""
         self.D = np.empty((3, highest_derivative_order), dtype=np.ndarray)
-        #   stores the full D matrix if the axis is not reduced,
+        #   Stores the full D matrix if the axis is not reduced,
         #   and the reduced matrix sum D+E, otherwise
+
         self.DmE = np.empty((3, highest_derivative_order), dtype=np.ndarray)
-        #   stores nothing if the axis is not reduced,
+        #   Stores nothing if the axis is not reduced,
         #   and the reduced matrix difference D-E otherwise.
+
+        # Compute D1 for all the axes
         self.D[0, 0] = self._compute_D1(0)
         if self.dim > 1:
             if (self.M[1] == self.M[0]) and \
@@ -582,21 +585,21 @@ class LagrangeMesh:
                     # otherwise, compute its D1-matrix
                     self.D[2, 0] = self._compute_D1(2)
 
+        # Higher order D matrices
         for axis in range(self.dim):
             # compute the D2, D3,... matrices
             for order in range(1, highest_derivative_order):
                 self.D[axis, order] = self.D[axis, 0] @ self.D[axis, order - 1]
 
-            # for reduced axes derive Dlr and Ell
+            # for reduced axes derive Dlr and Ell from the higher order D matrices
             if self.reduced[axis]:
                 N = self.M[axis]//2
                 for order in range(highest_derivative_order):
                     D = np.empty((N, N), dtype=float)
                     E = np.empty((N, N), dtype=float)
 
+                    # Copy the columns of Dlr into D
                     # Reverse the columns of the lower left quadrant Dll and copy into E
-                    # Copy the first column of Dll
-
                     for icol in range(N):
                         D[:,icol]     = self.D[axis, order][N:,N+icol] # copy Dlr (lower right quadrant)
                         E[:,N-1-icol] = self.D[axis, order][N:,  icol] # the 1st column of Dll becomes the last column of E
@@ -617,7 +620,7 @@ class LagrangeMesh:
         """Get the pre-computed D+E matrix for (reduced) coordinate axis `axis`,
         for differentiation order `order`.
         """
-        return self.D[axis, order - 1] # the original full D matrix was replaced
+        return self.D[axis, order - 1] # `self.D` is Not a typo: the original full D matrix was replaced by DpE
 
 
     def _get_DmE(self, axis:int, order:int):
