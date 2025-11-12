@@ -1,12 +1,14 @@
-import pytest
-import numpy as np
-from pathlib import Path
+import inspect
 import matplotlib.pyplot as plt
-from matplotlib import cm
+from   matplotlib import cm
+import numpy as np
+from   pathlib import Path
+import pytest
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.lagrange import create_mesh
 from mocca.mesh.observable import Observable
+from mocca.util import started_finished, started, finished
 
 this_file = Path(__file__).resolve()
 project_folder = this_file
@@ -20,6 +22,8 @@ png_folder.mkdir(exist_ok=True)
 for png in png_folder.glob('*.png'):
     png.unlink()
 
+
+@started_finished
 def test_LagrangeMesh_ctor_n_d():
     """Test valid and invalid n and d parameters."""
 
@@ -138,6 +142,7 @@ def test_LagrangeMesh_ctor_n_d():
         mesh = LagrangeMesh(dim=2, M=2, d=(0,.5)) # negative d
 
 
+@started_finished
 def test_LagrangeMesh_ctor_shift():
     """Test valid and invalid reduced parameter."""
 
@@ -151,6 +156,7 @@ def test_LagrangeMesh_ctor_shift():
     assert mesh.shift == (.1, .2, .3)
 
 
+@started_finished
 def test_LagrangeMesh_ctor_reduced():
     """Test valid and invalid reduced parameter."""
 
@@ -163,6 +169,7 @@ def test_LagrangeMesh_ctor_reduced():
     mesh = LagrangeMesh(dim=3, M=4, d=.5, reduced=(True,True,False))
     assert mesh.reduced == (True, True, False)
 
+@started_finished
 def test_LagrangeMesh_ctor_bc():
     """Test valid and invalid bc parameter."""
     mesh = LagrangeMesh(dim=3, M=4, d=.5)
@@ -178,6 +185,7 @@ def test_LagrangeMesh_ctor_bc():
     assert mesh.periodic
 
 
+@started_finished
 def test_LagrangeMesh_ctor_grid_1D():
     """Test grid points for 1D grid."""
     mesh = LagrangeMesh(dim=1, M=6, d=1.)
@@ -198,6 +206,8 @@ def test_LagrangeMesh_ctor_grid_1D():
     mesh = LagrangeMesh(dim=1, M=6, d=.5, reduced=False, shift=0.5)
     assert np.all(mesh.gridx == [-1.75, -1.25, -.75, -.25, .25, .75])
 
+
+@started_finished
 def test_LagrangeMesh_ctor_grid_2D():
     """Test grid points for 2D grid."""
     mesh = LagrangeMesh(dim=2, M=6, d=1.)
@@ -206,6 +216,8 @@ def test_LagrangeMesh_ctor_grid_2D():
     for i in range(3):
         assert np.all(mesh.gridy[i,:] == [0.5,1.5,2.5])
 
+\
+@started_finished
 def test_LagrangeMesh_ctor_grid_3D():
     """Test grid points for 2D grid."""
     mesh = LagrangeMesh(dim=3, M=4, d=1.)
@@ -219,6 +231,7 @@ def test_LagrangeMesh_ctor_grid_3D():
         for i in range(2):
             assert np.all(mesh.gridz[i,j,:] == [0.5,1.5])
 
+@started_finished
 def test_LagrangeMesh_ctor_dv():
     """Test dv computation."""
     mesh = LagrangeMesh(dim=3, M=6, d=.5)
@@ -234,12 +247,14 @@ def test_LagrangeMesh_ctor_dv():
     assert mesh.dv == .5 ** 3
 
 
+@started_finished
 def test_LagrangeMesh_ctor_box_width():
     """Test dv computation."""
     mesh = LagrangeMesh(dim=3, M=6, d=.5)
     assert (mesh.box_width == tuple(3*[6*.5])).all()
 
 
+@started_finished
 def test_LagrangeMesh_plane_wave_1D():
     d = .5
     n = 6
@@ -256,6 +271,7 @@ def test_LagrangeMesh_plane_wave_1D():
     assert (pw[:,1] == imag_part).all()
 
 
+@started_finished
 def test_LagrangeMesh_reshape():
     """Test reshaping of the mesh."""
     mesh = LagrangeMesh(dim=3, M=4, d=.5)
@@ -279,8 +295,9 @@ def test_LagrangeMesh_reshape():
     assert a.shape == (2,2,2,5)
 
 
-def test_LagrangeMesh_basis_function_1D():
+def test_LagrangeMesh_basis_function_1D(no_plot):
     """"""
+    started(inspect.stack()[0][3])
     # 1D mesh
     N = 6
     d = 1
@@ -288,21 +305,27 @@ def test_LagrangeMesh_basis_function_1D():
     # r = mesh.gx
     r = np.linspace(-N*d/2, N*d/2, num=241)
 
-    for i in range(N):
-        pw = mesh.basis_function(i,r)
-        fig, ax = plt.subplots()
-        plt.title(f'{i=}, x_i={mesh.gx[i]}')
-        ax.plot([-N/2,N/2],[0,0],color='k')
-        ax.plot([0,0],[-1,1],color='k')
-        ax.plot(mesh.gx,  N*[0], 'rs')
-        ax.plot(mesh.gx[i], [0], 'gs')
-        ax.plot(r, pw[:,0], label='real')
-        ax.plot(r, pw[:,1], label='imag')
-        plt.legend()
-        fig.savefig(png_folder/f"1D_basis_function_{i}.png")
-        plt.close(fig)
+    if no_plot:
+        pass
+    else:
+        for i in range(N):
+            pw = mesh.basis_function(i,r)
+            fig, ax = plt.subplots()
+            plt.title(f'{i=}, x_i={mesh.gx[i]}')
+            ax.plot([-N/2,N/2],[0,0],color='k')
+            ax.plot([0,0],[-1,1],color='k')
+            ax.plot(mesh.gx,  N*[0], 'rs')
+            ax.plot(mesh.gx[i], [0], 'gs')
+            ax.plot(r, pw[:,0], label='real')
+            ax.plot(r, pw[:,1], label='imag')
+            plt.legend()
+            fig.savefig(png_folder/f"1D_basis_function_{i}.png")
+            plt.close(fig)
 
-def test_LagrangeMesh_basis_function_2D():
+    finished(inspect.stack()[0][3])
+
+def test_LagrangeMesh_basis_function_2D(no_plot):
+    started(inspect.stack()[0][3])
     # 2D mesh
     N = 6
     d = 1
@@ -324,19 +347,24 @@ def test_LagrangeMesh_basis_function_2D():
             pw_real = pw[:,0].reshape((nr1,nr1), order='F')
             pw_imag = pw[:,1].reshape((nr1,nr1), order='F')
 
-            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-            plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]} real')
-            ax.plot_surface(x, y, pw_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-            fig.savefig(png_folder/f"2D_basis_function_{i}_real.png")
-            # plt.show()
-            plt.close(fig)
+            if no_plot:
+                pass
+            else:
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]} real')
+                ax.plot_surface(x, y, pw_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(png_folder/f"2D_basis_function_{i}_real.png")
+                # plt.show()
+                plt.close(fig)
 
-            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-            plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]} imag')
-            ax.plot_surface(x, y, pw_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-            fig.savefig(png_folder/f"2D_basis_function_{i}_imag.png")
-            # plt.show()
-            plt.close(fig)
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]} imag')
+                ax.plot_surface(x, y, pw_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                fig.savefig(png_folder/f"2D_basis_function_{i}_imag.png")
+                # plt.show()
+                plt.close(fig)
+
+    finished(inspect.stack()[0][3])
 
 
 from numba import vectorize, float64
@@ -346,6 +374,7 @@ def norm(x, y, z):
     return np.sqrt(x*x + y*y + z*z)
 
 
+@started_finished
 def test_LagrangeMesh_apply():
     mesh = LagrangeMesh(dim=3, M=10, d=.5)
     r_xyz = mesh.apply(norm)
@@ -353,6 +382,7 @@ def test_LagrangeMesh_apply():
         assert r_xyz[i] == np.sqrt(mesh.gridx[i]**2 + mesh.gridy[i]**2 + mesh.gridz[i]**2)
 
 
+@started_finished
 def test_LagrangeMesh_integrate():
     mesh = LagrangeMesh(dim=3, M=10, d=.5)
     # integrate a constant function.
@@ -364,7 +394,9 @@ def test_LagrangeMesh_integrate():
         assert integral_of_Q == mesh.linear_size * mesh.dv
 
 
-def test_LagrangeMesh_interpolate1D(debug=False):
+def test_LagrangeMesh_interpolate1D(no_plot, debug=False):
+    started(inspect.stack()[0][3])
+
     d = 1.
     N = 3
     for reduced in [
@@ -398,25 +430,28 @@ def test_LagrangeMesh_interpolate1D(debug=False):
 
             Qrip = mesh.interpolate(Q, rip)
 
-            fig, ax = plt.subplots()
-            plt.title(f"test_LagrangeMesh_interpolate1D real part $x_{i}$")
-            plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
-            plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
-            plt.legend()
-            plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D_{i}_real{str_reduced}")
-            if debug:
-                plt.show()
-            plt.close(fig)
+            if no_plot:
+                pass
+            else:
+                fig, ax = plt.subplots()
+                plt.title(f"test_LagrangeMesh_interpolate1D real part $x_{i}$")
+                plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
+                plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
+                plt.legend()
+                plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D_{i}_real{str_reduced}")
+                if debug:
+                    plt.show()
+                plt.close(fig)
 
-            fig, ax = plt.subplots()
-            plt.title(f"test_LagrangeMesh_interpolate1D imag part $x_{i}$")
-            plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ imag')
-            plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ imag')
-            plt.legend()
-            plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D_{i}_imag{str_reduced}")
-            if debug:
-                plt.show()
-            plt.close(fig)
+                fig, ax = plt.subplots()
+                plt.title(f"test_LagrangeMesh_interpolate1D imag part $x_{i}$")
+                plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ imag')
+                plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ imag')
+                plt.legend()
+                plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D_{i}_imag{str_reduced}")
+                if debug:
+                    plt.show()
+                plt.close(fig)
 
             assert ((lcpw_rip - Qrip) < 1e-12).all()
 
@@ -448,32 +483,38 @@ def test_LagrangeMesh_interpolate1D(debug=False):
         Q = Observable(mesh, data=lcpw_rgp, symmetry=[1,-1])
         Qrip = mesh.interpolate(Q, rip)
 
-        fig, ax = plt.subplots()
-        plt.title(f"{s}: real part")
-        plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
-        plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
-        plt.legend()
-        plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D {s} real part")
-        if debug:
-            plt.show()
-        plt.close(fig)
+        if no_plot:
+            pass
+        else:
+            fig, ax = plt.subplots()
+            plt.title(f"{s}: real part")
+            plt.plot(rip,lcpw_rip[:,0], 'o', label=f'plane wave $x_{i}$ real')
+            plt.plot(rip,    Qrip[:,0],      label=f'interpolated $x_{i}$ real')
+            plt.legend()
+            plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D {s} real part")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
-        fig, ax = plt.subplots()
-        plt.title(f"{s}: imag part")
-        ax.set_ylim([-1, 1])
-        plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ real')
-        plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ real')
-        plt.legend()
-        plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D {s} imag part")
-        if debug:
-            plt.show()
-        plt.close(fig)
+            fig, ax = plt.subplots()
+            plt.title(f"{s}: imag part")
+            ax.set_ylim([-1, 1])
+            plt.plot(rip,lcpw_rip[:,1], 'o', label=f'plane wave $x_{i}$ real')
+            plt.plot(rip,    Qrip[:,1],      label=f'interpolated $x_{i}$ real')
+            plt.legend()
+            plt.savefig(png_folder/f"test_LagrangeMesh_interpolate1D {s} imag part")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
         assert ((lcpw_rip - Qrip) < 1e-12).all()
 
+    finished(inspect.stack()[0][3])
 
-def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
+
+def test_LagrangeMesh_interpolate2D_basisfunction(no_plot, debug=False):
     """"""
+    started(inspect.stack()[0][3])
     d = 1.
     N = 2
     nip = 61
@@ -498,21 +539,24 @@ def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
                 bf_real = bf_xy[:, 0].reshape((nip, nip), order='F')
                 bf_imag = bf_xy[:, 1].reshape((nip, nip), order='F')
 
-                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
-                ax.plot_surface(x, y, bf_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                fig.savefig(png_folder/"basis_function_({ibfx},{ibfy}).png")
-                if debug:
-                    plt.show()
-                plt.close(fig)
+                if no_plot:
+                    pass
+                else:
+                    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                    plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
+                    ax.plot_surface(x, y, bf_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                    fig.savefig(png_folder/"basis_function_({ibfx},{ibfy}).png")
+                    if debug:
+                        plt.show()
+                    plt.close(fig)
 
-                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
-                ax.plot_surface(x, y, bf_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                fig.savefig(png_folder/"BF_real({ibfx},{ibfy}).png")
-                if debug:
-                    plt.show()
-                plt.close(fig)
+                    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                    plt.title(f'BF imag x_ij=({mesh.gx[ibfx]}, {mesh.gy[ibfy]})')
+                    ax.plot_surface(x, y, bf_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                    fig.savefig(png_folder/"BF_real({ibfx},{ibfy}).png")
+                    if debug:
+                        plt.show()
+                    plt.close(fig)
 
                 # compute the values of the basis function at the grid points
                 bf_xy_g  = mesh.basis_function((ibfx,ibfy), mesh.grid)
@@ -524,26 +568,32 @@ def test_LagrangeMesh_interpolate2D_basisfunction(debug=False):
                 Qxy_real = Qxy[:, 0].reshape((nip, nip), order='F')
                 Qxy_imag = Qxy[:, 1].reshape((nip, nip), order='F')
 
-                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                plt.title(f'BF real x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
-                ax.plot_surface(x, y, Qxy_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                fig.savefig(png_folder/"BF_real({ibfx},{ibfy})_interpolated.png")
-                if debug:
-                    plt.show()
-                plt.close(fig)
 
-                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                plt.title(f'BF imag x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
-                ax.plot_surface(x, y, Qxy_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                fig.savefig(png_folder/"BF_real({ibfx},{ibfy})_interpolated.png")
-                if debug:
-                    plt.show()
-                plt.close(fig)
+                if no_plot:
+                    pass
+                else:
+                    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                    plt.title(f'BF real x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
+                    ax.plot_surface(x, y, Qxy_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                    fig.savefig(png_folder/"BF_real({ibfx},{ibfy})_interpolated.png")
+                    if debug:
+                        plt.show()
+                    plt.close(fig)
+
+                    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                    plt.title(f'BF imag x_ij={mesh.gx[ibfx]}, y_j={mesh.gy[ibfy]} interpolated')
+                    ax.plot_surface(x, y, Qxy_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                    fig.savefig(png_folder/"BF_real({ibfx},{ibfy})_interpolated.png")
+                    if debug:
+                        plt.show()
+                    plt.close(fig)
 
                 print(f"{reduced=} bf = ({ibfx}, {ibfy})")
                 for i in range(len(Qxy_real)):
                     assert Qxy[i,0] == pytest.approx(bf_xy[i,0]), f"{i=} {Qxy[i,0]} != {bf_xy[i,0]}, |diff|={abs(Qxy[i,0]-bf_xy[i,0])}"
                     assert Qxy[i,1] == pytest.approx(bf_xy[i,1]), f"{i=} {Qxy[i,1]} != {bf_xy[i,1]}, |diff|={abs(Qxy[i,1]-bf_xy[i,1])}"
+    finished(inspect.stack()[0][3])
+
 
 def gauss(x, sigma):
     if x.shape[1] == 3:
@@ -554,8 +604,10 @@ def gauss(x, sigma):
         r2 = x**2
     return np.exp(-0.5*r2/sigma**2)/(sigma*np.sqrt(2*np.pi))
 
-def test_LagrangeMesh_interpolate2D_bell(debug=False):
+
+def test_LagrangeMesh_interpolate2D_bell(no_plot, debug=False):
     """"""
+    started(inspect.stack()[0][3])
     d = 1.
     N = 40
     nip = 61
@@ -568,13 +620,18 @@ def test_LagrangeMesh_interpolate2D_bell(debug=False):
     sigma = 1.0
     bell = gauss(xy, sigma=sigma)
     bell_plot = bell.reshape((nip,nip), order='F')
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    plt.title(f'bell')
-    ax.plot_surface(x, y, bell_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    fig.savefig(png_folder/"bell.png")
-    if debug:
-        plt.show()
-    plt.close(fig)
+
+    if no_plot:
+        pass
+    else:
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bell')
+        ax.plot_surface(x, y, bell_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(png_folder/"bell.png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
     error = {}
     for reduced in [
         (False, False),
@@ -591,24 +648,30 @@ def test_LagrangeMesh_interpolate2D_bell(debug=False):
         Qxy = mesh.interpolate(Q, xy)
         Qxy_plot = Qxy.reshape((nip, nip), order='F')
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        plt.title(f'bell interpolated ({reduced=})')
-        ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        fig.savefig(png_folder/"bell_interpolated_({reduced=}).png")
-        if debug:
-            plt.show()
-        plt.close(fig)
+        if no_plot:
+            pass
+        else:
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            plt.title(f'bell interpolated ({reduced=})')
+            ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            fig.savefig(png_folder/"bell_interpolated_({reduced=}).png")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
         err = np.abs(Qxy_plot-bell_plot)
         error[reduced] = err
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        plt.title(f'bell interpolated error ({reduced=})')
-        ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        fig.savefig(png_folder/"bell_interpolated_error_({reduced=}).png")
-        if debug:
-            plt.show()
-        plt.close(fig)
+        if no_plot:
+            pass
+        else:
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            plt.title(f'bell interpolated error ({reduced=})')
+            ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            fig.savefig(png_folder/"bell_interpolated_error_({reduced=}).png")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
         # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
     prev = None
@@ -618,8 +681,13 @@ def test_LagrangeMesh_interpolate2D_bell(debug=False):
                 assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
-def test_LagrangeMesh_interpolate2D_bellx(debug=False):
+    finished(inspect.stack()[0][3])
+
+
+def test_LagrangeMesh_interpolate2D_bellx(no_plot, debug=False):
     """"""
+    started(inspect.stack()[0][3])
+
     d = 1.
     N = 40
     nip = 61
@@ -632,13 +700,18 @@ def test_LagrangeMesh_interpolate2D_bellx(debug=False):
     sigma = 1.0
     bellx = gauss(xy, sigma=sigma) * xy[:,0]
     bellx_plot = bellx.reshape((nip,nip), order='F')
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    plt.title(f'bellx')
-    ax.plot_surface(x, y, bellx_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    fig.savefig(png_folder/"bellx.png")
-    if debug:
-        plt.show()
-    plt.close(fig)
+
+    if no_plot:
+        pass
+    else:
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        plt.title(f'bellx')
+        ax.plot_surface(x, y, bellx_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        fig.savefig(png_folder/"bellx.png")
+        if debug:
+            plt.show()
+        plt.close(fig)
+
     error = {}
     for reduced in [
         (False, False),
@@ -655,24 +728,30 @@ def test_LagrangeMesh_interpolate2D_bellx(debug=False):
         Qxy = mesh.interpolate(Q, xy)
         Qxy_plot = Qxy.reshape((nip, nip), order='F')
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        plt.title(f'bellx interpolated ({reduced=})')
-        ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        fig.savefig(png_folder/"bellx_interpolated_({reduced=}).png")
-        if debug:
-            plt.show()
-        plt.close(fig)
+        if no_plot:
+            pass
+        else:
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            plt.title(f'bellx interpolated ({reduced=})')
+            ax.plot_surface(x, y, Qxy_plot, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            fig.savefig(png_folder/"bellx_interpolated_({reduced=}).png")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
         err = np.abs(Qxy_plot-bellx_plot)
         error[reduced] = err
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        plt.title(f'bellx interpolated error ({reduced=})')
-        ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        fig.savefig(png_folder/"bellx_interpolated_error_({reduced=}).png")
-        if debug:
-            plt.show()
-        plt.close(fig)
+        if no_plot:
+            pass
+        else:
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            plt.title(f'bellx interpolated error ({reduced=})')
+            ax.plot_surface(x, y, err, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            fig.savefig(png_folder/"bellx_interpolated_error_({reduced=}).png")
+            if debug:
+                plt.show()
+            plt.close(fig)
 
         # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
     prev = None
@@ -682,7 +761,10 @@ def test_LagrangeMesh_interpolate2D_bellx(debug=False):
                 assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
+    finished(inspect.stack()[0][3])
 
+
+@started_finished
 def test_LagrangeMesh_interpolate3D_bell(debug=False):
     """"""
     d = 1.
@@ -725,6 +807,8 @@ def test_LagrangeMesh_interpolate3D_bell(debug=False):
                 assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
+
+@started_finished
 def test_LagrangeMesh_interpolate3D_bellx(debug=False):
     """"""
     d = 1.
@@ -768,6 +852,7 @@ def test_LagrangeMesh_interpolate3D_bellx(debug=False):
         prev = v
 
 
+@started_finished
 def test_create_mesh():
     # Because create_mesh(gx,gy,gz) internally calls create_mesh(gx,gy), we do not need a separate test for the 2D case
     # the 1D case is trivial
@@ -784,6 +869,8 @@ def test_create_mesh():
         assert gxyz[i,1] == gy[i//2%2]
         assert gxyz[i,2] == gz[i//4%2]
 
+
+@started_finished
 def test_LagrangeMesh_lagrange_function():
     for reduced in [False, True]:
 
@@ -825,7 +912,10 @@ def test_LagrangeMesh_lagrange_function():
                             assert f == pytest.approx(.0, abs=1e-10), f"{ig=} {ixyz} {f=} expected 0.0"
                     ixyz += 1
 
-def test_LagrangeMesh_lagrange_function_plot2D():
+
+def test_LagrangeMesh_lagrange_function_plot2D(no_plot):
+    started(inspect.stack()[0][3])
+
     M = 4
     d = 1
     mesh = LagrangeMesh(dim=2, M=M, d=d, reduced=False)
@@ -839,10 +929,16 @@ def test_LagrangeMesh_lagrange_function_plot2D():
             ij = (i,j)
             lf_ij = mesh.lagrange_function(xy, ij)
             lf_ij = lf_ij.reshape((nip,nip), order='F')
-            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-            plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]}')
-            ax.plot_surface(x, y, lf_ij, label='real', cmap=cm.coolwarm, linewidth=0, antialiased=False)
-            plt.legend()
-            fig.savefig(png_folder/"2D_lagrange_function_({i},{j}).png")
-            # plt.show()
-            plt.close(fig)
+
+            if no_plot:
+                pass
+            else:
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                plt.title(f'{i=}, x_i={mesh.gx[i]}, y_j={mesh.gy[j]}')
+                ax.plot_surface(x, y, lf_ij, label='real', cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                plt.legend()
+                fig.savefig(png_folder/"2D_lagrange_function_({i},{j}).png")
+                # plt.show()
+                plt.close(fig)
+
+    finished(inspect.stack()[0][3])

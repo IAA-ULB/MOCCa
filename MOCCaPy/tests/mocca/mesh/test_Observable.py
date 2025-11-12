@@ -1,12 +1,14 @@
-import pytest
-import numpy as np
+import inspect
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import numpy as np
 from pathlib import Path
+import pytest
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.observable import Observable
 from mocca.mesh.lagrange import create_mesh
+from mocca.util import started_finished, started, finished
 
 
 this_file = Path(__file__).resolve()
@@ -19,6 +21,7 @@ png_folder.mkdir(exist_ok=True)
 # remove all .png files
 for png in png_folder.glob('*.png'):
     png.unlink()
+
 
 def bf(mesh, i, r, i_sign=1):
     two_pi_K = 2. * np.pi * ( mesh.gx[i] if not mesh.reduced[0] else
@@ -79,8 +82,9 @@ def test_Observable_differentiate_bad_axes():
     with pytest.raises(AssertionError):
         Q.differentiate(axes='Tensor4')  # mesh.highest_derivative_order too low
 
+def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
+    started(inspect.stack()[0][3])
 
-def test_differentiate_1D_x_non_reduced(debug=False):
     N = 3
     d = 1.
 
@@ -102,21 +106,28 @@ def test_differentiate_1D_x_non_reduced(debug=False):
                 d1ji = (-1)**(i-j) * np.pi / (2 * N * d * np.sin(np.pi*(j-i)/(2*N)))   # (j-i) is correct
                 print(f"D1[{j},{i}]: {D1[j,i]=}, {d1ji=}, diff={D1[j,i]-d1ji}")
                 assert D1[j,i] == pytest.approx(d1ji), f"D1[{j},{i}]: {D1[j,i]=}, {d1ji=}, diff={D1[j,i]-d1ji}"
-
-    fig, ax = plt.subplots()
-    plt.title(f'{0}, x_i={mesh.gx[0]}')
-    ax.plot([-N,N],[0,0],color='k')
-    ax.plot([0,0],[-1,1],color='k')
-    ax.plot(mesh.gx,  2*N*[0], 'rs')
-    ax.plot(mesh.gx[0], [0], 'gs') # mark the mesh point to which the basis function corresponds
-    ax.plot(r, pw[:,0], label='real')
-    ax.plot(r, pw[:,1], label='imag')
+    if no_plot:
+        print(f"No plotting because {no_plot=}")
+    else:
+        fig, ax = plt.subplots()
+        plt.title(f'{0}, x_i={mesh.gx[0]}')
+        ax.plot([-N,N],[0,0],color='k')
+        ax.plot([0,0],[-1,1],color='k')
+        ax.plot(mesh.gx,  2*N*[0], 'rs')
+        ax.plot(mesh.gx[0], [0], 'gs') # mark the mesh point to which the basis function corresponds
+        ax.plot(r, pw[:,0], label='real')
+        ax.plot(r, pw[:,1], label='imag')
 
     mbf = mesh.basis_function(ijk=0, r=mesh.gx)
     Q = Observable(mesh, data=mbf, symmetry=[1,-1])
     # check Q against bf() above
     Q_expected = bf(mesh, i=0, r=mesh.gx)
-    ax.plot(mesh.gx, Q_expected[:,0], 'bo', label='bf real')
+
+    if no_plot:
+        print(f"No plotting because {no_plot=}")
+    else:
+        ax.plot(mesh.gx, Q_expected[:,0], 'bo', label='bf real')
+
     assert Q.data == pytest.approx(Q_expected)
     # for i in range(2*N):
     #     print(f"{Q.data[i,0]} {Q_expected[i,0]} {Q.data[i,1]} {Q_expected[i,1]} ")
@@ -147,10 +158,14 @@ def test_differentiate_1D_x_non_reduced(debug=False):
     #   the derivative apart from a factor that makes sure that the real part of dbf_dx conincides
     #   with the imaginary part of Q (because the latter is proportional to the derivative of the
     #   real part of Q).
-    ax.plot(mesh.gx, dQdx_expected[:, 0], 'yo--', label='dbf/dx real')
-    ax.plot(mesh.gx, dQdx_expected[:, 0]*two_pi_K, 'yo', label='dbf/dx real*')
 
-    # ax.plot(mesh.gx, dQdx_expected[:,1], '--', label='dbf/dx imag')
+    if no_plot:
+        pass
+    else:
+        ax.plot(mesh.gx, dQdx_expected[:, 0], 'yo--', label='dbf/dx real')
+        ax.plot(mesh.gx, dQdx_expected[:, 0]*two_pi_K, 'yo', label='dbf/dx real*')
+        # ax.plot(mesh.gx, dQdx_expected[:,1], '--', label='dbf/dx imag')
+
     for i in range(2*N):
         print(f"{i=}: real {dQdx[i,0]} {dQdx_expected[i,0]}")
         assert dQdx[i, 0] == pytest.approx(two_pi_K*dQdx_expected[i, 0])
@@ -170,24 +185,27 @@ def test_differentiate_1D_x_non_reduced(debug=False):
     for rt in ratio:
         assert rt == pytest.approx(ratio[0])
 
-    # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
-    # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
+    if no_plot:
+        pass
+    else:
+        # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
+        # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
 
-    # ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
-    # ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
-    ax.plot(mesh.gx, dQdx[:,0], 'yx', label='dQ/dx real')
-    # ax.plot(mesh.gx, dQdx[:,1], '*', label='dQ/dx imag')
+        # ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
+        # ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
+        ax.plot(mesh.gx, dQdx[:,0], 'yx', label='dQ/dx real')
+        # ax.plot(mesh.gx, dQdx[:,1], '*', label='dQ/dx imag')
 
-    plt.legend()
-    fig.savefig(png_folder/f"1D_basis_function_{0}_differentiation.png")
-    plt.close(fig)
+        plt.legend()
+        fig.savefig(png_folder/f"1D_basis_function_{0}_differentiation.png")
+        plt.close(fig)
 
     # print(f"Q={Q.data}")
     # print(f"dQ/dx={dQdx}")
 
-    print("test_differentiate_1D_x_non_reduced finished")
+    finished(inspect.stack()[0][3])
 
-
+@started_finished
 def test_differentiate_1D_x_reduced(debug=False):
     N = 3
     d = 1.
@@ -231,9 +249,8 @@ def test_differentiate_1D_x_reduced(debug=False):
             print(f"{i} imag: {dRdx[i, 1]} =? {dQdx[i - N, 1]}")
             assert dRdx[i, 1] == pytest.approx(dQdx[i-N, 1])
 
-    print("test_differentiate_1D_x_non_reduced finished")
 
-
+@started_finished
 def test_differentiate_1D_xx():
     N = 3
     d = 1.
@@ -272,9 +289,8 @@ def test_differentiate_1D_xx():
                 for j in range(2*N):
                     assert D1_reduced[i,j] == pytest.approx(D1_non_reduced[i,j])
 
-    print("test_differentiate_1D finished")
 
-
+@started_finished
 def test_differentiate_1D_xxx():
     N = 3
     d = 1.
@@ -311,16 +327,15 @@ def test_differentiate_1D_xxx():
                 for j in range(2*N):
                     assert D1_reduced[i,j] == pytest.approx(D1_non_reduced[i,j])
 
-    print("test_differentiate_1D finished")
 
-
+@started_finished
 def test_differentiate_2D_Hessian(debug=False):
     N = 3
     d = 1.
     dim = 2
     for reduced in [
         False,
-        # True,
+        # True
     ]:
         mesh = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=reduced)
         bfq = mesh.basis_function(ijk=(0,0), r=mesh.grid)
@@ -328,6 +343,8 @@ def test_differentiate_2D_Hessian(debug=False):
         Q.differentiate(axes='Hessian',debug=debug)
         print("test_differentiate_2D_Hessian finished")
 
+
+@started_finished
 def test_differentiate_3D_Hessian_non_reduced(debug=False):
     N = 3
     d = 1.
@@ -343,17 +360,17 @@ def test_differentiate_3D_Hessian_non_reduced(debug=False):
 
     Q.differentiate(axes='Grad', recompute=False, debug=debug)
 
-    print("test_differentiate_3D_Hessian_non_reduced finished")
 
 def compare(desc, a, b, doassert=True):
     ok = (a == pytest.approx(b))
     s = f"{desc} : {a} =? {b} -> {ok}"
 
-    # print(s)
+    print(s)
     if doassert:
         assert a == pytest.approx(b), s
 
-def test_differentiate_2D_Grad_reduced(debug=False):
+@started_finished
+def test_differentiate_2D_Grad_reduced(debug=False, no_plot=False):
     N = 3
     M = 2*N
     d = 1.
@@ -381,19 +398,21 @@ def test_differentiate_2D_Grad_reduced(debug=False):
     pw_full_real = pw_full[:, 0].reshape((100,M), order='F')
     pw_full_imag = pw_full[:, 1].reshape((100,M), order='F')
 
-    if debug:
+    if no_plot:
+        print(f"No plotting because {no_plot=}")
+    else:
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
         plt.title(f'plane wave x_full real')
         ax.plot_surface(x_full, y_full, pw_full_real, cmap=cm.coolwarm, linewidth=0, antialiased=False)
         # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
-        plt.show()
+        # plt.show()
         plt.close(fig)
     
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
         plt.title(f'plane wave x_full imag')
         ax.plot_surface(x_full, y_full, pw_full_imag, cmap=cm.coolwarm, linewidth=0, antialiased=False)
         # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
-        plt.show()
+        # plt.show()
         plt.close(fig)
 
     mesh_N = LagrangeMesh(dim=dim, M=2*N, d=1., reduced=True, highest_derivative_order=1)
@@ -404,7 +423,9 @@ def test_differentiate_2D_Grad_reduced(debug=False):
 
     pw_points = mesh_2N.plane_wave(L=L, k=k, r=mesh_2N.gridx.reshape((M*M,), order='F'))
 
-    if debug:
+    if no_plot:
+        pass
+    else:
         pw_points_real = pw_points[:, 0].reshape((M,M,), order='F')
         pw_points_imag = pw_points[:, 1].reshape((M,M,), order='F')
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -415,7 +436,7 @@ def test_differentiate_2D_Grad_reduced(debug=False):
             for i in range(N,M):
                 ax.scatter(mesh_2N.gridx[i,j],mesh_2N.gridy[i,j],pw_points_real[i,j],marker='o',c='k')
         # # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
-        plt.show()
+        # plt.show()
         plt.close(fig)
 
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -425,7 +446,7 @@ def test_differentiate_2D_Grad_reduced(debug=False):
             for i in range(N,M):
                 ax.scatter(mesh_2N.gridx[i,j],mesh_2N.gridy[i,j],pw_points_imag[i,j],marker='o',c='k')
         # fig.savefig(png_folder / f"2D_basis_function_{i}_real.png")
-        plt.show()
+        # plt.show()
         plt.close(fig)
 
     QN = Observable(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2grid(pw_points)[N:M, N:M, :]), symmetry=[1,-1], name='QN')
@@ -487,9 +508,8 @@ def test_differentiate_2D_Grad_reduced(debug=False):
                         doassert=True
                 )
 
-    print("test_differentiate_2D_Grad_non_reduced finished")
 
-
+@started_finished
 def test_differentiate_3D_Grad_reduced(debug=False):
     N = 3
     M = 2 * N
@@ -603,6 +623,4 @@ def test_differentiate_3D_Grad_reduced(debug=False):
                         dQ2NG[N+i, N+j, N+k, iq],
                         doassert=True
                         )
-
-    print("test_differentiate_3D_Hessian_non_reduced finished")
 
