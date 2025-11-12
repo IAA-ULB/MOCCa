@@ -17,7 +17,7 @@ def started_finished(func):
 
 def started(func_name):
     print()
-    print(f" Starting {func_name}".rjust(120, '-'))
+    print(f" Started {func_name}".rjust(120, '-'))
 
 
 def finished(func_name):
