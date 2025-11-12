@@ -168,18 +168,10 @@ class Observable:
 
     # Differentiation
     #---------------------------------------------------------------------------
-    def _get_tensor_of_derivatives(self, axes, shape):
-        """Return a numpy array for a tensor derivative (Grad, Hessian, Tensor3, Tensor3),
-        the elemenst of which are numpy arrays themselves containing the corresponding partial
-        derivatives on the mesh points.
-        """
-        if not axes in self.derivativesG:
-            self.derivativesG[axes] = np.empty(shape, dtype=np.ndarray)
-        return self.derivativesG[axes]
-
     def grad(self, access='L'):
-        """Compose Grad = [d/dx d/dy d/dz] from current derivatives. As the individual
-        components the underlying data are automatically updated.
+        """Compose Grad = [d/dx d/dy d/dz] from current derivatives. 
+        As the individual components are references, the underlying data are automatically 
+        updated.
 
         Args:
             access: 'L' for linear access, 'G' grid based access.
@@ -189,7 +181,7 @@ class Observable:
         derivatives = self.derivatives if access == 'L' else \
                       self.derivativesG
 
-        result = self._get_tensor_of_derivatives(axes, (self.mesh.dim,))
+        result = np.empty((self.mesh.dim,), dtype=np.ndarray)
         result[0] = derivatives['x']
         result[1] = derivatives['y']
         if self.mesh.dim == 3:
@@ -209,7 +201,7 @@ class Observable:
         derivatives = self.derivatives if access == 'L' else \
                       self.derivativesG
 
-        result = self._get_tensor_of_derivatives(axes, 2*(self.mesh.dim,))
+        result = np.empty(2*(self.mesh.dim,), dtype=np.ndarray)
         for i in range(self.mesh.dim):
             for j in range(self.mesh.dim):
                     axes = ('xyz'[i] +
@@ -221,7 +213,8 @@ class Observable:
 
     def tensor3(self, access='L'):
         """Compose the Tensor3 from current derivatives (=all 3rd order derivatives).
-        As the individual components the underlying data are automatically updated.
+        As the individual components are references, the underlying data are automatically 
+        updated.
 
         Args:
             access: 'L' for linear access, 'G' grid based access.
@@ -231,7 +224,7 @@ class Observable:
         derivatives = self.derivatives if access == 'L' else \
                       self.derivativesG
 
-        result = self._get_tensor_of_derivatives(axes, 3*(self.mesh.dim, ))
+        result = np.empty(3*(self.mesh.dim,), dtype=np.ndarray)
         for i in range(self.mesh.dim):
             for j in range(self.mesh.dim):
                 for k in range(self.mesh.dim):
@@ -243,9 +236,10 @@ class Observable:
 
         return result
 
-    def tensor3(self, access='L'):
+    def tensor4(self, access='L'):
         """Compose the Tensor4 from current derivatives (=all 4th order derivatives).
-        As the individual components the underlying data are automatically updated.
+        As the individual components are references, the underlying data are automatically 
+        updated.
 
         Args:
             access: 'L' for linear access, 'G' grid based access.
@@ -255,7 +249,7 @@ class Observable:
         derivatives = self.derivatives if access == 'L' else \
                       self.derivativesG
 
-        result = self._get_tensor_of_derivatives(axes, 4*(self.mesh.dim, ))
+        result = np.empty(4*(self.mesh.dim,), dtype=np.ndarray)
         for i in range(self.mesh.dim):
             for j in range(self.mesh.dim):
                 for k in range(self.mesh.dim):
@@ -285,7 +279,8 @@ class Observable:
                     'Laplacian', is an exception because it is a scalar differentiation operator, and
                     therefor the result of d^2/dxdx + d^2/dy^2 + d^2/dz^2)Q is returned.
                 access: access method for the result: 'L'=linear, 'G'=grid-based. This does not
-                    influence the computation.
+                    influence the computation. Default is linear access in agreement with standard 
+                    MOCCa data structures.
                 list: A list of the above strings is also accepted, requesting several derivatives
                     at once. The list can internally be manipulated to allow storing intermediate
                     derivatives that can be reused to speed up computation. E.g. when requesting 'xz'
