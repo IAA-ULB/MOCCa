@@ -1,12 +1,17 @@
 import h5py
 
-from mocca.param      import Param
-from mocca.mean_field import SlaterDeterminant
-from mocca.mesh       import LagrangeMesh
-from mocca.solve_mfe  import MFESolver
 
-mesh = LagrangeMesh(dim=3, n=32, d=0.8, bc='antiperiodic')
+from mocca.param      import Param
+from mocca.mesh       import LagrangeMesh
+try:
+    from mocca.mean_field import SlaterDeterminant
+    from mocca.solve_mfe  import MFESolver
+except ImportError:
+    pass
+
+mesh = LagrangeMesh(M=32, d=0.8)
 # dim=3 is default
+
 wf0 = SlaterDeterminant(Z=20, N=20, wf_init='Nilsson', mesh=mesh, nwp=40, nwn=40)
 param = Param("BSkG1")
 bxl = param.create_EDF()
