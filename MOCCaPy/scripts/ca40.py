@@ -10,9 +10,12 @@ except ImportError:
     pass
 
 mesh = LagrangeMesh(M=32, d=0.8)
-# dim=3 is default
+#   dim=3 is default
 
+# Initial mean-field state:
 wf0 = SlaterDeterminant(Z=20, N=20, wf_init='Nilsson', mesh=mesh, nwp=40, nwn=40)
+
+# Energy density functional
 param = Param("BSkG1")
 bxl = param.create_EDF()
 
