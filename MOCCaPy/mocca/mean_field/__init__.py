@@ -1,5 +1,5 @@
 from .bogoliubov import BogoliubovState
-form .bcs import BCSState
+from .bcs import BCSState
 
 
 
