@@ -72,3 +72,6 @@ MOCCaPy/tests/mocca/mesh/png/
 MOCCaPy/.python-version
 MOCCaPy/uv.lock
 
+*.so
+MOCCaPy/src/_build_*/
+

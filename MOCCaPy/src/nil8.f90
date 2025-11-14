@@ -1,4 +1,43 @@
-module nil8
+!!! ============================================================================
+!!! modified nil8.f90 for building a python module ni8_f90 that exposes
+!!! `subroutine nilsson`.
+!!! triple ! indicate comments relating to the modifications
+
+!!! As we rely on numpy.f2py for building Python modules from Fortran code,
+!!! and we want numpy arrays as extent(inout) arguments the memory management
+!!! of these arguments must be taken out of the subroutine. Here is the full 
+!!! list of arguments and their declarations. The `allocatable` arguments pose  
+!!! problems because they are allocated on the fly inside `subroutine nilsson`
+!!! or in between the two calls
+!!!
+!!!  -> real(kind=8),  allocatable, intent(inout):: wfs(:,:,:)
+!!!         `wfs` corresponds to `HFPsi.data`. it is allocated between the two
+!!!         calls.
+!!!  -> integer,       allocatable, intent(inout):: kparz(:)
+!!!         allocated inside the first call as `kparz(nwt)`, as `nwt` equals
+!!!         `nwp` + `nwn` this can be allocated before the first call.
+!!!  -> real(kind=8),  allocatable, intent(inout):: esp1(:)
+!!!         same as `kparz`.
+!!!     integer                   , intent(in)   :: meven
+!!!     integer                   , intent(in)   :: modd
+!!!     integer                   , intent(in)   :: nwt
+!!!     integer                   , intent(in)   :: nwp
+!!!     integer                   , intent(in)   :: nwn
+!!!     integer                   , intent(in)   :: nwp
+!!!     integer                   , intent(in)   :: nwn
+!!!     integer                   , intent(in)   :: mx
+!!!     integer                   , intent(in)   :: my
+!!!     integer                   , intent(in)   :: mz
+!!!     real(kind=8)             , intent(in)   :: dx
+!!!     real(kind=8)             , intent(in)   :: osc_freq(3)
+!!!  -> integer, allocatable      , intent(in)   :: spwf_map(:)
+!!!         allocated between the two calls.
+!!!
+!!! ============================================================================
+
+
+!!! don't wrap subroutine nilsson in a Fortran module
+!!! module nil8
  !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
@@ -19,14 +58,15 @@ module nil8
  !
  !==============================================================================
  
- use compilation
- 
- implicit none
-  
-contains
+!!! don't wrap subroutine nilsson in a Fortran module
+!!! use compilation
 
-subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
- &                   dx,osc_freq, spwf_map)
+!!! implicit none
+  
+!!! don't wrap subroutine nilsson in a Fortran module
+!!! contains
+
+subroutine nilsson(wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,dx,osc_freq, spwf_map)
     !---------------------------------------------------------------------------
     ! Subroutine taken from nil8.1.0.0.f, written by 
     !         Bonche, Flocard and Heenen 
@@ -98,30 +138,44 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
 !     &          ' al0p=al0*(',f6.3,'-',f5.2,'*(n-z)/a)',/,    &
 !     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
 !  103 format (' (',2i4,f8.3,i3,') (',2i4,f8.3,i3,') (',2i4,f8.3,i3,')')
-    
+    implicit none
+
+!    integer, parameter :: dp = selected_real_kind(15,307)
+!    integer, parameter :: sp = selected_real_kind(6,37)
     external :: DSYEV
-    integer              , intent(in)        :: meven, modd,mx,my,mz,nwt,nwp,nwn
-    integer              , intent(in)        :: npp, npn
-    integer, allocatable, intent(inout)      :: kparz(:)
-    real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
-    real(KIND=dp), intent(in)                :: osc_freq(3), dx
-    integer, allocatable, intent(in)         :: spwf_map(:)
 
-    real(KIND=dp)              :: hox, hoy, hoz
-    real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
-    real(KIND=dp), allocatable :: he(:,:,:) , a(:), work(:)
-    real(KIND=dp)              :: psi(mx,my,mz,4), hbm(2), cf(2)
-    real(KIND=dp)              :: xho, x, x1, x2, x3, x4, hex, hey, hez, xph
-    real(KIND=dp)              :: ho0, ax, ay, az, y,an, am, xis 
+!!!<Arguments in order as in the call
+!!! `allocatable` qualifier removed
+!!! `kind=dp` replaced with `kind=8`
+    real(kind=8),  intent(inout) :: wfs(:,:,:)  !!! allocated between the two calls
+    integer     ,  intent(inout) :: kparz(:)    !!! allocate before 1st call with `np.zeros(nwt,dtype=np.int32)`
+    real(kind=8),  intent(inout) :: esp1(:)     !!! allocate before 1st call with `np.empty(nwt,dtype=float)`
+    integer     ,  intent(in)    :: meven, modd, nwt, nwp, nwn, npp, npn, mx, my, mz
+    real(kind=8),  intent(in)    :: dx, osc_freq(3)
+    integer     ,  intent(in)    :: spwf_map(:) !!! allocated between the two calls
+!!!>
+!    integer              , intent(in)        :: meven, modd,mx,my,mz,nwt,nwp,nwn
+!    integer              , intent(in)        :: npp, npn
+!    integer, allocatable, intent(inout)      :: kparz(:)
+!    real(kind=8),  allocatable, intent(inout):: wfs(:,:,:), esp1(:)
+!    real(kind=8),  intent(in)                :: osc_freq(3), dx
+!    integer, allocatable, intent(in)         :: spwf_map(:)
 
-    integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
-    integer                    :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
-    integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
-    integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec, ind
-    integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
-    integer                    :: lwork, store_counter
-    integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
-    integer, allocatable       :: nor(:), npa(:), ntrs(:)
+    real(kind=8)              :: hox, hoy, hoz
+    real(kind=8), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
+    real(kind=8), allocatable :: he(:,:,:) , a(:), work(:)
+    real(kind=8)              :: psi(mx,my,mz,4), hbm(2), cf(2)
+    real(kind=8)              :: xho, x, x1, x2, x3, x4, hex, hey, hez, xph
+    real(kind=8)              :: ho0, ax, ay, az, y,an, am, xis 
+
+    integer                   :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
+    integer                   :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
+    integer                   :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
+    integer                   :: j,ja, k, nw, neven, ni, ni1, np, nvec, ind
+    integer                   :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
+    integer                   :: lwork, store_counter
+    integer, allocatable      :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
+    integer, allocatable      :: nor(:), npa(:), ntrs(:)
     
     real*8, parameter :: hhbar=6.58218d0, xxmn =1.044673d0
     real*8, parameter :: ca   =0.986d0  , cb   =0.14
@@ -150,16 +204,20 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     allocate(nx(ms),ny(ms), nz(ms), e(ms), nor(ms),npa(ms))
     allocate(he(mblc,max(mx,my,mz),3), a(mqa))
     allocate(irep(mblc+1), ntrs(ms))
-    
-    if(allocated(kparz)) deallocate(kparz)
-    if(allocated(esp1))  deallocate(esp1)
-    allocate(kparz(nwt),esp1(nwt))
 
+!!!<Memory management of arguments is done in the Python caller
+!!! if(allocated(kparz)) deallocate(kparz)
+!!! if(allocated(esp1))  deallocate(esp1)
+!!! allocate(kparz(nwt),esp1(nwt))
+!!!>
     irep = 0 ; ntrs = 0
     h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 
     nsi = 0 ; ns = 0
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
-    he = 0.0d0 ; kparz=0; a= 0.0d0
+!!!<he = 0.0d0 ; kparz=0; a= 0.0d0
+    he = 0.0d0 ;          a= 0.0d0
+!!! kparz is allocated with np.zeros
+!!!>
 
     ! In order for the compiler not to complain about non-initialised stuff.
     nvv = 0
@@ -543,7 +601,10 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         enddo
         45 nn  = ns(nvv)
 
-        if(allocated(spwf_map)) then 
+    !!!<Instead of testing allocation we test for non-zero size
+    !!! if(allocated(spwf_map)) then
+        if (size(spwf_map).gt.0) then
+    !!!>
           ! Only construct the spwfs if the user asks for it
           !         => allocated status of spwf_map
 
@@ -610,5 +671,5 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
   deallocate(irep, ntrs)
 
   end subroutine nilsson 
-end module nil8
+!!! end module nil8
 
