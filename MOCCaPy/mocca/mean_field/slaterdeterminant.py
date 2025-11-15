@@ -1,36 +1,70 @@
-from .bcs import BCSState
+import numpy as np
 
+# from .bcs import BCSState
+from .hfpsi import HFPsi
 
-class SlaterDeterminant(BCSState):
+class SlaterDeterminant:
+    """
+    Een SlaterDeterminant object heeft - from the top of my head - slechts drie cruciale datastructuren nodig.
+
+     1. een set golffuncties (en alle meta-data die er mee geassocieerd zijn)
+     2. een set occupations, i.e. een vector van reële getallen met lengte len(golffuncties)die aangeven welke
+        van de golffuncties bezet zijn door deeltjes en welke leeg zijn.
+     3. een set single-particle energies, i.e. een vector met lengte len(golffuncties)die aangeeft wat de
+        energieën van de golffuncties zijn.
+    ?
     """
 
-    """
-    # Registry for wave function initializers
-    wf_initializers = {
-        'Nilsson' : create_wf_nilsson,
-        'random'  : create_wf_random,
-    }
-    def __init__(self, Z:int, N:int, mesh, nwp:int, nwn:int, wf_init='Nilsson'):
-        """Mean-field state base on a Slater determinant.
+    def __init__(self,
+                 n_neutrons:int, n_protons:int,
+                 n_neutron_wf:int, n_proton_wf:int,
+                 mesh,
+                 init:str='nilsson',
+                 osc_freq:tuple[float]=None,
+                 ):
+        """Mean-field state based on a Slater determinant.
+
+        All arguments are forwarded to HFPsi._init__().
 
         Args:
-            Z (int): Number of protons.
-            N (int): Number of neutrons.
-            mesh: mesh on which the mean-field state is discretised. Ccurrently, only Lagrange meshes (LagrangeMesh)
-                are supported.
-            nwp (int): Number of proton single particle wave functions. (?)
-            nwn (int): Number of neutron single particle wave functions. (?)
-            wf_init (str): Initialization method for the wave funtion. 'Nilsson' or 'random'.
+            n_neutrons: number of neutrons.
+            n_protons: number of protons.
+            n_neutron_wf: Number of neutron wave functions.
+            n_proton_wf: Number of proton wave functions.
+            mesh: Mesh on which the wave functions are represented.
+                Currently only LagrangeMesh objects are supported.
+            init: initialisation strategy for the single particle wave functions:
+                'nilsson' or 'random'.
+            osc_freq: optional, Oscillation frequencies for Nilsson initialisation.
         """
-        super().__init__()
-        self.Z = Z
-        self.N = N
-        self.mesh = mesh
-        self.nwp = nwp
-        self.nwn = nwn
-        self.wf_init_function = self.__class__.wf_initializers[wf_init]
-        self.wf = self.wf_init_function()
+        self.hfpsi = HFPsi(n_neutrons=n_neutrons, n_protons=n_protons,
+                           n_neutron_wf=n_neutron_wf, n_proton_wf=n_proton_wf,
+                           mesh=mesh,
+                           init=init, osc_freq=osc_freq
+                           )
+        self.occupancies = np.empty(self.hfpsi.n_total_wf, dtype=float)
+        self.sp_energies = np.empty(self.hfpsi.n_total_wf, dtype=float)
 
+
+    @property
+    def n_neutrons(self):
+        return self.hfpsi.n_neutrons
+
+    @property
+    def n_protons(self):
+        return self.hfpsi.n_protons
+
+    @property
+    def n_neutron_wf(self):
+        return self.hfpsi.n_neutron_wf
+
+    @property
+    def n_proton_wf(self):
+        return self.hfpsi.n_proton_wf
+
+    @property
+    def mesh(self):
+        return self.hfpsi.mesh
 
     def energy(self, edf=None) -> float:
         """"""

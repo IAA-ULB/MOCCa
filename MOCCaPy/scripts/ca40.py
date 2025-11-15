@@ -3,8 +3,8 @@ import h5py
 
 from mocca.param      import Param
 from mocca.mesh       import LagrangeMesh
+from mocca.mean_field import SlaterDeterminant
 try:
-    from mocca.mean_field import SlaterDeterminant
     from mocca.solve_mfe  import MFESolver
 except ImportError:
     pass
@@ -13,7 +13,12 @@ mesh = LagrangeMesh(M=32, d=0.8)
 #   dim=3 is default
 
 # Initial mean-field state:
-wf0 = SlaterDeterminant(Z=20, N=20, wf_init='Nilsson', mesh=mesh, nwp=40, nwn=40)
+wf0 = SlaterDeterminant(
+    n_protons=20, n_neutrons=20,
+    n_proton_wf=15, n_neutron_wf=15,
+    mesh=mesh,
+    init='nilsson', osc_freq=(0.2, 0.2, 0.2),
+)
 
 # Energy density functional
 param = Param("BSkG1")

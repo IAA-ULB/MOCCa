@@ -49,6 +49,10 @@ class Observable:
             assert data.shape[0] == mesh.linear_size, f"{data.shape[0]=} <> {mesh.linear_size=}"
             if len(data.shape) == 1:
                 data = np.reshape(data, (mesh.linear_size, 1), order='F')
+            elif len(data.shape) > 2:
+                # The component index is not 1D, e.g. for HFPsi, it is (4,n_total_wf)
+                # Flatten it out
+                data = np.reshape(data, (mesh.linear_size, np.prod(data.shape[1:])), order='F')
             if n_components is not None:
                 assert(n_components == data.shape[1])
             self.data = data

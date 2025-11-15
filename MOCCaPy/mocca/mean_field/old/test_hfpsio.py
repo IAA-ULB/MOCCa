@@ -1,7 +1,6 @@
-import pytest
 import numpy as np
 from mocca.mesh.lagrange import LagrangeMesh
-from mocca.mean_field.hfpsi import HFPsi
+from mocca.mean_field.hfpsio import HFPsiO
 
 def test_hfpsi_ctor_nilsson():
     """
@@ -12,7 +11,7 @@ def test_hfpsi_ctor_nilsson():
     mesh = LagrangeMesh(M=24, d=1., reduced=True)
     nwn,nwp = 15,15
     osc_freq = (0.2, 0.2, 0.2)
-    hfpsi = HFPsi(n_neutrons=20,
+    hfpsi = HFPsiO(n_neutrons=20,
                   n_protons=20,
                   n_proton_wf=nwp, n_neutron_wf=nwn, mesh=mesh,
                   init='nilsson', osc_freq=osc_freq,
@@ -27,8 +26,8 @@ def test_hfpsi_ctor_random():
     mesh = LagrangeMesh(M=24, d=1., reduced=True)
     nwn,nwp = 15,15
     osc_freq = (0.2, 0.2, 0.2)
-    hfpsi = HFPsi(n_neutrons=20,
+    hfpsi = HFPsiO(n_neutrons=20,
                   n_protons=20,
                   n_proton_wf=nwp, n_neutron_wf=nwn, mesh=mesh,
-                  init='randomspwfs',
+                  init='random',
                   )
