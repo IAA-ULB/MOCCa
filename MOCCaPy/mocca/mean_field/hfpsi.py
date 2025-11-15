@@ -2,6 +2,7 @@ import numpy as np
 
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
 from .nil8_f90 import nilsson
+from .randomspwfs_f90 import randomspwfs
 #   Note that Fortran `integer`s are 32-bit, which corresponds to `dtype=np.int32`.
 #   The standard Python `int`s are 64-bit
 
@@ -9,7 +10,7 @@ class HFPsi:
     """Hartree-Fock wave function."""
     init_registry = {
         'nilsson' : nilsson,
-        'random'  : random,
+        'random'  : randomspwfs,
     }
     def __init__(self,
                  n_neutrons:int, n_protons:int,
@@ -31,12 +32,12 @@ class HFPsi:
                 'nilsson' or 'random'.
             osc_freq: optional, Oscillation frequencies for Nilsson initialisation.
         """
-        # modified after  subroutine iniwavefunctions in src/wavefunctions.f90 line 854
+        # Modified after  subroutine iniwavefunctions in src/wavefunctions.f90 line 854
+        # This code is proably far too complicated, but following the original MOCCa implementation.
         self.mesh = mesh
         self.n_neutron_wf = n_neutron_wf
         self.n_proton_wf = n_proton_wf
 
-        # TODO: allocate
         self.hfpsi_data = np.array([[[]]], dtype=float)
         nwt = n_neutron_wf + n_proton_wf
         #   see wavefunctions.f90 lne 883
@@ -55,28 +56,33 @@ class HFPsi:
         mx,my,mz = self.mesh.mesh_shape
         #   see wavefunctions.f90 lne 869
         dx = self.mesh.d[0]
-        # TODO: allocate
         spwf_map = np.array([], dtype=np.int32)
+        if osc_freq is None:
+            osc_freq = np.empty(self.mesh.dim, dtype=np.int32)
+        # Arguments for nilsson and randomspwfs
+        # TODO: it is a bad design decision to pass the same arguments
+        #       to both functions. Fix?
+        #       randomspwfs only needs: (input) nwt, nwp, nwn, spwf_map,
+        #       (output) psi, spe, par
+        init_args = [
+            self.hfpsi_data,
+            kparz,
+            esp1,
+            meven,
+            modd,
+            nwt,
+            nwp,
+            nwn,
+            npp,
+            npn,
+            mx,
+            my,
+            mz,
+            dx,
+            osc_freq,
+            spwf_map,
+        ]
 
-        # Argumenten voor _init_wf_nilsson
-        init_kwargs = {
-            'wfs'   : self.hfpsi_data,
-            'kparz' : kparz,
-            'esp1'  : esp1,
-            'meven' : meven,
-            'modd'  : modd,
-            'nwt'   : nwt,
-            'nwp'   : nwp,
-            'nwn'   : nwn,
-            'npp'   : npp,
-            'npn'   : npn,
-            'mx'    : mx,
-            'my'    : my,
-            'mz'    : mz,
-            'dx'    : dx,
-            'osc_freq': osc_freq,
-            'spwf_map': spwf_map,
-        }
         assert init in ['nilsson', 'random'], f"Initialisation strategy '{init}' is not supported."
         if init == 'nilsson':
             assert osc_freq is not None, f"Initialisation strategy '{init}' requires sscillation frequencies."
@@ -84,16 +90,16 @@ class HFPsi:
                    (self.mesh.d[2] == self.mesh.d[0]), \
                    f"Nilsson initialisation strategy does not support " \
                    f"meshes with different spacing on the coordinates axes."
-        self.init = init
-        init = self.init_registry[init]
-        init(init_kwargs)
+        self.init = init # stores the str
+        init = self.init_registry[init] # fetch the method from the init_registry
+        init(*init_args)
 
         # integer, parameter   :: Blocks                  = 8  ! This can always be fixed
         # integer              :: HFBlocks(Blocks)        = 0
         # integer              :: HFBlocks_global(Blocks) = 0
         # hfblocks_global = 0
-        n_blocks = 8
-        hfblocks_global = np.zeros((n_blocks,), dtype=np.int32)
+        hfblocks_global = np.zeros(8, dtype=np.int32)
+        hfblocks_local  = np.zeros(8, dtype=np.int32)
         # do i=1,ININWN
         #     if(kparz(i) .gt. 0) HFBlocks_global(1) = HFBlocks_global(1) +1
         #     if(kparz(i) .lt. 0) HFBlocks_global(3) = HFBlocks_global(3) +1
@@ -108,25 +114,115 @@ class HFPsi:
         hfblocks_global[6] = (kparz[nwn:] < 0).sum()
         # ! then, we are capable of figuring out the way to balance the spwfs among
         # ! the different MPI ranks.
-        # call loadbalance(HFblocks_global,&
-        # &                        HFblocks,spwf_map,rank_map, spwf_inverse)
+        ##< following code adapted from subroutine loadbalance in wavfunctions.f90
+        # call loadbalance(
+        #    , HFblocks_global  ! intent(in)
+        #    , HFblocks         ! intent(out)
+        #    , spwf_map         ! intent(out), allocatable
+        #    , rank_map         ! intent(out), allocatable
+        #    , spwf_inverse     ! intent(out), allocatable
+        #    )
+        # integer              :: ranks_per_block(Blocks)
+        ranks_per_block = np.zeros(8, dtype=np.int32)
+
+        # Nspwf  = sum(blocks_global)
+        n_spwf = hfblocks_global.sum()
+
+        # if(.not.allocated(rank_map)) allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
+        # rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0; ranks_per_block = 0
+        rank_map     = np.zeros(n_spwf, dtype=np.int32)
+        spwf_inverse = np.zeros(n_spwf, dtype=np.int32)
+
+        max_spwf_per_rank = np.int32(100_000_000) ### see geninfo.f90 line 151 (default value)
+        nprocs = 1                                ### see geninfo.f90 line 146 (default value)
+        mpi_rank = 0                              ### see geninfo.f90 line 146 (default value)
+
+        activeblocks = 0
+        # do B=1,8
+        for ib in range(8):
+        #   if(blocks_global(B) .ne. 0) then
+            if hfblocks_global[ib] != 0:
+        #     activeblocks = activeblocks + 1
+                activeblocks += 1
+        #     ! ensure that every active block gets
+        #     !  (1) sufficient processes such that no process should go above max_spwf_per_rank
+        #     !  (2) at least one attributed process
+        #     !
+        #     ! Important note: the code does not strictly enforce max_spwf_per_rank because
+        #     ! of the rounding to nearest integer below; max_spwf_per_rank should be understood
+        #     ! more as a rough guideline.
+        #     ranks_per_block(B) = max(1,ceiling(blocks_global(B)/(1.0d0*max_spwf_per_rank)))
+                ranks_per_block[ib] = np.max(1,np.ceil(hfblocks_global[ib] // max_spwf_per_rank))
+        #   endif
+        # enddo
+        # already_assigned = sum(ranks_per_block)
+        already_assigned = ranks_per_block.sum()
+
+        # if(mod(activeblocks, NPROCS) .ne. 0) then
+        #   call stp('Incompatible number of MPI ranks.')
+        # endif
+        assert activeblocks % nprocs == 0, "Incompatible number of MPI ranks"
+
+        # blocks_per_rank = activeblocks / NPROCS
+        blocks_per_rank = activeblocks // nprocs
+
+        # block_count = -1 ! unintuitive starting point: first block will be '0'
+        block_count = -1
+        # do B=1,8
+        for ib in range(8):
+        #   if(blocks_global(B) .eq. 0) cycle
+            if hfblocks_global[ib] == 0: continue
+        #   block_count = block_count + 1
+            block_count += 1
+        #   if( block_count / blocks_per_rank .eq. MPI_rank) then
+            if block_count // blocks_per_rank == mpi_rank:
+        #     ! attention, INTEGER division in the line above
+        #     blocks_local(B) = blocks_global(B)
+                hfblocks_local[ib] = hfblocks_global[ib]
+        #   endif
+        # enddo
+
+        # ! Find the first non-zero size in blocks_local
+        # do B=1,8
+        for ib in range(8):
+        #   if(blocks_local(B) .ne. 0) exit
+            if hfblocks_local[ib] != 0: break
+        # enddo
+        # offset = sum(blocks_global(1:B-1))
+        offset = hfblocks_global[:ib].sum()
+        # ! Calculate the spwf <-> rank mapping and its inverse
+        # allocate(spwf_map(sum(blocks_local)))
+        n_spwf_local = hfblocks_local.sum()
+        spwf_map = np.empty(n_spwf_local, dtype=np.int32)
+        # do i=1,sum(blocks_local)
+        for i in range(n_spwf_local):
+        #   spwf_map(i)            = offset + i
+            spwf_map[i] = offset+i
+        #   spwf_inverse(offset+i) = i
+            spwf_inverse[offset + i] = i
+        #   rank_map(offset+i)     = MPI_RANK
+            rank_map[offset + i] = mpi_rank
+        # enddo
+        ##>
+
         # ! now each MPI rank knows which spwfs it should grab and can allocate
         # ! the required space.
         # allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
+        self.hfpsi_data = np.zeros((self.mesh.linear_size,4,n_spwf_local), dtype=float)
         #
         # ! and finally, we can call initialise_wavefunctions a second time in order
+        init(*init_args)
         # ! actually the requested spwfs in this partical process.
-        init(init_kwargs)
 
-    def _init_wf_nilsson(self, init_kwargs:dict):
-        """
-        Remark: cfr src/nil8.f90 subroutine nilsson
-        """
-        nilsson(**init_kwargs)
-
-
-    def _init_wf_random(self, init_kwargs:dict):
-        """
-        Remark: cfr subroutine randomspwfs in src/wavefunctions.f90 line 1006
-        """
-        raise NotImplementedError
+    # def _init_wf_nilsson(self, init_kwargs:dict):
+    #     """
+    #     Remark: cfr src/nil8.f90 subroutine nilsson
+    #     """
+    #     nilsson(**init_kwargs)
+    #
+    #
+    # def _init_wf_random(self, init_kwargs:dict):
+    #     """
+    #     Remark: cfr subroutine randomspwfs in src/wavefunctions.f90 line 1006
+    #     """
+    #     raise NotImplementedError
