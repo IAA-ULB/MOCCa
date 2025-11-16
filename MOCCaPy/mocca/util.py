@@ -1,3 +1,5 @@
+
+
 def started_finished(func):
     """A decorator that prints a message with the function name
     before and after the function is called.
@@ -18,10 +20,18 @@ def started_finished(func):
 # The starting_finished decorator inhibits the resolution of fixtures.
 
 def started(func_name):
+    """
+    Call from within a function as `started(inspect.stack()[0][3])`.
+    Requires 'import inspect`
+    """
     print()
     print(f" Started {func_name}".rjust(120, '-'))
 
 
 def finished(func_name):
+    """
+    Call from within a function as `finished(inspect.stack()[0][3])`.
+    Requires 'import inspect`
+    """
     print(f" Finished {func_name}".rjust(120, '-'))
     print()
