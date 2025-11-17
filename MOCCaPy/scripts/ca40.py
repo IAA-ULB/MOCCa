@@ -27,7 +27,10 @@ bxl = param.create_EDF()
 mfe_solver = MFESolver(energy_tol=1e-9, moment_tol=1e-3, wf0=wf0, spwf_algo='heavy_ball', scf_algo='linear_mix', edf=bxl)
 # note that we opted to pass strings for strategy and scf. Now we do not have to import the functions heavy_ball and
 # linear_mix. They are only used internally, a registry for mapping strategy and scf strings to the corresponding
-# functions may help to extend the possibilities without modifying the MFESolver class.
+# functions (or objects, if they need state) may help to extend the possibilities without modifying the MFESolver class.
+# Strategy classes would separate responsibilities better. It is not the responsibility of the MFESolver to handle the
+# arguments of the strategy classes.
+
 wf, densities, potentials = mfe_solver.solve()
 
 # Alternatively, these may be member functions of the mean-field state object (c.q. SlaterDeterminant or its base
