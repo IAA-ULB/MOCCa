@@ -163,10 +163,6 @@ class F90WfInitializer:
 class HFPsi(Observable):
     """Hartree-Fock wave function."""
 
-    # TODO: Maybe HFPsi needs to derive from Observable, so that we can take lagrange derivatives
-    #       This may require an extension of Observable as HFPsi.data has shape (mesh.linear_size,
-    #       4, n_spwf), and Observable does only provide one dimension for the components.
-
     def __init__(self,
                  n_neutrons:int, n_protons:int,
                  n_neutron_wf:int, n_proton_wf:int,
@@ -186,10 +182,8 @@ class HFPsi(Observable):
             init: initialisation strategy for the single particle wave functions:
                 'nilsson', 'randomspwfs' (which recycle MOCCa f90 code), or
                 'np.random' (which is entirely based on Numpy).
-            osc_freq: optional, Oscillation frequencies for Nilsson initialisation.
+            osc_freq: Oscillation frequencies, optional, only required for Nilsson initialisation.
         """
-        # This code is messy because it relies on F90 modules nil8_f90 and randomspwfs_f90, bad design
-        # decisions in there percolate upwards
         init_strategies = ['nilsson', 'randomspwfs', 'np.random']
         assert init in init_strategies, \
             f"Unknown initialisation strategy '{init}'. Expecting one of {init_strategies}."
@@ -217,15 +211,17 @@ class HFPsi(Observable):
 
 
     def i_component(self, i4, i_wf):
-        """Return the linear component index from the part index `i4` and the wave
-        function index `i_wf`.
+        """Return the linear component index from the wave function component index `i4`
+        (`0<=i4<4`) and the wave function index `i_wf`.
 
         In MOCCa HFPsi has shape `(mesh.linear_size, 4, self.n_total_wf)`, but MOCCaPy
         Observables are more comfortable with `(mesh.linear_size, 4 * self.n_total_wf)`.
         This method converts a MOCCa index `(i4,i_wf)` to a MOCCaPy index `iq = i4 + 4*i_wf`.
 
         Args:
-            i4: index of the part of the wave function `0 <= i4 < 4`.
+            i4: the wave function component index of the part of the wave function, `0 <= i4 < 4`.
+                This index refers to the real/imaginary spin-up (`i4` = 0, 1) and real/imag
+                spin-down components (`i4` = 2, 3) of the wave function with index `i_wf`.
             i_wf: index of the wave function `0 <= i_wf < self.n_total_wf`.
         """
         return 4*i_wf + i4
