@@ -1,5 +1,3 @@
-import numpy as np
-
 from .bcs import BCSState
 
 class SlaterDeterminant(BCSState):

@@ -7,9 +7,11 @@ class BCSState(BogoliubovState):
     BCS mean-field states are characterised by occupancies ($\rho$) being a
     diagonal matrix and thus _isa_ `BogoliubovState`.
     """
+
+
     def __init__(self, hfpsi) -> None:
         """
         Args:
-            hFpsi: HFPsi object, containing the single-particle wave functions.
+            hfpsi: HFPsi object, containing the single-particle wave functions.
         """
         super().__init__(hfpsi)
