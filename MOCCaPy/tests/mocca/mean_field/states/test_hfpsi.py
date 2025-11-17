@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from mocca.mesh.lagrange import LagrangeMesh
-from mocca.mean_field.hfpsi import HFPsi
+from mocca.mean_field.states.hfpsi import HFPsi
 
 def test_hfpsi_ctor_nilsson():
     """

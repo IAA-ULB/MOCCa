@@ -162,7 +162,7 @@ class F90WfInitializer:
 
 class HFPsi(Observable):
     """ Data structure for Hartree-Fock wave function."""
-
+    kwargnames = ('n_neutrons', 'n_protons', 'n_neutron_wf', 'n_proton_wf', 'mesh', 'init', 'osc_freq')
     def __init__(self,
                  n_neutrons:int, n_protons:int,
                  n_neutron_wf:int, n_proton_wf:int,

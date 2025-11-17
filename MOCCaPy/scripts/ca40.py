@@ -13,21 +13,24 @@ mesh = LagrangeMesh(M=32, d=0.8)
 #   dim=3 is default
 
 # Initial mean-field state:
-wf0 = SlaterDeterminant(
+hfpsi = HFPsi(
     n_protons=20, n_neutrons=20,
     n_proton_wf=15, n_neutron_wf=15,
     mesh=mesh,
     init='nilsson', osc_freq=(0.2, 0.2, 0.2),
 )
+wf0 = SlaterDeterminant(hfpsi)
 
 # Energy density functional
 param = Param("BSkG1")
 bxl = param.create_EDF()
 
-mfe_solver = MFESolver(energy_tol=1e-9, moment_tol=1e-3, wf0=wf0, spwf_algo='heavy_ball', scf_algo='linear_mix', edf=bxl)
-# note that we opted to pass strings for strategy and scf. Now we do not have to import the functions heavy_ball and
-# linear_mix. They are only used internally, a registry for mapping strategy and scf strings to the corresponding
-# functions (or objects, if they need state) may help to extend the possibilities without modifying the MFESolver class.
+mfe_solver = MFESolver(
+    wf0=wf0, edf=bxl,
+    energy_tol=1e-9, moment_tol=1e-3,
+    spwf_algo=HeavyBall(...),
+    scf_algo=LinearMix(...)
+)
 # Strategy classes would separate responsibilities better. It is not the responsibility of the MFESolver to handle the
 # arguments of the strategy classes.
 
