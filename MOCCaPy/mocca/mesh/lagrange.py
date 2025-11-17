@@ -396,9 +396,10 @@ class LagrangeMesh:
         """
         n_components = Q.n_components
         result = np.zeros((n_components,), dtype=float)
-        for ic in range(n_components):
-            q = Q[ic]
-            result[ic] = q.sum() * self.dv
+        # for ic in range(n_components):
+        #     q = Q[ic]
+        #     result[ic] = q.sum() * self.dv
+        result = q.data.sum(axis=0)
         return result if n_components > 1 else result[0]
 
     # ---------------------------------------------------------------------------
