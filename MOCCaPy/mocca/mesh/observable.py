@@ -298,7 +298,7 @@ class Observable:
                 in a single differentate() call. Somtimes it may be more practical to split the
                 request over several calls where the first call uses `recompute=True` and succeeding
                 calls use `recompute=False`. The succeeding calls can e.g. request increasingly
-                higher order derivatives. 
+                higher order derivatives.
                 >>> Q = Observable(...)
                 >>> Q.data = ... # modify the observable's data, derivatives are now outdated
                 >>> Q.differentiate(axes=['Grad'])
@@ -317,14 +317,6 @@ class Observable:
             In the case of a list, None is returned and the user must access the individual derivatives as
             `self.derivatives[axes:str]` or `self.derivativesG[axes:str]`
         """
-        # TODO: find a way of automatically calling invalidate_derivatives() after updating the
-        #       Observable's data member? that would avoid specifying recompute.
-
-        # design constraints:
-        # -V store results internally (dict self.derivatives and self.derivativesG)
-        # -V honour symmetry of derivatives 'xyx' == 'xxy' must be computed and stored only once
-        # -V enable reusing previous computations: if we need 'xxy' and 'xx' is known, compute as D1y * 'xx', if 'y' is
-        #    known, compute as D2x * 'y', otherwise compute (from scratch) as D2x * D1y * q
         if debug:
             print(f"Debug log>  {axes=}")
 
