@@ -7,4 +7,8 @@ def test_process():
         print(f"\n{w.__class__.__name__}:\n{w}")
     else:
         assert process.size >1
-
+        # test code selection
+        if process.using_mpi:
+            assert True
+        else:
+            assert False

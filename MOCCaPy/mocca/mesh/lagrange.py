@@ -347,12 +347,14 @@ class LagrangeMesh:
     # ---------------------------------------------------------------------------
     # functions on the mesh
     # ---------------------------------------------------------------------------
-    def apply(self, function):
+    def apply(self, function, out=None):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
 
         Args:
-            function: function f(x,y,z) to be applied on the mesh array. If f accepts additional parameters, a closure
-                must be defined.
+            function: function f(x,y,z) to be applied on the mesh array. If f accepts additional
+                parameters, a closure must be provided.
+            out: if provided the result is stored there. (I expect providing `out` makes only
+                sense if `function` itself accepts an `out` parameter.)
 
         Returns:
             a flat mesh array (self.flat_shape).
@@ -360,17 +362,24 @@ class LagrangeMesh:
         Raises:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
-        # TODO: use arguments for output variables? as in numpy out=
         self.gridx = self.cast2linear(self.gridx)
         if self.dim > 1:
             self.gridy = self.cast2linear(self.gridy)
             if self.dim > 2:
                 self.gridz = self.cast2linear(self.gridz)
-                return function(self.gridx, self.gridy, self.gridz)
+                args = (self.gridx, self.gridy, self.gridz)
             else:
-                return function(self.gridx, self.gridy)
+                args = (self.gridx, self.gridy)
         else:
-            return function(self.gridx)
+            args = (self.gridx, )
+        if out is None:
+            return function(*args)
+        else:
+            try:
+                function(*args, out=out)
+            except:
+                out = function(*args)
+        return out
 
 
     def integrate(self, Q):
