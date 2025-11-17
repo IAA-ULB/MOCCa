@@ -267,7 +267,7 @@ class Observable:
         return result
 
     def differentiate(self, axes:str|list[str], access='L', recompute:bool=True, debug=False):
-        """Compute some spatial derivative(s) of this observable. all components are differentiated
+        """Compute some spatial derivative(s) of this Observable's components.
 
          Args:
              axes:
@@ -297,25 +297,28 @@ class Observable:
                 'recompute=True' (=default). It may be practical to request all needed derivatives
                 in a single differentate() call. Somtimes it may be more practical to split the
                 request over several calls where the first call uses `recompute=True` and succeeding
-                calls use `recompute=False`. The succeeding call could e.g. correspond to increasingly
-                higher order derivatives
+                calls use `recompute=False`. The succeeding calls can e.g. request increasingly
+                higher order derivatives. 
                 >>> Q = Observable(...)
                 >>> Q.data = ... # modify the observable's data, derivatives are now outdated
                 >>> Q.differentiate(axes=['Grad'])
                 >>> Q.differentiate(axes=['Hessian'], recompute=False)
-                The first call uses `recompute=True` and marks all previously computed derivatives as
-                not uptodate, then computes all 1st order derivatives. The second call proceeds to comppute
-                all 2nd order derivatives and reuse 'y' and 'z' computed in the first call in the computation
-                of the cross derivatives 'xy', 'xx' and 'yz'.
+                The first call uses `recompute=True` and requires all previously computed derivatives to be
+                recomputed, then proceeds computing all 1st order derivatives. The second call proceeds to comppute
+                all 2nd order derivatives and reuses 'y' and 'z' computed in the first call in the computation
+                of the cross derivatives 'xy', 'xz' and 'yz'.
         Returns:
-            If axes is a str, returns the result in the form of a numpy array of floats. For composite str
-            representing tensor differentiaton operators ('Grad, 'Hessian', ...) the returned result is a
-            numpy array (the tensor) of numpy arrays of floats.
+            All computed derivatives are stored internally and can be accessed by the Observables as
+            `self.derivatives[axes:str]` (linear access) or `self.derivativesG[axes:str]` (grid-based
+            access).
+            If axes is a str corresponding to a scalar derivative (this includes `Laplacian`), a numpy array
+            of floats is returned. For composite derivatives `None` is returned, but tensor-like variables
+            be created using the `grad`, `hessian`, `tensor3` and `tensor4` members.
             In the case of a list, None is returned and the user must access the individual derivatives as
             `self.derivatives[axes:str]` or `self.derivativesG[axes:str]`
         """
-        # TODO: find a way of automatically calling invalidate_derivatives() after updating the Observable's data member?
-        #       that would avoid specifying recompute.
+        # TODO: find a way of automatically calling invalidate_derivatives() after updating the
+        #       Observable's data member? that would avoid specifying recompute.
 
         # design constraints:
         # -V store results internally (dict self.derivatives and self.derivativesG)
