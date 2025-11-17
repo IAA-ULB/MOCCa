@@ -3,13 +3,13 @@ import numpy as np
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
 from mocca.mesh.observable import Observable
 
-from .nil8_f90 import nilsson
-from .randomspwfs_f90 import randomspwfs
+from mocca.f90.nil8_f90 import nilsson
+from mocca.f90.randomspwfs_f90 import randomspwfs
 #   these routines are pretty much black box to me...
 # TODO: both need adaptations if MPI is used
 
-#   Note that Fortran `integer`s are 32-bit, which corresponds to `dtype=np.int32`.
-#   The standard Python `int`s are 64-bit
+#   Note that Fortran `integer`s are 32-bit, which corresponds to `dtype=np.int32`,
+#   while the standard Python `int`s are 64-bit
 
 class NumpyWfInitializer:
     def __init__(self,
@@ -19,7 +19,7 @@ class NumpyWfInitializer:
                  init: str,
                  ):
         """
-
+        A Python implementation of randomspwfs.f90.
         """
 
         self.n_neutrons = n_neutrons
@@ -161,7 +161,7 @@ class F90WfInitializer:
 
 
 class HFPsi(Observable):
-    """Hartree-Fock wave function."""
+    """ Data structure for Hartree-Fock wave function."""
 
     def __init__(self,
                  n_neutrons:int, n_protons:int,
@@ -170,7 +170,7 @@ class HFPsi(Observable):
                  init:str='nilsson',
                  osc_freq:tuple[float]=None,
                  ):
-        """Constructor for HFPsi (using the same layout as MOCCa).
+        """Constructor for HFPsi (using the same data structure as in MOCCa).
 
         Args:
             n_neutrons: number of neutrons.
@@ -210,18 +210,20 @@ class HFPsi(Observable):
         super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=1)
 
 
-    def i_component(self, i4, i_wf):
+    def ilc(self, i4, i_wf):
         """Return the linear component index from the wave function component index `i4`
         (`0<=i4<4`) and the wave function index `i_wf`.
 
-        In MOCCa HFPsi has shape `(mesh.linear_size, 4, self.n_total_wf)`, but MOCCaPy
-        Observables are more comfortable with `(mesh.linear_size, 4 * self.n_total_wf)`.
-        This method converts a MOCCa index `(i4,i_wf)` to a MOCCaPy index `iq = i4 + 4*i_wf`.
+        In MOCCa HFPsi has shape `(mesh.linear_size, 4, self.n_total_wf)`. MOCCaPy Observables,
+        however, are more comfortable with `(mesh.linear_size, 4 * self.n_total_wf)`. This
+        method converts a MOCCa index `(i4,i_wf)` to a MOCCaPy index `iq = i4 + 4*i_wf`.
 
         Args:
             i4: the wave function component index of the part of the wave function, `0 <= i4 < 4`.
                 This index refers to the real/imaginary spin-up (`i4` = 0, 1) and real/imag
                 spin-down components (`i4` = 2, 3) of the wave function with index `i_wf`.
             i_wf: index of the wave function `0 <= i_wf < self.n_total_wf`.
+        Returns:
+            i4 + 4* i_wf
         """
         return 4*i_wf + i4

@@ -14,6 +14,16 @@ class SlaterDeterminant:
         energieën van de golffuncties zijn.
     ?
     """
+    # TODO: derive from BCSState, which must derive from BogoliubovState. Move data members as needed.
+    #       ?? do we need three different classes? Or do their properties emerge from the way they are
+    #       computed?
+    #       ?? Check issue 'mean-field state classes' #42
+    #       https://realpython.com/inheritance-composition-python/
+    #       Inheritance models an `is a` relationship: a square is also a rectangle, a
+    #       SlaterDeterminant is also a BCSState, and a BCSState  is also BogoliubovState.
+    #       A derived class is said to derive, inherit, or extend a base class
+    #       So far, SlaterDeterminant is very little more than a wrapper for HFPsi...
+
 
     def __init__(self,
                  n_neutrons:int, n_protons:int,
@@ -42,8 +52,11 @@ class SlaterDeterminant:
                            mesh=mesh,
                            init=init, osc_freq=osc_freq
                            )
-        self.occupancies = np.empty(self.hfpsi.n_total_wf, dtype=float)
-        self.sp_energies = np.empty(self.hfpsi.n_total_wf, dtype=float)
+        #
+        # self.occupancies = np.empty(self.hfpsi.n_total_wf, dtype=float)
+        # self.sp_energies = np.empty(self.hfpsi.n_total_wf, dtype=float)
+        self.occupancies = None
+        self.sp_energies = self.hfpsi.sp_energies
 
 
     @property
@@ -65,6 +78,8 @@ class SlaterDeterminant:
     @property
     def mesh(self):
         return self.hfpsi.mesh
+
+    #
 
     def energy(self, edf=None) -> float:
         """"""
