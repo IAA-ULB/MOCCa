@@ -3,9 +3,9 @@ import h5py
 
 from mocca.param      import Param
 from mocca.mesh       import LagrangeMesh
-from mocca.mean_field import SlaterDeterminant
+from mocca.mean_field import SlaterDeterminant, HFPsi
 try:
-    from mocca.solve_mfe  import MFESolver
+    from mocca.solve_mfe  import MFESolver, HeavyBall, LinearMix
 except ImportError:
     pass
 
