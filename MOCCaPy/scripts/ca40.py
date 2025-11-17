@@ -31,8 +31,8 @@ mfe_solver = MFESolver(
     spwf_algo=HeavyBall(...),
     scf_algo=LinearMix(...)
 )
-# Strategy classes would separate responsibilities better. It is not the responsibility of the MFESolver to handle the
-# arguments of the strategy classes.
+# Strategy classes do separate responsibilities better.
+# It is not the responsibility of the MFESolver to handle the arguments of the strategy classes.
 
 wf, densities, potentials = mfe_solver.solve()
 

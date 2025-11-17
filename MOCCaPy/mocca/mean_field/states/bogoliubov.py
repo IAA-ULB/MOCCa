@@ -1,6 +1,5 @@
 import numpy as np
 
-from .hfpsi import HFPsi
 
 class BogoliubovState:
     """This class implements a Bogoliubov mean-field state. This is the most general
@@ -14,33 +13,46 @@ class BogoliubovState:
     # We prefer to create a HFPsi object and hand it to BogoliubovState. This
     # simplifies handling the arguments, and separates responsibilities.
 
-    def __init__(self, hfpsi) -> None:
+    def __init__(self, hfpsi, _is_base_class=False) -> None:
         """
         Args:
              hfpsi: HFPsi object, containing the single-particle wave functions.
+             _is_base_class: True if called by super().__init__(), False otherwise.
         """
         # Separate the HFPsi arguments in kwargs:
         self.hfpsi = hfpsi
         self.sp_energies = self.hfpsi.sp_energies
-        self.occupancies = np.empty((self.hfpsi.n_total_wf, self.hfpsi.n_total_wf), dtype=float, order='F')
-        #   or           = None?
+        if not _is_base_class:
+            self.rho = np.empty((self.hfpsi.n_total_wf, self.hfpsi.n_total_wf), dtype=float, order='F')
+
+    def validate(self):
+        """Verify that all conditions for representing a Bogoliubov mean-field State
+        are satisfied.
+
+        Returns:
+            None
+        Raises:
+            AssertionError: if any of the conditions are not satisfied.
+        """
+        assert self.rho.shape == (self.n_total_wf,self.n_total_wf)
+
 
     @property
     def n_neutrons(self):
-        return hfpsi.n_neutrons
+        return self.hfpsi.n_neutrons
 
     @property
     def n_protons(self):
-        return hfpsi.n_protons
+        return self.hfpsi.n_protons
 
     @property
     def n_total_wf(self):
-        return hfpsi.n_total_wf
+        return self.hfpsi.n_total_wf
 
     @property
     def n_neutron_wf(self):
-        return hfpsi.n_neutron_wf
+        return self.hfpsi.n_neutron_wf
 
     @property
     def n_proton_wf(self):
-        return hfpsi.n_proton_wf
+        return self.hfpsi.n_proton_wf
