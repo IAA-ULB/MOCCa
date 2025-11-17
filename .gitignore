@@ -73,5 +73,5 @@ MOCCaPy/.python-version
 MOCCaPy/uv.lock
 
 *.so
-MOCCaPy/src/_build_*/
+MOCCaPy/f90/_build_*/
 
