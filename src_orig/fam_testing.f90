@@ -59,8 +59,8 @@ contains
     complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:), sphamil_me(:,:)
     real(KIND=dp)                 :: eta
 
-    type(DensityVector)           :: R, dRa, dRs
-    type(PotentialVector)         :: F, dFs, dFa, Fnew
+    type(DensityVector)           :: R, dRa, dRs, dR_pp_plus, dR_pp_minus
+    type(PotentialVector)         :: F, dFs, dFa, Fnew, dF_pp_minus, dF_pp_plus
 
     integer :: i
 
@@ -74,7 +74,7 @@ contains
     dRa     = densit_offdiag_ph_antisymmetric(drho)
 
     F       = calcpotentials(R)
-    call calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
+    call calc_perturbed_potentials(R,dRs,dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
 
     eta = 0.000001
     Fnew    = calcpotentials(R + eta*dRs) + (-1.0d0) * F
@@ -1060,7 +1060,7 @@ contains
     call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_minus, dF_pp_plus)
 
     ! We add in all additional contributions to F_I_I that do not
     !  result from the Skyrme functional.

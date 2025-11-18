@@ -83,6 +83,9 @@ module fam
   type(DensityVector)   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
   !                         |           '-> associated with kappa_minus
   !                         '-> associated with kappa^plus 
+  type(PotentialVector) :: dF_pp_plus, dF_pp_minus  ! perturbation to the particle-particle potentials on the mesh
+  !                         |           '-> associated with \kappa*
+  !                         '-> associated with \kappa
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
@@ -353,7 +356,7 @@ module fam
     call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
 
     ! We add in all additional contributions to F_I_I that do not 
     !  result from the Skyrme functional.  
@@ -527,7 +530,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     allocate(dHsp(nwt,nwt))
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(R, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
 
     call combine_potentials(dFs)
     call combine_potentials(dFa)

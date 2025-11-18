@@ -1524,7 +1524,8 @@ $CALCPOTENTIALS
   end function calcPotentials
 
 #if($FAM == 1)
-  subroutine calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
+  subroutine calc_perturbed_potentials(  R, dRs, dRa, dR_pp_plus, dR_pp_minus, &
+  &                                         dFs, dFa, dF_pp_plus, dF_pp_minus)
     !---------------------------------------------------------------------------
     ! Calculate the linearised response of the potentials (dFs, dFa) around
     ! a set of mean-field densities (R) that are affected by perturbations
@@ -1543,27 +1544,33 @@ $CALCPOTENTIALS
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   R   : density-vector containing the mean-field densities
-    !   dRs : density-vector containing the symmetric perturbing densities
-    !   dRa : density-vector containing the antisymmetric perturbing densities
+    !   dRs : density-vector containing the symmetric perturbing particle-hole densities
+    !   dRa : density-vector containing the antisymmetric perturbing particle-hole densities
+    !   dR_pp_plus : density-vector containing the perturbing particle-particle densities deduced from kappa
+    !   dR_pp_minus: density-vector containing the perturbing particle-particle densities deduced from kappa^*
     !
     ! Output:
     !   dFs : potential-vector containing the symmetric part of the linearised
     !         response of the mean-field potentials
     !   dFa : potential-vector containing the antisymmetric part of the linearised
     !         response of the mean-field potentials
+    !   dF_pp_plus : potential-vector containing the linearised response of the pp potentials with kappa
+    !   dF_pp_minus: potential-vector containing the linearised response of the pp potentials with kappa^*
+    ! 
     !---------------------------------------------------------------------------
     use CoulombMod, only : solve_coulomb_linear_response
 
-    type (DensityVector), intent(in) :: R, dRs, dRa
-    type (PotentialVector)           :: dFs, dFa
+    type (DensityVector), intent(in) :: R, dRs, dRa, dR_pp_plus, dR_pp_minus
+    type (PotentialVector)           :: dFs, dFa, dF_pp_plus, dF_pp_minus
     
-    dFs  = calc_perturbed_potentials_oneoff(R,dRs)
-    dFa  = calc_perturbed_potentials_oneoff(R,dRa)
+    dFs  = calc_perturbed_potentials_oneoff(R,dRs)  ! perturbation of symmetric ph potentials
+    dFa  = calc_perturbed_potentials_oneoff(R,dRa)  ! perturbation of antisymmetric ph potentials
 
-    !print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
-    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
-    !print *, 'SOLVING ANTISYMMETRIC PART'
-    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
+    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)          ! Coulomb response to symmetric ph densities
+    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)  ! Coulomb response to antisymmetric ph densities
+
+    dF_pp_plus  = calc_perturbed_potentials_oneoff(R,dR_pp_plus) ! perturbation of pp potentials with kappa
+    dF_pp_minus = calc_perturbed_potentials_oneoff(R,dR_pp_minus)! perturbation of pp potentials with kappa^*
 
     !call print_maxval('F_I_I', dFs%F_I_I, dFa%F_I_I)
     !call print_maxval('F_Nm_Nm', dFs%F_Nm_Nm, dFa%F_Nm_Nm)
@@ -2189,7 +2196,8 @@ $N3DELTA                   & dddpsi,   &
 $SYMDELTA                  & sx,sy,sz, &
 &                                         iso, onthefly, F) result(deltapsi)
     !---------------------------------------------------------------------------
-    !
+    ! TODO: improve documentation
+    ! - - - - - - - - - - - - - -
     ! onthefly:
     !   Logical indicating if the derivatives need to be calculated before
     !   applying delta. If false, the derivatives are passed in. If True, the
