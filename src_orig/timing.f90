@@ -32,7 +32,7 @@ module timing
   integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
   integer :: T_fam, T_ZPE
   integer :: T_den_perturbed, T_den_perturbed_sym, T_den_perturbed_asym
-  integer :: T_den_perturbed_pp
+  integer :: T_den_perturbed_pp, T_spme_perturbed_pp
   integer :: T_spme_perturbed, T_spme_perturbed_sym, T_spme_perturbed_asym
 #if(USE_MPI > 0)
   integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce

@@ -58,44 +58,47 @@ program run_FAM
   ! Print all relevant input gleaned from STDIN and the wf file.
   call PrintInput()
 
+  !-----------------------------------------------------------------------------
+  ! Step 0: calculate mean-field quantities and prepare the spwf states
   ! Provide memory for the derivatives of the spwfs
-  call allocate_memory_derivatives(PairingType)
-
-  ! Future dev: required for HFB
-  ! ifail = 0
-  call SolvePairing(pairingscheme, ifail)
-
   ! Derive all single-particle wavefunctions on the mesh
+  call allocate_memory_derivatives(PairingType)
   if(store_derivatives) call deriveHF()
-  ! Explicitly construct the canonical basis
+  ! Solve the pairing problem and explicitly construct the canonical basis
+  call SolvePairing(pairingscheme, ifail)
   call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
-
-  !--------------------------------------------------------------------------------
-  ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
-  !          diagonalize it within the subspace spanned by the spwfs read from file
+  ! construct the full HF densities rather than the merely the vector rho_can
+  if (pairingtype .eq. 0) call iniHFdensities()
+  ! Mean-field densities and potentials
   Density     = densit(rho_can, kappa_pairing)
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! 
-  ! ATTENTION: this explicit diagonalisation can break the apparent agreement
-  !            between proton and neutron matices since the LAPACK diagonalisation
-  !            might perform different rotations of the spwfs dependent on small
-  !            numerical details.
-  dispersions = calculate_spwf_dispersions(potentials)
-  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-  if(store_derivatives) call deriveHF() ! and update derivatives
+  if(pairingtype.eq.1) then
+    !----------------------------------------------------------------------------------  
+    ! Perform an explicit diagonalisation of the single-particle hamiltonian 
+    !  to ensure a "clean" start for FAM-RPA calculations
+    !
+    ! ATTENTION: this explicit diagonalisation can break the apparent agreement
+    !            between proton and neutron matices since the LAPACK diagonalisation
+    !            might perform different rotations of the spwfs dependent on small
+    !            numerical details.
+     
+    ! Construct the matrix of the single-particle hamiltonian
+    sphamil     = Calc_Sphamil(potentials, .true.)
+    ! Diagonalise and transform spwf states
+    call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+    if(store_derivatives) call deriveHF() ! and update derivatives
+    ! diagonalisation done; now recalculate other quantities
+    call SolvePairing(pairingscheme, ifail)
+    call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+    Density     = densit(rho_can, kappa_pairing)
+    Potentials  = calcPotentials(Density)
+  endif 
+
   ! Explicitly recalculate dispersion to provide an idea of the quality of the mean-field state
   dispersions = calculate_spwf_dispersions(potentials)
-  ! diagonalisation done; now recalculate other quantities
-  call SolvePairing(pairingscheme, ifail)
-  Density     = densit(rho_can, kappa_pairing)
-  Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
-  !----------------------------------------------------------------------------------
-  ! Step 0b: calculate all relevant quantities on the meanfield level to enable a
-  !          complete printout
+  ! ... further update mean-field quantities and print a full summary
   call update_spwf_properties_HF () !
   if(PairingType.eq.2) call update_spwf_properties_CAN()
   print_adv_spwf_properties = .true.
@@ -103,11 +106,7 @@ program run_FAM
   call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
   call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
-
-  !---------------------------------------------------------------------------------
-  ! construct the full HF densities rather than the merely the vector rho_can
-  if (pairingtype .eq. 0) call iniHFdensities()
-
+  
   !---------------------------------------------------------------------------------
   ! Evaluate the energy weighted sum rule
   ewsr = calc_EWSR()
@@ -137,6 +136,9 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
+
+  call run_FAM_tests(X,Y)
+
   !---------------------------------------------------------------------------------
   ! create the FAM output file
   call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
@@ -226,7 +228,7 @@ program run_FAM
         call iterate_dHsp(dH_flat, dH_flat_next)
 
         ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-        ! call run_FAM_tests(X,Y)
+        call run_FAM_tests(X,Y)
 
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat

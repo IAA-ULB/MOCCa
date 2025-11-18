@@ -70,7 +70,7 @@ module HFB
   implicit none
 
   !-----------------------------------------------------------------------------
-  ! Matrix of all qp energies
+  ! Pairing gaps (= matrix elements of Delta) in the Hartree-Fock (!) basis
   real(KIND=dp), allocatable :: HFBGaps(:,:)
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 200
@@ -1597,7 +1597,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   subroutine calcHFBgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
-    ! Calculates the HFB gaps for use in the HFB solver.
+    ! Calculates the HFB gaps in the Hartree-Fock basis for use in the HFB solver.
     !
     ! Fermi is a dummy argument in this routine, since we need that argument 
     ! for the BCS solver.
@@ -1658,7 +1658,6 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     si      = 0
     HFBgaps = 0 ! ----> set everything to zero such that can safely use 
                 !       MPI_ALLREDUCE below
-
     ! Loop over the first of all blocks linked by the antihermitian symmetry
     ! 1,3,5,7
     do B=1,8,2   ! <-------------- this loop ranges over the local set of spwfs
@@ -1725,7 +1724,7 @@ $TR       HFBgaps(indb_global,inda_global) = HFBgaps(inda_global,indb_global)
       &                  MPI_REAL8,MPI_SUM, MPI_COMM_WORLD, mpi_err)
       si = si + N + N2
     enddo
-#endif
+#endif 
     !---------------------------------------------------------------------------
     ! We have now calculated the gaps (without cutoffs) in the basis that 
     ! is currently in storage. This can either be the HF basis or not, but

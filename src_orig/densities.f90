@@ -713,6 +713,10 @@ subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_
     ! Output:
     !   Rs   : density vector containing the symmetric part of the densities
     !   Ra   : density vector containing the antisymmetric part of the densities
+    !   R_pp_plus  : density vector containing the pairing densities for
+    !                 kappa_plus
+    !   R_pp_minus : density vector containing the pairing densities for
+    !                 kappa_minus
     !----------------------------------------------------------------------------
     complex(KIND=dp), intent(in)     :: rho(:,:), kappa_plus(:,:), kappa_minus(:,:)
     type(DensityVector), intent(out) :: Rs, Ra, R_pp_plus, R_pp_minus
@@ -1261,6 +1265,76 @@ $EXPRESSION_SPH_ANTISYM
     call stop_timer(T_spme_perturbed_asym)
 
   end function calc_sphamil_me_antisym
+
+  function calc_delta_me( denpsi, dendpsi, denddpsi, F,  onthefly) result(delta_me)
+    !------------------------------------------------------------------------
+    ! Calculate the matrix elements of \Delta in the Hartree-Fock basis,
+    !
+    !
+    ! Attention: 
+    ! 
+    !
+    ! Input:
+    ! -------
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !    F      : potential vector containing the linearised pairing potentials
+    !   onthefly: [NOT IMPLEMENTED YET ]
+    !
+    !
+    ! Output:
+    ! -------
+    !  delta_me : matrix elements of the pairing field.
+    !
+    !
+    ! TODO: 
+    ! - what about pairing cutoffs? 
+    ! - implement MPI parallelisation
+    !
+    !------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: F
+    complex(KIND=dp), allocatable     :: delta_me(:,:)
+    integer                           :: it, B, si, N, N2, wave_i, wave_j, i, T
+$SPWF_DECLARATION
+    call start_timer(T_spme_perturbed_pp)
+
+    ! initialize
+    allocate(delta_me(nwt,nwt)) ; delta_me = 0.0d0
+
+    si = 0
+    do B=1,8,2
+      N = HFBlocks(B) ;  if (N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+
+      !---------------------------------------------------------------------------
+      ! Determine the isospin index
+      if(B.ge.5) then
+        it = 2
+      else
+        it = 1
+      endif
+      do wave_i=si+1,si+N                       ! local index of the spwf
+$TR          do wave_j=si+1,si+N               
+$NTR          do wave_j=si+N+1,si+N+N2      
+          do i=1,mv
+$EXPRESSION_DELTA_PP
+          enddo
+          ! Delta matrix elements remain antisymmetric
+          delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
+          ! TODO: unexplained minus sign
+          !delta_me(wave_j, wave_i) = - delta_me(wave_i, wave_j) 
+        enddo
+      enddo
+      si = si + N + N2
+    enddo
+
+    call stop_timer(T_spme_perturbed_pp)
+
+  end function calc_delta_me
 
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------

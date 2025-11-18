@@ -6,7 +6,7 @@ module fam_testing
   use densities
   use moments
   use Coulombmod, only : solve_coulomb
-  use pairing,    only :  rho_can, pairingtype, rho_pairing, kappa_pairing
+  use pairing,    only :  rho_can, pairingtype, rho_pairing, kappa_pairing, FermiEnergy
   use fission_MOI
   use functional
   use evolution
@@ -32,9 +32,9 @@ contains
 
 
     print 9
-
-    !call test_sphamil_me(ifail)
-    !print 1, 'SPHAMIL_ME', ifail
+    print *
+    call test_HFMatrices_me(ifail)
+    print 1, 'SPHAMIL_ME', ifail
 
     ! call test_potentials(X,Y,ifail)
     ! print 1, 'potentials', ifail
@@ -128,118 +128,139 @@ contains
 
   end subroutine print_deviations
 
-!   subroutine test_sphamil_me(ifail)
-!     !--------------------------------------------------------------------------------------
-!     ! Test whether the matrix elements of the single-particle Hamiltonian in the HF
-!     ! basis when calculated in two different ways.
-!     !
-!     ! (i)  densit + calc_potentials + apply_sphamil
-!     !      - - - - - - - - - - - - - - - - -
-!     !      the densities and potentials calculated as usual; with the latter
-!     !      applied to the spwfs as usual in the mean-field part of the code
-!     !
-!     ! (ii) densit_offdiag + calc_perturbed_potentials + calc_sphamil_me
-!     !      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     !      a. the (offdiagonal) summation of densities with the mean-field density matrix
-!     !      b. the calculation of the potentials with calc_perturbed_potentials
-!     !         without perturbation
-!     !      c. the calculation of the matrix elements by explicit sandwiching
-!     !         of the potentials in calc_sphamil_me
-!     !      d. ... with the matrix elements of the kinetic energy added in manually!
-!     !
-!     ! Although slightly wasteful in terms of CPU resources, this routine never assumes that
-!     ! any part of the matrix of the single-particle hamiltonian is hermitian/symmetric.
-!     !
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Output:
-!     !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
-!     !---------------------------------------------------------------------------------------
-!     integer, intent(out)       :: ifail
-!
-!     complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:)
-!     complex(KIND=dp), allocatable :: hpsi(:,:), drho(:,:), dkappa(:,:)
-!     real(KIND=dp), allocatable    :: dev(:,:)
-!     integer                       :: si, B, N, i, it, j
-!     type(PotentialVector)         :: Fs, Fa, F
-!     type(DensityVector)           :: R, Rs, Ra
-!
-!     ifail = 0
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! (i) Ordinary mean-field-like calculation
-!     R  = densit(rho_can, kappa_pairing)
-!     F = calcpotentials(R)
-!
-!     ! Important: apply_sphamil requires that the potentials in F are NOT combined!
-!     !            don't call combine_potentials(F) here!
-!
-!     allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
-!     si = 0
-!     do B=1,8
-!       N = HFBlocks(B)
-!       it = -1
-!       if(B .ge. 5) it = +1
-!       do j=si+1,si+N
-!         hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
-!         &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
-!         do i=si+1,si+N
-!           sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
-!         enddo
-!       enddo
-!       si = si + N
-!     enddo
-!
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! (ii) FAM-like calculation
-!     allocate(drho(nwt,nwt)) ; drho = 0.0d0
-!     ! Calculate the original densities through a non-diagonal summation
-!     do i=1,nwt
-!       drho(i,i) = rho_can(i)
-!     enddo
-!     call densit_offdiag(drho, dkappa, R , Ra)
-!     drho = 0.0d0
-!     call densit_offdiag(drho, dkappa, Rs, Ra)     ! No perturbation, drho = 0 in this call
-!     ! Calculate the potentials without perturbation
-!     call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
-!     !- - - - - - - - - - - - - - - - -
-!     ! Convention for calc_sphamil_me !
-!     call combine_potentials(F) ! calc_sphamil_me expects the potentials to be combined !
-!     call combine_potentials(Fs)
-!     call combine_potentials(Fa)
-!     ! .... and feed the result into the spwf sandwhiches
-!     sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
-!     ! .... and add the matrix elements of the kinetic energy
-!     sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
-!
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! (iii)Check result and print output if needed
-!     si = 0
-!     do B = 1,8
-!       N = HFBlocks(B)
-!       ! The element-wise deviation
-!       dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
-!       if(maxval(dev)>1e-10) then
-!         ifail = 1
-!         print *
-!         print *, 'BLOCK B=', B
-!         print *, "Maximal deviation = ", maxval(dev)
-!         print *, '------ Original calculation -------'
-!         do i=1,N
-!           print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
-!         enddo
-!         print *, '------ FAM-like calculation -------'
-!         do i=1,N
-!           print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
-!         enddo
-!         print *
-!         print *, '------ difference           -------'
-!         do i=1,N
-!           print ('(99es10.2)'), dev(i, 1:N)
-!         enddo
-!         print *
-!       endif
-!       si = si + N
-!     enddo
-!   end subroutine test_sphamil_me
+  subroutine test_HFmatrices_me(ifail)
+    !--------------------------------------------------------------------------------------
+    ! Test whether the matrix elements of the single-particle Hamiltonian and the pairing 
+    ! gaps in the HF basis when calculated in two different ways. For this purpose, we first
+    ! calculate the densities and potentials as usual in a mean-field code, and then
+    ! use 
+    ! 
+    ! (i)  apply_sphamil + calc_gaps: standard mean-field procedure
+    !
+    ! (ii) calc_sphamil_me + calc_delta_me : FAM-like calculation of matrix elements.
+    !
+    ! Although slightly wasteful in terms of CPU resources, this routine never assumes that
+    ! any part of the matrix of the single-particle hamiltonian is hermitian/symmetric.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Output:
+    !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
+    !---------------------------------------------------------------------------------------
+    integer, intent(out)       :: ifail
+    complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:), delta_orig(:,:), delta_me(:,:)
+    complex(KIND=dp), allocatable :: hpsi(:,:), drho(:,:), dkappa(:,:), dkappa_plus(:,:), dkappa_minus(:,:)
+    real(KIND=dp), allocatable    :: dev(:,:), dev_gaps(:,:)
+    real(KIND=dp)                 :: stabfactor(2)
+    integer                       :: si, B, N, i, it, j, N2, T
+    type(PotentialVector)         :: dFs, dFa, F, dF_pp_minus, dF_pp_plus
+    type(DensityVector)           :: R, dRs, dRa, R_pp_plus, R_pp_minus, dR_pp_plus, dR_pp_minus
+
+    ifail = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (i) Ordinary mean-field-like calculation
+    R  = densit(rho_can, kappa_pairing)
+    F = calcpotentials(R)
+
+    ! Important: apply_sphamil requires that the potentials in F are NOT combined!
+    !            don't call combine_potentials(F) here!
+    allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+      it = -1
+      if(B .ge. 5) it = +1
+      do j=si+1,si+N
+        hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
+        &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
+        do i=si+1,si+N
+          sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
+        enddo
+      enddo
+      si = si + N
+    enddo
+
+    ! Calculation of the pairing gaps
+    stabfactor = 0
+    call calcHFBgaps(FermiEnergy, stabfactor, F)
+    delta_orig = HFBGaps
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (ii) FAM-like calculation
+    allocate(drho(nwt,nwt)) ; drho = 0.0d0
+    drho = 0.0d0
+    if(pairingtype.ne.0) then
+      allocate(dkappa_plus(nwt,nwt))  ; dkappa_plus  = 0.0d0
+      allocate(dkappa_minus(nwt,nwt)) ; dkappa_minus = 0.0d0
+    endif
+    ! Calculate all relevant densities and potentials WITHOUT perturbation (drho = 0), 
+    ! mostly to allocate/intialize potentials that should be zero
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)     
+    call calc_perturbed_potentials(R, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)   
+
+    call combine_potentials(F) ! calc_sphamil_me expects the potentials to be combined !
+    ! .... and feed the result into the spwf sandwhiches
+    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, F, dFa, .false.)
+    ! .... and add the matrix elements of the kinetic energy
+    sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
+    ! Calculate the pairing gaps
+    delta_me = calc_delta_me(HFpsi, HFdpsi, HFddpsi, F, .false.)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (iii)Check result and print output if needed
+    si = 0
+    do B = 1,8
+      N = HFBlocks(B); if(N.eq.0) cycle
+      ! The element-wise deviation
+      dev       = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
+      print *
+      print *, 'BLOCK B=', B
+      print *, "Maximal deviation of h = ", maxval(dev)
+      if(maxval(dev)>1e-10) then
+        ifail = 1
+        print *, '------ Original calculation -------'
+        do i=1,N
+          print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
+        enddo
+        print *, '------ FAM-like calculation -------'
+        do i=1,N
+          print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
+        enddo
+        print *
+        print *, '------ difference           -------'
+        do i=1,N
+          print ('(99es10.2)'), dev(i, 1:N)
+        enddo
+        print *
+      endif
+      si = si + N
+    enddo
+
+    si = 0
+    do B= 1,8,2
+      N = HFBlocks(B); N2 = HFBlocks(B+1); T = N + N2; if(T.eq.0) cycle
+      dev_gaps  = abs(delta_orig(si+1:si+T, si+1:si+T)   - delta_me(si+1:si+T, si+1:si+T))
+      print *
+      print *, 'BLOCKs B=', B, B+1
+      print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
+      if(maxval(dev_gaps)>1e-10) then
+        ifail = 1 
+        print *, '------ Original calculation -------'
+        do i=1,T
+          print ('(99f10.3)'), DBLE(delta_orig(si+i, si+1:si+T))
+        enddo
+        print *, '------ FAM-like calculation -------'
+        do i=1,T
+          print ('(99f10.3)'), DBLE(delta_me(si+i, si+1:si+T))
+        enddo
+        print *
+        print *, '------ difference           -------'
+        do i=1,T
+          print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
+        enddo
+        print *
+      endif
+      si = si + T
+    enddo
+  end subroutine test_HFmatrices_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)
     !---------------------------------------------------------------------------------------
@@ -362,8 +383,10 @@ contains
     if(any(maxdev .gt. 1e-10)) then
         print *,'--------------------- Deviation in densities detected ---------------------'
         print *, 'Density    Neutrons      Protons'
-        print ('(a4,2es15.7)'), 'RHO'       ,  maxdev(1,:)
-        print ('(a4,2es15.7)'), 'Tilde(Rho)',  maxdev(2,:)
+        print ('(a4,6es15.7)'), 'RHO'       ,  maxdev(1,:), &
+        &                                      DBLE(sum(Density%D_I_I(:,1))*dv), DBLE(sum(R_transformed%D_I_I(:,1)))*dv, &
+        &                                      DBLE(sum(Density%D_I_I(:,2))*dv), DBLE(sum(R_transformed%D_I_I(:,2)))*dv
+        print ('(a4,4es15.7)'), 'Tilde(Rho)',  maxdev(2,:)
         !print ('(a4,2es15.7)'), 'Jmn',  maxdev(3,:)
         print *,'---------------------------------------------------------------------------'
         ifail = 1

@@ -263,11 +263,9 @@ contains
     ! coefficients, that are to be executed by all MPI ranks
     call calcedfcoefs()
 
-#if( $FAM == 0)
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
     delta_action_HFB => delta_action
-#endif
  end subroutine readfunctional
 
  subroutine calcedfcoefs()
