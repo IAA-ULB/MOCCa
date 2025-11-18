@@ -43,7 +43,7 @@ class Observable:
 
         if data is None:
             assert(n_components is not None)
-            self.data = np.empty((mesh.linear_size, n_components), dtype=float, order='F')
+            self.data = np.empty((mesh.linear_size, n_components), dtype=np.float64, order='F')
             self.n_components = n_components
         else:
             assert data.shape[0] == mesh.linear_size, f"{data.shape[0]=} <> {mesh.linear_size=}"
@@ -158,7 +158,7 @@ class Observable:
         On reduced axes 1 implies symmetric and -1 skew-symmetric behavior.
         On non-reduced axes a 1 is returned by default.
         """
-        result = np.ones((self.mesh.dim,), dtype=float, order='F')
+        result = np.ones((self.mesh.dim,), dtype=np.float64, order='F')
         for idim in range(self.mesh.dim):
             if self.mesh.reduced[idim]:
                 if self.symmetry is None:
@@ -522,3 +522,5 @@ class Observable:
     def integrate(self):
         """Integrate the observable over the simulation volume."""
         return self.mesh.integrate(self)
+
+

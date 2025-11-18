@@ -145,9 +145,9 @@ def nilsson(wfs, kparz, esp1, meven, modd,
     # real*8, parameter :: ca   =0.986d0  , cb   =0.14
     ca, cb = 0.986, 0.14
     # real*8, parameter :: xk(4)  = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
-    xk = numpy.array([0.08, 0.08, 0.0637, 0.0637], dtype=float)
+    xk = numpy.array([0.08, 0.08, 0.0637, 0.0637], dtype=np.float64)
     # real*8, parameter :: xmu(4) = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
-    xmu = numpy.array([0.08, 0.08, 0.0637, 0.0637], dtype=float)
+    xmu = numpy.array([0.08, 0.08, 0.0637, 0.0637], dtype=np.float64)
 
   # hox = osc_freq(1) ; hoy = osc_freq(2) ; hoz = osc_freq(3)
     hox = osc_freq[0] ; hoy = osc_freq[1] ; hoz = osc_freq[2]
@@ -172,14 +172,14 @@ def nilsson(wfs, kparz, esp1, meven, modd,
 
     # hbm(1)  = hhbar*hhbar/xxmn
     # hbm(2)  = hhbar*hhbar/xxmn
-    hbm =numpy.array( [hhbar*hhbar/xxmn,hhbar*hhbar/xxmn], dtype=float)
+    hbm =numpy.array( [hhbar*hhbar/xxmn,hhbar*hhbar/xxmn], dtype=np.float64)
 
     # allocate(h(ndim,ndim),s(ndim,ndim),d(ndim),wd(ndim))
     ndim_x_ndim = (ndim,ndim)
-    h  = numpy.zeros(ndim_x_ndim, dtype=float)
-    s  = numpy.zeros(ndim_x_ndim, dtype=float)
-    d  = numpy.zeros(ndim       , dtype=float)
-    wd = numpy.empty(ndim       , dtype=float)
+    h  = numpy.zeros(ndim_x_ndim, dtype=np.float64)
+    s  = numpy.zeros(ndim_x_ndim, dtype=np.float64)
+    d  = numpy.zeros(ndim       , dtype=np.float64)
+    wd = numpy.empty(ndim       , dtype=np.float64)
 
     # allocate(nsi(mblc+1,4),ns(mblc+1))
     nsi = numpy.zeros((mblc+1, 4), dtype=int)
@@ -189,13 +189,13 @@ def nilsson(wfs, kparz, esp1, meven, modd,
     nx  = numpy.zeros(ms, dtype=int)
     ny  = numpy.zeros(ms, dtype=int)
     nz  = numpy.zeros(ms, dtype=int)
-    e   = numpy.zeros(ms, dtype=float)
+    e   = numpy.zeros(ms, dtype=np.float64)
     nor = numpy.zeros(ms, dtype=int)
     npa = numpy.zeros(ms, dtype=int)
 
     # allocate(he(mblc,max(mx,my,mz),3), a(mqa))
-    he = numpy.zeros((mblc, max(mx, my, mz), 3), dtype=float, order='F')
-    a  = numpy.zeros(mqa, dtype=float)
+    he = numpy.zeros((mblc, max(mx, my, mz), 3), dtype=np.float64, order='F')
+    a  = numpy.zeros(mqa, dtype=np.float64)
 
     # allocate(irep(mblc+1), ntrs(ms))
     irep = numpy.zeros(mblc + 1, dtype=int)

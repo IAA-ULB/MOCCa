@@ -64,12 +64,12 @@ class HFPsi:
         # Modified after  subroutine iniwavefunctions in src/wavefunctions.f90 line 854
         # This code is probably far too complicated, but following the original MOCCa implementation.
 
-        self.data = np.array([[[]]], dtype=float)
+        self.data = np.array([[[]]], dtype=np.float64)
         nwt = self.n_neutron_wf + self.n_proton_wf
         #   see wavefunctions.f90 lne 883
         kparz = np.empty(nwt, dtype=np.int32)
         #   see nil8.f90 line 155
-        esp1  = np.zeros(nwt, dtype=float)
+        esp1  = np.zeros(nwt, dtype=np.float64)
         #   see nil8.f90 line 155
         meven = max(11,int(1.5*max(self.n_neutron_wf, self.n_proton_wf)**(1./3.)))
         #   see wavefunctions.f90 lne 891
@@ -233,7 +233,7 @@ class HFPsi:
         # ! now each MPI rank knows which spwfs it should grab and can allocate
         # ! the required space.
         # allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
-        self.data = np.zeros((self.mesh.linear_size,4,n_spwf_local), dtype=float, order='F')
+        self.data = np.zeros((self.mesh.linear_size,4,n_spwf_local), dtype=np.float64, order='F')
         #
         # ! and finally, we can call initialise_wavefunctions a second time in order
         init(*init_args)

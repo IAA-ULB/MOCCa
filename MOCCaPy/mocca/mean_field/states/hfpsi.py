@@ -37,7 +37,7 @@ class NumpyWfInitializer:
         nwn = self.n_neutron_wf
         nwp = self.n_proton_wf
         nwt = nwn + nwp
-        par = np.empty(self.nwt, dtype=float)
+        par = np.empty(self.nwt, dtype=np.float64)
         par[          :nwn//2    ] = +1
         par[nwn//2    :nwn       ] = -1
         par[nwn       :nwn+nwp//2] = +1
@@ -53,9 +53,9 @@ class NumpyWfInitializer:
 
         rng = np.random.default_rng()
         hfpsi = rng.random(self.mesh.linear_size * 4 * nwt)
-        hfpsi = hfpsi.reshape((self.mesh.linear_size, 4, nwt), dtype=float, order='F')
+        hfpsi = hfpsi.reshape((self.mesh.linear_size, 4, nwt), dtype=np.float64, order='F')
 
-        sp_energies = np.empty(nwt, dtype=float)
+        sp_energies = np.empty(nwt, dtype=np.float64)
         sp_energies.fill(100)
 
         return hfpsi, hfblocks, sp_energies
@@ -84,12 +84,12 @@ class F90WfInitializer:
         if init == 'nilsson':
             assert osc_freq is not None
             if not isinstance(osc_freq, np.ndarray):
-                osc_freq = np.array(osc_freq, dtype=float)
-            assert osc_freq.shape == (3,), "Expecting ndarray of shape (3,) and dtype=float"
-            assert osc_freq.dtype == float, "Expecting ndarray of shape (3,) and dtype=float"
+                osc_freq = np.array(osc_freq, dtype=np.float64)
+            assert osc_freq.shape == (3,), "Expecting ndarray of shape (3,) and dtype=np.float64"
+            assert osc_freq.dtype == float, "Expecting ndarray of shape (3,) and dtype=np.float64"
 
         if init == 'randomspwfs' and osc_freq is None:
-            osc_freq = np.empty(mesh.dim, dtype=float)
+            osc_freq = np.empty(mesh.dim, dtype=np.float64)
 
         self.n_neutrons = n_neutrons
         self.n_protons  = n_protons
@@ -105,12 +105,12 @@ class F90WfInitializer:
         Returns:
             hfpsi, hfblocks, esp1
         """
-        hfpsi = np.array([[[]]], dtype=float)
+        hfpsi = np.array([[[]]], dtype=np.float64)
         self.n_total_wf = self.n_neutron_wf + self.n_proton_wf
         #   see wavefunctions.f90 lne 883
         kparz = np.empty(self.n_total_wf, dtype=np.int32)
         #   see nil8.f90 line 155
-        esp1  = np.zeros(self.n_total_wf, dtype=float)
+        esp1  = np.zeros(self.n_total_wf, dtype=np.float64)
         #   see nil8.f90 line 155
         meven = max(11,int(1.5*max(self.n_neutron_wf, self.n_proton_wf)**(1./3.)))
         #   see wavefunctions.f90 lne 891
@@ -153,7 +153,7 @@ class F90WfInitializer:
 
         spwf_map = np.arange(0, self.n_total_wf, dtype=np.int32)
 
-        hfpsi = np.zeros((self.mesh.linear_size, 4, self.n_total_wf), dtype=float, order='F')
+        hfpsi = np.zeros((self.mesh.linear_size, 4, self.n_total_wf), dtype=np.float64, order='F')
 
         self.init(*init_args)
 
@@ -287,3 +287,21 @@ class HFPsi(Observable):
             i4 + 4* i_wf
         """
         return 4*i_wf + i4
+
+    def matrix_representation(self, operator):
+        """Compute the matrix representation of operator `operator` with respect to the
+        single particle wave functions in this HFPsi.
+
+        Args:
+            operator:
+
+            """
+
+        # approach
+
+    def allocate_matrix_representation(self):
+        blocks = 8*[None]
+        for ib in range(8):
+            blockrange = self.hfblockrange[ib]
+            n_spwfs = blockrange[1] - blockrange[0]
+            blocks[ib] = np.empty((n_spwfs, n_spwfs), dtype=np.float64)

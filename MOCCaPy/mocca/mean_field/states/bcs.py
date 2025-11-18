@@ -18,7 +18,7 @@ class BCSState(BogoliubovState):
         """
         super().__init__(hfpsi, _is_base_class=True)
         if not _is_base_class:
-            self.rho = np.empty(self.n_total_wf, dtype=float)
+            self.rho = np.empty(self.n_total_wf, dtype=np.float64)
 
     def validate(self):
         """Verify that all conditions for representing a BCS mean-field State

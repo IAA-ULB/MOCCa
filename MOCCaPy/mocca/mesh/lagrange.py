@@ -24,7 +24,7 @@ def create_mesh(gx, gy=None, gz=None):
         nx = len(gx)
         ny = len(gy)
         nz = len(gz)
-        gxyz = np.empty((nx*ny*nz,3), dtype=float, order='F')
+        gxyz = np.empty((nx*ny*nz,3), dtype=np.float64, order='F')
         gxy = create_mesh(gx, gy)
         nxy = nx*ny
         for iz in range(nz):
@@ -35,7 +35,7 @@ def create_mesh(gx, gy=None, gz=None):
     elif gy is not None:
         nx = len(gx)
         ny = len(gy)
-        gxy = np.empty((nx*ny,2), dtype=float, order='F')
+        gxy = np.empty((nx*ny,2), dtype=np.float64, order='F')
         for iy in range(ny):
             gxy[iy * nx:(iy + 1) * nx, 0] = gx
             gxy[iy * nx:(iy + 1) * nx, 1] = gy[iy]
@@ -395,7 +395,7 @@ class LagrangeMesh:
             AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
         n_components = Q.n_components
-        result = np.zeros((n_components,), dtype=float)
+        result = np.zeros((n_components,), dtype=np.float64)
         # for ic in range(n_components):
         #     q = Q[ic]
         #     result[ic] = q.sum() * self.dv
@@ -422,7 +422,7 @@ class LagrangeMesh:
             array of shape `(nr,2)` with complex and imaginary parts
         """
         arg = (2*np.pi * k / L) * r
-        result = np.empty((len(r),2), dtype=float, order='F')
+        result = np.empty((len(r),2), dtype=np.float64, order='F')
         result[:,0] = np.cos(arg).ravel()
         result[:,1] = np.sin(arg).ravel()
         result *= np.sqrt(1/L)
@@ -466,7 +466,7 @@ class LagrangeMesh:
                                 , 2. * np.pi * ( self.gz[k] if not self.reduced[0] else
                                                  self.gz[k] * ijk_sign[2]
                                                ) / (self.box_width[2] * self.d[2])
-                                ], dtype=float, order='F')
+                                ], dtype=np.float64, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
 
         elif self.dim == 2:
@@ -479,7 +479,7 @@ class LagrangeMesh:
                                 , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
                                                  self.gy[j] * ijk_sign[1]
                                                ) / (self.box_width[1] * self.d[1])
-                                ], dtype=float, order='F')
+                                ], dtype=np.float64, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
 
         elif self.dim == 1:
@@ -491,11 +491,11 @@ class LagrangeMesh:
             two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
                                                 self.gx[i] * ijk_sign[0]
                                                ) / (self.box_width[0] * self.d[0])
-                                ], dtype=float, order='F')
+                                ], dtype=np.float64, order='F')
             factor = np.sqrt(1 / self.box_width[0])
 
         arg = r @ two_pi_K
-        result = np.empty((r.shape[0],2), dtype=float, order='F')
+        result = np.empty((r.shape[0],2), dtype=np.float64, order='F')
         np.cos(arg, out=result[:,0])
         np.sin(arg, out=result[:,1])
         result *= factor
@@ -517,8 +517,8 @@ class LagrangeMesh:
         """
         # We first compute the full D1, also for the reduced case. Then we comput $E^{ll}$ and $E^{lr}$
         twoN = self.M[axis]
-        D1 = np.empty((twoN,twoN), dtype=float) # deliberately not order='F' for performance reasons
-        alternating_sign = np.empty((twoN+1), dtype=float)
+        D1 = np.empty((twoN,twoN), dtype=np.float64) # deliberately not order='F' for performance reasons
+        alternating_sign = np.empty((twoN+1), dtype=np.float64)
         alternating_sign[::2] = 1
         alternating_sign[1::2] = -1
         # alternating_sign = [1, -1, 1, -1, ...]
@@ -605,8 +605,8 @@ class LagrangeMesh:
             if self.reduced[axis]:
                 N = self.M[axis]//2
                 for order in range(highest_derivative_order):
-                    D = np.empty((N, N), dtype=float)
-                    E = np.empty((N, N), dtype=float)
+                    D = np.empty((N, N), dtype=np.float64)
+                    E = np.empty((N, N), dtype=np.float64)
 
                     # Copy the columns of Dlr into D
                     # Reverse the columns of the lower left quadrant Dll and copy into E
@@ -756,7 +756,7 @@ class LagrangeMesh:
         """Interpolate `Q` on a 1D  mesh."""
         nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
+        Qr = np.zeros(shape=(nr,nq), dtype=np.float64, order='F')
         for ig in range(self.linear_size):
             for iq in range(nq):
                 sign = Q.sign(iq)
@@ -777,7 +777,7 @@ class LagrangeMesh:
         """
         nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.zeros(shape=(nr,nq), dtype=float, order='F')
+        Qr = np.zeros(shape=(nr,nq), dtype=np.float64, order='F')
         ig = 0
         Nx = len(self.gx)
         Ny = len(self.gy)
@@ -801,7 +801,7 @@ class LagrangeMesh:
         """
         nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.zeros(shape=(nr, nq), dtype=float, order='F')
+        Qr = np.zeros(shape=(nr, nq), dtype=np.float64, order='F')
         ig = 0
         Nx = len(self.gx)
         Ny = len(self.gy)

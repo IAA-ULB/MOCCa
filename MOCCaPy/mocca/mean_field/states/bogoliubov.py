@@ -23,7 +23,7 @@ class BogoliubovState:
         self.hfpsi = hfpsi
         self.sp_energies = self.hfpsi.sp_energies
         if not _is_base_class:
-            self.rho = np.empty((self.hfpsi.n_total_wf, self.hfpsi.n_total_wf), dtype=float, order='F')
+            self.rho = np.empty((self.hfpsi.n_total_wf, self.hfpsi.n_total_wf), dtype=np.float64, order='F')
 
     def validate(self):
         """Verify that all conditions for representing a Bogoliubov mean-field State

@@ -149,7 +149,7 @@ subroutine nilsson(wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,dx,osc
 !!! `kind=dp` replaced with `kind=8`
     real(kind=8),  intent(inout) :: wfs(:,:,:)  !!! allocated between the two calls
     integer     ,  intent(inout) :: kparz(:)    !!! allocate before 1st call with `np.zeros(nwt,dtype=np.int32)`
-    real(kind=8),  intent(inout) :: esp1(:)     !!! allocate before 1st call with `np.empty(nwt,dtype=float)`
+    real(kind=8),  intent(inout) :: esp1(:)     !!! allocate before 1st call with `np.empty(nwt,dtype=np.float64)`
     integer     ,  intent(in)    :: meven, modd, nwt, nwp, nwn, npp, npn, mx, my, mz
     real(kind=8),  intent(in)    :: dx, osc_freq(3)
     integer     ,  intent(in)    :: spwf_map(:) !!! allocated between the two calls
