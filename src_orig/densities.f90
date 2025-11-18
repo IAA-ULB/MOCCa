@@ -771,13 +771,13 @@ subroutine densit_offdiag_pp(kappa, R)
     type(DensityVector), intent(inout) :: R
 
     integer                            :: wave, wave2, i, B, it, N, si, N2, T
-    INTEGER                            :: wave_global, wave2_global
+    INTEGER                            :: wave_global, wave2_global, der_index
     complex(KIND=dp)                   :: weight
     complex(KIND=dp), allocatable      :: kappa_cut(:,:)
     ! TODO: this for sure declares too much
 $SPWF_DECLARATION
-    ! TODO add: start timer
 
+    call start_timer(T_den_perturbed_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
     select case (PairingType) 
@@ -841,10 +841,8 @@ $NTR          do wave2=N+1,N+N2
                 ! TODO: think about whether this factor two is appropriate here
 $TR             if(wave.ne.wave2) weight = 2 * weight  
                 ! 
-
-
             do i=1,mv
-                ! TODO: insert Hephaestos expression here
+$HFBEXPRESSION
             enddo
           enddo
         enddo
@@ -852,6 +850,7 @@ $TR             if(wave.ne.wave2) weight = 2 * weight
       enddo
     end select
 
+    call stop_timer(T_den_perturbed_pp)
     ! TODO: add stop timer
 end subroutine densit_offdiag_pp
 
