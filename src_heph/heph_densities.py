@@ -294,7 +294,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       den = Densities_needed[i]
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      # "Diagonal" summation of densities in the canonical basis
+      # "Diagonal" summation of particle-hole densities in the canonical basis
+      #         + "offdiagonal" summation of particle-particle densities
       (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
