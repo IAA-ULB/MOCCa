@@ -1268,11 +1268,12 @@ $EXPRESSION_SPH_ANTISYM
 
   function calc_delta_me( denpsi, dendpsi, denddpsi, F,  onthefly) result(delta_me)
     !------------------------------------------------------------------------
-    ! Calculate the matrix elements of \Delta in the Hartree-Fock basis,
-    !
-    !
-    ! Attention: 
-    ! 
+    ! Calculate the matrix elements of \Delta in the Hartree-Fock basis.
+    !     
+    ! Attention: the pairing cutoffs figure in this function and those 
+    !            are calculated in the Hartree-Fock basis. Even if this function 
+    !            takes denpsi, dendpsi, denddpsi as input, these should be
+    !            the Hartree-Fock wavefunctions!
     !
     ! Input:
     ! -------
@@ -1285,11 +1286,10 @@ $EXPRESSION_SPH_ANTISYM
     !
     ! Output:
     ! -------
-    !  delta_me : matrix elements of the pairing field.
+    !  delta_me : matrix elements of the pairing tensor Delta.
     !
     !
     ! TODO: 
-    ! - what about pairing cutoffs? 
     ! - implement MPI parallelisation
     !
     !------------------------------------------------------------------------
@@ -1318,15 +1318,25 @@ $SPWF_DECLARATION
         it = 1
       endif
       do wave_i=si+1,si+N                       ! local index of the spwf
-$TR          do wave_j=si+1,si+N               
+$TR          do wave_j=wave_i,si+N              ! symmetry-reduced
 $NTR          do wave_j=si+N+1,si+N+N2      
           do i=1,mv
 $EXPRESSION_DELTA_PP
           enddo
-          ! Delta matrix elements remain antisymmetric
+          ! The minus sign is because Hephaestos generates the expression for 
+          ! 
+          ! \tilde \rho_ji = \sum_{\sigma} \sigma psi_j(r',\sigma) \psi_i(r,-\sigma)
+          !   
+          ! whereas Delta is proportional to 
+          !
+          !  \Delta_ji \sim \tilde \rho_ij
+          !
+          ! This should be corrected in Hephaestos, but it is much harder than including this minus sign.
           delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
-          ! TODO: unexplained minus sign
-          !delta_me(wave_j, wave_i) = - delta_me(wave_i, wave_j) 
+          ! Delta is globally antisymmetric in the case of time-reversal symmetry, but we 
+          !  represent only half of the matrix explicitly!
+$TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i) 
+$NTR      delta_me(wave_i, wave_j) = -delta_me(wave_j, wave_i) 
         enddo
       enddo
       si = si + N + N2

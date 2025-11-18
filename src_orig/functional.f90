@@ -2194,12 +2194,34 @@ $N3DELTA                   & dddpsi,   &
 $SYMDELTA                  & sx,sy,sz, &
 &                                         iso, onthefly, F) result(deltapsi)
     !---------------------------------------------------------------------------
-    ! TODO: improve documentation
-    ! - - - - - - - - - - - - - -
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    ! ----------
+    !         psi :
+    !           spwf to act on with delta
+    !  d/dd/dddpsi :
+    !           arrays containing the first, second and third derivatives
+    !           of the spwf. 
+    ! sx/sy/sz :
+    !           signs under reflection symmetry for this particular spwf
+    !           not referenced when onthefly = .false.
+    ! iso :
+    !   isospin of the spwf: +1 for protons, -1 for neutrons
+    !
     ! onthefly:
     !   Logical indicating if the derivatives need to be calculated before
     !   applying delta. If false, the derivatives are passed in. If True, the
     !   derivatives are not passed in and need to be calculated.
+    !   NOT IMPLEMENTED YET 
+    !
+    ! F :
+    !   potentialvector containing the pairing fields
+    !
+    ! Output:
+    ! --------
+    !   deltapsi :
+    !     delta | psi >
     !---------------------------------------------------------------------------
     logical, intent(in)               :: onthefly 
     integer, intent(in)               :: iso
@@ -2225,9 +2247,7 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
       call stp('On the fly calculation of derivatives in delta_action not implemented.')
     endif
     !---------------------------------------------------------------------------
-    ! Zero the action of Delta.
-    ! This is the place to include contributions to the pairing that should
-    ! be coded manually
+    ! Start by zeroing the array
     allocate(deltapsi(mv,4))
     deltapsi = 0.0
 

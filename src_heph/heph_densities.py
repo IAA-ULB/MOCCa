@@ -286,7 +286,6 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         D        = deriv_needed[i]
         I        = intermediate_status[i]
         print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
-
     print (line)
     print (' Symmetries of the densities')
     print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
@@ -340,14 +339,23 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Expressions required to evaluate the matrix elements of the single-particle
-      # hamiltonian based on density-like expressions
+      # hamiltonian and pairing matrix Delta based on density-like expressions
       e_sph_sym     = ''
       e_sph_antisym = ''
       (t,t,left,right,t,t) = ParseOperators(Densities_needed[i], so.timelike)
       # TODO:  - [ ] write documentation!
       #        - [X] refactor this thing with loops
       #        - [ ] add if statements for time-reversal necessities?
-      if(left != right):
+
+      # Dirty hack: I do not want to deal (YET) with the symmetrization of pairing densities
+      if('P' in den):
+        symmetrization_needed = False 
+      elif(left == right):
+        symmetrization_needed = False 
+      else:
+        symmetrization_needed = True
+
+      if(symmetrization_needed):
         # Explicit symmetrisation is required
         for symsign in [-1,+1]:
             if((not so.timelike) or TimeDen(Densities_needed[i]) == 1  or  'P' in den):
@@ -940,7 +948,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         Multiply       = Multiply + '\n' + ta.Multiply_template.substitute(dic)
         dic['NAME']    = density
 
-    if((not so.timelike) or leftwave != rightwave or TimeDen(density) == +1):
+    if((not so.timelike) or (leftwave != rightwave and 'P' not in density) or TimeDen(density) == +1):
         #---------------------------------------------------------------------------
         # Generate the expression to calculate the density
         # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
