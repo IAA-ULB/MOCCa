@@ -781,7 +781,7 @@ jobs:
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
 
-      - name: Run parallel script
+      - name: Run the testing script
         # Actually execute the test (source call to ensure MPIRUN is available)
         run: |
           cd testing/integration/

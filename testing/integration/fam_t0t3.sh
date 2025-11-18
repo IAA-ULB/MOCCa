@@ -226,7 +226,7 @@ nwn = 28, nwp = 28
 InputFilename='mf.wf'
 OutputFilename='trash'
 allowtransform=.true.
-famfile='S_20.fam'
+famfile='S_20.T.fam'
 /
 &MomentParam
 /
@@ -248,8 +248,8 @@ fam_T_check=$?
 
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# b) Get the strength from the S_20.fam file
-S_T=$(get_strength "S_20.fam" 25.0)
+# b) Get the strength from the S_20.T.fam file
+S_T=$(get_strength "S_20.T.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
 compare_floats $S_T $refS20 0.01
 check_strength_T=$?
@@ -287,7 +287,7 @@ nwn = 14, nwp = 14
 InputFilename='mf.wf'
 OutputFilename='trash'
 allowtransform=.true.
-famfile='S_20.fam'
+famfile='S_20.P.fam'
 /
 &MomentParam
 /
@@ -308,7 +308,7 @@ EOF
 fam_P_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # b) Get the strength from the S_20.fam file
-S_P=$(get_strength "S_20.fam" 25.0)
+S_P=$(get_strength "S_20.P.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
 compare_floats $S_P $refS20 0.01
 check_strength_P=$?

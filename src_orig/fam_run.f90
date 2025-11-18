@@ -137,11 +137,7 @@ program run_FAM
     allocate(dH_flat_next(nwt*nwt))
   endif
 
-  call run_FAM_tests(X,Y)
-
-  !---------------------------------------------------------------------------------
-  ! create the FAM output file
-  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
+  !call run_FAM_tests(X,Y)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
