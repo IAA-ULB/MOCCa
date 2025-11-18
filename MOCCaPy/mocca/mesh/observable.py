@@ -66,27 +66,32 @@ class Observable:
                                   )
 
         else:
-            self.symmetry = np.zeros((mesh.dim, self.n_components), dtype=int, order='F')
+            self.symmetry = np.zeros((self.n_components, mesh.dim), dtype=np.int32, order='F')
             if isinstance(symmetry, int):
                 self.symmetry[:,:] = symmetry
-            elif isinstance(symmetry, (tuple,list)) and not isinstance(symmetry[0], (tuple,list)):
-                assert(len(symmetry) == self.n_components)
-                for iq in range(self.n_components):
-                    self.symmetry[:, iq] = symmetry[iq]
             else:
-                if not isinstance(symmetry, np.ndarray):
-                    symmetry = np.array(symmetry)
-                assert(symmetry.shape == (mesh.dim, self.n_components))
-                self.symmetry = symmetry
+                if isinstance(symmetry, (tuple,list)):
+                    symmetry = np.array(symmetry, dtype=np.int32)
+
+                if symmetry.shape == (self.n_components, ):
+                    for idim in range(self.mesh.dim):
+                        self.symmetry[:,idim] = symmetry
+                elif symmetry.shape == (self.n_components, mesh.dim):
+                        self.symmetry = symmetry
+                else:
+                    raise ValueError(f"Symmetry: bad {symmetry.shape=}, expecting ({self.n_components=},) or ({self.n_components=},{self.mesh.dim=}).")
+
+            assert len(self.symmetry.shape) == 2
 
             for s in self.symmetry.ravel():
                assert s in [1,0,-1]
+
 
             # Verify that symmetry is specified for reduced axes.
             for idim in range(self.mesh.dim):
                 if mesh.reduced[idim]:
                     for iq in range(self.n_components):
-                        if self.symmetry[idim,iq] == 0:
+                        if self.symmetry[iq,idim] == 0:
                             raise UserWarning(f"Observable {self.name}: No symmetry specified for component {iq}.\n"
                                               f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                              )
@@ -159,15 +164,15 @@ class Observable:
                 if self.symmetry is None:
                     raise ValueError(f"Observable {self.name}: No symmetry behavior specified for all components on reduced axis {'xyz'[idim]}.\n"
                                      f"\tInterpolation not possible.")
-                if self.symmetry[idim, iq] == 0:
+                if self.symmetry[iq,idim] == 0:
                     raise ValueError(f"Observable {self.name}: No symmetry behavior specified for component {iq} on reduced axis {'xyz'[idim]}.\n"
                                      f"\tInterpolation not possible.")
-                result[idim] = self.symmetry[idim,iq]
+                result[idim] = self.symmetry[iq,idim]
             else:
                 if self.symmetry is None:
                     result[idim] = 0
                 else:
-                    result[idim] = self.symmetry[idim,iq]
+                    result[idim] = self.symmetry[iq,idim]
         return result
 
     # Differentiation
@@ -484,15 +489,15 @@ class Observable:
         # x-axis
         if self.mesh.reduced[0]:
             if axes.count('x') % 2:
-                symmetry[0, :] *= -1
+                symmetry[:,0] *= -1
         # y-axis
         if self.mesh.dim > 1 and self.mesh.reduced[1]:
             if axes.count('y') % 2:
-                symmetry[1, :] *= -1
+                symmetry[:,1] *= -1
         # z-axis
         if self.mesh.dim > 2 and self.mesh.reduced[2]:
             if axes.count('z') % 2:
-                symmetry[2, :] *= -1
+                symmetry[:,2] *= -1
 
         return symmetry
 

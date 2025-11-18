@@ -723,7 +723,7 @@ def test_LagrangeMesh_interpolate2D_bellx(no_plot, debug=False):
         bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
 
         # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bellx_g, symmetry=[[-1],[1]])
+        Q = Observable(mesh, data=bellx_g, symmetry=[[-1,1]])
         # interpolate Q at xy
         Qxy = mesh.interpolate(Q, xy)
         Qxy_plot = Qxy.reshape((nip, nip), order='F')
@@ -837,7 +837,7 @@ def test_LagrangeMesh_interpolate3D_bellx(debug=False):
         bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
 
         # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bellx_g, symmetry=[[-1],[1],[1]])
+        Q = Observable(mesh, data=bellx_g, symmetry=[[-1,1,1]])
         # interpolate Q at xy
         Qxyz = mesh.interpolate(Q, xyz)
 

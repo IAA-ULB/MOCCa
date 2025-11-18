@@ -692,7 +692,7 @@ class LagrangeMesh:
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=0, order=order) if Q.symmetry[0, iq] == 1 else \
+                    DE = self._get_DpE(axis=0, order=order) if Q.symmetry[iq,0] == 1 else \
                          self._get_DmE(axis=0, order=order)
                     op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
                                    (op2[:, :, iq]   , out[:,:,iq]  ) if (self.dim == 2) else \
@@ -708,7 +708,7 @@ class LagrangeMesh:
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=1, order=order) if Q.symmetry[1, iq] == 1 else \
+                    DE = self._get_DpE(axis=1, order=order) if Q.symmetry[iq,1] == 1 else \
                          self._get_DmE(axis=1, order=order)
                     op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
                                    (op2[:, :, iq]   , out[:,:,iq]) #  (self.dim == 2)
@@ -722,7 +722,7 @@ class LagrangeMesh:
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
-                    DE = self._get_DpE(axis=2, order=order) if Q.symmetry[2,iq] == 1 else \
+                    DE = self._get_DpE(axis=2, order=order) if Q.symmetry[iq,2] == 1 else \
                          self._get_DmE(axis=2, order=order)
                     np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,:,:,iq])
 
