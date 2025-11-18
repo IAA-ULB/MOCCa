@@ -11,12 +11,12 @@ from mocca.f90.randomspwfs_f90 import randomspwfs
 #   Note that Fortran `integer`s are 32-bit, which corresponds to `dtype=np.int32`,
 #   while the standard Python `int`s are 64-bit
 
+# TODO: test
 class NumpyWfInitializer:
     def __init__(self,
                  n_neutrons: int, n_protons: int,
                  n_neutron_wf: int, n_proton_wf: int,
                  mesh,
-                 init: str,
                  ):
         """
         A Python implementation of randomspwfs.f90.
@@ -27,7 +27,6 @@ class NumpyWfInitializer:
         self.n_neutron_wf = n_neutron_wf
         self.n_proton_wf = n_proton_wf
         self.mesh = mesh
-        self.osc_freq = osc_freq
 
     def __call__(self):
         """Do the initialization.
@@ -37,7 +36,7 @@ class NumpyWfInitializer:
         nwn = self.n_neutron_wf
         nwp = self.n_proton_wf
         nwt = nwn + nwp
-        par = np.empty(self.nwt, dtype=np.float64)
+        par = np.empty(nwt, dtype=np.float64)
         par[          :nwn//2    ] = +1
         par[nwn//2    :nwn       ] = -1
         par[nwn       :nwn+nwp//2] = +1
@@ -53,7 +52,7 @@ class NumpyWfInitializer:
 
         rng = np.random.default_rng()
         hfpsi = rng.random(self.mesh.linear_size * 4 * nwt)
-        hfpsi = hfpsi.reshape((self.mesh.linear_size, 4, nwt), dtype=np.float64, order='F')
+        hfpsi = hfpsi.reshape((self.mesh.linear_size, 4, nwt), order='F')
 
         sp_energies = np.empty(nwt, dtype=np.float64)
         sp_energies.fill(100)
@@ -75,7 +74,7 @@ class F90WfInitializer:
         assert init in ('nilsson', 'randomspwfs'), f"F90 initialisation strategy '{init}' is not recognizeded."
 
         assert mesh.dim == 3, \
-            f"F90 initialisation strategies support only 3D meshes, not {mesh.ndim}D."
+            f"F90 initialisation strategies support only 3D meshes, not {mesh.dim}D."
         assert (mesh.d[1] == mesh.d[0]) and \
                (mesh.d[2] == mesh.d[0]), \
             f"Nilsson initialisation strategy does not support " \
@@ -162,7 +161,11 @@ class F90WfInitializer:
 
 class HFPsi(Observable):
     """ Data structure for Hartree-Fock wave function."""
-    kwargnames = ('n_neutrons', 'n_protons', 'n_neutron_wf', 'n_proton_wf', 'mesh', 'init', 'osc_freq')
+
+    @classmethod
+    def like(cls, hfpsi):
+        return cls(init=hfpsi)
+
     def __init__(self,
                  n_neutrons:int, n_protons:int,
                  n_neutron_wf:int, n_proton_wf:int,
@@ -185,8 +188,39 @@ class HFPsi(Observable):
             osc_freq: Oscillation frequencies, optional, only required for Nilsson initialisation.
         """
         init_strategies = ['nilsson', 'randomspwfs', 'np.random']
-        assert init in init_strategies, \
-            f"Unknown initialisation strategy '{init}'. Expecting one of {init_strategies}."
+        if init not in init_strategies:
+            if isinstance(init, HFPsi):
+                # init is another HFPsi instance. copy its variables and allocate empty memory
+                self.init = init
+
+                self.mesh         = init.mesh
+                self.n_neutrons   = init.n_neutrons
+                self.n_protons    = init.n_protons
+                self.n_total_wf   = init.n_total_wf
+                self.n_neutron_wf = init.n_neutron_wf
+                self.n_proton_wf  = init.n_proton_wf
+                self.hfblocks     = init.hfblocks
+                self.hfblockrange = init.hfblockrange
+                self.data = np.empty_like(init.data)
+                self.symmetry     = init.symmetry
+                return
+
+            elif init is None:
+                # only for test purposes
+                self.mesh         = mesh
+                self.n_neutrons   = n_neutrons
+                self.n_protons    = n_protons
+                self.n_total_wf   = n_neutron_wf + n_proton_wf
+                self.n_neutron_wf = n_neutron_wf
+                self.n_proton_wf  = n_proton_wf
+                self.hfblocks     = 8*[None]
+                self.hfblockrange = 8*[None]
+                self.data = np.empty((mesh.linear_size,4,self.n_total_wf), dtype=np.float64, order='F')
+                self.symmetry = np.ones((4*self.n_total_wf,self.mesh.dim), dtype=np.int32, order='F')
+                print(f"\nWARNING: Initialisation strategy {None} is only for testing purposes.\n")
+                return
+            else:
+                raise ValueError(f"Unknown initialisation strategy '{init}'. Expecting one of {init_strategies} or HFPsi instance.")
         initializer = \
             F90WfInitializer(
                 n_neutrons=n_neutrons, n_protons=n_protons, n_neutron_wf=n_neutron_wf, n_proton_wf=n_proton_wf,
@@ -202,6 +236,7 @@ class HFPsi(Observable):
         self.n_total_wf = n_neutron_wf + n_proton_wf
         self.n_neutron_wf = n_neutron_wf
         self.n_proton_wf  = n_proton_wf
+
 
         data, self.hfblocks, self.sp_energies = initializer()
         self.hfblockrange = 8*[None]
@@ -300,8 +335,18 @@ class HFPsi(Observable):
         # approach
 
     def allocate_matrix_representation(self):
+        """The matrix representation of an operator is a list of 8 square matrices,
+        corresponding to the 8 symmetry blocks of the mean-field state.
+        Its size is equal to the number of single particle wave functions in the symmetry
+        blocks.
+
+        Returns:
+            a list of 8 square matrices, corresponding to the 8 symmetry blocks of the mean-field.
+        """
         blocks = 8*[None]
         for ib in range(8):
             blockrange = self.hfblockrange[ib]
             n_spwfs = blockrange[1] - blockrange[0]
-            blocks[ib] = np.empty((n_spwfs, n_spwfs), dtype=np.float64)
+            blocks[ib] = np.empty((n_spwfs, n_spwfs), dtype=np.float64, order='F')
+
+        return blocks

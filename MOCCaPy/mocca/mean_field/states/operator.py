@@ -1,16 +1,84 @@
 import numpy as np
 
+from .hfpsi import HFPsi
+
+
 class Operator:
     def __init__(self, hfpsi):
         self.ket = hfpsi
-        self.matrix = hfpsi.matrix()
-        self.mesh = hfpsi.mesh
+        self.bra = hfpsi
+        self.matrix = hfpsi.allocate_matrix_representation()
 
     def compute_derivatives(self):
         pass
-    def local_factor(self):
+
+    def add_local_terms(self):
         pass
-    def scale(self):
+
+    def add_non_local_terms(self):
         pass
-    def matrix_representation(self):
-        self.
+
+    def compute_matrix_representation(self):
+        self.compute_derivatives()
+        self.add_local_terms()
+        self.add_non_local_terms()
+
+        # Assuming no symmetry
+        O_ket = self.O_ket
+        bra = self.bra
+        for ib in range(8):
+            block = self.matrix[ib]
+            for j in range(*self.bra.hfblockrange[ib]):
+                for i in range(*self.ket.hfblockrange[ib]):
+                    # TODO: use out= ? for performance
+                    block[i-self.ket.hfblockrange[ib][0],j-self.bra.hfblockrange[ib][0]] = (
+                        bra.data[:, 0, j] * O_ket.data[:, 0, i] +
+                        bra.data[:, 1, j] * O_ket.data[:, 1, i] +
+                        bra.data[:, 2, j] * O_ket.data[:, 2, i] +
+                        bra.data[:, 3, j] * O_ket.data[:, 3, i]
+                    ).sum(0)
+        return self.matrix
+
+
+class Overlap(Operator):
+    def __init__(self, hfpsi):
+        super().__init__(hfpsi)
+        self.O_ket = hfpsi
+
+
+class HamiltonianWoodsSaxon(Operator):
+    def __init__(self, hfpsi, hbm=20.73553000, V0=-50.0, r0=1.25, a=0.5):
+        super().__init__(hfpsi)
+        self.hbm = hbm
+        self.V0 = V0
+        self.ainv = 1/a
+        self.R = r0 * np.pow(hfpsi.n_neutrons + hfpsi.n_protrons, 1/3)
+
+    def compute_derivatives(self):
+        self.ket.differentiate('Laplacian')
+
+    def compute_local_terms(self):
+        self.O_ket = HFPsi.like(self.ket)
+
+        def VWoodsSaxon1D(r):
+            return self.V0 / (1. + np.exp(self.ainv * (r - self.R)))
+
+        def VWoodsSaxon2D(x,y):
+            return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x*x + y*y) - self.R)))
+
+        def VWoodsSaxon3D(x,y,z):
+            return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x*x + y*y + z*z) - self.R)))
+
+        dim = self.ket.mesh.dim
+        if dim == 3:
+            VWoodsSaxon = VWoodsSaxon3D
+        elif dim == 2:
+            VWoodsSaxon = VWoodsSaxon2D
+        else: # dim == 1:
+            VWoodsSaxon = VWoodsSaxon1D
+
+        Vr = self.ket.mesh.apply(VWoodsSaxon)
+        self.O_ket.data = Vr * self.O_ket.data
+        self.O_ket.data += self.hbm * self.ket.derivatives['Laplacian']
+
+

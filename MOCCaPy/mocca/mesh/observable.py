@@ -98,9 +98,12 @@ class Observable:
         # Grid-based access
         self.dataG = self.mesh.cast2grid(self.data)
         
-        self.derivatives = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
-            # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
-            # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
+        # Dictionaries where derivatives will be stored. Keys are `str` combining the characters
+        # 'x', 'y', 'z', e.g. 'xyz' corresponds to d^3/dxdydz, Accummulated derivatives, as e.g. the 'Laplacian'
+        # (d^2/dx^2 + d^2/dy^2 + d^2/dz^2) can be keys too.
+        # self.derivatives returns arrays with linear access
+        # self.derivativesG returns arrays with grid-based access
+        self.derivatives = {}
         self.derivativesG = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
         self._derivative_is_uptodate = {}
         
@@ -523,4 +526,7 @@ class Observable:
         """Integrate the observable over the simulation volume."""
         return self.mesh.integrate(self)
 
-
+    # def multiply(self, function):
+    #     """Apply `function` on the mesh and multiply with observable"""
+    #     V = self.mesh.apply_function(function)
+    #     self.data *= V.reshape((self.mesh.linear_size,1))

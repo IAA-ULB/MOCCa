@@ -1,0 +1,25 @@
+import numpy as np
+import pytest
+
+from mocca.mesh import LagrangeMesh
+from mocca.mean_field.states import Operator, HFPsi, Overlap
+
+def test_Overlap():
+
+    mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
+    nwn, nwp = 15, 15
+    osc_freq = (0.2, 0.2, 0.2)
+    hfpsi = HFPsi(n_neutrons=20, n_protons=20,
+                  n_proton_wf=nwp, n_neutron_wf=nwn,
+                  mesh=mesh, init=None,
+                  )
+    hfpsi.data[:,:] = 1.
+    hfpsi.hfblockrange = [(0,8),(8,8),
+                          (8,15),(15,15),
+                          (15,23),(23,23),
+                          (23,30),(30,30)
+                         ]
+    overlap = Overlap(hfpsi)
+    overlap.compute_matrix_representation()
+    for block in overlap.matrix:
+        assert np.all(block == 24.0)
