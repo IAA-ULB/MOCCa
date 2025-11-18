@@ -6,7 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T, test_linearity_FAM_coulomb
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
   use gmres 
   use timing
 
@@ -66,6 +66,8 @@ program run_FAM
 
   ! Derive all single-particle wavefunctions on the mesh
   if(store_derivatives) call deriveHF()
+  ! Explicitly construct the canonical basis
+  call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
 
   !--------------------------------------------------------------------------------
   ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
@@ -75,6 +77,7 @@ program run_FAM
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
 
+  ! 
   ! ATTENTION: this explicit diagonalisation can break the apparent agreement
   !            between proton and neutron matices since the LAPACK diagonalisation
   !            might perform different rotations of the spwfs dependent on small
@@ -125,6 +128,7 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! allocate the single-particle hamiltonians 
+  ! TODO: generalize to HFB Hamiltonian
   if(.not. allocated(dH_flat)) then
     allocate(dH_flat(nwt*nwt))
   endif
@@ -132,6 +136,9 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
+  !---------------------------------------------------------------------------------
+  ! create the FAM output file
+  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies

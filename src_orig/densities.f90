@@ -700,7 +700,7 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
-subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra)
+subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_minus)
     !----------------------------------------------------------------------------
     ! Calculate normal and anomalous densities through a double sum across spwfs
     ! by summing symmetric and antisymmetric parts.
@@ -715,14 +715,15 @@ subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra)
     !   Ra   : density vector containing the antisymmetric part of the densities
     !----------------------------------------------------------------------------
     complex(KIND=dp), intent(in)     :: rho(:,:), kappa_plus(:,:), kappa_minus(:,:)
-    type(DensityVector), intent(out) :: Rs, Ra
+    type(DensityVector), intent(out) :: Rs, Ra, R_pp_plus, R_pp_minus
 
     call start_timer(T_den_perturbed)
 
     ! building the ph densities
     Rs = densit_offdiag_ph_symmetric(rho)      ! symmetric ph densities
     Ra = densit_offdiag_ph_antisymmetric(rho)  ! antisymmetric ph densities
-
+    R_pp_plus = densit_offdiag_pp(kappa_plus)         ! pp densities for kappa_plus 
+    R_pp_minus= densit_offdiag_pp(kappa_minus)        ! pp densities for kappa_minus
     call stop_timer(T_den_perturbed)
 
     !call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
@@ -754,7 +755,7 @@ subroutine print_maxval(name, den_sym, den_asym)
   print *
 end subroutine print_maxval
 
-subroutine densit_offdiag_pp(kappa, R) 
+function densit_offdiag_pp(kappa) result(R)
     !----------------------------------------------------------------------------
     ! Calculate the pairing mean-field densities, based on arbitrary
     ! anomalous density matrix kappa.
@@ -768,7 +769,7 @@ subroutine densit_offdiag_pp(kappa, R)
     !              added. 
     !----------------------------------------------------------------------------
     COMPLEX(KIND=dp), intent(in)       :: kappa(:,:)
-    type(DensityVector), intent(inout) :: R
+    type(DensityVector)                :: R
 
     integer                            :: wave, wave2, i, B, it, N, si, N2, T
     INTEGER                            :: wave_global, wave2_global, der_index
@@ -776,6 +777,13 @@ subroutine densit_offdiag_pp(kappa, R)
     complex(KIND=dp), allocatable      :: kappa_cut(:,:)
     ! TODO: this for sure declares too much
 $SPWF_DECLARATION
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
 
     call start_timer(T_den_perturbed_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -820,7 +828,6 @@ $SPWF_DECLARATION
         enddo
         si = si + N + N2
       enddo
-
       ! with kappa_cut in hand, we can turn to the summation of the densities.
       si = 0
       do B=1,8,2  ! <------- this loop ranges over the LOCAL set of spwfs
@@ -842,7 +849,7 @@ $NTR          do wave2=N+1,N+N2
 $TR             if(wave.ne.wave2) weight = 2 * weight  
                 ! 
             do i=1,mv
-$HFBEXPRESSION
+$HFBEXPRESSION  
             enddo
           enddo
         enddo
@@ -851,8 +858,7 @@ $HFBEXPRESSION
     end select
 
     call stop_timer(T_den_perturbed_pp)
-    ! TODO: add stop timer
-end subroutine densit_offdiag_pp
+end function densit_offdiag_pp
 
 function densit_offdiag_ph_symmetric(rho) result(R)
     !------------------------------ ---------------------------------------------

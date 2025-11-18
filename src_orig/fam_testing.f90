@@ -41,8 +41,8 @@ contains
 
     !call test_potentials(X,Y,ifail)
     ! Attention: this testing routine has serious side effects on the state of the program.
-    !call test_densit_offdiag(ifail)
-    !print 1, 'DENSIT_OFFDIAG', ifail
+    call test_densit_offdiag(ifail)
+    print 1, 'DENSIT_OFFDIAG', ifail
 
     stop
   end subroutine run_FAM_tests
@@ -304,7 +304,6 @@ contains
     enddo
   end function kinetic_me
 
-
   subroutine test_densit_offdiag(ifail)
     !-------------------------------------------------------------------------------
     ! This routine verifies that the density calculation of function densit
@@ -316,19 +315,21 @@ contains
     !  ifail : 0 if succesful, if a deviation above 1e-10 has been detected
     !-------------------------------------------------------------------------------
     integer, intent(out)          :: ifail
-    type(DensityVector)           :: R_transformed
+    type(DensityVector)           :: R_transformed, R_pp_transformed
     complex(KIND=dp), allocatable :: rho_test(:,:), kappa_test(:,:)
     real(KIND=dp), allocatable    :: transfo(:,:)
     real(KIND=dp)                 :: maxdev(3,2)
     integer                       :: i, it
 
+    print *, '--------------- Test of densit_offdiag ---------------'
     if(pairingtype.eq.1) then
       allocate(rho_test(nwt,nwt))
       do i=1,nwt
             rho_test(i,i) = rho_can(i)
       enddo
     else
-      rho_test = rho_pairing
+      rho_test   = rho_pairing
+      kappa_test = kappa_pairing
     endif
 
     ! 1. Calculate the mean-field densities in the canonical basis
@@ -337,32 +338,43 @@ contains
     transfo = gen_unitary_transform()
     ! 3. Transform the matrices rho and kappa, as well as the HFPsi array
     !    with this transformation
-    call mixup_rhokappa(rho_test, kappa_test, transfo)
+    !call mixup_rhokappa(rho_test, kappa_test, transfo)
     ! 4. Resum the densities with the offdiagonal routine
-    R_transformed  = densit_offdiag_ph_symmetric(rho_test)
+    R_transformed    = densit_offdiag_ph_symmetric(rho_test)
+    R_pp_transformed = densit_offdiag_pp(kappa_test)
 
     ! 5. Compare
     ! TODO: make this more systematic!
     do it=1,2
-        maxdev(1,it) = maxval(abs(Density%D_I_I(:,it)   - R_transformed%D_I_I  (:,it)))
+        maxdev(1,it) = maxval(abs(Density%D_I_I(:,it)    - R_transformed%D_I_I  (:,it)))
+        maxdev(2,it) = maxval(abs(Density%DP_I_I(:,it)   - R_pp_transformed%DP_I_I  (:,it)))
+
+        !do i=1,nx
+        !  print ('(i4,6es15.7)'), i, Density%D_I_I(i,it), R_transformed%D_I_I(i,it), &
+        !  &                             Density%D_I_I(i,it) - R_transformed%D_I_I(i,it)
+        !  print ('(i4,6es15.7)'), i, Density%DP_I_I(i,it), R_pp_transformed%DP_I_I(i,it), &
+        !  &                             Density%DP_I_I(i,it) - R_pp_transformed%DP_I_I(i,it)
+        !enddo
         !maxdev(2,it) = maxval(abs(Density%D_Nm_Nm(:,it) - R_transformed%D_Nm_Nm(:,it)))
-!         maxdev(3,it) = maxval(abs(Density%C_I_Ns(:,:,:,it) - R_transformed%C_I_Ns(:,:,:,it)))
+        !maxdev(3,it) = maxval(abs(Density%C_I_Ns(:,:,:,it) - R_transformed%C_I_Ns(:,:,:,it)))
     enddo
 
     if(any(maxdev .gt. 1e-10)) then
         print *,'--------------------- Deviation in densities detected ---------------------'
         print *, 'Density    Neutrons      Protons'
-        print ('(a4,2es15.7)'), 'RHO',  maxdev(1,:)
-        print ('(a4,2es15.7)'), 'TAU',  maxdev(2,:)
-        print ('(a4,2es15.7)'), 'Jmn',  maxdev(3,:)
+        print ('(a4,2es15.7)'), 'RHO'       ,  maxdev(1,:)
+        print ('(a4,2es15.7)'), 'Tilde(Rho)',  maxdev(2,:)
+        !print ('(a4,2es15.7)'), 'Jmn',  maxdev(3,:)
         print *,'---------------------------------------------------------------------------'
         ifail = 1
     else
         ifail = 0
+        print *, 'Test passed successfully: no deviation detected.'
+        print *, '---------------------------------------------------------------------------'
     endif
 
     ! 6. Restore the spwfs to their original condition in order to not mess with other tests
-    call mixup_rhokappa(rho_test, kappa_test, transfo)
+    !call mixup_rhokappa(rho_test, kappa_test, transfo)
 
   end subroutine test_densit_offdiag
 !
@@ -1014,6 +1026,7 @@ contains
 
 
     type(DensityVector), intent(out):: dRs, dRa
+    type(DensityVector)             :: dR_pp_plus, dR_pp_minus ! temporary placeholders for this particular HF routine
     type(PotentialVector), intent(out):: dFs, dFa
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p
@@ -1044,7 +1057,7 @@ contains
     !call store_XY_hist()
 
     ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa)
+    call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)

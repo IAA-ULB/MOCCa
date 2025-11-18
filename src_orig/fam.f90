@@ -73,14 +73,16 @@ module fam
   complex(KIND=dp), allocatable :: dkappa_minus(:,:) ! 
   ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbation to the generalised density matrix
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
-  type(DensityVector)   :: dRs, dRa  ! perturbation to the densities on the mesh
+  type(DensityVector)   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
-  type(PotentialVector) :: dFs, dFa  ! perturbation to the potentials on the mesh
+  type(PotentialVector) :: dFs, dFa  ! perturbation to the particle-hole potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
-  ! TODO: add in explanation of the bizarre structure of dRs, dRa that is not
-  !       consistent between ph and pp densities/potentials.
+  !
+  type(DensityVector)   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
+  !                         |           '-> associated with kappa_minus
+  !                         '-> associated with kappa^plus 
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
@@ -348,7 +350,7 @@ module fam
     call store_XY_hist()
 
     ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa)
+    call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
@@ -482,27 +484,30 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
   
   end subroutine iniHFdensities
 
-  subroutine build_perturbed_densities(X, Y, dRs, dRa)
+  subroutine build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
     !
     ! Input:
     !    X, Y      : FAM amplitudes in HF basis
     ! Output:
-    !    dRs, dRa  : perturbed densities on the mesh
+    !    dRs, dRa  : density vectors containing the perturbed 
+    !                particle-hole densities on the mesh
+    !    dR_pp_plus, dR_pp_minus : density vectors containing the perturbed
+    !                               pairing densities on the mesh
     !
     ! TODO: generalize with Bogoliubov transforms 
     !---------------------------------------------------------------------------
     implicit none
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
-    type(DensityVector), intent(out) :: dRs, dRa
+    type(DensityVector), intent(out) :: dRs, dRa, dR_pp_plus, dR_pp_minus
 
     if (fam_verbose > 1) print *, "build_perturbed_densities :: "
 
     drho = X + transpose(Y)
     dkappa_plus  = 0  
     dkappa_minus = 0
-    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa)
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
   end subroutine build_perturbed_densities
 
