@@ -70,8 +70,8 @@ contains
     drho = X + transpose(Y)
 
     R       = densit(rho_can, kappa_pairing)
-    dRs     = densit_offdiag_symmetric(drho, dkappa)
-    dRa     = densit_offdiag_antisymmetric(drho,dkappa)
+    dRs     = densit_offdiag_ph_symmetric(drho)
+    dRa     = densit_offdiag_ph_antisymmetric(drho)
 
     F       = calcpotentials(R)
     call calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
@@ -339,7 +339,7 @@ contains
     !    with this transformation
     call mixup_rhokappa(rho_test, kappa_test, transfo)
     ! 4. Resum the densities with the offdiagonal routine
-    R_transformed  = densit_offdiag_symmetric(rho_test, kappa_test)
+    R_transformed  = densit_offdiag_ph_symmetric(rho_test)
 
     ! 5. Compare
     ! TODO: make this more systematic!

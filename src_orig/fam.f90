@@ -68,8 +68,9 @@ module fam
   ! Perturbed densities
   ! /!\: contains the perturbation relative to the mean-field, e.g.
   !         rho(omega) = rho_MF + drho(omega)
-  complex(KIND=dp), allocatable :: drho(:,:)   ! perturbation to the normal density matrix
-  complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbation to the pairing density matrix
+  complex(KIND=dp), allocatable :: drho(:,:)         ! perturbation to the normal density matrix
+  complex(KIND=dp), allocatable :: dkappa_plus(:,:)  ! perturbations to the pairing density matrix
+  complex(KIND=dp), allocatable :: dkappa_minus(:,:) ! 
   ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbation to the generalised density matrix
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
   type(DensityVector)   :: dRs, dRa  ! perturbation to the densities on the mesh
@@ -78,6 +79,8 @@ module fam
   type(PotentialVector) :: dFs, dFa  ! perturbation to the potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
+  ! TODO: add in explanation of the bizarre structure of dRs, dRa that is not
+  !       consistent between ph and pp densities/potentials.
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
@@ -87,6 +90,8 @@ module fam
   !                                   | | '-> 1: ph block, 2: hp block
   !                                   | '-> sp index : hole
   !                                   '-> sp index : particle
+  !                                   WR: is this object sufficiently general to keep around? 
+  !                                       I'm not sure what it would become in a HFB context; the 20-02 parts?
   complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of sp hamil
   !                                             '-> nwt x nwt
   !-----------------------------------------------------------------------------
@@ -95,6 +100,8 @@ module fam
   !                                  | | '-> 1: ph block, 2: hp block 
   !                                  | '-> sp index : hole
   !                                  '-> sp index : particle
+  !                                   WR: is this object sufficiently general to keep around? 
+  !                                       I'm not sure what it would become in a HFB context; the 20-02 parts?
   integer :: l, m ! anuglar momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charges for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charges for protons in units of e
@@ -131,9 +138,7 @@ module fam
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
 
-
   contains
-  
 
   subroutine inifam(omega, DensUnper, PotUnper)
     implicit none
@@ -207,7 +212,7 @@ module fam
     ! initialise the perturbed densities
     if(.not.allocated(drho)) then 
       allocate(drho(nwt,nwt))
-      allocate(dkappa(nwt,nwt))
+      allocate(dkappa_plus(nwt,nwt), dkappa_minus(nwt,nwt))
       ! allocate(dR(2*nwt,2*nwt))
     endif
   
@@ -468,7 +473,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     allocate(rho_pairing(nwt,nwt))
     allocate(kappa_pairing(nwt,nwt))
   
-    rho_pairing = 0
+    rho_pairing   = 0
     kappa_pairing = 0
     
     do i=1,nwt
@@ -480,6 +485,13 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
   subroutine build_perturbed_densities(X, Y, dRs, dRa)
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
+    !
+    ! Input:
+    !    X, Y      : FAM amplitudes in HF basis
+    ! Output:
+    !    dRs, dRa  : perturbed densities on the mesh
+    !
+    ! TODO: generalize with Bogoliubov transforms 
     !---------------------------------------------------------------------------
     implicit none
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
@@ -488,12 +500,11 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     if (fam_verbose > 1) print *, "build_perturbed_densities :: "
 
     drho = X + transpose(Y)
-    dkappa = 0
-
-    call densit_offdiag(drho, dkappa, dRs, dRa)
+    dkappa_plus  = 0  
+    dkappa_minus = 0
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa)
 
   end subroutine build_perturbed_densities
-
 
   subroutine build_dH_explicit(R, dRs, dRa)
     !---------------------------------------------------------------------------
