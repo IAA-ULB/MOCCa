@@ -204,10 +204,70 @@ class HFPsi(Observable):
         self.n_proton_wf  = n_proton_wf
 
         data, self.hfblocks, self.sp_energies = initializer()
+        self.hfblockrange = 8*[None]
+
+        istart = 0
+        istop = self.hfblocks[0]
+        for i in range(7):
+            self.hfblockrange[i] = (istart, istop)
+            istart = istop
+            istop += self.hfblocks[i+1]
+        self.hfblockrange[7] = (istart, self.n_total_wf)
 
         # TODO: symmetries
-        # symmtry = np.empty(4 * self.n_total_wf,
-        super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=1)
+        # allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
+        symmetry = np.empty((4 * self.n_total_wf, mesh.dim), dtype=np.int32)
+
+        # do i=1, HFBlocks(1)
+        #     sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        #     sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1
+        #     sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        #     sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+        # enddo
+        iblock = 0
+        for i_spwf in range(*self.hfblockrange[iblock]):
+            symmetry[4*i_spwf:4*i_spwf + 4, 0] = ( 1,-1,-1, 1 ) # sx
+            symmetry[4*i_spwf:4*i_spwf + 4, 1] = ( 1,-1, 1,-1 ) # sy
+            symmetry[4*i_spwf:4*i_spwf + 4, 2] = ( 1, 1,-1,-1 ) # sz
+
+        # do i=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
+        #     sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        #     sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1
+        #     sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        #     sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+        # enddo
+        iblock += 2
+        for i_spwf in range(*self.hfblockrange[iblock]):
+            symmetry[4*i_spwf:4*i_spwf + 4, 0] = ( 1,-1,-1, 1 ) # sx
+            symmetry[4*i_spwf:4*i_spwf + 4, 1] = ( 1,-1, 1,-1 ) # sy
+            symmetry[4*i_spwf:4*i_spwf + 4, 2] = (-1,-1, 1, 1 ) # sz
+
+        # do i=HFBlocks(1) + HFBlocks(3)+1,HFBlocks(1) + HFBlocks(3) +HFBlocks(5)
+        #     sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        #     sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1
+        #     sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        #     sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+        # enddo
+        iblock += 2
+        for i_spwf in range(*self.hfblockrange[iblock]):
+            symmetry[4*i_spwf:4*i_spwf + 4, 0] = ( 1,-1,-1, 1 ) # sx
+            symmetry[4*i_spwf:4*i_spwf + 4, 1] = ( 1,-1, 1,-1 ) # sy
+            symmetry[4*i_spwf:4*i_spwf + 4, 2] = ( 1, 1,-1,-1 ) # sz
+
+        # do i=HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + 1,                      &
+        # &       HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + HFBLocks(7)
+        #     sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        #     sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1
+        #     sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        #     sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+        # enddo
+        iblock += 2
+        for i_spwf in range(*self.hfblockrange[iblock]):
+            symmetry[4*i_spwf:4*i_spwf + 4, 0] = ( 1,-1,-1, 1 ) # sx
+            symmetry[4*i_spwf:4*i_spwf + 4, 1] = ( 1,-1, 1,-1 ) # sy
+            symmetry[4*i_spwf:4*i_spwf + 4, 2] = (-1,-1, 1, 1 ) # sz
+
+        super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=symmetry)
 
 
     def ilc(self, i4, i_wf):
