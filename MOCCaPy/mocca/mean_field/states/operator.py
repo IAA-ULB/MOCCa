@@ -11,6 +11,7 @@ class Operator:
         bra: bra object based on hfpsi
         O_ket: the result of applying the operator to ket. this must be created in one of the methods
             compute_derivatives, add_local_terms, add_non_local_terms.
+        mesh: mesh on which hfpsi is discretised.
     Methods:
         compute_derivatives, add_local_terms, add_non_local_terms: these methods can be overridden to
             define the action of the operator to ket resulting in an observable O_ket. In principle,
@@ -23,6 +24,7 @@ class Operator:
         """Initialize the operator with a wave function `hfpsi` to operate on."""
         self.ket = hfpsi
         self.bra = hfpsi
+        self.mesh = hfpsi.mesh # convenient
         # Allocate space for a matrix represention of this operator relative to hfpsi.
         # It has the same structure as hfblocks
         self.matrix = hfpsi.allocate_matrix_representation()
@@ -92,7 +94,9 @@ class HamiltonianWoodsSaxon(Operator):
         operator.
 
         Args:
-            hbm: prefactor of the kinetic energy operator.
+            hbm: prefactor of the kinetic energy operator. A single value considers the masses of neutrons
+                and protons to be identical, a tuple of 2 values ($\hbar^2/2m_n$, $\hbar^2/2m_p$) considers
+                the masses to differ.
             V0, r0, a:  parameters of the Woods-Saxon potential
                 (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
         """
@@ -104,7 +108,7 @@ class HamiltonianWoodsSaxon(Operator):
 
     def compute_derivatives(self):
         """Compute the derivatives needed for the kinetic energy operator."""
-        axes = 'Laplacian' if self.ket.mesh.dim >= 2 else \
+        axes = 'Laplacian' if self.mesh.dim >= 2 else \
                'xx'
         self.ket.differentiate(axes)
 
@@ -123,7 +127,7 @@ class HamiltonianWoodsSaxon(Operator):
         def VWoodsSaxon3D(x,y,z):
             return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x*x + y*y + z*z) - self.R)))
 
-        dim = self.ket.mesh.dim
+        dim = self.mesh.dim
         if dim == 3:
             VWoodsSaxon = VWoodsSaxon3D
         elif dim == 2:
@@ -131,10 +135,22 @@ class HamiltonianWoodsSaxon(Operator):
         else: # dim == 1:
             VWoodsSaxon = VWoodsSaxon1D
 
-        Vr = self.ket.mesh.apply(VWoodsSaxon)
+        app
+        Vr = self.mesh.apply(VWoodsSaxon)
         self.O_ket.data = Vr * self.O_ket.data
-        axes = 'Laplacian' if self.ket.mesh.dim >= 2 else \
-               'xx'
-        self.O_ket.data += self.hbm * self.ket.derivatives[axes]
 
+        nabla = 'Laplacian' if self.mesh.dim >= 2 else \
+                'xx'
+        if isinstance(self.hbm, float):
+            # Neutrons and protons are treated equally (mass)
+            self.O_ket.data += self.hbm * self.ket.derivatives[nabla]
+        else:
+            # Neutrons and protons are treated differently (mass)
+            hbm_n = self.hbm[0]
+            hbm_p = self.hbm[1]
+            # Blocks[0:4] are for neutrons
+            # Blocks[4:8] are for protons
+            n = self.O_ket.hfblockrange[3][1] # end of neutron range in the spwfs and begin of proton range
+            self.O_ket.data[:,:,:n] += hbm_n * self.ket.derivatives[nabla][:,:,:n]
+            self.O_ket.data[:,:,n:] += hbm_p * self.ket.derivatives[nabla][:,:,n:]
 
