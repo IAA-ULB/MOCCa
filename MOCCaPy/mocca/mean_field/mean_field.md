@@ -85,10 +85,12 @@ $$\langle\psi_i|O|\psi_j\rangle=\sum_{r_{ijk}}
 - block\[7]: protons with negative parity and signature $-\mathrm{i}$
 This is implemented in `hfblocks[8]` containing the number of single particle wave functions in each block, and `hfblocksrange[8]` containing a tuple giving the range of single particle wave function in the block, e.g. `HFPSi[:, :, hfblockrange[4][0]:hfblockrange[4][1]]` is the 4-th block with protons with positive parity and signature $+\mathrm{i}$. 
 #### implementation
-`Class Operator` (`mocca/mean_field/states/operator.py`) serves as a base class for operators and provides a standardized way to implement the action of an arbitrary operator and the computation of its matrix representation. Derived classes for the overlap operator and a Hamiltionian with a Woods-Saxon potential are provided too.
+`Class Operator` (`mocca/mean_field/states/operator.py`) serves as a base class for operators and provides a standardized way to implement the action of an arbitrary operator and the computation of its matrix representation. Derived classes for the overlap operator (`Overlap`) and a Hamiltionian with a Woods-Saxon (`HamiltionianWoodsSaxon`) potential are provided too. In addition, a `KineticEnergyOperator` is provided from which Hamiltonian operators can derive (e.g. `HamiltionianWoodsSaxon2`).
 ## Task 2.
 >[!Tip] Task 2.
 >Schrijf een routine die een "imaginary time evolution" stap doet; Eq. 63 in  [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf). 
+
+
 ## Task 3
 >[!Tip] Task 3.
 Schrijf een orthornomalisatieroutine die een set golffuncties neemt en die met Gram-Schmidt orthonormaliseert  (zie subroutine GramSchmidt in [wavefunctions.f90](../../../src/wavefunctions.f90)); het is belangrijk dat deze in energie-volgorde gebeurt.

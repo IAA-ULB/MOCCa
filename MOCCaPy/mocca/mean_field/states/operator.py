@@ -34,6 +34,7 @@ class Operator:
         # Allocate space for a matrix represention of this operator relative to hfpsi.
         # It has the same structure as hfblocks
         self.matrix = hfpsi.allocate_matrix_representation()
+        self.hfblockrange = hfpsi.hfblockrange
         self.derivatives = [] if derivatives is None else \
                            [derivatives] if isinstance(derivatives, str) else \
                             derivatives
@@ -69,6 +70,15 @@ class Operator:
         """Compute all derivatives needed by the operator."""
         self.ket.differentiate(self.derivatives)
 
+    def compute_action(self):
+        """Compute the action of the operator on the wave function."""
+        self.compute_derivatives()
+        self.apply_base_operator()
+        self.add_local_terms()
+        self.add_non_local_terms()
+
+        return self.O_ket
+
     def compute_matrix_representation(self):
         """Compute the matrix representation of the operator wrt `self.ket`.
 
@@ -76,30 +86,32 @@ class Operator:
             AttributeError: if self.O_ket is not created in one of the override methods.
 
         """
-        self.compute_derivatives()
-        self.apply_base_operator()
-        self.add_local_terms()
-        self.add_non_local_terms()
 
         try:
-            O_ket = self.O_ket
+            O_ket = self.compute_action()
         except AttributeError:
             raise AttributeError(f"Attribute 'self.O_ket' is missing in class {self.__class__.__name__}. \n"
                                  f"One of the derived methods compute_derivatives, add_local_terms, "
                                  f"add_non_local_terms must define `self.O_ket`, where the action of "
                                  f"the operator on `self.ket` is stored.")
-        bra = self.bra
+        bra_data   = self.bra.data.reshape((self.mesh.linear_size, 4, self.bra.n_total_wf), order='F')
+        O_ket_data =    O_ket.data.reshape((self.mesh.linear_size, 4,    O_ket.n_total_wf), order='F')
         for ib in range(8):
             block = self.matrix[ib]
-            for j in range(*self.bra.hfblockrange[ib]):
-                for i in range(*self.ket.hfblockrange[ib]):
-                    # TODO: use out= ? for performance
-                    block[i-self.ket.hfblockrange[ib][0],j-self.bra.hfblockrange[ib][0]] = (
-                        bra.data[:,   4*j] * O_ket.data[:,   4*i] +
-                        bra.data[:, 1+4*j] * O_ket.data[:, 1+4*i] +
-                        bra.data[:, 2+4*j] * O_ket.data[:, 2+4*i] +
-                        bra.data[:, 3+4*j] * O_ket.data[:, 3+4*i]
-                    ).sum(0)
+            # Alternative formulation
+            blockstart, blockstop =  self.hfblockrange[ib][0], self.hfblockrange[ib][1]
+            bra_block   =   bra_data[:,:,blockstart:blockstop]
+            O_ket_block = O_ket_data[:,:,blockstart:blockstop]
+            np.einsum("kli,klj", bra_block, O_ket_block, out=block)
+            # for j in range(*self.bra.hfblockrange[ib]):
+            #     for i in range(*self.ket.hfblockrange[ib]):
+            #         # TODO: use out= ? for performance
+            #         block[i-self.ket.hfblockrange[ib][0],j-self.bra.hfblockrange[ib][0]] = (
+            #             bra.data[:,   4*j] * O_ket.data[:,   4*i] +
+            #             bra.data[:, 1+4*j] * O_ket.data[:, 1+4*i] +
+            #             bra.data[:, 2+4*j] * O_ket.data[:, 2+4*i] +
+            #             bra.data[:, 3+4*j] * O_ket.data[:, 3+4*i]
+            #         ).sum(0)
         return self.matrix
 
 
