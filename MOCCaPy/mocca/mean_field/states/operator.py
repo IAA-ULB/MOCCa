@@ -125,23 +125,13 @@ class Operator:
 
         """
         self.compute_action()
-        if not hasattr(self, 'O_ket'):
-            raise AttributeError(f"Attribute 'self.O_ket' is missing in class {self.__class__.__name__}. \n"
-                                 f"One of the derived methods compute_derivatives, add_local_terms, "
-                                 f"add_non_local_terms must define `self.O_ket`, where the action of "
-                                 f"the operator on `self.ket` is stored.")
 
         if not hasattr(self, 'matrix'):
             self.diagonal = np.empty(self.ket.n_total_wf, dtype=np.float64)
 
         bra_data   = self.  bra.data.reshape((self.mesh.linear_size, 4, self.bra  .n_total_wf), order='F')
         O_ket_data = self.O_ket.data.reshape((self.mesh.linear_size, 4, self.O_ket.n_total_wf), order='F')
-        for ib in range(8):
-            # Alternative formulation
-            blockstart, blockstop =  self.hfblockrange[ib][0], self.hfblockrange[ib][1]
-            bra_block   =   bra_data[:,:,blockstart:blockstop]
-            O_ket_block = O_ket_data[:,:,blockstart:blockstop]
-            np.einsum("klj,klj->j", bra_block, O_ket_block, out=self.diagonal) * self.mesh.dv
+        np.einsum("klj,klj->j", bra_data, O_ket_data, out=self.diagonal) * self.mesh.dv
         return self.diagonal
 
 

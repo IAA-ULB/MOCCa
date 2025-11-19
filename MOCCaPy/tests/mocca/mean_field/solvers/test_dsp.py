@@ -23,4 +23,7 @@ def test_dsp():
     h = states.HamiltonianWoodsSaxon2(hfpsi)
     dsp = DSP(h, alpha=.001)
     dsp.step()
+    dsp.mu = 0.001
+    dsp.step()
+    dsp.step()
 

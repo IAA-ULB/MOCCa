@@ -162,6 +162,9 @@ mu_ket_prev = muket_nextprev
 ## Task 3
 >[!Tip] Task 3.
 Schrijf een orthornomalisatieroutine die een set golffuncties neemt en die met Gram-Schmidt orthonormaliseert  (zie subroutine GramSchmidt in [wavefunctions.f90](../../../src/wavefunctions.f90)); het is belangrijk dat deze in energie-volgorde gebeurt.
+
+[Gramm-Schmidt process](https://en.wikipedia.org/wiki/Gram–Schmidt_process)
+
 ## Task 4
 >[!Tip] Task 4.
 Schrijf manieren om
