@@ -64,13 +64,14 @@ program run_FAM
   ! Derive all single-particle wavefunctions on the mesh
   call allocate_memory_derivatives(PairingType)
   if(store_derivatives) call deriveHF()
-  ! Solve the pairing problem and explicitly construct the canonical basis
+  ! Solve the pairing problem
   call SolvePairing(pairingscheme, ifail)
-  call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
-  ! construct the full HF densities rather than the merely the vector rho_can
+  ! NOTE: we DO NOT construct the canonical basis here since we want to save on memory
+
+  ! if doing HF, we construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
   ! Mean-field densities and potentials
-  Density     = densit(rho_can, kappa_pairing)
+  Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
 
@@ -91,8 +92,7 @@ program run_FAM
     if(store_derivatives) call deriveHF() ! and update derivatives
     ! diagonalisation done; now recalculate other quantities
     call SolvePairing(pairingscheme, ifail)
-    call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
-    Density     = densit(rho_can, kappa_pairing)
+    Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
     Potentials  = calcPotentials(Density)
   endif 
 
@@ -100,17 +100,16 @@ program run_FAM
   dispersions = calculate_spwf_dispersions(potentials)
   ! ... further update mean-field quantities and print a full summary
   call update_spwf_properties_HF () !
-  if(PairingType.eq.2) call update_spwf_properties_CAN()
   print_adv_spwf_properties = .true.
   call setBelyaevProcedure()
-  call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
+  ! Calculate the energy ... but do not include expensive contributions that have to be calculated in the canonical basis - which is not constructed in FAM runs.
+  call CalcEnergy(Density,Potentials,pairingtype.ne.2) 
   call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
   
   !---------------------------------------------------------------------------------
   ! Evaluate the energy weighted sum rule
   ewsr = calc_EWSR()
-
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
@@ -124,8 +123,6 @@ program run_FAM
     call init_perturbed_denfile(DENFILE)
   endif
 
-
-
   !---------------------------------------------------------------------------------
   ! allocate the single-particle hamiltonians 
   ! TODO: generalize to HFB Hamiltonian
@@ -136,9 +133,7 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
-
   !call run_FAM_tests(X,Y)
-
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 

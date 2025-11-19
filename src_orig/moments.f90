@@ -518,14 +518,14 @@ $NTR    Root_mag%Calculate   => Calculate_electric
 $NTR    Root_mag%PrintMoment => PrintMoment_electric
 $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
 
-
+#if($FAM == 0)
     Root_divJ%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
     Root_divJ%Impart=.false.
     Root_divJ%ConstraintType=0
     Root_divJ%Calculate   => Calculate_multipole_divJ
     Root_divJ%PrintMoment => PrintMoment_divJ
     nullify(Root_divJ%Prev) ;  nullify(Root_divJ%Next)
-    
+#endif
     !---------------------------------------------------------------------------
     ! Calculating all the spherical harmonics
     call generate_spherical_harmonics(maxmoment,nx,ny,nz,meshx,meshy,meshz,           & 
@@ -628,7 +628,7 @@ $NTR      enddo
 $NTR    enddo
     !---------------------------------------------------------------------------
     ! c) The moments of divJ
-#if(PASTA == 0)
+#if(PASTA == 0 && $FAM == 0)
     nullify(Current)      ;  Current=>Root_divJ
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
@@ -656,7 +656,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Appending special "multipole moments" to the linked list
     ! 1. we append the radius squared to the ordinary list...
-#if(PASTA == 0)
+#if(PASTA == 0 && $FAM == 0)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -1044,6 +1044,7 @@ $NTR        call Current%Calculate(Current,R)
 $NTR    enddo
     !---------------------------------------------------------------------------
     ! Calculate the multipole moments of divJ
+#if($FAM == 0)
     nullify(Current) ;  Current => Root_divJ
     call Current%Calculate(Current,R)           !norm of div J
     do while(associated(Current%Next))
@@ -1051,6 +1052,7 @@ $NTR    enddo
         if(save_history) Current%history = Current%value
        call Current%Calculate(Current, R)
     enddo
+#endif 
 
     call CalcQuadrupoleAlt()
 
@@ -2165,6 +2167,7 @@ $NTR    print 102
 $NTR endif
     !---------------------------------------------------------------------------
     ! c) divJ multipole moments
+#if($FAM == 0)
     if(maxmoment_divJ .ne.0) then
       print 104
       print 10, Ax
@@ -2182,6 +2185,7 @@ $NTR endif
       nullify(Current)
       print 102
     endif
+#endif
     return
   end subroutine PrintAllMoments
 

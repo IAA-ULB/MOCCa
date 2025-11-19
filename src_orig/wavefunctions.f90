@@ -406,11 +406,15 @@ contains
     allocate(HFddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
 $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
 
+#if($FAM == 0) 
+    ! We do not need the canonical basis when doing FAM calculations
+    ! ... so we save memory.
     if(ptype.eq.2) then
       allocate(candPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
       allocate(canddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
   $N3 allocate(candddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     endif
+#endif
   end subroutine allocate_memory_derivatives
 
   subroutine loadbalance(blocks_global,blocks_local,spwf_map,        &

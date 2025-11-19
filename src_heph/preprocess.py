@@ -77,7 +77,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='derivatives.f90'):
         ProcessDerivatives(fname, src, target, so)
     if(fname=='wavefunctions.f90'):
-        ProcessWavefunctions(fname, src, target, so)             
+        ProcessWavefunctions(fname, src, target, so, fam_active)             
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='tantalus.f90'):

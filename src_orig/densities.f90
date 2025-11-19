@@ -726,8 +726,8 @@ subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_
     ! building the ph densities
     Rs = densit_offdiag_ph_symmetric(rho)      ! symmetric ph densities
     Ra = densit_offdiag_ph_antisymmetric(rho)  ! antisymmetric ph densities
-    R_pp_plus = densit_offdiag_pp(kappa_plus)         ! pp densities for kappa_plus 
-    R_pp_minus= densit_offdiag_pp(kappa_minus)        ! pp densities for kappa_minus
+    R_pp_plus = densit_offdiag_pp(kappa_plus)  ! pp densities for kappa_plus 
+    R_pp_minus= densit_offdiag_pp(kappa_minus) ! pp densities for kappa_minus
     call stop_timer(T_den_perturbed)
 
     !call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
@@ -741,6 +741,39 @@ subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_
     !call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
 
 end subroutine densit_offdiag
+
+function densit_offdiag_restricted(rho, kappa) result(R)
+  !----------------------------------------------------------------------------
+  ! Calculate the mean-field densities for the restricted set of density
+  ! matrices, i.e., diagonal rho and kappa in the canonical basis.
+  !
+  ! TODO: document
+  !
+  ! Input :
+  !   rho      : real matrix
+  !   kappa    : real matrix
+  !
+  ! Output:
+  !   R        : densityvector, values for the ph and pp densities
+  !----------------------------------------------------------------------------
+    
+  real(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
+  complex(KIND=dp), allocatable :: rho_temp(:,:), kappa_plus_temp(:,:), kappa_minus_temp(:,:)
+  type(DensityVector)           :: R
+  type(DensityVector)           :: Rs, Ra, R_pp_plus, R_pp_minus
+
+  allocate(rho_temp(nwt,nwt), kappa_plus_temp(nwt,nwt), kappa_minus_temp(nwt,nwt))
+  rho_temp         = rho 
+
+  kappa_plus_temp  = kappa
+  kappa_minus_temp = 0.0d0
+
+  print *, 'RHo', rho_temp(1,1), rho_can(1)
+  call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
+  ! Combine the correct densities
+  R = Rs + R_pp_plus
+
+end function densit_offdiag_restricted
 
 subroutine print_maxval(name, den_sym, den_asym)
   !
@@ -788,6 +821,11 @@ $INITIALIZATION
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Zero the current density
 $ZEROING
+
+
+    ! Ensure allocation of charge density to avoid trouble when combining with
+    !  other density vectors
+    allocate(R%chargedensity(nx,ny,nz)) ; R%chargedensity = 0.0d0
 
     call start_timer(T_den_perturbed_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

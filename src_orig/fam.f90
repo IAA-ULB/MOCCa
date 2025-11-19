@@ -424,7 +424,9 @@ module fam
       e_h = spenergies(h) 
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved
+            ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+            !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
+$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
 $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
@@ -466,7 +468,6 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
 
   end subroutine mix_XY_linear
 
-
   subroutine iniHFdensities()
     !---------------------------------------------------------------------------
     ! initialse the rho and kappa matrices in HF basis as (nwt, nwt) matrices
@@ -482,7 +483,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     kappa_pairing = 0
     
     do i=1,nwt
-      rho_pairing(i,i) = rho_can(i)
+      rho_pairing(i,i) = rho_hf(i)
     enddo
   
   end subroutine iniHFdensities
@@ -875,7 +876,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)
+$TR         occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
 $NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
@@ -914,7 +915,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)
+$TR         occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
 $NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)

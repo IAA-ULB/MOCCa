@@ -708,7 +708,7 @@ end function multiply_potentialvector
       Kinetic = CompKinetic_density(Rin)
     endif
 #else 
-    Kinetic = CompKinetic_spwfs()
+    Kinetic = CompKinetic_spwfs() 
 #endif
 
     ! COM correction
@@ -932,9 +932,13 @@ $PRINT
 #if(USE_MPI>0)
     integer          :: mpi_err
 #endif
+#if($FAM==1)
+    integer          :: wave_2, B, N, si
+#endif 
 
-    ! Kinetic Energy
     Kinetic = 0.0_dp
+#if($FAM == 0)
+    ! Kinetic Energy
     do wave=1,nwt_local              ! local spwf index
         wave_global = spwf_map(wave) ! global spwf index
 
@@ -953,6 +957,36 @@ $PRINT
         enddo
         Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
     enddo
+#else 
+    print *, 'NONDIAGONAL SUM'
+    ! Nondiagonal sum for FAM
+    si = 0
+    do B=1,8
+      N = HFBLocks(B); if(N.eq.0) cycle 
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it = 1
+      if(B.ge.5) it = 2
+
+      do wave=si+1,si+N 
+        do wave_2=si+1,si+N
+          Inproduct = 0.0_dp
+          do k=1,4
+            do i=1,mv
+              Inproduct = Inproduct + HFPsi(i,k,wave_2) *  &
+              &  ( HFddPsi(i,1,k,wave) + &
+              &    HFddPsi(i,4,k,wave) + &
+              &    HFddPsi(i,6,k,wave))
+            enddo
+          enddo          
+          Kinetic(it)= Kinetic(it) + rho_pairing(wave, wave_2)*Inproduct
+        enddo
+      enddo
+      si = si + N
+    enddo
+$TR  Kinetic = 2 * Kinetic ! Time-reversal factor 2
+#endif
+
 #if(USE_MPI > 0)
     ! Sum the contributions across all MPI ranks
     call MPI_ALLREDUCE(MPI_IN_PLACE, Kinetic, 2, MPI_REAL8, MPI_SUM,           &
@@ -2264,18 +2298,28 @@ $PAIRINGACTION
     use wavefunctions
     use moments
 
-    integer       :: wave
+    integer       :: wave, wave2
     real(KIND=dp) :: spwfenergy, e_rear
 
     ! Start by summing the single-particle energies
     spwfenergy = 0
-    do wave=1,nwt
-        if(pairingtype.lt.2) then
-          spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
-        else
-          spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
-        endif
-    enddo
+    if(pairingtype.lt.2) then
+      do wave=1,nwt
+        spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
+      enddo
+    elseif(allocated(canenergies)) then
+      do wave=1,nwt
+        spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
+      enddo
+    else 
+      ! Safeguard case
+      do wave=1,nwt 
+        do wave2=1,nwt 
+          spwfenergy = spwfenergy + rho_pairing(wave,wave2) * sphamil(wave2,wave)
+        enddo
+      enddo
+$TR   spwfenergy = 2 * spwfenergy      
+    endif
     !
     spwfenergy = 0.5 * spwfenergy
 
