@@ -283,6 +283,7 @@ program run_FAM
     call append_fam_file_new(S_decomp, num_iter, famfile)
 
     if(xyfile .ne. '') then
+      if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
       call append_xy_file(xyfile)
     endif
 
