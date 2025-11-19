@@ -73,6 +73,19 @@ $$\langle\psi_i|O|\psi_j\rangle=\sum_{r_{ijk}}
 +\psi_j(\vec{r}_{ijk},2)O\psi_i(\vec{r}_{ijk},2) \\
 +\psi_j(\vec{r}_{ijk},3)O\psi_i(\vec{r}_{ijk},3) \\
 \end{bmatrix}dv$$
+### Block structure of `HFPsi`
+`HFPsi` is a large array with shape `(mesh.linear_size, 4,n_total_wf)`. The single particle wave function are ordered in 8 blocks (originating roughly because we can exploit two spatial symmetries and one non-spatial symmetrie, the proton-neutron symmetry):
+- block\[0]: neutrons with positive parity and signature $+\mathrm{i}$
+- block\[1]: neutrons with positive parity and signature $-\mathrm{i}$
+- block\[2]: neutrons with negative parity and signature $+\mathrm{i}$
+- block\[3]: neutrons with negative parity and signature $-\mathrm{i}$
+- block\[4]: protons with positive parity and signature $+\mathrm{i}$
+- block\[5]: protons with positive parity and signature $-\mathrm{i}$
+- block\[6]: protons with negative parity and signature $+\mathrm{i}$
+- block\[7]: protons with negative parity and signature $-\mathrm{i}$
+This is implemented in `hfblocks[8]` containing the number of single particle wave functions in each block, and `hfblocksrange[8]` containing a tuple giving the range of single particle wave function in the block, e.g. `HFPSi[:, :, hfblockrange[4][0]:hfblockrange[4][1]]` is the 4-th block with protons with positive parity and signature $+\mathrm{i}$. 
+#### implementation
+`Class Operator` (`mocca/mean_field/states/operator.py`) serves as a base class for operators and provides a standardized way to implement the action of an arbitrary operator and the computation of its matrix representation. 
 ## Task 2.
 >[!Tip] Task 2.
 >Schrijf een routine die een "imaginary time evolution" stap doet; Eq. 63 in  [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf). 
