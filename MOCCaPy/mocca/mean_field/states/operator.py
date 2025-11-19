@@ -33,7 +33,6 @@ class Operator:
         self.mesh = hfpsi.mesh # convenient
         # Allocate space for a matrix represention of this operator relative to hfpsi.
         # It has the same structure as hfblocks
-        self.matrix = hfpsi.allocate_matrix_representation()
         self.hfblockrange = hfpsi.hfblockrange
         self.derivatives = [] if derivatives is None else \
                            [derivatives] if isinstance(derivatives, str) else \
@@ -71,11 +70,21 @@ class Operator:
         self.ket.differentiate(self.derivatives)
 
     def compute_action(self):
-        """Compute the action of the operator on the wave function."""
+        """Compute the action of the operator on the wave function.
+
+        Returns:
+            self.O_ket: O|ket>
+        """
         self.compute_derivatives()
         self.apply_base_operator()
         self.add_local_terms()
         self.add_non_local_terms()
+
+        if not hasattr(self, 'O_ket'):
+            raise AttributeError(
+                f"Calling {self.__class__.__name__}.compute_action() failed to create "
+                f"Attribute 'self.O_ket'. This is probably an implementation error."
+            )
 
         return self.O_ket
 
@@ -83,36 +92,57 @@ class Operator:
         """Compute the matrix representation of the operator wrt `self.ket`.
 
         Raises:
-            AttributeError: if self.O_ket is not created in one of the override methods.
-
+            AttributeError: if self.O_ket is not created in one of the override methods or if they
+                were not called.
         """
-
-        try:
-            O_ket = self.compute_action()
-        except AttributeError:
+        self.compute_action()
+        if not hasattr(self, 'O_ket'):
             raise AttributeError(f"Attribute 'self.O_ket' is missing in class {self.__class__.__name__}. \n"
                                  f"One of the derived methods compute_derivatives, add_local_terms, "
                                  f"add_non_local_terms must define `self.O_ket`, where the action of "
                                  f"the operator on `self.ket` is stored.")
-        bra_data   = self.bra.data.reshape((self.mesh.linear_size, 4, self.bra.n_total_wf), order='F')
-        O_ket_data =    O_ket.data.reshape((self.mesh.linear_size, 4,    O_ket.n_total_wf), order='F')
+
+        if not hasattr(self, 'matrix'):
+            self.matrix = self.ket.allocate_matrix_representation()
+
+        bra_data   = self.  bra.data.reshape((self.mesh.linear_size, 4, self.  bra.n_total_wf), order='F')
+        O_ket_data = self.O_ket.data.reshape((self.mesh.linear_size, 4, self.O_ket.n_total_wf), order='F')
         for ib in range(8):
             block = self.matrix[ib]
             # Alternative formulation
             blockstart, blockstop =  self.hfblockrange[ib][0], self.hfblockrange[ib][1]
             bra_block   =   bra_data[:,:,blockstart:blockstop]
             O_ket_block = O_ket_data[:,:,blockstart:blockstop]
-            np.einsum("kli,klj", bra_block, O_ket_block, out=block)
-            # for j in range(*self.bra.hfblockrange[ib]):
-            #     for i in range(*self.ket.hfblockrange[ib]):
-            #         # TODO: use out= ? for performance
-            #         block[i-self.ket.hfblockrange[ib][0],j-self.bra.hfblockrange[ib][0]] = (
-            #             bra.data[:,   4*j] * O_ket.data[:,   4*i] +
-            #             bra.data[:, 1+4*j] * O_ket.data[:, 1+4*i] +
-            #             bra.data[:, 2+4*j] * O_ket.data[:, 2+4*i] +
-            #             bra.data[:, 3+4*j] * O_ket.data[:, 3+4*i]
-            #         ).sum(0)
+            np.einsum("kli,klj->ij", bra_block, O_ket_block, out=block) * self.mesh.dv
         return self.matrix
+
+    def compute_diagonal_elements(self):
+        """Compute only the diagonal elements of the operator wrt `self.ket`.
+
+        Raises:
+            AttributeError: if self.O_ket is not created in one of the override methods or if they
+                were not called.
+
+        """
+        self.compute_action()
+        if not hasattr(self, 'O_ket'):
+            raise AttributeError(f"Attribute 'self.O_ket' is missing in class {self.__class__.__name__}. \n"
+                                 f"One of the derived methods compute_derivatives, add_local_terms, "
+                                 f"add_non_local_terms must define `self.O_ket`, where the action of "
+                                 f"the operator on `self.ket` is stored.")
+
+        if not hasattr(self, 'matrix'):
+            self.diagonal = np.empty(self.ket.n_total_wf, dtype=np.float64)
+
+        bra_data   = self.  bra.data.reshape((self.mesh.linear_size, 4, self.bra  .n_total_wf), order='F')
+        O_ket_data = self.O_ket.data.reshape((self.mesh.linear_size, 4, self.O_ket.n_total_wf), order='F')
+        for ib in range(8):
+            # Alternative formulation
+            blockstart, blockstop =  self.hfblockrange[ib][0], self.hfblockrange[ib][1]
+            bra_block   =   bra_data[:,:,blockstart:blockstop]
+            O_ket_block = O_ket_data[:,:,blockstart:blockstop]
+            np.einsum("klj,klj->j", bra_block, O_ket_block, out=self.diagonal) * self.mesh.dv
+        return self.diagonal
 
 
 class KineticEnergyOperator(Operator):

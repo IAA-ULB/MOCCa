@@ -90,7 +90,75 @@ This is implemented in `hfblocks[8]` containing the number of single particle wa
 >[!Tip] Task 2.
 >Schrijf een routine die een "imaginary time evolution" stap doet; Eq. 63 in  [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf). 
 
+This is about the _diagonalisation subproblem_ (step 1 in Fig. 1, elaborated on in section 3 of [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf)).
+One possible procedure to evolve the spwfs is **gradient descent**. The gradient of the energy wrt the spwf $|\psi_j\rangle$ is $h|\psi_j\rangle$ . Hence, 
+$$|\Psi_j^{(i+1)}\rangle
+=|\psi_j^{(i)}\rangle-\alpha(h-\epsilon_j^{(i)})|\psi_j^{(i)}\rangle
+$$
+$$
+=|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle
+$$
+$$
+=|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
+$$
+$$
+=(1-\alpha\epsilon_j^{(i)})|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
+$$
 
+with $\alpha$ the step size, a small real number, and $\epsilon_j^{(i)} = \langle\psi_j^{(i)}|h|\psi_j^{(i)}\rangle$. Note that this can be implemented as scaling $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)})$ and subtracting $\alpha h|\psi_j^{(i)}\rangle$. The new spwfs $|\Psi_j^{(i+1)}\rangle$ are denoted with a capital $\Psi$ because they are not orthonormal. 
+In simplified code `src/evolution.f90`:
+
+```
+do wave=1,nwt
+    if(wave .le. nwn) then
+        iso = -1
+    else
+        iso = +1
+    endif
+	! apply h
+    hpsi = apply_sphamil( hfpsi(:,:,wave), .....)
+    ! compute diagonal elements epsilon
+    spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv  ! \epsilon_wave
+      
+    hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)   ! h \psi -> (h - \epsilon_i)\psi
+    hfpsi(:,:,wave) = hfpsi(:,:,wave) -  dt/hbar * hpsi     ! \psi -> \psi - \alpha h - \epsilon_i)\psi
+enddo
+```
+This procedure does not require the full matrix representation of $h$, only the diagonal elements. To compute them we add a method `Operator.compute_diagonal_elements()`.
+Another approach to evolve the spwfs is **heavy ball dynamics**.
+For gradient descent the update reads:
+$$
+\mathbf{x}^{(i+1)} = \mathbf{x}^{(i)}-\alpha(\mathbf{Ax}^{(i)}-\mathbf{b})
+$$
+For heavy ball dynamics the update reads:
+$$
+\mathbf{x}^{(i+1)} = \mathbf{x}^{(i)}-\alpha(\mathbf{Ax}^{(i)}-\mathbf{b})+\mu(\mathbf{x}^{(i)}-\mathbf{x}^{(i-1)})
+$$
+adding a $\mu$ term involving $\mathbf{x}^{(j-1)}$. This means we must keep an extra state in memory. Thus
+$$|\Psi_j^{(i+1)}\rangle
+=|\psi_j^{(i)}\rangle-\alpha(h-\epsilon_j^{(i)})|\psi_j^{(i)}\rangle
++\mu(|\psi_j^{(i)}\rangle-|\psi_j^{(i-1)}\rangle)
+$$
+$$
+=|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle
++\mu|\psi_j^{(i)}\rangle-\mu|\psi_j^{(i-1)}\rangle
+$$
+$$
+=|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle
++\mu|\psi_j^{(i)}\rangle
+-\alpha h|\psi_j^{(i)}\rangle
+-\mu|\psi_j^{(i-1)}\rangle$$
+$$
+=(1-\alpha\epsilon_j^{(i)}+\mu)|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
+-\mu|\psi_j^{(i-1)}\rangle
+$$
+Which also can be implemented as a scaling of $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)}+\mu)$, followed by subtracting $\alpha h|\psi_j^{(i)}\rangle+\mu|\psi_j^{(i-1)}\rangle$. The annoying thing is that once $|\psi_j^{(i)}\rangle$ is updated to $|\psi_j^{(i+1)}\rangle$ ,  $|\psi_j^{(i)}\rangle$ is no longer available for storing into $|\psi_j^{(i-1)}\rangle$, which will be needed for the next iteration. If we want to stort $|\psi_j^{(i)}\rangle$ before it is updated we cannot overwrite the location for $|\psi_j^{(i+1)}\rangle$, because we still need it to update $|\psi_j^{(i)}\rangle$  to $|\psi_j^{(i+1)}\rangle$. Hence, we actally need 3 copies of $|\psi_j^{(i)}\rangle$: `ket`, `mu_ket_nexprev` and `mu_ket_prev`:
+```
+mu_ket_nextprev = mu*ket # because we still need mu_ket_prev
+ket *= (1 - alpaha*epsilon + mu)
+ket -= alpha * h_ket + mu_ket_prev 
+mu_ket_prev = muket_nextprev
+ ```
 ## Task 3
 >[!Tip] Task 3.
 Schrijf een orthornomalisatieroutine die een set golffuncties neemt en die met Gram-Schmidt orthonormaliseert  (zie subroutine GramSchmidt in [wavefunctions.f90](../../../src/wavefunctions.f90)); het is belangrijk dat deze in energie-volgorde gebeurt.
