@@ -164,7 +164,12 @@ class HFPsi(Observable):
 
     @classmethod
     def like(cls, hfpsi):
-        return cls(init=hfpsi)
+        return cls(
+            init=hfpsi,
+            n_neutrons=None, n_protons=None,
+            n_neutron_wf=None, n_proton_wf=None,
+            mesh=None,
+        )
 
     def __init__(self,
                  n_neutrons:int, n_protons:int,
@@ -193,7 +198,6 @@ class HFPsi(Observable):
                 # init is another HFPsi instance. copy its variables and allocate empty memory
                 self.init = init
 
-                self.mesh         = init.mesh
                 self.n_neutrons   = init.n_neutrons
                 self.n_protons    = init.n_protons
                 self.n_total_wf   = init.n_total_wf
@@ -201,13 +205,11 @@ class HFPsi(Observable):
                 self.n_proton_wf  = init.n_proton_wf
                 self.hfblocks     = init.hfblocks
                 self.hfblockrange = init.hfblockrange
-                self.data = np.empty_like(init.data)
-                self.symmetry     = init.symmetry
+                super().__init__(mesh=init.mesh, data=np.empty_like(init.data), symmetry=init.symmetry)
                 return
 
             elif init is None:
                 # only for test purposes
-                self.mesh         = mesh
                 self.n_neutrons   = n_neutrons
                 self.n_protons    = n_protons
                 self.n_total_wf   = n_neutron_wf + n_proton_wf
@@ -216,7 +218,13 @@ class HFPsi(Observable):
                 self.hfblocks     = 8*[None]
                 self.hfblockrange = 8*[None]
                 self.data = np.empty((mesh.linear_size,4,self.n_total_wf), dtype=np.float64, order='F')
-                self.symmetry = np.ones((4*self.n_total_wf,self.mesh.dim), dtype=np.int32, order='F')
+                self.symmetry = np.ones((4*self.n_total_wf,mesh.dim), dtype=np.int32, order='F')
+                super().__init__(
+                    mesh=mesh,
+                    data=np.empty((mesh.linear_size,4,self.n_total_wf), dtype=np.float64, order='F'),
+                    symmetry=np.ones((4*self.n_total_wf,mesh.dim), dtype=np.int32, order='F'),
+                    name='hfpsi'
+                )
                 print(f"\nWARNING: Initialisation strategy {None} is only for testing purposes.\n")
                 return
             else:

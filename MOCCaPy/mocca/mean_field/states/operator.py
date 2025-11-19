@@ -32,10 +32,10 @@ class Operator:
                 for i in range(*self.ket.hfblockrange[ib]):
                     # TODO: use out= ? for performance
                     block[i-self.ket.hfblockrange[ib][0],j-self.bra.hfblockrange[ib][0]] = (
-                        bra.data[:, 0, j] * O_ket.data[:, 0, i] +
-                        bra.data[:, 1, j] * O_ket.data[:, 1, i] +
-                        bra.data[:, 2, j] * O_ket.data[:, 2, i] +
-                        bra.data[:, 3, j] * O_ket.data[:, 3, i]
+                        bra.data[:,   4*j] * O_ket.data[:,   4*i] +
+                        bra.data[:, 1+4*j] * O_ket.data[:, 1+4*i] +
+                        bra.data[:, 2+4*j] * O_ket.data[:, 2+4*i] +
+                        bra.data[:, 3+4*j] * O_ket.data[:, 3+4*i]
                     ).sum(0)
         return self.matrix
 
@@ -52,12 +52,15 @@ class HamiltonianWoodsSaxon(Operator):
         self.hbm = hbm
         self.V0 = V0
         self.ainv = 1/a
-        self.R = r0 * np.pow(hfpsi.n_neutrons + hfpsi.n_protrons, 1/3)
+        self.R = r0 * np.pow(hfpsi.n_neutrons + hfpsi.n_protons, 1/3)
 
     def compute_derivatives(self):
-        self.ket.differentiate('Laplacian')
+        if self.ket.mesh.dim >= 2:
+            self.ket.differentiate('Laplacian')
+        else:
+            self.ket.differentiate('xx')
 
-    def compute_local_terms(self):
+    def add_local_terms(self):
         self.O_ket = HFPsi.like(self.ket)
 
         def VWoodsSaxon1D(r):
@@ -79,6 +82,8 @@ class HamiltonianWoodsSaxon(Operator):
 
         Vr = self.ket.mesh.apply(VWoodsSaxon)
         self.O_ket.data = Vr * self.O_ket.data
-        self.O_ket.data += self.hbm * self.ket.derivatives['Laplacian']
+        axes = 'Laplacian' if self.ket.mesh.dim >= 2 else \
+               'xx'
+        self.O_ket.data += self.hbm * self.ket.derivatives[axes]
 
 
