@@ -4,6 +4,25 @@ import pytest
 from mocca.mesh import LagrangeMesh
 from mocca.mean_field.states import Operator, HFPsi, Overlap, HamiltonianWoodsSaxon
 
+def test_Operator():
+
+    mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
+    nwn, nwp = 15, 15
+    osc_freq = (0.2, 0.2, 0.2)
+    hfpsi = HFPsi(n_neutrons=20, n_protons=20,
+                  n_proton_wf=nwp, n_neutron_wf=nwn,
+                  mesh=mesh, init=None,
+                  )
+    hfpsi.data[:,:] = 1.
+    hfpsi.hfblockrange = [(0,8),(8,8),
+                          (8,15),(15,15),
+                          (15,23),(23,23),
+                          (23,30),(30,30)
+                         ]
+    Oij = Operator(hfpsi)
+    with pytest.raises(AttributeError):
+        Oij.compute_matrix_representation()
+
 def test_Overlap():
 
     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
