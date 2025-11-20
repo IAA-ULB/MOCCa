@@ -2,6 +2,7 @@ import numpy as np
 
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
 from mocca.mesh.observable import Observable
+from mocca.mean_field.operators import Overlap
 
 from mocca.f90.nil8_f90 import nilsson
 from mocca.f90.randomspwfs_f90 import randomspwfs
@@ -257,7 +258,7 @@ class HFPsi(Observable):
             istop += self.hfblocks[i+1]
         self.hfblockrange[7] = (istart, self.n_total_wf)
 
-        # TODO: symmetries
+        # TODO: adapt for 1D and 2D meshes
         # allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
         symmetry = np.empty((4 * self.n_total_wf, mesh.dim), dtype=np.int32)
 
@@ -312,6 +313,15 @@ class HFPsi(Observable):
 
         super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=symmetry)
 
+    def clone(self):
+        """return an empty copy of self."""
+        return HFPsi(
+            init=self,
+            n_neutrons=None, n_protons=None,
+            n_neutron_wf=None, n_proton_wf=None,
+            mesh=None,
+        )
+
 
     def ilc(self, i4, i_wf):
         """Return the linear component index from the wave function component index `i4`
@@ -331,17 +341,6 @@ class HFPsi(Observable):
         """
         return 4*i_wf + i4
 
-    def matrix_representation(self, operator):
-        """Compute the matrix representation of operator `operator` with respect to the
-        single particle wave functions in this HFPsi.
-
-        Args:
-            operator:
-
-            """
-
-        # approach
-
     def allocate_matrix_representation(self):
         """The matrix representation of an operator is a list of 8 square matrices,
         corresponding to the 8 symmetry blocks of the mean-field state.
@@ -358,3 +357,12 @@ class HFPsi(Observable):
             blocks[ib] = np.empty((n_spwfs, n_spwfs), dtype=np.float64, order='F')
 
         return blocks
+
+    def normalize(self):
+        """Normalize the HFPsi state."""
+        overlap = Overlap(self)
+        norm = overlap.compute_diagonal_elements()
+        np.sqrt(norm, out=norm)
+        hfpsi_data3 = self.data.reshape((self.data.shape[0], 4, self.data.shape[1]//4), order='F')
+        for i_spwf in range(norm.size):
+            hfpsi_data3[:,:,i_spwf] /= norm[i_spwf]

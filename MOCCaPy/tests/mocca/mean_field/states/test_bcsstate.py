@@ -14,4 +14,5 @@ def test_BCSState_ctor():
         n_proton_wf=nwp, n_neutron_wf=nwn, mesh=mesh,
         init='nilsson', osc_freq=osc_freq,
     ))
+    mfs.rho[:] = np.random.random(mfs.rho.shape)
     mfs.validate()

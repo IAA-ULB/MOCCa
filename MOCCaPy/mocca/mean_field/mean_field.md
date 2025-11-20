@@ -105,7 +105,7 @@ $$
 =(1-\alpha\epsilon_j^{(i)})|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
 $$
 
-with $\alpha$ the step size, a small real number, and $\epsilon_j^{(i)} = \langle\psi_j^{(i)}|h|\psi_j^{(i)}\rangle$. Note that this can be implemented as scaling $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)})$ and subtracting $\alpha h|\psi_j^{(i)}\rangle$. The new spwfs $|\Psi_j^{(i+1)}\rangle$ are denoted with a capital $\Psi$ because they are not orthonormal. 
+with $\alpha$ the step size, a small real number, and  . Note that this can be implemented as scaling $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)})$ and subtracting $\alpha h|\psi_j^{(i)}\rangle$. The new spwfs $|\Psi_j^{(i+1)}\rangle$ are denoted with a capital $\Psi$ because they are not orthonormal. 
 In simplified code `src/evolution.f90`:
 
 ```
@@ -164,7 +164,16 @@ mu_ket_prev = muket_nextprev
 Schrijf een orthornomalisatieroutine die een set golffuncties neemt en die met Gram-Schmidt orthonormaliseert  (zie subroutine GramSchmidt in [wavefunctions.f90](../../../src/wavefunctions.f90)); het is belangrijk dat deze in energie-volgorde gebeurt.
 
 [Gramm-Schmidt process](https://en.wikipedia.org/wiki/Gram–Schmidt_process)
-
+$$|\psi_k\rangle \rightarrow 
+|\psi_k\rangle - \sum_{j=0}^{k-1}\frac{\langle\psi_k|\psi_j\rangle}{\langle\psi_j|\psi_j\rangle}|\psi_j\rangle$$
+$$|\psi_k\rangle 
+\mathrel{-}= \sum_{j=0}^{k-1}\frac{\langle\psi_k|\psi_j\rangle}{\langle\psi_j|\psi_j\rangle}|\psi_j\rangle$$
+or in two steps:
+$$|\psi_j\rangle 
+\mathrel{/}= \langle\psi_j|\psi_j\rangle$$
+$$|\psi_k\rangle 
+\mathrel{-}= \sum_{j=0}^{k-1}\langle\psi_k|\psi_j\rangle|\psi_j\rangle$$
+The first step normalises the $|\psi_j\rangle$, after which the denominator in the projections is absorbed by them.
 ## Task 4
 >[!Tip] Task 4.
 Schrijf manieren om

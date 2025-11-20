@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 
 from mocca.mesh import LagrangeMesh
-from mocca.mean_field.states import Operator, HFPsi, Overlap, HamiltonianWoodsSaxon, HamiltonianWoodsSaxon2
+from mocca.mean_field.states import HFPsi
+from mocca.mean_field.operators import *
 
 def test_Operator():
 
@@ -58,7 +59,7 @@ def test_HamiltonianWoodsSaxon():
                           (15,23),(23,23),
                           (23,30),(30,30)
                          ]
-    hws = HamiltonianWoodsSaxon(hfpsi)
+    hws = hamiltonian.HamiltonianWoodsSaxon(hfpsi)
     hws.compute_matrix_representation()
     # for block in hws.matrix:
     #     assert np.all(block == 24.0)
@@ -78,7 +79,7 @@ def test_HamiltonianWoodsSaxon2():
                           (15,23),(23,23),
                           (23,30),(30,30)
                          ]
-    hws = HamiltonianWoodsSaxon2(hfpsi)
+    hws = hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
     hws.compute_matrix_representation()
     # for block in hws.matrix:
     #     assert np.all(block == 24.0)
