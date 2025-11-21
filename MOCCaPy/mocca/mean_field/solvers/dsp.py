@@ -70,60 +70,52 @@ class DSP:
                 self.mu_ket_prev_data[:,:] *= self.mu
                 gradient_descent_step(ket_data, h_ket_data, epsilon)
 
-
-# TODO: Maybe we need a base class when other algorithms for orthonormalisation appear
-class GrammSchmidt:
-    """Class for Gramm-Schmidt orthogonalisaton of HFPsi objects"""
-    def __init__(self, hfpsi, epsilon):
-        """
-        Args:
-            hfpsi: wave function
-            epsilon: di
-        """
-        self.hfpsi = hfpsi
-        self.epsilon = epsilon
-
-    def orthogonalize(self, normalize=True):
-        """Orthogonlize hfpsi.
-        """
-        def projector(hfpsi_data3_ib, i, j):
-            Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
-            Ojj = np.einsum("hk,hk", hfpsi_data3_ib[:,:,j], hfpsi_data3_ib[:,:,j])
-            # both are missing a factor mesh.dv but that doesn's matter because of the quotient
-            return Oij / Ojj
-
-        # overlap = Overlap(self.hfpsi)
-        hfpsi_data3 = self.hfpsi.data.reshape((self.hfpsi.data.shape[0], 4, self.hfpsi.data.shape[1]//4), order='F')
-        for ib in range(8):
-            range_ib = self.hfpsi.hfblockrange[ib]
-            if range_ib[1] > range_ib[0]:
-                # block is not empty
-                # Restrict all data structures to symmetry block ib
-                epsilon_ib    = self.epsilon[    range_ib[0]:range_ib[1]]
-                hfpsi_data3_ib = hfpsi_data3[:,:,range_ib[0]:range_ib[1]]
-                order_ib = np.argsort(epsilon_ib)
-                n = range_ib[1]-range_ib[0]
-                for I in range(1,n):
-                    i = order_ib[I]
-                    for J in range(I):
-                        j = order_ib[J]
-                        hfpsi_data3_ib[:,:,i] -= projector(hfpsi_data3_ib,i,j) * hfpsi_data3_ib[:,:,j]
-                    # for J in range(0,I):
-                    #     j = order_ib[J]
-                    #     Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
-                    #     print(f"{ib=} ({i},{j}) {Oij=}")
-
-        if normalize:
-            self.hfpsi.normalize()
+    def evolve(self, nsteps=None):
+        """"""
+        gs = GrammSchmidt(self.hamiltonian.ket)
+        for i in range(nsteps):
+            self.step(n)
+            self.ket.normalize()
 
 
-    # def normalize(self):
-    #     """Normalize hfpsi
-    #     """
-    #     self.hfpsi.normalize()
-        # overlap = Overlap(self.hfpsi)
-        # norm = overlap.compute_diagonal_elements()
-        # np.sqrt(norm, out=norm)
-        # hfpsi_data3 = self.hfpsi.data.reshape((self.hfpsi.data.shape[0], 4, self.hfpsi.data.shape[1]//4), order='F')
-        # for i_spwf in range(norm.size):
-        #     hfpsi_data3[:,:,i_spwf] /= norm[i_spwf]
+def gramm_schmidt(hfpsi, epsilon=None, normalize=True):
+    """Gramm-Schmidt orthogonalisaton of a wave function.
+
+    Args:
+        hfpsi: wave function to orthogonalize
+        epsilon: diagonal elements of the hamiltonian. determines the selection of the
+            next spwf to orthogonalize (lowest first).
+        normalize: whether to normalize the hfpsi.
+    """
+    def projector(hfpsi_data3_ib, i, j):
+        Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
+        Ojj = np.einsum("hk,hk", hfpsi_data3_ib[:,:,j], hfpsi_data3_ib[:,:,j])
+        # both are missing a factor mesh.dv but that doesn's matter because of the quotient
+        return Oij / Ojj
+
+    # overlap = Overlap(self.hfpsi)
+    hfpsi_data3 = hfpsi.data.reshape((hfpsi.data.shape[0], 4, hfpsi.data.shape[1]//4), order='F')
+    for ib in range(8):
+        range_ib = hfpsi.hfblockrange[ib]
+        if range_ib[1] > range_ib[0]:
+            # block is not empty
+            # Restrict all data structures to symmetry block ib
+            hfpsi_data3_ib = hfpsi_data3[:,:,range_ib[0]:range_ib[1]]
+            epsilon_ib     = epsilon    [    range_ib[0]:range_ib[1]]
+            if not epsilon is None:
+                hfpsi_data3_ib[:,:,:] *= epsilon_ib
+            order_ib = np.argsort(epsilon_ib)
+            n = range_ib[1]-range_ib[0]
+            for I in range(1,n):
+                i = order_ib[I] if (epsilon is not None) else I
+                for J in range(I):
+                    j = order_ib[J] if (epsilon is not None) else J
+                    hfpsi_data3_ib[:,:,i] -= projector(hfpsi_data3_ib,i,j) * hfpsi_data3_ib[:,:,j]
+                # for J in range(0,I):
+                #     j = order_ib[J]
+                #     Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
+                #     print(f"{ib=} ({i},{j}) {Oij=}")
+
+    if normalize:
+        hfpsi.normalize()
+

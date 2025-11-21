@@ -52,8 +52,18 @@ class KineticEnergyOperator(Operator):
             # Blocks[0:4] are for neutrons
             # Blocks[4:8] are for protons
             n = self.O_ket.hfblockrange[3][1]  # end of neutron range in the spwfs and begin of proton range
-            self.O_ket.data[:, :, :n] = hbm_n * self.ket.derivatives[nabla][:, :, :n]
-            self.O_ket.data[:, :, n:] = hbm_p * self.ket.derivatives[nabla][:, :, n:]
+            self.O_ket.data[:, :, :n] = hbm_n * self.ket.derivatives[self.nabla][:, :, :]
+            self.O_ket.data[:, :, n:] = hbm_p * self.ket.derivatives[self.nabla][:, :, :]
+
+    def compute_dispersion(self, recompute=True):
+        """Compute <bra_i|h+ h|ket_i> - <bra_i|h|ket_i>**2"""
+        if recompute:
+            self.compute_action()
+
+        dispersion  = np.einsum("ijk,ijk->k", self.O_ket.data, self.O_ket.data)
+        dispersion -= np.sqrt(np.einsum("ijk,ijk->k", self.  ket.data, self.O_ket.data))
+
+        return dispersion
 
 
 # ==============================================================================

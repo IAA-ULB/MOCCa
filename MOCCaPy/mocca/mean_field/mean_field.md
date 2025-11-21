@@ -73,6 +73,12 @@ $$\langle\psi_i|O|\psi_j\rangle=\sum_{r_{ijk}}
 +\psi_j(\vec{r}_{ijk},2)O\psi_i(\vec{r}_{ijk},2) \\
 +\psi_j(\vec{r}_{ijk},3)O\psi_i(\vec{r}_{ijk},3) \\
 \end{bmatrix}dv$$
+In Python code:
+```Python
+for ib in range(8):
+	np.einsum("ijk,ijl->kl", HFPsi_ib, O_HFPsi_ib, out=matrix_ib)
+```
+`np.einsum` comes in very handy again.
 ### Block structure of `HFPsi`
 `HFPsi` is a large array with shape `(mesh.linear_size, 4,n_total_wf)`. The single particle wave function are ordered in 8 blocks (originating roughly because we can exploit two spatial symmetries and one non-spatial symmetrie, the proton-neutron symmetry):
 - block\[0]: neutrons with positive parity and signature $+\mathrm{i}$
@@ -166,14 +172,11 @@ Schrijf een orthornomalisatieroutine die een set golffuncties neemt en die met G
 [Gramm-Schmidt process](https://en.wikipedia.org/wiki/Gram–Schmidt_process)
 $$|\psi_k\rangle \rightarrow 
 |\psi_k\rangle - \sum_{j=0}^{k-1}\frac{\langle\psi_k|\psi_j\rangle}{\langle\psi_j|\psi_j\rangle}|\psi_j\rangle$$
+or
 $$|\psi_k\rangle 
 \mathrel{-}= \sum_{j=0}^{k-1}\frac{\langle\psi_k|\psi_j\rangle}{\langle\psi_j|\psi_j\rangle}|\psi_j\rangle$$
-or in two steps:
-$$|\psi_j\rangle 
-\mathrel{/}= \langle\psi_j|\psi_j\rangle$$
-$$|\psi_k\rangle 
-\mathrel{-}= \sum_{j=0}^{k-1}\langle\psi_k|\psi_j\rangle|\psi_j\rangle$$
-The first step normalises the $|\psi_j\rangle$, after which the denominator in the projections is absorbed by them.
+>[!Warning]
+>The overlaps must be computed on te fly. Computing an overlap matriz at the start of the algorithm does not work.
 ## Task 4
 >[!Tip] Task 4.
 Schrijf manieren om
@@ -181,6 +184,8 @@ $$\langle\psi_i|h|\psi_i\rangle$$
 en 
 $$\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$$
 uit te rekenen. Vergeet niet dat $h$ hermitisch is, dus voor dat laatste kan je $h|\psi_j\rangle$ en $h|\psi_i\rangle$ veilig sandwichen.
+
+We did already have code for $\langle\psi_i|h|\psi_i\rangle$. The quantity $\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$ is called the dispersion.
 ## Task 5
 >[!Tip] Task 5.
 >Combineer dan alles in het algoritme beschreven in sectie 3.3 van [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf) en verifieer dat je toestandjes convergeren naar eigentoestanden van h, bvb doordat $$\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$$ heel klein wordt. 

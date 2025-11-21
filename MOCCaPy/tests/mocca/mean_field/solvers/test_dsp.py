@@ -4,7 +4,7 @@ import numpy as np
 from mocca.mesh import LagrangeMesh
 import mocca.mean_field.states as states
 import mocca.mean_field.operators as operators
-from mocca.mean_field.solvers.dsp import DSP, GrammSchmidt
+from mocca.mean_field.solvers.dsp import DSP, gramm_schmidt
 
 def test_dsp():
     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
@@ -28,7 +28,7 @@ def test_dsp():
     dsp.step()
     dsp.step()
 
-def test_GrammSchmidt():
+def test_gramm_schmidt():
     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
     nwn, nwp = 15, 15
     osc_freq = (0.2, 0.2, 0.2)
@@ -46,8 +46,7 @@ def test_GrammSchmidt():
                           ]
     overlap = operators.Overlap(hfpsi)
     hfpsi.sp_energies = overlap.compute_diagonal_elements()
-    gs = GrammSchmidt(hfpsi, hfpsi.sp_energies)
-    gs.orthogonalize(normalize=False)
+    gramm_schmidt(hfpsi, epsilon=hfpsi.sp_energies, normalize=False)
 
     overlap_matrix = overlap.compute_matrix_representation()
     for ib in range(8):
