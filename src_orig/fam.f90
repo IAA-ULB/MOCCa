@@ -677,7 +677,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
     DY_norm = DY_norm / Y_norm
 
-    if (fam_verbose > 1) print 2, DX_norm, DY_norm
+    if (fam_verbose > 0) print 2, DX_norm, DY_norm
 
     if( (DX_norm < fam_precision) .and. (DY_norm < fam_precision)) then
       conv = .true.
