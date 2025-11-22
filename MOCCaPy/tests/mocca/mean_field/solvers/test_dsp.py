@@ -46,7 +46,7 @@ def test_gramm_schmidt():
                           ]
     overlap = operators.Overlap(hfpsi)
     hfpsi.sp_energies = overlap.compute_diagonal_elements()
-    gramm_schmidt(hfpsi, epsilon=hfpsi.sp_energies, normalize=False)
+    gramm_schmidt(hfpsi, order=hfpsi.sp_energies, normalize=False)
 
     overlap_matrix = overlap.compute_matrix_representation()
     for ib in range(8):
@@ -79,6 +79,7 @@ def test_evolve():
         n_proton_wf=nwp, n_neutron_wf=nwn,
         mesh=mesh,
         init='nilsson',osc_freq=osc_freq,
+        orthogonalize=True, normalize=True
     )
     overlap = operators.Overlap(hfpsi)
     overlap_matrix = overlap.compute_matrix_representation()

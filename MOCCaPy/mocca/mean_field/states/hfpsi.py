@@ -327,6 +327,10 @@ class HFPsi(Observable):
         elif normalize:
             self.normalize()
 
+    @property
+    def spwf_shape(self):
+        return (self.data.shape[0], 4, self.n_total_wf)
+
     def clone(self):
         """return an empty copy of self."""
         return HFPsi(

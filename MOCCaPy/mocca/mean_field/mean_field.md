@@ -102,13 +102,13 @@ $$|\Psi_j^{(i+1)}\rangle
 =|\psi_j^{(i)}\rangle-\alpha(h-\epsilon_j^{(i)})|\psi_j^{(i)}\rangle
 $$
 $$
-=|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle
+=|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle+\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle
 $$
 $$
-=|\psi_j^{(i)}\rangle-\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
+=|\psi_j^{(i)}\rangle+\alpha\epsilon_j^{(i)}|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
 $$
 $$
-=(1-\alpha\epsilon_j^{(i)})|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
+=(1+\alpha\epsilon_j^{(i)})|\psi_j^{(i)}\rangle-\alpha h|\psi_j^{(i)}\rangle
 $$
 
 with $\alpha$ the step size, a small real number, and  . Note that this can be implemented as scaling $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)})$ and subtracting $\alpha h|\psi_j^{(i)}\rangle$. The new spwfs $|\Psi_j^{(i+1)}\rangle$ are denoted with a capital $\Psi$ because they are not orthonormal. 
@@ -161,7 +161,7 @@ $$
 Which also can be implemented as a scaling of $|\psi_j^{(i)}\rangle$ with $(1-\alpha\epsilon_j^{(i)}+\mu)$, followed by subtracting $\alpha h|\psi_j^{(i)}\rangle+\mu|\psi_j^{(i-1)}\rangle$. The annoying thing is that once $|\psi_j^{(i)}\rangle$ is updated to $|\psi_j^{(i+1)}\rangle$ ,  $|\psi_j^{(i)}\rangle$ is no longer available for storing into $|\psi_j^{(i-1)}\rangle$, which will be needed for the next iteration. If we want to stort $|\psi_j^{(i)}\rangle$ before it is updated we cannot overwrite the location for $|\psi_j^{(i+1)}\rangle$, because we still need it to update $|\psi_j^{(i)}\rangle$  to $|\psi_j^{(i+1)}\rangle$. Hence, we actally need 3 copies of $|\psi_j^{(i)}\rangle$: `ket`, `mu_ket_nexprev` and `mu_ket_prev`:
 ```
 mu_ket_nextprev = mu*ket # because we still need mu_ket_prev
-ket *= (1 - alpaha*epsilon + mu)
+ket *= (1 + alpaha*epsilon + mu)
 ket -= alpha * h_ket + mu_ket_prev 
 mu_ket_prev = muket_nextprev
  ```

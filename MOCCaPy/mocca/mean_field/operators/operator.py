@@ -27,8 +27,13 @@ class Operator:
         Args:
             derivatives: str|list of derivatives needed by the operator.
         """
+        if not hasattr(hfpsi, 'd3'):
+            hfpsi.d3 = hfpsi.data.reshape(hfpsi.spwf_shape, order='F')
+
         self.ket = hfpsi
         self.bra = hfpsi
+
+        # self.bra = hfpsi
         self.mesh = hfpsi.mesh # convenient
         # Allocate space for a matrix represention of this operator relative to hfpsi.
         # It has the same structure as hfblocks
@@ -87,14 +92,16 @@ class Operator:
 
         return self.O_ket
 
-    def compute_matrix_representation(self):
+    def compute_matrix_representation(self, recompute=True):
         """Compute the matrix representation of the operator wrt `self.ket`.
 
         Raises:
             AttributeError: if self.O_ket is not created in one of the override methods or if they
                 were not called.
         """
-        self.compute_action()
+        if recompute:
+            self.compute_action()
+            
         if not hasattr(self, 'O_ket'):
             raise AttributeError(f"Attribute 'self.O_ket' is missing in class {self.__class__.__name__}. \n"
                                  f"One of the derived methods compute_derivatives, add_local_terms, "
@@ -104,18 +111,17 @@ class Operator:
         if not hasattr(self, 'matrix'):
             self.matrix = self.ket.allocate_matrix_representation()
 
-        bra_data   = self.  bra.data.reshape((self.mesh.linear_size, 4, self.  bra.n_total_wf), order='F')
         O_ket_data = self.O_ket.data.reshape((self.mesh.linear_size, 4, self.O_ket.n_total_wf), order='F')
         for ib in range(8):
             block = self.matrix[ib]
             # Alternative formulation
             blockstart, blockstop =  self.hfblockrange[ib][0], self.hfblockrange[ib][1]
-            bra_data_ib   =   bra_data[:,:,blockstart:blockstop]
-            O_ket_data_ib = O_ket_data[:,:,blockstart:blockstop]
-            np.einsum("ijk,ijl->kl", bra_data_ib, O_ket_data_ib, out=block) * self.mesh.dv
+            bra_d3_ib   = self.  bra.d3[:,:,blockstart:blockstop]
+            O_ket_d3_ib = self.O_ket.d3[:,:,blockstart:blockstop]
+            np.einsum("ijk,ijl->kl", bra_d3_ib, O_ket_d3_ib, out=block) * self.mesh.dv
         return self.matrix
 
-    def compute_diagonal_elements(self):
+    def compute_diagonal_elements(self, recompute=True):
         """Compute only the diagonal elements of the operator wrt `self.ket`.
 
         Raises:
@@ -125,7 +131,7 @@ class Operator:
         """
         self.compute_action()
 
-        if not hasattr(self, 'matrix'):
+        if not hasattr(self, 'diagonal'):
             self.diagonal = np.empty(self.ket.n_total_wf, dtype=np.float64)
 
         bra_data   = self.  bra.data.reshape((self.mesh.linear_size, 4, self.bra  .n_total_wf), order='F')

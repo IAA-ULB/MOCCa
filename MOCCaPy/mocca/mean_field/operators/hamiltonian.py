@@ -38,6 +38,7 @@ class KineticEnergyOperator(Operator):
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
         self.O_ket = self.ket.clone()
+        self.O_ket.d3 = self.O_ket.data.reshape(self.O_ket.spwf_shape, order='F')
 
         if isinstance(self.hbm, float):
             # Neutrons and protons are treated equally (mass)
@@ -58,10 +59,13 @@ class KineticEnergyOperator(Operator):
         if recompute:
             self.compute_action()
 
-        dispersion  = np.einsum("ijk,ijk->k", self.O_ket.data, self.O_ket.data)
-        dispersion -= np.sqrt(np.einsum("ijk,ijk->k", self.  ket.data, self.O_ket.data))
+        if not hasattr(self, 'dispersion'):
+            self.dispersion = np.empty(self.ket.n_total_wf, dtype=np.float64)
 
-        return dispersion
+        np.einsum("ijk,ijk->k", self.O_ket.d3, self.O_ket.d3, out=self.dispersion)
+        self.dispersion -= (np.einsum("ijk,ijk->k", self.  ket.d3, self.O_ket.d3))**2
+
+        return self.dispersion
 
 
 # ==============================================================================
@@ -91,6 +95,7 @@ class HamiltonianWoodsSaxon(Operator):
     def add_local_terms(self):
         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
         self.O_ket = self.ket.clone()
+        self.O_ket.d3 = self.O_ket.data.reshape(self.O_ket.spwf_shape, order='F')
 
         # TODO: speed up with numba decorators?
 
