@@ -12,10 +12,12 @@ class EDF:
         """
         self.param = param
 
-        class_name = self.__class__.__name__
         CONFIG = param.func_file.replace('.func', '')
-        assert CONFIG == class_name, f"\n  EDF class `{class_name}` is incompatible with .param file `{self.param.filepath}`"\
-                                     f"\n  .param file requires EDF class `{CONFIG}`."
+        if not  (CONFIG == self.__class__.__name__):
+            raise ValueError(
+                f"\n  EDF class `{self.__class__.__name__}` is incompatible with .param file `{self.param.filepath}`"\
+                f"\n  .param file requires EDF class `{CONFIG}`."
+            )
 
 
 

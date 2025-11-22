@@ -35,6 +35,7 @@ class Observable:
                 reduced axes.
             name: optional name of the observable.
         Raises:
+            ValueError: if n_components is None and data is None.
             RuntimeWarning if symmetry is not set for reduced coordinate axes.
         """
         self.name = name
@@ -42,11 +43,15 @@ class Observable:
         self.mesh = mesh
 
         if data is None:
-            assert(n_components is not None)
+            if n_components is None:
+                raise ValueError(
+                    f"Parameter n_components must be specified if data is None (got {n_components=}).")
             self.data = np.empty((mesh.linear_size, n_components), dtype=np.float64, order='F')
             self.n_components = n_components
         else:
-            assert data.shape[0] == mesh.linear_size, f"{data.shape[0]=} <> {mesh.linear_size=}"
+            if not (data.shape[0] == mesh.linear_size):
+                raise ValueError(f"{data.shape[0]=} <> {mesh.linear_size=}")
+
             if len(data.shape) == 1:
                 data = np.reshape(data, (mesh.linear_size, 1), order='F')
             elif len(data.shape) > 2:
@@ -54,7 +59,11 @@ class Observable:
                 # Flatten it out
                 data = np.reshape(data, (mesh.linear_size, np.prod(data.shape[1:])), order='F')
             if n_components is not None:
-                assert(n_components == data.shape[1])
+                if not (n_components == data.shape[1]):
+                    raise ValueError(
+                        f"If specified together with data, parameter n_components must "
+                        f"be equal to data.shape[1] (got {n_components=})."
+                    )
             self.data = data
         self.n_components = self.data.size // mesh.linear_size
 
@@ -84,7 +93,10 @@ class Observable:
             assert len(self.symmetry.shape) == 2
 
             for s in self.symmetry.ravel():
-               assert s in [1,0,-1]
+               if not s in [1,0,-1]:
+                   raise ValueError(
+                       f"Symmetry values must be +1, -1 or 0  (got {s})."
+                   )
 
 
             # Verify that symmetry is specified for reduced axes.
@@ -146,13 +158,17 @@ class Observable:
             if is_composite(axes) and axes != 'Laplacian':
                 raise ValueError(f"Accessing composite derivatives, like '{axes}', of Observable ({name}) is forbidden"
                                  f" (except for 'Laplacian'.")
-            assert index[1] in 'LG', f"Access identifier must be 'L' or 'G', got {index[1]}."
+            if not (index[1] in 'LG'):
+                raise ValueError("Access identifier must be 'L' or 'G', got {index[1]}.")
+
             return self.derivatives [axes][index[2:]] if index[0] == 'L' else \
                    self.derivativesG[axes][index[2:]]
 
         else:
             # Accessing data
-            assert index[0] in 'LG', f"Access identifier must be 'L' or 'G', got {index[1]}."
+            if not (index[0] in 'LG'):
+                raise ValueError(f"Access identifier must be 'L' or 'G', got {index[1]}.")
+
             return self.data [axes][index[1:]] if index[0] == 'L' else \
                    self.dataG[axes][index[1:]]
         
@@ -344,7 +360,8 @@ class Observable:
 
             if is_composite(axes):
                 # axes is a multi-component derivative. Hence, self.mesh.dim >= 2 must hold.
-                assert self.mesh.dim >= 2
+                if not (self.mesh.dim >= 2):
+                    raise ValueError(f"Derivative{axes} requires `mesh.dime > 1`.")
                 if not axes in ['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']:
                     if debug:
                         print(f"Debug log>  {axes=} unknown composite derivative.")
@@ -379,8 +396,10 @@ class Observable:
             else:  # not composite
                 # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
                 nx, ny, nz = axes.count('x'), axes.count('y'), axes.count('z')
-                assert nx + ny + nz == len(axes), \
+                if not (nx + ny + nz == len(axes)):
+                    raise ValueError(
                        f"Extraneous characters in '{axes}', only 'x', 'y', 'and 'z' are allowed"
+                    )
                 # sort the `axes` str, as the order of differentiation is immaterial
                 axes = nx*'x' + ny*'y' + nz*'z' # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
 
@@ -407,18 +426,36 @@ class Observable:
             # Handle lists of derivatives
             # Add components to allow reuse of derivatives:
             if 'Grad' in axes:
-                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                assert self.mesh.highest_derivative_order >= 1, f"Required by axes='Grad'."
+                if not (self.mesh.dim > 1):
+                    raise ValueError(
+                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                    )
+                if not (self.mesh.highest_derivative_order >= 1):
+                    raise ValueError(
+                        f"{axes} requires HFPsi.highest_derivative_order>=1."
+                    )
                 axes = ['x', 'y', 'z'] + axes
 
             if 'Laplacian' in axes:
-                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Laplacian'."
+                if not (self.mesh.dim > 1):
+                    raise ValueError(
+                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                    )
+                if not (self.mesh.highest_derivative_order >= 2):
+                    raise ValueError(
+                        f"{axes} requires HFPsi.highest_derivative_order>=2."
+                    )
                 axes = ['xx', 'yy', 'zz'] + axes
 
             if 'Hessian' in axes:
-                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                assert self.mesh.highest_derivative_order >= 2, f"Required by axes='Hessian'."
+                if not (self.mesh.dim > 1):
+                    raise ValueError(
+                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                    )
+                if not (self.mesh.highest_derivative_order >= 2):
+                    raise ValueError(
+                        f"{axes} requires HFPsi.highest_derivative_order>=3."
+                    )
                 axes = ['y', 'z',
                         'xx', 'xy', 'xz',
                         'yy', 'yz',
@@ -431,8 +468,14 @@ class Observable:
                 # by the composite, c.q 'Hessian'.
 
             if 'Tensor3' in axes:
-                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                assert self.mesh.highest_derivative_order >= 3, f"Required by axes='Tensor3'."
+                if not (self.mesh.dim > 1):
+                    raise ValueError(
+                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                    )
+                if not (self.mesh.highest_derivative_order >= 3):
+                    raise ValueError(
+                        f"{axes} requires HFPsi.highest_derivative_order>=3."
+                    )
                 axes = ['y', 'z',
                         'yy', 'yz', 'zz',
                         'xxx', 'xxy', 'xxz',
@@ -445,8 +488,14 @@ class Observable:
                 # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
 
             if 'Tensor4' in axes:
-                assert self.mesh.dim > 1, f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                assert self.mesh.highest_derivative_order >= 4, f"Required by axes='Tensor4'."
+                if not (self.mesh.dim > 1):
+                    raise ValueError(
+                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
+                    )
+                if not (self.mesh.highest_derivative_order >= 4):
+                    raise ValueError(
+                        f"{axes} requires HFPsi.highest_derivative_order>=4."
+                    )
                 axes = ['y', 'z',
                         'yy', 'xz', 'yz', 'zz',
                         'yyy', 'yyz', 'yzz', 'zzz',

@@ -18,10 +18,14 @@ class DSP:
             mu: scalar parameter for momentum step size of heavy ball dynamics. If mu
                 is zero, a gradient descent step is performed.
         """
+        if not (0 < alpha < 1):
+            raise ValueError(f"`alpha` parameter must be in ]0,1[ (got {alpha=}).")
         self.alpha = alpha
-        assert 0 < alpha < 1
+
+        if not (0 <= mu < 1):
+                raise ValueError(f"`mu` parameter must be in [0,1[ (got {mu=}).")
         self.mu = mu
-        assert 0 <= mu < 1
+
         self.hamiltonian = hamiltonian
 
     def step(self, nsteps=1):

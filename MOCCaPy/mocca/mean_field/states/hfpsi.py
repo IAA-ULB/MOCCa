@@ -73,21 +73,31 @@ class F90WfInitializer:
         """
 
         """
-        assert init in ('nilsson', 'randomspwfs'), f"F90 initialization strategy '{init}' is not recognizeded."
+        if not(init in ('nilsson', 'randomspwfs')):
+                raise ValueError(f"F90 initialization strategy '{init}' is not recognizeded.")
 
-        assert mesh.dim == 3, \
-            f"F90 initialization strategies support only 3D meshes, not {mesh.dim}D."
-        assert (mesh.d[1] == mesh.d[0]) and \
-               (mesh.d[2] == mesh.d[0]), \
-            f"Nilsson initialization strategy does not support " \
-            f"meshes with different spacing on the coordinates axes."
+        if not(mesh.dim == 3):
+                raise ValueError(f"F90 initialization strategies support only 3D meshes, not {mesh.dim}D.")
+
+        if not ((mesh.d[1] == mesh.d[0]) and
+                (mesh.d[2] == mesh.d[0])):
+                raise ValueError(
+                    f"Nilsson initialization strategy does not support " 
+                    f"meshes with different spacing on the coordinates axes."
+                )
 
         if init == 'nilsson':
-            assert osc_freq is not None
+            if (osc_freq is None):
+                raise ValueError(f"F90 initialization strategy 'nilsson' requires specification of `osc_freq`. ")
+
             if not isinstance(osc_freq, np.ndarray):
                 osc_freq = np.array(osc_freq, dtype=np.float64)
-            assert osc_freq.shape == (3,), "Expecting ndarray of shape (3,) and dtype=np.float64"
-            assert osc_freq.dtype == float, "Expecting ndarray of shape (3,) and dtype=np.float64"
+
+            if not (osc_freq.shape == (3,)) or \
+               not (np.issubdtype(osc_freq.dtype, np.float64)):
+                raise ValueError(
+                    f"Expecting ndarray of shape (3,) (got {osc_freq.shape}) "
+                    f"and dtype=np.float64 (got {osc_freq.dtype}).")
 
         if init == 'randomspwfs' and osc_freq is None:
             osc_freq = np.empty(mesh.dim, dtype=np.float64)

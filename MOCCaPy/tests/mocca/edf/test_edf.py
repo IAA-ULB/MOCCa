@@ -10,6 +10,6 @@ assert project_folder.name == 'tantalus_full'
 def test_EDF_ctor():
     """Construct a Param object and assert that the EDF object is raising an AssertionError. """
     param = Param(project_folder / 'parameterizations/BSkG1.param')
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # This must always raise AssertionError because the base class is always incompatible with a parameterization object
         edf = EDF(param)

@@ -109,13 +109,19 @@ class HFPsi:
             spwf_map,
         ]
 
-        assert self.init in ['nilsson', 'random'], f"Initialization strategy '{init}' is not supported."
+        if not (self.init in ['nilsson', 'random']):
+            raise ValueError(f"Initialization strategy '{init}' is not supported.")
         if self.init == 'nilsson':
-            assert self.osc_freq is not None, f"Initialization strategy '{init}' requires sscillation frequencies."
-            assert (self.mesh.d[1] == self.mesh.d[0]) and \
-                   (self.mesh.d[2] == self.mesh.d[0]), \
-                   f"Nilsson initialization strategy does not support " \
-                   f"meshes with different spacing on the coordinates axes."
+            if (self.osc_freq is None):
+                raise ValueError(f"Initialization strategy '{init}' requires sscillation frequencies.")
+            if not ((self.mesh.d[1] == self.mesh.d[0]) and
+                    (self.mesh.d[2] == self.mesh.d[0])):
+                raise ValueError(
+                    f"Initialization strategy '{init}' requires sscillation frequencies."
+                    f"Nilsson initialization strategy does not support " 
+                    f"meshes with different spacing on the coordinates axes."
+                )
+
         init = self.init_f90_registry[self.init] # fetch the method from the init_registry
         init(*init_args)
 

@@ -18,9 +18,13 @@ def create_mesh(gx, gy=None, gz=None):
         if only gx is provided, gx is returned
         if only gx and gy are provided, gxy of shape (nx*ny,2) is returned
         if gx, gy and gz are provided, gxzy of shape (nx*ny*nz,3) is returned
+    Raises:
+        ValueError:
     """
     if gz is not None:
-        assert gy is not None, "Argument gy is required"
+        if (gy is None):
+                raise ValueError("Argument gy must be provided too, if gz is provided.")
+
         nx = len(gx)
         ny = len(gy)
         nz = len(gz)
@@ -124,7 +128,7 @@ class LagrangeMesh:
             name: optional name for the mesh.
 
         Raises:
-            AssertionError: in case of invalid choices.
+            ValueError: in case of invalid choices.
 
         Remark:
             The `reduced` parameter is derived from symmetry considerations and may at some point - when the complexity
@@ -140,78 +144,82 @@ class LagrangeMesh:
                 if expected_dim is None:
                     expected_dim = len(tpl)
                 else:
-                    assert expected_dim == len(tpl), ("All tuple arguments must have the same length "
-                                                      "(=spatial dimensionality).")
+                    if not (expected_dim == len(tpl)):
+                        raise ValueError("All tuple arguments must have the same length (=spatial dimensionality).")
+
         if expected_dim is None:
             # there were no tuples
-            self.dim = dim if dim>0 else 3
+            self.dim = dim if (dim > 0) else 3
         else:
             # expected_dim must correspond to dim, unless dim == 0
             if expected_dim != dim and dim != 0:
-                raise ValueError(F"LagrangeMesh constructor: ambiguous dimensionality {dim=}, but len(d|M|reduced|shift) != {dim}).")
+                raise ValueError(F"Parameter {dim=}, contracting len(d|M|reduced|shift) != {dim}).")
+
             self.dim = expected_dim
 
         assert 1 <= self.dim <= 3
 
         if not isinstance(M, tuple):
-            assert isinstance(M, int), "M parameter must be an int or a tuple of ints."
-            M = self.dim * (M,)
+            if isinstance(M, int):
+                M = self.dim * (M,)
+            else:
+                raise ValueError("M parameter must be an int or a tuple of ints.")
+
         for mi in M:
-            assert mi > 0, "M must be strictly positive."
-            assert mi % 2 == 0, "M must be an even number."
+            if not (mi > 0) or \
+               not (mi % 2 == 0):
+                raise ValueError(f"M must be strictly positive and even (got {M=}).")
+
         self.M = M
 
-        if not isinstance(d, tuple):
-            assert isinstance(d, (int,float)), "d parameter must be an int, float or a tuple of int/floats."
-            d = self.dim * (float(d),)
-        else:
+        if isinstance(d, tuple):
             d = tuple([float(di) for di in d])
+        else:
+            if isinstance(d, (int,float)):
+                d = self.dim * (float(d),)
+            else:
+                raise ValueError("d parameter must be an int, float or a tuple of int/floats (got {d=}).")
+
         for di in d:
-            assert di > 0, "d must be strictly positive."
+            if not(di > 0):
+                raise ValueError("d must be strictly positive (got {d=}).")
+
         self.d = d
 
         if not isinstance(reduced, tuple):
-            assert isinstance(reduced, bool), "reduced parameter must be an bool or a tuple of bools."
-            reduced = self.dim * (reduced,)
+            if isinstance(reduced, bool):
+                reduced = self.dim * (reduced,)
+            else:
+                raise ValueError("`reduced` parameter must be an bool or a tuple of bools (got {reduced=}).")
+
         self.reduced = reduced
 
         if not isinstance(shift, tuple):
-            assert isinstance(shift, float), "shift parameter must be an  float or a tuple of floats."
-            shift = self.dim * (shift,)
+            if isinstance(shift, float):
+                shift = self.dim * (shift,)
+            else:
+                raise ValueError("`shift` parameter must be a float or a tuple of floats (got {shift=}).")
+
+        for (r,s) in zip(self.reduced, shift):
+            if r and s == 0:
+                raise ValueError("A nonzero shift cannot be applied when reduced is True.")
         self.shift = shift
 
         # validate boundary condition
-        assert bc in ['antiperiodic', 'periodic']
+        if not (bc in ['antiperiodic', 'periodic']):
+            raise ValueError(f"`bc` parameter must be either 'antiperiodic' or 'periodic' (got {bc=}).")
+
         self.bc = bc
         # convenience attributes
         self.antiperiodic = bc == 'antiperiodic'
         self.periodic = not self.antiperiodic # since there are only 2 options.
 
-        # validate reduced
-        if isinstance(reduced, bool):
-            self.reduced = tuple(self.dim*[reduced])
-        else:
-            assert isinstance(reduced, tuple)
-            assert len(reduced) == self.dim
-            self.reduced = reduced
-
-        # Compute dv (for integration)
+        # Compute dv, the integration volume per mesh point.
         self.dv = np.prod(self.d) * 2 ** self.reduced.count(True)
 
         # Compute the unreduced (!) box widths
         # The full (unreduced box width is needed by the plane wave base functions
         self.box_width = np.array([M*d for (M,d) in zip(self.M, self.d)])
-
-        # validate shift
-        if isinstance(shift, float):
-            self.shift = tuple(self.dim*[shift])
-        else:
-            assert isinstance(shift, tuple)
-            assert len(shift) == self.dim
-            self.shift = shift
-        for (r,s) in zip(self.reduced, self.shift):
-            if r:
-                assert s == 0., "A nonzero shift cannot be applied when reduced is True."
 
         # initialize grid points:
         start = self.dim*[.0]
@@ -360,7 +368,7 @@ class LagrangeMesh:
             a flat mesh array (self.flat_shape).
 
         Raises:
-            AssertionError: if `not q.shape in [self.shape, self.flat_shape]`.
+            ValueError: if `not q.shape in [self.shape, self.flat_shape]`.
         """
         self.gridx = self.cast2linear(self.gridx)
         if self.dim > 1:
@@ -446,8 +454,11 @@ class LagrangeMesh:
         Returns:
             (data, symmetry)
             data: Array of values of the basis function at r.
+        Raises:
+            ValueError:
         """
-        assert isinstance(r, np.ndarray)
+        if not isinstance(r, np.ndarray):
+            raise ValueError(f"Expecting a numpy array for `r parameter, got {type(r)}")
 
         if isinstance(ijk_sign,int):
             ijk_sign = self.dim * (ijk_sign,)
