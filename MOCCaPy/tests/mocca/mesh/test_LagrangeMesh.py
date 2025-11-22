@@ -99,46 +99,46 @@ def test_LagrangeMesh_ctor_n_d():
         mesh = LagrangeMesh(dim=1, M=(4,6), d=.5)
 
     # Invalid 2D mesh constructions
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(M=(4,6), d=(.4,.5,.6))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=2, M=(2,4,6), d=(.4,.5))
 
     with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=2, M=4, d=(.4,.5,.6))
 
     # Invalid 3D mesh constructions
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(M=(4,6), d=(.4,.5,.6))
 
     with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=3, M=4, d=(.5,.6))
 
     # Invalid 4D mesh constructions
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=4, M=4, d=.5)
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(M=(2,4,6,8), d=.5)
 
     # invalid N
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=3, d=.5) # odd n
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=0, d=.5) # n == 0
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=2, d=-.5) # negative d
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=2, M=2, d=(-.5,.5)) # negative d
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=1, M=2, d=0)  # negative d
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mesh = LagrangeMesh(dim=2, M=2, d=(0,.5)) # negative d
 
 

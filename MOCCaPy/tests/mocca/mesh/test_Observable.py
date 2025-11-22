@@ -68,10 +68,10 @@ def test_Observable_ctor():
 def test_Observable_differentiate_bad_axes():
     mesh = LagrangeMesh(dim=1, M=4, d=1., reduced=False)
     Q = Observable(mesh, n_components=1)
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         Q.differentiate(axes='xyzw') # 'w' is not allowed
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         Q.differentiate(axes='Xyzw') # composite derivatives (since 'X' is uppercase), require mesh.dim >= 2
 
     mesh = LagrangeMesh(dim=2, M=4, d=1., reduced=False)
@@ -79,7 +79,7 @@ def test_Observable_differentiate_bad_axes():
     with pytest.raises(ValueError):
         Q.differentiate(axes='Xyzw') # 'Xyzw' is not in the list of accepted composite derivatives
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         Q.differentiate(axes='Tensor4')  # mesh.highest_derivative_order too low
 
 def test_differentiate_1D_x_non_reduced(no_plot, debug=False):

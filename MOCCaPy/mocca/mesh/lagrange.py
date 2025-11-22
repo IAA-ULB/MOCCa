@@ -136,6 +136,8 @@ class LagrangeMesh:
              we content with explicitly indicating which coordinate axes must be 'reduced'
         """
         self.name = name
+        if not (0 <= dim <= 3):
+            raise ValueError(f"`dim` parameter violates 0<={dim=}<=3.")
 
         expected_dim = None
         tuples = [M, d, reduced, shift]
@@ -151,13 +153,14 @@ class LagrangeMesh:
             # there were no tuples
             self.dim = dim if (dim > 0) else 3
         else:
+            if not (0 <= expected_dim <= 3):
+                raise ValueError(f"`dim` parameter violates 0<={dim=}<=3.")
+
             # expected_dim must correspond to dim, unless dim == 0
             if expected_dim != dim and dim != 0:
-                raise ValueError(F"Parameter {dim=}, contracting len(d|M|reduced|shift) != {dim}).")
+                raise ValueError(F"Parameter {dim=}, violatingting len(d|M|reduced|shift) != {dim}).")
 
             self.dim = expected_dim
-
-        assert 1 <= self.dim <= 3
 
         if not isinstance(M, tuple):
             if isinstance(M, int):
@@ -201,7 +204,7 @@ class LagrangeMesh:
                 raise ValueError("`shift` parameter must be a float or a tuple of floats (got {shift=}).")
 
         for (r,s) in zip(self.reduced, shift):
-            if r and s == 0:
+            if (r and (s != 0)):
                 raise ValueError("A nonzero shift cannot be applied when reduced is True.")
         self.shift = shift
 
