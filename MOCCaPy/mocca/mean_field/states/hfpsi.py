@@ -3,6 +3,7 @@ import numpy as np
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
 from mocca.mesh.observable import Observable
 from mocca.mean_field.operators import Overlap
+from mocca.mean_field.solvers.dsp import gramm_schmidt
 
 from mocca.f90.nil8_f90 import nilsson
 from mocca.f90.randomspwfs_f90 import randomspwfs
@@ -72,13 +73,13 @@ class F90WfInitializer:
         """
 
         """
-        assert init in ('nilsson', 'randomspwfs'), f"F90 initialisation strategy '{init}' is not recognizeded."
+        assert init in ('nilsson', 'randomspwfs'), f"F90 initialization strategy '{init}' is not recognizeded."
 
         assert mesh.dim == 3, \
-            f"F90 initialisation strategies support only 3D meshes, not {mesh.dim}D."
+            f"F90 initialization strategies support only 3D meshes, not {mesh.dim}D."
         assert (mesh.d[1] == mesh.d[0]) and \
                (mesh.d[2] == mesh.d[0]), \
-            f"Nilsson initialisation strategy does not support " \
+            f"Nilsson initialization strategy does not support " \
             f"meshes with different spacing on the coordinates axes."
 
         if init == 'nilsson':
@@ -105,7 +106,7 @@ class F90WfInitializer:
         Returns:
             hfpsi, hfblocks, esp1
         """
-        hfpsi = np.array([[[]]], dtype=np.float64)
+        hfpsi = np.array([[[]]], dtype=np.float64, order='F')
         self.n_total_wf = self.n_neutron_wf + self.n_proton_wf
         #   see wavefunctions.f90 lne 883
         kparz = np.empty(self.n_total_wf, dtype=np.int32)
@@ -151,26 +152,16 @@ class F90WfInitializer:
         hfblocks[4] = (kparz[self.n_neutron_wf:] > 0).sum()
         hfblocks[6] = (kparz[self.n_neutron_wf:] < 0).sum()
 
-        spwf_map = np.arange(0, self.n_total_wf, dtype=np.int32)
-
-        hfpsi = np.zeros((self.mesh.linear_size, 4, self.n_total_wf), dtype=np.float64, order='F')
+        init_args[0] = np.zeros((self.mesh.linear_size, 4, self.n_total_wf), dtype=np.float64, order='F') # hfpsi
+        init_args[-1] = np.arange(1, self.n_total_wf, dtype=np.int32) # spwf_map
 
         self.init(*init_args)
 
-        return hfpsi, hfblocks, esp1
+        return init_args[0], hfblocks, esp1
 
 
 class HFPsi(Observable):
     """ Data structure for Hartree-Fock wave function."""
-
-    @classmethod
-    def like(cls, hfpsi):
-        return cls(
-            init=hfpsi,
-            n_neutrons=None, n_protons=None,
-            n_neutron_wf=None, n_proton_wf=None,
-            mesh=None,
-        )
 
     def __init__(self,
                  n_neutrons:int, n_protons:int,
@@ -178,6 +169,8 @@ class HFPsi(Observable):
                  mesh,
                  init:str='nilsson',
                  osc_freq:tuple[float]=None,
+                 orthogonalize:bool=False,
+                 normalize:bool=False,
                  ):
         """Constructor for HFPsi (using the same data structure as in MOCCa).
 
@@ -188,10 +181,15 @@ class HFPsi(Observable):
             n_proton_wf: Number of proton wave functions.
             mesh: Mesh on which the wave functions are represented.
                 Currently only LagrangeMesh objects are supported.
-            init: initialisation strategy for the single particle wave functions:
+            init: initialization strategy for the single particle wave functions:
                 'nilsson', 'randomspwfs' (which recycle MOCCa f90 code), or
                 'np.random' (which is entirely based on Numpy).
-            osc_freq: Oscillation frequencies, optional, only required for Nilsson initialisation.
+            osc_freq: Oscillation frequencies, optional, only required for Nilsson initialization.
+            orthogonalize: orthogonalize the single particle wave functions after initialization
+            normalize: normalize the single particle wave functions after initialization
+
+        Raises:
+            ValueError: in case of invalid initialization strategy.
         """
         init_strategies = ['nilsson', 'randomspwfs', 'np.random']
         if init not in init_strategies:
@@ -226,10 +224,10 @@ class HFPsi(Observable):
                     symmetry=np.ones((4*self.n_total_wf,mesh.dim), dtype=np.int32, order='F'),
                     name='hfpsi'
                 )
-                print(f"\nWARNING: Initialisation strategy {None} is only for testing purposes.\n")
+                print(f"\nWARNING: Initialization strategy {None} is only for testing purposes.\n")
                 return
             else:
-                raise ValueError(f"Unknown initialisation strategy '{init}'. Expecting one of {init_strategies} or HFPsi instance.")
+                raise ValueError(f"Unknown initialization strategy '{init}'. Expecting one of {init_strategies} or HFPsi instance.")
         initializer = \
             F90WfInitializer(
                 n_neutrons=n_neutrons, n_protons=n_protons, n_neutron_wf=n_neutron_wf, n_proton_wf=n_proton_wf,
@@ -312,6 +310,12 @@ class HFPsi(Observable):
             symmetry[4*i_spwf:4*i_spwf + 4, 2] = (-1,-1, 1, 1 ) # sz
 
         super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=symmetry)
+
+        # Orthogonalize and orthonormalize if requested
+        if orthogonalize:
+            gramm_schmidt(self, self.sp_energies, normalize=normalize)
+        elif normalize:
+            self.normalize()
 
     def clone(self):
         """return an empty copy of self."""

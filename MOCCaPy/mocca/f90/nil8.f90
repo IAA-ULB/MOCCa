@@ -219,7 +219,7 @@ subroutine nilsson(wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,dx,osc
 !!! kparz is allocated with np.zeros
 !!!>
 
-    ! In order for the compiler not to complain about non-initialised stuff.
+    ! In order for the compiler not to complain about non-initialized stuff.
     nvv = 0
 !c......................... mz must be larger or equal than both mx and my
 
