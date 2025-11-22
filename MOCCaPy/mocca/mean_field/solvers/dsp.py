@@ -1,20 +1,19 @@
-# The Diagonalisation subproblem
+# The Diagonalization subproblem
 # see Ryssens et al (2019) Eur. Phys. J. A (2019) 55:93 section 3.
 
 import numpy as np
 
-from mocca.mean_field.operators import Overlap
 
 class DSP:
-    """A class for evolving the spwfs as part of the Diagonalisation SubProblem,
+    """A class for evolving the spwfs as part of the Diagonalization SubProblem,
     either gradient descent step or heavy ball dynamics stepping.
     """
     def __init__(self, hamiltonian, alpha, mu=0.0):
-        """A class for evolving the spwfs as part of the Diagonalisation SubProblem,
+        """A class for evolving the spwfs as part of the Diagonalization SubProblem,
          either gradient descent step or heavy ball dynamics stepping.
 
         Args:
-            hamiltonian: operator representing the Hamiltonian to be diagonalised.
+            hamiltonian: operator representing the Hamiltonian to be diagonalized.
             alpha: scalar parameter for step size of gradient descent.
             mu: scalar parameter for momentum step size of heavy ball dynamics. If mu
                 is zero, a gradient descent step is performed.
@@ -25,7 +24,7 @@ class DSP:
         assert 0 <= mu < 1
         self.hamiltonian = hamiltonian
 
-    def step(self):
+    def step(self, nsteps=1):
         """Apply one step (gradient descent or heavy ball dynamics, iff self.mu>0)."""
 
         def gradient_descent_step(ket_data, h_ket_data, epsilon):
@@ -47,9 +46,9 @@ class DSP:
             gradient_descent_step(ket_data, h_ket_data, epsilon)
         else:
             # heavy ball dynamics step
-            if hasattr(self, 'mu_ket_nextprev_data'):
-                self.mu_ket_nextprev_data[:,:] = ket_data
-                self.mu_ket_nextprev_data[:,:] *= self.mu
+            if hasattr(self, '_mu_ket_nextprev_data'):
+                self._mu_ket_nextprev_data[:,:] = ket_data
+                self._mu_ket_nextprev_data[:,:] *= self.mu
 
                 epsilon *= -self.alpha
                 epsilon += (1 + self.mu)
@@ -58,24 +57,24 @@ class DSP:
                     kd3[:, :, i] *= epsilon[i]
 
                 h_ket_data *= self.alpha
-                h_ket_data += self.mu_ket_prev_data
+                h_ket_data += self._mu_ket_prev_data
                 ket_data -= h_ket_data
 
-                # now we can overwrite mu_ket_prev_data
-                self.mu_ket_prev_data[:,:] = self.mu_ket_nextprev_data
+                # now we can overwrite _mu_ket_prev_data
+                self._mu_ket_prev_data[:,:] = self._mu_ket_nextprev_data
             else:
-                self.mu_ket_nextprev_data = np.empty_like(ket_data)
-                self.mu_ket_prev_data     = np.empty_like(ket_data)
-                self.mu_ket_prev_data[:,:] = ket_data
-                self.mu_ket_prev_data[:,:] *= self.mu
+                self._mu_ket_nextprev_data = np.empty_like(ket_data)
+                self._mu_ket_prev_data     = np.empty_like(ket_data)
+                self._mu_ket_prev_data[:,:] = ket_data
+                self._mu_ket_prev_data[:,:] *= self.mu
                 gradient_descent_step(ket_data, h_ket_data, epsilon)
 
-    def evolve(self, nsteps=None):
+    def evolve(self, nsteps=1):
         """"""
-        gs = GrammSchmidt(self.hamiltonian.ket)
         for i in range(nsteps):
-            self.step(n)
-            self.ket.normalize()
+            self.step()
+            gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True)
+            print(f"{self.hamiltonian.diagonal}")
 
 
 def gramm_schmidt(hfpsi, epsilon=None, normalize=True):
@@ -88,10 +87,10 @@ def gramm_schmidt(hfpsi, epsilon=None, normalize=True):
         normalize: whether to normalize the hfpsi.
     """
     def projector(hfpsi_data3_ib, i, j):
-        Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
-        Ojj = np.einsum("hk,hk", hfpsi_data3_ib[:,:,j], hfpsi_data3_ib[:,:,j])
+        Overlap_ij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
+        Overlap_jj = np.einsum("hk,hk", hfpsi_data3_ib[:,:,j], hfpsi_data3_ib[:,:,j])
         # both are missing a factor mesh.dv but that doesn's matter because of the quotient
-        return Oij / Ojj
+        return Overlap_ij / Overlap_jj
 
     # overlap = Overlap(self.hfpsi)
     hfpsi_data3 = hfpsi.data.reshape((hfpsi.data.shape[0], 4, hfpsi.data.shape[1]//4), order='F')

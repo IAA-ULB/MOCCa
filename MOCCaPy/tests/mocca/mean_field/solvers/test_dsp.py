@@ -69,3 +69,19 @@ def test_gramm_schmidt():
                     assert block_ib[i,j] == pytest.approx(0.0)
                 else:
                     assert block_ib[i,j] == pytest.approx(1.0)
+
+def test_evolve():
+    mesh = LagrangeMesh(M=30, d=.8, reduced=False)
+    nwn, nwp = 15, 15
+    osc_freq = (0.2, 0.2, 0.2)
+    hfpsi = states.HFPsi(
+        n_neutrons=20, n_protons=20,
+        n_proton_wf=nwp, n_neutron_wf=nwn,
+        mesh=mesh,
+        init='nilsson',osc_freq=osc_freq,
+    )
+    overlap = operators.Overlap(hfpsi)
+    overlap_matrix = overlap.compute_matrix_representation()
+    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
+    dsp = DSP(hamiltonian, alpha=.001)
+    dsp.evolve(nsteps=10)

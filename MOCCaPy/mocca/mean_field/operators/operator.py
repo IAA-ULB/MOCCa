@@ -12,7 +12,7 @@ class Operator:
         bra: bra object based on hfpsi
         O_ket: the result of applying the operator to ket. this must be created in one of the methods
             add_local_terms, add_non_local_terms.
-        mesh: mesh on which hfpsi is discretised.
+        mesh: mesh on which hfpsi is discretized.
         derivatives: list of derivatives needed by the operator.
     Methods:
         add_local_terms, add_non_local_terms: these methods can be overridden to

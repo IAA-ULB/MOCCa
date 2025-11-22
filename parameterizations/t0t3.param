@@ -1,6 +1,6 @@
 
 !------------------------------------------------------------------------------
-! toy parameterisation without gradient terms, great for debugging.
+! toy parameterization without gradient terms, great for debugging.
 !------------------------------------------------------------------------------
 &skf 
 name     = 't0t3'

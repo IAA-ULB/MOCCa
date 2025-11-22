@@ -37,8 +37,6 @@ class KineticEnergyOperator(Operator):
 
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
-        self.compute_derivatives()
-
         self.O_ket = self.ket.clone()
 
         if isinstance(self.hbm, float):
@@ -178,5 +176,5 @@ class HamiltonianWoodsSaxon2(KineticEnergyOperator):
         Vr = self.mesh.apply(V_WoodsSaxon)
 
         # add to O_ket
-        self.O_ket.data += Vr * self.O_ket.data
+        self.O_ket.data += Vr * self.ket.data
 

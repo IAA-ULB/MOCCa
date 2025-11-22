@@ -9,7 +9,7 @@
 ! 
 ! W. Ryssens and M. Bender, in preparation. 
 ! 
-! Note that this parameterisation was fitted to doubly-magic nuclei only, 
+! Note that this parameterization was fitted to doubly-magic nuclei only,
 ! and pairing was not included. This file uses a standard ULB pairing with 
 ! the strength typically used for SLy4.
 !-------------------------------------------------------------------------------

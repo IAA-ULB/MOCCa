@@ -340,7 +340,7 @@ class LagrangeMesh:
     def is_commensurate(self, a: npt.NDArray) -> bool:
         """Determine if array a is commensurate with the mesh
         Args:
-            Q: a quantity discretised on the grid.
+            Q: a quantity discretized on the grid.
         """
         return a.size % self.linear_size == 0
 
@@ -386,7 +386,7 @@ class LagrangeMesh:
         """Compute the integral of a scalar quantity `q` on the mesh.
 
         Args:
-            Q (Observable) : discretised on the grid.
+            Q (Observable) : discretized on the grid.
 
         Returns:
             a scalar:

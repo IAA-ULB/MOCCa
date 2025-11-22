@@ -96,7 +96,7 @@ This is implemented in `hfblocks[8]` containing the number of single particle wa
 >[!Tip] Task 2.
 >Schrijf een routine die een "imaginary time evolution" stap doet; Eq. 63 in  [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf). 
 
-This is about the _diagonalisation subproblem_ (step 1 in Fig. 1, elaborated on in section 3 of [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf)).
+This is about the _diagonalization subproblem_ (step 1 in Fig. 1, elaborated on in section 3 of [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf)).
 One possible procedure to evolve the spwfs is **gradient descent**. The gradient of the energy wrt the spwf $|\psi_j\rangle$ is $h|\psi_j\rangle$ . Hence, 
 $$|\Psi_j^{(i+1)}\rangle
 =|\psi_j^{(i)}\rangle-\alpha(h-\epsilon_j^{(i)})|\psi_j^{(i)}\rangle

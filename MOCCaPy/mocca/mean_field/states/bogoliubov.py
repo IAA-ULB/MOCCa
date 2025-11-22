@@ -6,7 +6,7 @@ class BogoliubovState:
     mean-field state and therefor serves as the base class for all other mean-field
     states.
 
-    Bogoliubov mean-field states are characterised by occupancies ($\rho$) being a
+    Bogoliubov mean-field states are characterized by occupancies ($\rho$) being a
     full matrix.
     """
     # Rather than accepting the arguments of HFPsi.__init__ and forwarding them,

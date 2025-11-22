@@ -36,9 +36,9 @@ class HFPsiO(Observable):
             n_proton_wf: Number of proton wave functions.
             mesh: Mesh on which the wave functions are represented.
                 Currently only LagrangeMesh objects are supported.
-            init: initialisation strategy for the single particle wave functions:
+            init: initialization strategy for the single particle wave functions:
                 'nilsson' or 'random'.
-            osc_freq: optional, Oscillation frequencies for Nilsson initialisation.
+            osc_freq: optional, Oscillation frequencies for Nilsson initialization.
         """
         # This code is messy because it relies on F90 modules nil8_f90 and randomspwfs_f90, bad design
         # decisions in there percolate upwards
@@ -54,7 +54,7 @@ class HFPsiO(Observable):
         if init in self.init_f90_registry:
             self._init_f90()
         else:
-            raise ValueError(f"Currently only f90 initialisation strategies ('nilsson', 'random') are supported. "
+            raise ValueError(f"Currently only f90 initialization strategies ('nilsson', 'random') are supported. "
                              f"Initialization strategy '{init}' is not recognized."
                              )
         self.n_spwf = self.data.shape[2]
@@ -111,12 +111,12 @@ class HFPsiO(Observable):
             spwf_map,
         ]
 
-        assert self.init in ['nilsson', 'random'], f"Initialisation strategy '{init}' is not supported."
+        assert self.init in ['nilsson', 'random'], f"Initialization strategy '{init}' is not supported."
         if self.init == 'nilsson':
-            assert self.osc_freq is not None, f"Initialisation strategy '{init}' requires sscillation frequencies."
+            assert self.osc_freq is not None, f"Initialization strategy '{init}' requires sscillation frequencies."
             assert (self.mesh.d[1] == self.mesh.d[0]) and \
                    (self.mesh.d[2] == self.mesh.d[0]), \
-                   f"Nilsson initialisation strategy does not support " \
+                   f"Nilsson initialization strategy does not support " \
                    f"meshes with different spacing on the coordinates axes."
         init = self.init_f90_registry[self.init] # fetch the method from the init_registry
         init(*init_args)

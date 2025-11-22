@@ -48,7 +48,7 @@
      !            -> dummy arguments to make this routines calling signature
      !               identical to that of nilsson.
      ! Output:
-     !    psi: a set of wavefunctions with random values. Only initialised if 
+     !    psi: a set of wavefunctions with random values. Only initialized if
      !         the map input is allocated.
      !         ATTENTION: this set of spwfs will not be orthonormal at all.
      !    spe: a guess (trivial in this routine) of the single-particle energies
@@ -113,7 +113,7 @@
                                                     ! MPI_RANK; if not, we all ranks
                                                     ! will generate the same sequence
                                                     ! and we will run in trouble with
-                                                    ! orthonormalisation
+                                                    ! orthonormalization
             call random_seed(put=seed)
         else
             ! Let all MPI ranks generate the same random numbers, but take a subset

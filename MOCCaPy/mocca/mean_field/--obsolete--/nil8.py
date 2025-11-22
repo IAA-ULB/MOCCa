@@ -213,7 +213,7 @@ def nilsson(wfs, kparz, esp1, meven, modd,
   # he = 0.0d0 ; kparz=0; a= 0.0d0                        ### allocated with numpy.zeros.
     kparz = 0
 
-    # ! In order for the compiler not to complain about non-initialised stuff.
+    # ! In order for the compiler not to complain about non-initialized stuff.
     nvv = 0
     # !c......................... mz must be larger or equal than both mx and my
     #

@@ -5,7 +5,7 @@ from .bcs import BCSState
 class SlaterDeterminant(BCSState):
     """This class implements a Slater determinant mean-field state.
 
-    BCS mean-field states are characterised by occupancies ($\rho$) being a
+    BCS mean-field states are characterized by occupancies ($\rho$) being a
     diagonal matrix whose elements are 0 or 1, and thus _isa_ `BCSState`.
     """
 
@@ -60,7 +60,7 @@ class SlaterDeterminant(BCSState):
 
     @property
     def mesh(self):
-        """Return the mesh on which this mean-field state is discretised."""
+        """Return the mesh on which this mean-field state is discretized."""
         return self.hfpsi.mesh
 
     def energy(self, edf=None) -> float:
