@@ -163,7 +163,7 @@ class F90WfInitializer:
         hfblocks[6] = (kparz[self.n_neutron_wf:] < 0).sum()
 
         init_args[0] = np.zeros((self.mesh.linear_size, 4, self.n_total_wf), dtype=np.float64, order='F') # hfpsi
-        init_args[-1] = np.arange(1, self.n_total_wf, dtype=np.int32) # spwf_map
+        init_args[-1] = np.arange(1, self.n_total_wf+1, dtype=np.int32) # spwf_map
 
         self.init(*init_args)
 
