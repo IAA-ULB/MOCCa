@@ -76,7 +76,7 @@ $$\langle\psi_i|O|\psi_j\rangle=\sum_{r_{ijk}}
 In Python code:
 ```Python
 for ib in range(8):
-	np.einsum("ijk,ijl->kl", HFPsi_ib, O_HFPsi_ib, out=matrix_ib)
+	np.einsum("ijk,ijl->kl", HFPsi_ib, O_HFPsi_ib, out=matrix_ib, order='F', optimize=True)
 ```
 `np.einsum` comes in very handy again.
 ### Block structure of `HFPsi`
@@ -185,7 +185,7 @@ en
 $$\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$$
 uit te rekenen. Vergeet niet dat $h$ hermitisch is, dus voor dat laatste kan je $h|\psi_j\rangle$ en $h|\psi_i\rangle$ veilig sandwichen.
 
-We did already have code for $\langle\psi_i|h|\psi_i\rangle$. The quantity $\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$ is called the dispersion.
+We did already have code for $\langle\psi_i|h|\psi_i\rangle$. The quantity $\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$ is called the dispersion. $\langle\psi_i|h^2|\psi_i\rangle$ can be computed as $\langle\psi_i|h^\dagger h|\psi_i\rangle$.
 ## Task 5
 >[!Tip] Task 5.
 >Combineer dan alles in het algoritme beschreven in sectie 3.3 van [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf) en verifieer dat je toestandjes convergeren naar eigentoestanden van h, bvb doordat $$\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$$ heel klein wordt. 

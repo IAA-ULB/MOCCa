@@ -378,9 +378,15 @@ class HFPsi(Observable):
 
     def normalize(self):
         """Normalize the HFPsi state."""
-        overlap = Overlap(self)
-        norm = overlap.compute_diagonal_elements()
-        np.sqrt(norm, out=norm)
-        hfpsi_data3 = self.data.reshape((self.data.shape[0], 4, self.data.shape[1]//4), order='F')
-        for i_spwf in range(norm.size):
-            hfpsi_data3[:,:,i_spwf] /= norm[i_spwf]
+        # overlap = Overlap(self)
+        # norm = 1.0 / np.sqrt(overlap.compute_diagonal_elements())
+        # # np.sqrt(norm, out=norm)
+        if not hasattr(self, 'd3'):
+            self.d3 = self.data.reshape(self.spwf_shape, order='F')
+
+        for i_spwf in range(self.n_total_wf):
+            f = np.einsum('jk,jk', self.d3[:,:,i_spwf], self.d3[:,:,i_spwf], optimize=True)*self.mesh.dv
+            self.d3[:,:,i_spwf] *= 1./np.sqrt(f)
+        # overlap = Overlap(self)
+        # overlap.compute_diagonal_elements()
+        # pass

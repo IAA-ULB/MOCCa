@@ -2,7 +2,10 @@
 # see Ryssens et al (2019) Eur. Phys. J. A (2019) 55:93 section 3.
 
 import numpy as np
+import pytest
 
+from mocca.mean_field.operators.overlap import (Overlap)
+from mocca.util.timer import Timer
 
 class DSP:
     """A class for evolving the single particle wave functions as part of the
@@ -31,7 +34,8 @@ class DSP:
 
         self.hamiltonian = hamiltonian
 
-    def step(self, nsteps=1):
+    @Timer("DSP.step()")
+    def step(self):
         """Apply `nsteps` step (gradient descent or heavy ball dynamics, iff self.mu>0)."""
 
         def gradient_descent_step(ket_data, h_ket_data, epsilon):
@@ -85,24 +89,32 @@ class DSP:
                 self._mu_ket_prev_data[:,:] *= self.mu
                 gradient_descent_step(ket_data, h_ket_data, epsilon)
 
-    def evolve(self, nsteps=1):
+    def evolve(self, nsteps=1, check=False):
         """"""
+        if not hasattr(self, '_step'):
+            self._step = 0
+        self.hamiltonian.compute_dispersion()
+        print(f"\niter = {self._step}: h_ii = {self.hamiltonian.diagonal}")
+        print(  f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
 
         for i in range(nsteps):
             self.step()
-            gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True)
-            print(f"h_ii = {self.hamiltonian.diagonal}")
-            self.hamiltonian.compute_dispersion(recompute=True)
+            gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True, check=check)
+            self._step +=1
 
+        self.hamiltonian.compute_dispersion()
+        print(f"iter = {self._step}: h_ii = {self.hamiltonian.diagonal}")
+        print(f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
 
+@Timer("_projector()")
 def _projector(hfpsi_data3_ib, i, j):
-    Overlap_ij = np.einsum("hk,hk", hfpsi_data3_ib[:, :, i], hfpsi_data3_ib[:, :, j])
-    Overlap_jj = np.einsum("hk,hk", hfpsi_data3_ib[:, :, j], hfpsi_data3_ib[:, :, j])
+    Overlap_ij = np.einsum("hk,hk", hfpsi_data3_ib[:, :, i], hfpsi_data3_ib[:, :, j], order='F', optimize=True)
+    Overlap_jj = np.einsum("hk,hk", hfpsi_data3_ib[:, :, j], hfpsi_data3_ib[:, :, j], order='F', optimize=True)
     # both are missing a factor mesh.dv but that doesn's matter because of the quotient
     return Overlap_ij / Overlap_jj
 
-
-def gramm_schmidt(hfpsi, order=None, normalize=True):
+@Timer('gramm_schmidt()')
+def gramm_schmidt(hfpsi, order=None, normalize=True, check=False):
     """Gramm-Schmidt orthogonalization of a wave function.
 
     Args:
@@ -112,6 +124,7 @@ def gramm_schmidt(hfpsi, order=None, normalize=True):
             selected first. If None, the order is the order of the single particle wave functions
             in hfpsi.data.
         normalize: whether to normalize the single particle wave functions after orthogonalization.
+        check: if True, verifies that the overlap matrix is unity. (For debugging purposes only).
     """
     hfpsi_data3 = hfpsi.data.reshape((hfpsi.data.shape[0], 4, hfpsi.data.shape[1]//4), order='F')
     for ib in range(8):
@@ -136,3 +149,16 @@ def gramm_schmidt(hfpsi, order=None, normalize=True):
     if normalize:
         hfpsi.normalize()
 
+    if check:
+        overlap = Overlap(hfpsi)
+        overlap.compute_matrix_representation()
+        for ib in range(8):
+            n_ib = hfpsi.hfblocks[ib]
+            block_ib = overlap.matrix[ib]
+            for i in range(0, n_ib):
+                for j in range(i, n_ib):
+                    if i == j:
+                        if normalize:
+                            assert block_ib[i,i] == pytest.approx(1.0), f"block[{ib}][{i},{j}] {block_ib[i, j]}"
+                    else:
+                        assert block_ib[i,j] == pytest.approx(0.0), f"block[{ib}][{i},{j}] {block_ib[i, j]}"

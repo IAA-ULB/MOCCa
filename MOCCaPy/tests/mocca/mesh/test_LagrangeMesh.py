@@ -3,12 +3,20 @@ import matplotlib.pyplot as plt
 from   matplotlib import cm
 import numpy as np
 from   pathlib import Path
+import sys
 import pytest
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.lagrange import create_mesh
 from mocca.mesh.observable import Observable
-from mocca.util import started_finished, started, finished
+
+path2MOCCaPy = Path(__file__).parent
+while not path2MOCCaPy.name == 'MOCCaPy':
+    path2MOCCaPy = path2MOCCaPy.parent
+    print(path2MOCCaPy)
+sys.path.insert(0, str(path2MOCCaPy))
+
+from tests.util import started_finished, started, finished
 
 this_file = Path(__file__).resolve()
 project_folder = this_file

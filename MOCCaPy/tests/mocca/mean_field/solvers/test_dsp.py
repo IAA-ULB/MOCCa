@@ -5,6 +5,7 @@ from mocca.mesh import LagrangeMesh
 import mocca.mean_field.states as states
 import mocca.mean_field.operators as operators
 from mocca.mean_field.solvers.dsp import DSP, gramm_schmidt
+from mocca.util.timer import Timer
 
 def test_dsp():
     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
@@ -29,7 +30,7 @@ def test_dsp():
     dsp.step()
 
 def test_gramm_schmidt():
-    mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
+    mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=True)
     nwn, nwp = 15, 15
     osc_freq = (0.2, 0.2, 0.2)
     hfpsi = states.HFPsi(
@@ -82,7 +83,9 @@ def test_evolve():
         orthogonalize=True, normalize=True
     )
     overlap = operators.Overlap(hfpsi)
-    overlap_matrix = overlap.compute_matrix_representation()
+    # overlap_matrix = overlap.compute_matrix_representation()
     hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
-    dsp = DSP(hamiltonian, alpha=.001)
-    dsp.evolve(nsteps=10)
+    dsp = DSP(hamiltonian, alpha=.002)
+    with Timer(name="DSP.evolve") as timer:
+        dsp.evolve(nsteps=10)
+    Timer.report()

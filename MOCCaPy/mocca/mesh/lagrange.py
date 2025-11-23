@@ -702,7 +702,7 @@ class LagrangeMesh:
                          'il,lq'   #  (self.dim == 1)
             if not self.reduced[axis]:
                 D = self._get_D(axis=0, order=order)
-                np.einsum(subscripts, D, op2, out=out)
+                np.einsum(subscripts, D, op2, out=out, order='F', optimize=True)
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
@@ -711,14 +711,14 @@ class LagrangeMesh:
                     op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
                                    (op2[:, :, iq]   , out[:,:,iq]  ) if (self.dim == 2) else \
                                    (op2[:, iq]      , out[:,iq]    )
-                    np.einsum(subscripts, DE, op2_iq, out=out_)
+                    np.einsum(subscripts, DE, op2_iq, out=out_, order='F', optimize=True)
 
         elif self.dim >=1 and axis == 1: # y-axis
             subscripts = 'il,jlkq' if (self.dim == 3) else \
                          'il,jlq'  #  (self.dim == 2)
             if not self.reduced[axis]:
                 D = self._get_D(axis=1, order=order)
-                np.einsum(subscripts, D, op2, out=out)
+                np.einsum(subscripts, D, op2, out=out, order='F', optimize=True)
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
@@ -726,19 +726,19 @@ class LagrangeMesh:
                          self._get_DmE(axis=1, order=order)
                     op2_iq, out_ = (op2[:, :, :, iq], out[:,:,:,iq]) if (self.dim == 3) else \
                                    (op2[:, :, iq]   , out[:,:,iq]) #  (self.dim == 2)
-                    np.einsum(subscripts, DE, op2_iq, out=out_)
+                    np.einsum(subscripts, DE, op2_iq, out=out_, order='F', optimize=True)
 
         elif axis == 2 : # z-axis (self.dim == 3 obviously)
             subscripts = 'il,jklq'
             if not self.reduced[axis]:
                 D = self._get_D(axis=2, order=order)
-                np.einsum(subscripts, D, op2, out=out)
+                np.einsum(subscripts, D, op2, out=out, order='F', optimize=True)
             else:
                 subscripts = subscripts[:-1] # drop the trailing 'q`, we're updating one component at a time.
                 for iq in range(Q.n_components):
                     DE = self._get_DpE(axis=2, order=order) if Q.symmetry[iq,2] == 1 else \
                          self._get_DmE(axis=2, order=order)
-                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,:,:,iq])
+                    np.einsum(subscripts, DE, op2[:,:,:,iq], out=out[:,:,:,iq], order='F')
 
     # ---------------------------------------------------------------------------
     # Interpolation methods

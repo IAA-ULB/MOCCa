@@ -2,7 +2,15 @@
 import inspect
 
 import pytest
-from mocca.util import started_finished, started, finished
+
+import sys
+from pathlib import Path
+path2MOCCaPy = Path(__file__).parent
+while not path2MOCCaPy.name == 'MOCCaPy':
+    path2MOCCaPy = path2MOCCaPy.parent
+sys.path.insert(0, str(path2MOCCaPy))
+
+from tests.util import started_finished, started, finished
 
 
 def test_answer(no_plot, debug=False):
