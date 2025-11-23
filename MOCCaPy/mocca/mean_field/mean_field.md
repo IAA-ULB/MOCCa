@@ -189,3 +189,6 @@ We did already have code for $\langle\psi_i|h|\psi_i\rangle$. The quantity $\lan
 ## Task 5
 >[!Tip] Task 5.
 >Combineer dan alles in het algoritme beschreven in sectie 3.3 van [Ryssens et al 2019 EPJA 55:93](../../literature/Ryssens_et_al_2019_Heavy_ball_dynamics_and_potential_preconditioning.pdf) en verifieer dat je toestandjes convergeren naar eigentoestanden van h, bvb doordat $$\langle\psi_i|h^2|\psi_i\rangle-\langle\psi_i|h|\psi_i\rangle^2$$ heel klein wordt. 
+
+#### Profiling the DSP
+in this algorithm, profiling shows that `numpy.einsum` takes 90% of the computing time. After adding `order='F'` and `optimize=True` tot the `numpy.einsum` parameters, that went down to 73%. Consequently, there is little room for further optimization. Both reduced and non-reduced axes converge in the same number of iterations to the same values. The CPU time ratio is 1298 s / 583s, roughly a factor 2.2. That is a bit surprising, I would have expected that number to be closer to 4 (?). Integrals involving the wave functions on reduced meshes take roughly 1/8 of the time as the number of mesh points is only 1/8 wrt non-reduced meshes. For derivatives that factor is only 1/2 as the combined size of D+E and D-E is only 1/2 the size of D for the full mesh. Apparently, 1/3 of the time is spent taking derivatives  
