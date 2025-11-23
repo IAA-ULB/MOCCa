@@ -82,10 +82,8 @@ def test_evolve():
         init='nilsson',osc_freq=osc_freq,
         orthogonalize=True, normalize=True
     )
-    overlap = operators.Overlap(hfpsi)
-    # overlap_matrix = overlap.compute_matrix_representation()
     hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
     dsp = DSP(hamiltonian, alpha=.002)
     with Timer(name="DSP.evolve") as timer:
-        dsp.evolve(nsteps=10)
+        dsp.evolve(nsteps=100)
     Timer.report()
