@@ -1,4 +1,5 @@
 import time
+import sys
 from contextlib import ContextDecorator
 from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Dict, Optional
@@ -7,9 +8,27 @@ from tabulate import tabulate
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
 
-@dataclass
+
 class Timer(ContextDecorator):
-    """Time your code using a class, context manager, or decorator"""
+    """Time your code using a Timer instance, a context manager, or a decorator.
+
+    ```python
+        from mocca.util.timer import Timer
+
+        @Timer('myfun') # Create Timer 'myfun' for timing the function using as a decorator
+        def myfun():
+            # code
+            tmr = Timer('snippet') #create Timer 'snippet' using a Timer instance
+            tmr.start()
+            # code snippet to be timed
+            tmr.stop()
+
+            with Timer('snippet2'): # Use Timer as q context manager
+                # code snippet 2 to be timed
+
+            # Timer 'snippet2' is now stopped.
+    ```
+    """
 
     timers = {}
 
@@ -17,7 +36,8 @@ class Timer(ContextDecorator):
         """Initialize the Timer object"""
         self.name = name
         self._start_time = None
-        self.timers[name] = [.0, 0]
+        self.timers[name] = [ 0, .0, .0, sys.float_info.max, .0 ]
+        #   [count, sum, ssq, min, max]
 
     def start(self) -> None:
         """Start the timer"""
@@ -36,8 +56,12 @@ class Timer(ContextDecorator):
         self._start_time = None
 
         # Report elapsed time
-        self.timers[self.name][0] += elapsed_time
-        self.timers[self.name][1] += 1
+        rec = self.timers[self.name]
+        rec[0] += 1
+        rec[1] += elapsed_time
+        rec[2] += elapsed_time**2
+        rec[3] = min(elapsed_time, rec[3])
+        rec[4] = max(elapsed_time, rec[4])
 
         return elapsed_time
 
@@ -52,6 +76,15 @@ class Timer(ContextDecorator):
 
     @classmethod
     def report(cls):
-        print("Timers")
-        table = [ [key,*value] for key,value in cls.timers.items()]
-        print(tabulate(table, tablefmt="fancy_grid", headers=['name','time [s]','count']))
+        print("Timers [s}")
+        table = []
+        for name,value in cls.timers.items():
+            count = value[0]
+            total = value[1]
+            mean = total/count
+            stddev = (value[2] - total*total/count) / (count-1) if (count > 1) else None
+            mn = value[3]
+            mx = value[4]
+            table.append([name, count, total, mean, stddev, mn, mx])
+        table.sort(key=lambda x: x[2], reverse=True)
+        print(tabulate(table, tablefmt="fancy_grid", headers=['name', 'count', 'total', 'mean', 'stddev', 'min', 'max' ]))

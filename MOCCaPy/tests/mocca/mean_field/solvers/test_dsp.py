@@ -72,7 +72,7 @@ def test_gramm_schmidt():
                     assert block_ib[i,j] == pytest.approx(1.0)
 
 def test_evolve():
-    mesh = LagrangeMesh(M=30, d=.8, reduced=False)
+    mesh = LagrangeMesh(M=30, d=.8, reduced=True)
     nwn, nwp = 15, 15
     osc_freq = (0.2, 0.2, 0.2)
     hfpsi = states.HFPsi(
