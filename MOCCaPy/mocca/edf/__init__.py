@@ -1,4 +1,4 @@
-from mocca.param import Param
+from .param import Param
 
 class EDF:
     """Abstract Energy Density Functional class."""

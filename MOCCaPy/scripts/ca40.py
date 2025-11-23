@@ -1,7 +1,9 @@
 import h5py
+import sys
+for p in sys.path: print(p)
 
-
-from mocca.param      import Param
+import mocca
+from mocca.edf.param  import Param
 from mocca.mesh       import LagrangeMesh
 from mocca.mean_field import SlaterDeterminant, HFPsi
 try:

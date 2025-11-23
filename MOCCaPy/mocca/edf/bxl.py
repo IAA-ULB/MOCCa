@@ -1,4 +1,4 @@
-from mocca.param import Param
+from mocca.edf.param import Param
 from mocca.edf import EDF
 
 

@@ -1,8 +1,7 @@
 import pytest
 from pathlib import Path
 
-from mocca.edf import EDF
-from mocca.param import Param
+from mocca.edf import EDF, Param
 
 project_folder = Path(__file__).parent.parent.parent.parent.parent
 assert project_folder.name == 'tantalus_full'
