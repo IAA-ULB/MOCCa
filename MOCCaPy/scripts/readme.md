@@ -12,4 +12,4 @@ lrwxr-xr-x@ 1 etijskens  staff     54 Nov 23 22:41 mocca@ -> /Users/etijskens/wo
 -rw-r--r--@ 1 etijskens  staff    180 Nov 23 22:03 sandbox.py
 -rw-r--r--@ 1 etijskens  staff    193 Nov 23 21:56 tryout.py
 ```
-the soft link `mocca` ensures that scripts in this folder can import mocca functionality. 
+the soft link `mocca` ensures that scripts in this folder can import mocca functionality. This relies on the fact that running a script in Python automatically adds the script's folder to `$PYTHONPATH`. 
