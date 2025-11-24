@@ -291,9 +291,7 @@ class Observable:
         return result
 
     def _differentiate1(self, axes:str, debug:bool):
-        """
-
-        """
+        """Private method for computing a single derivative."""
         if is_composite(axes):
             if axes == 'Laplacian':
                 # Reuse or allocate memory
@@ -312,6 +310,9 @@ class Observable:
                     result[:, :, :] = self.derivativesG['xx'] + \
                                       self.derivativesG['yy'] + \
                                       self.derivativesG['zz']
+
+            # For composite derivatives other than 'Laplacian' there is nothing to do,
+            # as their components have been computed already, and they must not be combined.
 
         else:
             # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
@@ -334,6 +335,7 @@ class Observable:
             # the mesh object (typically, LagrangeMesh) begins.
             if debug:
                 print(f"Debug log>  mesh.differentiate(Q=self, axes='{axes}', out=out)")
+
             self.mesh.differentiate(Q=self, axes=axes, out=out)
 
         self.derivative_set_uptodate(axes)
