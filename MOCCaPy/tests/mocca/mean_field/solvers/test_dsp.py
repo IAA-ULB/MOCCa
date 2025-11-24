@@ -22,7 +22,7 @@ def test_dsp():
                           (15,23),(23,23),
                           (23,30),(30,30)
                          ]
-    h = operators.hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
+    h = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
     dsp = DSP(h, alpha=.001)
     dsp.step()
     dsp.mu = 0.001
@@ -82,7 +82,7 @@ def test_evolve():
         init='nilsson',osc_freq=osc_freq,
         orthogonalize=True, normalize=True
     )
-    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon2(hfpsi)
+    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
     dsp = DSP(hamiltonian, alpha=.002)
     with Timer(name="DSP.evolve") as timer:
         dsp.evolve(nsteps=100)
