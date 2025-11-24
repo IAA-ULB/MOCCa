@@ -290,8 +290,60 @@ class Observable:
                         result[i,j,k,l] = self.derivativesG[axes]
         return result
 
+    def _differentiate1(self, axes:str, debug:bool):
+        """
+
+        """
+        if is_composite(axes):
+            if axes == 'Laplacian':
+                # Reuse or allocate memory
+                if axes in self.derivativesG:
+                    result = self.derivativesG[axes]
+                else:
+                    result = np.empty_like(self.dataG)
+                    self.derivativesG[axes] = result
+                    self.derivatives[axes] = self.mesh.cast2linear(result)
+
+                # Compute
+                if self.mesh.dim == 2:
+                    result[:, :] = self.derivativesG['xx'] + \
+                                   self.derivativesG['yy']
+                else:
+                    result[:, :, :] = self.derivativesG['xx'] + \
+                                      self.derivativesG['yy'] + \
+                                      self.derivativesG['zz']
+
+        else:
+            # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
+            nx, ny, nz = axes.count('x'), axes.count('y'), axes.count('z')
+            if not (nx + ny + nz == len(axes)): raise ValueError(
+                f"Extraneous characters in '{axes}', only 'x', 'y', 'and 'z' are allowed"
+            )
+            # sort the `axes` str, as the order of differentiation is immaterial
+            axes = nx * 'x' + ny * 'y' + nz * 'z'  # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
+
+            if not axes in self.derivativesG:
+                # allocate memory
+                a = np.empty_like(self.dataG)
+                self.derivativesG[axes] = a
+                self.derivatives[axes] = self.mesh.cast2linear(a)
+
+            out = self.derivativesG[axes]
+
+            # This is where the responsibility of Observable ends and the responsibility of
+            # the mesh object (typically, LagrangeMesh) begins.
+            if debug:
+                print(f"Debug log>  mesh.differentiate(Q=self, axes='{axes}', out=out)")
+            self.mesh.differentiate(Q=self, axes=axes, out=out)
+
+        self.derivative_set_uptodate(axes)
+
+
     def differentiate(self, axes:str|list[str], access='L', recompute:bool=True, debug=False):
         """Compute some spatial derivative(s) of this Observable's components.
+
+        If composite derivatives are requested ('Grad', 'Hessian', 'Laplacian', ...) the `axes` list
+        is first completed with all the needed simple derivatives.
 
          Args:
              axes:
@@ -303,23 +355,20 @@ class Observable:
                     - 'Laplacian' d^2/dx^2 + d^2/dy^2 + d^2/dz^2)
                     - 'Tensor3': all third order derivatives
                     - 'Tensor4': all fourth order derivatives
-                    These return an numpy array with the corresponding tensor of partial derivatives.
-                    'Laplacian', is an exception because it is a scalar differentiation operator, and
-                    therefor the result of d^2/dxdx + d^2/dy^2 + d^2/dz^2)Q is returned.
-                access: access method for the result: 'L'=linear, 'G'=grid-based. This does not
-                    influence the computation. Default is linear access in agreement with standard 
-                    MOCCa data structures.
                 list: A list of the above strings is also accepted, requesting several derivatives
                     at once. The list can internally be manipulated to allow storing intermediate
                     derivatives that can be reused to speed up computation. E.g. when requesting 'xz'
                     and 'yz', it is advantageous to compute d/dz first and apply d/dx and d/dy to it,
                     thereby saving one matrix application.
-             recompute: If true (=default) all the derivatives needed by the axes request are recomputed.
-                If False, derivatives computed in previous calls to `Observable.differentiate()` can be
+            access: (Optional) access method for the returned array, if `isinstance(axes,str)`,
+                ignored otherwise. 'L'=linear, 'G'=grid-based. This does not influence the
+                computation. Default is linear access in agreement with standard MOCCa data
+                structures.
+             recompute: If `True` (=default) all the derivatives needed by the `axes` request are recomputed.
+                If `False`, derivatives computed in previous calls to `Observable.differentiate()` can be
                 reused as a starting point for the requested derivatives.
                 After modifying the Observable, `differentiate` should, obviously, be called with
-                'recompute=True' (=default). It may be practical to request all needed derivatives
-                in a single differentate() call. Somtimes it may be more practical to split the
+                'recompute=True' (=default). Sometimes it is more practical to split the derivatives
                 request over several calls where the first call uses `recompute=True` and succeeding
                 calls use `recompute=False`. The succeeding calls can e.g. request increasingly
                 higher order derivatives.
@@ -332,130 +381,62 @@ class Observable:
                 all 2nd order derivatives and reuses 'y' and 'z' computed in the first call in the computation
                 of the cross derivatives 'xy', 'xz' and 'yz'.
         Returns:
-            All computed derivatives are stored internally and can be accessed by the Observables as
-            `self.derivatives[axes:str]` (linear access) or `self.derivativesG[axes:str]` (grid-based
-            access).
-            If axes is a str corresponding to a scalar derivative (this includes `Laplacian`), a numpy array
-            of floats is returned. For composite derivatives `None` is returned, but tensor-like variables
-            be created using the `grad`, `hessian`, `tensor3` and `tensor4` members.
-            In the case of a list, None is returned and the user must access the individual derivatives as
-            `self.derivatives[axes:str]` or `self.derivativesG[axes:str]`
+            A numpy array with the requested derivative if `axes` is a `str` referring to a scalar derivative
+            (such as 'x', `yz`, or 'Laplacian`). Otherwise, if `axes` is a `list` or refers to a tensor-like
+            derivative (such as `Grad`, 'Hessian', ...), `None` is returned.
+            The shape of the returned array depends on the `access` parameter.
+
+        Raises:
+            ValueError
+              - if one requests higher order derivatives than allowed by
+               `LagrangeMesh.highest_derivative_order`,
+              - in case of an invalid `axes` parameter,
+              - in case of a composite derivative on a 1D mesh.
+
+        All computed derivatives are stored internally and can be accessed by the Observables as
+        `observable.derivatives[axes:str]` (linear access) or `observable.derivativesG[axes:str]` (grid-based
+        access).
+
+        For tensor-like derivatives, tensor-shaped structures can be created using  the `grad`, `hessian`,
+        `tensor3` and `tensor4` member functions.
         """
-        if debug:
-            print(f"Debug log>  {axes=}")
+        if isinstance(axes, str):
+            self.differentiate([axes], access=access, recompute=recompute, debug=debug)
+            if is_composite(axes) and axes != "Laplacian":
+                return
+            else:
+                return self.derivatives [axes] if access == 'L' else \
+                       self.derivativesG[axes]
 
         if recompute:
             self.invalidate_derivatives()
-            self._composite_done = set()
 
-        if isinstance(axes, str):
-            if self.derivative_is_uptodate(axes):
-                # Uptodate derivative already available. This method can be used as a getter.
-                # The grid based accessor is returned.
-                if debug:
-                    print(f"Debug log>  reusing {axes=}")
-
-                return self.derivativesG[axes] if access=='G' else \
-                       self.derivatives [axes]
-
-            if is_composite(axes):
-                # axes is a multi-component derivative. Hence, self.mesh.dim >= 2 must hold.
-                if not (self.mesh.dim >= 2):
-                    raise ValueError(f"Derivative{axes} requires `mesh.dime > 1`.")
-                if not axes in ['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']:
-                    if debug:
-                        print(f"Debug log>  {axes=} unknown composite derivative.")
-                    raise ValueError(f"Unknown composite derivatve {axes}, allowed={['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']}")
-
-                # Wrap axes in a list to allow manipulations for reusing intermediate results
-                if not axes in self._composite_done:
-                    self._composite_done.add(axes)
-                    self.differentiate(axes=[axes], recompute=False, debug=debug)
-
-                if axes == 'Laplacian':
-                    # Reuse or allocate memory
-                    if axes in self.derivativesG:
-                        result = self.derivativesG[axes]
-                    else:
-                        result = np.empty_like(self.dataG)
-                        self.derivativesG[axes] = result
-                        self.derivatives [axes] = self.mesh.cast2linear(result)
-
-                    # Compute
-                    if self.mesh.dim == 2:
-                        result[:,:] = self.derivativesG['xx'] + \
-                                      self.derivativesG['yy']
-                    else:
-                        result[:,:,:] = self.derivativesG['xx'] + \
-                                        self.derivativesG['yy'] + \
-                                        self.derivativesG['zz']
-
-                    return result if access=='G' else \
-                           self.derivatives[axes]
-
-            else:  # not composite
-                # All simple derivatives. `axes` is composed as a sequence of 'x'|'y'|'z' characters.
-                nx, ny, nz = axes.count('x'), axes.count('y'), axes.count('z')
-                if not (nx + ny + nz == len(axes)):
-                    raise ValueError(
-                       f"Extraneous characters in '{axes}', only 'x', 'y', 'and 'z' are allowed"
-                    )
-                # sort the `axes` str, as the order of differentiation is immaterial
-                axes = nx*'x' + ny*'y' + nz*'z' # E.g. 'xyzx' -> 'xxyz', which is  evaluated as Dx2*Dy*Dz*Q
-
-                if not axes in self.derivativesG:
-                    # allocate memory
-                    a = np.empty_like(self.dataG)
-                    self.derivativesG[axes] = a
-                    self.derivatives [axes] = self.mesh.cast2linear(a)
-
-                out = self.derivativesG[axes]
-
-                # This is where the responsibility of Observable ends and the responsibility of
-                # the mesh object (typically, LagrangeMesh) begins.
-                if debug:
-                    print(f"Debug log>  mesh.differentiate(Q=self, axes='{axes}', out=out)")
-                self.mesh.differentiate(Q=self, axes=axes, out=out)
-
-                self.derivative_set_uptodate(axes)
-
-                return out if access=='G' else \
-                       self.derivatives[axes]
-
-        elif isinstance(axes, list):
-            # Handle lists of derivatives
-            # Add components to allow reuse of derivatives:
-            if 'Grad' in axes:
-                if not (self.mesh.dim > 1):
+        if self.mesh.dim == 1:
+            # No completion needed
+            for ax in axes:
+                if is_composite(ax):
                     raise ValueError(
                         f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
                     )
-                if not (self.mesh.highest_derivative_order >= 1):
-                    raise ValueError(
-                        f"{axes} requires HFPsi.highest_derivative_order>=1."
-                    )
+        else:
+            for ax in axes:
+                if is_composite(ax) and ax not in ['Grad', 'Hessian', 'Laplacian', 'Tensor3', 'Tensor4']:
+                    raise ValueError(f"Unrecognized composite derivative: {ax}")
+
+            # Add components to allow reuse of derivatives:
+            if 'Grad' in axes:
+                if not self.mesh.highest_derivative_order >=1:
+                    raise ValueError(f"Derivative '{axes}' incompatible with highest derivative order: {self.mesh.highest_derivative_order}.")
                 axes = ['x', 'y', 'z'] + axes
 
             if 'Laplacian' in axes:
-                if not (self.mesh.dim > 1):
-                    raise ValueError(
-                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                    )
-                if not (self.mesh.highest_derivative_order >= 2):
-                    raise ValueError(
-                        f"{axes} requires HFPsi.highest_derivative_order>=2."
-                    )
+                if not self.mesh.highest_derivative_order >=2:
+                    raise ValueError(f"Derivative '{axes}' incompatible with highest derivative order: {self.mesh.highest_derivative_order}.")
                 axes = ['xx', 'yy', 'zz'] + axes
 
             if 'Hessian' in axes:
-                if not (self.mesh.dim > 1):
-                    raise ValueError(
-                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                    )
-                if not (self.mesh.highest_derivative_order >= 2):
-                    raise ValueError(
-                        f"{axes} requires HFPsi.highest_derivative_order>=3."
-                    )
+                if not self.mesh.highest_derivative_order >=2:
+                    raise ValueError(f"Derivative '{axes}' incompatible with highest derivative order: {self.mesh.highest_derivative_order}.")
                 axes = ['y', 'z',
                         'xx', 'xy', 'xz',
                         'yy', 'yz',
@@ -468,14 +449,8 @@ class Observable:
                 # by the composite, c.q 'Hessian'.
 
             if 'Tensor3' in axes:
-                if not (self.mesh.dim > 1):
-                    raise ValueError(
-                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                    )
-                if not (self.mesh.highest_derivative_order >= 3):
-                    raise ValueError(
-                        f"{axes} requires HFPsi.highest_derivative_order>=3."
-                    )
+                if not self.mesh.highest_derivative_order >=3:
+                    raise ValueError(f"Derivative '{axes}' incompatible with highest derivative order: {self.mesh.highest_derivative_order}.")
                 axes = ['y', 'z',
                         'yy', 'yz', 'zz',
                         'xxx', 'xxy', 'xxz',
@@ -488,14 +463,8 @@ class Observable:
                 # 'x', 'xx' and and 'xy' are dropped for the same reason as above.
 
             if 'Tensor4' in axes:
-                if not (self.mesh.dim > 1):
-                    raise ValueError(
-                        f"1D LagrangeMesh objects do not support composite derivatives: '{axes}'."
-                    )
-                if not (self.mesh.highest_derivative_order >= 4):
-                    raise ValueError(
-                        f"{axes} requires HFPsi.highest_derivative_order>=4."
-                    )
+                if not self.mesh.highest_derivative_order >=4:
+                    raise ValueError(f"Derivative '{axes}' incompatible with highest derivative order: {self.mesh.highest_derivative_order}.")
                 axes = ['y', 'z',
                         'yy', 'xz', 'yz', 'zz',
                         'yyy', 'yyz', 'yzz', 'zzz',
@@ -515,6 +484,7 @@ class Observable:
             if self.mesh.dim == 2:
                 # Remove entries containing 'z':
                 axes = [ax for ax in axes if 'z' not in ax]
+
             # Remove duplicate entries:
             axes = list(set(axes))
             # Sort the list in-place (the sorting key ensures that low order derivatives are
@@ -522,14 +492,10 @@ class Observable:
             axes.sort(key=sort_axes)
             if debug:
                 print(f"Debug log>  {axes=}")
-            # Process the list:
-            for ax in axes:
-                self.differentiate(axes=ax, recompute=False, debug=debug)
 
-            return None  # returning a list is impractical
-
-        else: # Axes should be eiter str or list
-            raise ValueError(f"Axes of type {type(axes)} not supported ({axes=}).")
+        # Process the list:
+        for ax in axes:
+            self._differentiate1(axes=ax, debug=debug)
 
     def derivative_symmetry(self, axes):
         """Return the symmetry of the derivative of this observable wrt axes .

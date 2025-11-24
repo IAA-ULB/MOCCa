@@ -215,6 +215,7 @@ class HFPsi(Observable):
                 self.hfblocks     = init.hfblocks
                 self.hfblockrange = init.hfblockrange
                 super().__init__(mesh=init.mesh, data=np.empty_like(init.data), symmetry=init.symmetry)
+                self.d3 = self.data.reshape(self.spwf_shape, order='F')
                 return
 
             elif init is None:
@@ -320,6 +321,8 @@ class HFPsi(Observable):
             symmetry[4*i_spwf:4*i_spwf + 4, 2] = (-1,-1, 1, 1 ) # sz
 
         super().__init__(name='HFPsi', mesh=mesh, data=data, symmetry=symmetry)
+
+        self.d3 = self.data.reshape(self.spwf_shape, order='F')
 
         # Orthogonalize and orthonormalize if requested
         if orthogonalize:

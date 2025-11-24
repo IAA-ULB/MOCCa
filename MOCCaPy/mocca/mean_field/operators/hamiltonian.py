@@ -41,14 +41,14 @@ class KineticEnergyOperator(Operator):
             hbm = [ -h if h > 0 else h for h in hbm]
         self.hbm = hbm
 
+        self.O_ket = self.ket.clone()
+
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
-        self.O_ket = self.ket.clone()
-        self.O_ket.d3 = self.O_ket.data.reshape(self.O_ket.spwf_shape, order='F')
 
         if isinstance(self.hbm, float):
-            assert self.hbm < 0, "hbm must incorporate the minus sign in the Kinetic Energy Operator"
             # Neutrons and protons are treated equally (mass)
+            assert self.hbm < 0, "hbm must incorporate the minus sign in the Kinetic Energy Operator"
             self.O_ket.data[:, :] = self.hbm * self.ket.derivatives[self.nabla]
 
         else:
@@ -56,6 +56,7 @@ class KineticEnergyOperator(Operator):
             hbm_n = self.hbm[0]
             hbm_p = self.hbm[1]
             assert (hbm_n < 0) and (hbm_p < 0), "hbm must incorporate the minus sign in the Kinetic Energy Operator"
+
             # Blocks[0:4] are for neutrons
             # Blocks[4:8] are for protons
             n = self.O_ket.hfblockrange[3][1]  # end of neutron range in the spwfs and begin of proton range
@@ -92,8 +93,6 @@ class KineticEnergyOperator(Operator):
 #         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
 #         self.O_ket = self.ket.clone()
 #         self.O_ket.d3 = self.O_ket.data.reshape(self.O_ket.spwf_shape, order='F')
-#
-#         # TODO: speed up with numba decorators?
 #
 #         def V_WoodsSaxon1D(r):
 #             return self.V0 / (1. + np.exp(self.ainv * (r - self.R)))
@@ -132,6 +131,18 @@ class KineticEnergyOperator(Operator):
 #             self.O_ket.data[:, :, n:] += hbm_p * self.ket.derivatives[nabla][:, :, n:]
 
 
+# TODO: speed up with numba decorators?
+# Define Woods-Saxon potential functions
+def V_WoodsSaxon1D(r, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (r - R)))
+
+def V_WoodsSaxon2D(x, y, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y) - R)))
+
+def V_WoodsSaxon3D(x, y, z, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y + z * z) - R)))
+
+
 class HamiltonianWoodsSaxon(KineticEnergyOperator):
     """Compute the matrix representation of the hamiltonian h with a Woods-Saxon potential. <hfpsi|h|hfpsi>.
 
@@ -150,23 +161,17 @@ class HamiltonianWoodsSaxon(KineticEnergyOperator):
                 (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
         """
         super().__init__(hfpsi, hbm)
-        self.V0 = V0
+        self.V0 = V0 if (V0 < 0) else -V0 # incorporate the minus sign of the potential
         self.ainv = 1 / a
         self.R = r0 * np.pow(hfpsi.n_neutrons + hfpsi.n_protons, 1 / 3)
+        self.ws_parms = {
+            'V0'  : self.V0,
+            'ainv': self.ainv,
+            'R'   : self.R,
+        }
 
     def add_local_terms(self):
         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
-
-        # TODO: speed up with numba decorators?
-        # Define Woods-Saxon potential functions
-        def V_WoodsSaxon1D(r):
-            return self.V0 / (1. + np.exp(self.ainv * (r - self.R)))
-
-        def V_WoodsSaxon2D(x, y):
-            return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x * x + y * y) - self.R)))
-
-        def V_WoodsSaxon3D(x, y, z):
-            return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x * x + y * y + z * z) - self.R)))
 
         # Select Woods-Saxon potential functions
         V_WoodsSaxon = V_WoodsSaxon3D if self.mesh.dim == 3 else \
@@ -174,7 +179,7 @@ class HamiltonianWoodsSaxon(KineticEnergyOperator):
                 V_WoodsSaxon1D
 
         # Apply the Woods-Saxon potential to the mesh points
-        Vr = self.mesh.apply(V_WoodsSaxon)
+        Vr = self.mesh.apply(V_WoodsSaxon, self.ws_parms)
 
         # add to O_ket
         self.O_ket.data += Vr * self.ket.data

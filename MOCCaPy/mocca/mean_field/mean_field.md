@@ -16,7 +16,7 @@ That is, compute:
 $$h\psi$$
 where $\psi$ is represented by a MOCCaPy `HFPsi` object.
 ### The Hamiltonian
-$$h = \hbar^2/2m \Delta + V(r)$$
+$$h = -\hbar^2/2m \Delta + V(r)$$
 where $\hbar^2/2m=20.73553000$, $\Delta$ represents the Laplacian, and $V(r)$ is the Woods-Saxon potential above. 
 ### The [Woods-Saxon potential](https://en.wikipedia.org/wiki/Woods–Saxon_potential)
 $$V(r)=-\frac{V_0}{1+\exp(\frac{r-R}{a})}$$

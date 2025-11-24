@@ -7,6 +7,28 @@ import pytest
 from mocca.mean_field.operators.overlap import (Overlap)
 from mocca.util.timer import Timer
 
+
+def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):
+    """Take a single gradient descent step (eq 63 ine see Ryssens et al (2019)
+    Eur. Phys. J. A (2019) 55:93 section 3.
+
+    Args:
+        ket_data: HFPsi.data member of ket.
+        h_ket_data: HFPsi.data member of h_ket containing the hamiltonian applied
+            to ket.
+        epsilon: contains the diagonal elements of the hamiltonian wrt ket:
+            diag(<ket|h|ket>).
+    """
+    epsilon *= alpha
+    epsilon += 1.
+
+    for i in range(epsilon.size):
+        ket_d3[:, :, i] *= epsilon[i]
+
+    h_ket_d3 *= alpha
+    ket_d3 -= h_ket_d3
+
+
 class DSP:
     """A class for evolving the single particle wave functions as part of the
     Diagonalization SubProblem, either by gradient descent step or heavy ball
@@ -34,72 +56,64 @@ class DSP:
 
         self.hamiltonian = hamiltonian
 
-    @Timer("DSP.step()")
-    def step(self):
-        """Apply `nsteps` step (gradient descent or heavy ball dynamics, iff self.mu>0)."""
+    # @Timer("DSP.step()")
+    def step(self, check=False):
+        """Apply a single step (gradient descent or heavy ball dynamics, iff self.mu>0).
 
-        def gradient_descent_step(ket_data, h_ket_data, epsilon):
-            """Take a single gradient descent step (eq 63 ine see Ryssens et al (2019)
-            Eur. Phys. J. A (2019) 55:93 section 3.
+        1. Compute the diagonal elements of the hamiltonian
+        2. Update the single particle wave functions (HFPsi)
+        3. Orthogonalize and normalize the single particle wave functions (HFPsi)
+        """
 
-            Args:
-                ket_data: HFPsi.data member of ket.
-                h_ket_data: HFPsi.data member of h_ket containing the hamiltonian applied
-                    to ket.
-                epsilon: contains the diagonal elements of the hamiltonian wrt ket:
-                    diag(<ket|h|ket>).
-            """
-            epsilon *= self.alpha
-            epsilon += 1.
-            kd3 = ket_data.reshape((ket_data.shape[0], 4, ket_data.shape[1]//4), order='F')
-            for i in range(epsilon.size):
-                kd3[:,:,i] *= epsilon[i]
-
-            h_ket_data *= self.alpha
-            ket_data -= h_ket_data
-
+        # 1. Compute the diagonal elements of the hamiltonian
         epsilon = self.hamiltonian.compute_diagonal_elements()
-        ket_data   = self.hamiltonian.  ket.data
-        h_ket_data = self.hamiltonian.O_ket.data
 
+        # 2. Update the single particle wave functions (HFPsi)
+        #    This requires ket, epsilon and h_ket (both of which have been computed
+        #    in the call to self.hamiltonian.compute_diagonal_elements())
+        ket_d3   = self.hamiltonian.  ket.d3
+        h_ket_d3 = self.hamiltonian.O_ket.d3
         if self.mu == 0:
-            gradient_descent_step(ket_data, h_ket_data, epsilon)
+            _gradient_descent_step(ket_d3, h_ket_d3, epsilon, self.alpha)
         else:
             # heavy ball dynamics step
             if hasattr(self, '_mu_ket_nextprev_data'):
-                self._mu_ket_nextprev_data[:,:] = ket_data
-                self._mu_ket_nextprev_data[:,:] *= self.mu
+                self._mu_ket_nextprev_d3[:,:] = ket_d3
+                self._mu_ket_nextprev_d3[:,:] *= self.mu
 
                 epsilon *= -self.alpha
                 epsilon += (1 + self.mu)
-                kd3 = ket_data.reshape((ket_data.shape[0], 4, ket_data.shape[1] // 4), order='F')
+
                 for i in range(epsilon.size):
-                    kd3[:, :, i] *= epsilon[i]
+                    ket_d3[:, :, i] *= epsilon[i]
 
-                h_ket_data *= self.alpha
-                h_ket_data += self._mu_ket_prev_data
-                ket_data -= h_ket_data
+                h_ket_d3 *= self.alpha
+                h_ket_d3 += self._mu_ket_prev_d3
+                ket_d3 -= h_ket_d3
 
-                # now we can overwrite _mu_ket_prev_data
-                self._mu_ket_prev_data[:,:] = self._mu_ket_nextprev_data
+                # now we can overwrite _mu_ket_prev_d3
+                self._mu_ket_prev_d3[:,:] = self._mu_ket_nextprev_d3
             else:
-                self._mu_ket_nextprev_data = np.empty_like(ket_data)
-                self._mu_ket_prev_data     = np.empty_like(ket_data)
-                self._mu_ket_prev_data[:,:] = ket_data
-                self._mu_ket_prev_data[:,:] *= self.mu
-                gradient_descent_step(ket_data, h_ket_data, epsilon)
+                self._mu_ket_nextprev_d3 = np.empty_like(ket_d3)
+                self._mu_ket_prev_d3     = np.empty_like(ket_d3)
+                self._mu_ket_prev_d3[:,:] = ket_d3
+                self._mu_ket_prev_d3[:,:] *= self.mu
+                _gradient_descent_step(ket_d3, h_ket_d3, epsilon, self.alpha)
 
-    def evolve(self, nsteps=1, check=False):
+        # 3. Orthogonalize and normalize the single particle wave functions (HFPsi)
+        gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True, check=check)
+
+    def evolve(self, nsteps=1, check=True):
         """"""
         if not hasattr(self, '_step'):
             self._step = 0
+
         self.hamiltonian.compute_dispersion()
         print(f"\niter = {self._step}: h_ii = {self.hamiltonian.diagonal}")
         print(  f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
 
         for i in range(nsteps):
-            self.step()
-            gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True, check=check)
+            self.step(check=check)
             self._step +=1
 
         self.hamiltonian.compute_dispersion()
@@ -107,13 +121,14 @@ class DSP:
         print(f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
 
 @Timer("_projector()")
-def _projector(hfpsi_data3_ib, i, j):
-    Overlap_ij = np.einsum("hk,hk", hfpsi_data3_ib[:, :, i], hfpsi_data3_ib[:, :, j], order='F', optimize=True)
-    Overlap_jj = np.einsum("hk,hk", hfpsi_data3_ib[:, :, j], hfpsi_data3_ib[:, :, j], order='F', optimize=True)
+def _projector(hfpsi_d3_ib, i, j):
+    """Used by gramm_schmidt."""
+    Overlap_ij = np.einsum("hk,hk", hfpsi_d3_ib[:, :, i], hfpsi_d3_ib[:, :, j], order='F', optimize=True)
+    Overlap_jj = np.einsum("hk,hk", hfpsi_d3_ib[:, :, j], hfpsi_d3_ib[:, :, j], order='F', optimize=True)
     # both are missing a factor mesh.dv but that doesn's matter because of the quotient
     return Overlap_ij / Overlap_jj
 
-@Timer('gramm_schmidt()')
+# @Timer('gramm_schmidt()')
 def gramm_schmidt(hfpsi, order=None, normalize=True, check=False):
     """Gramm-Schmidt orthogonalization of a wave function.
 
@@ -126,13 +141,13 @@ def gramm_schmidt(hfpsi, order=None, normalize=True, check=False):
         normalize: whether to normalize the single particle wave functions after orthogonalization.
         check: if True, verifies that the overlap matrix is unity. (For debugging purposes only).
     """
-    hfpsi_data3 = hfpsi.data.reshape((hfpsi.data.shape[0], 4, hfpsi.data.shape[1]//4), order='F')
+    hfpsi_d3 = hfpsi.d3
     for ib in range(8):
         range_ib = hfpsi.hfblockrange[ib]
         if range_ib[1] > range_ib[0]:
             # block is not empty
             # Restrict all data structures to symmetry block ib
-            hfpsi_data3_ib = hfpsi_data3[:,:,range_ib[0]:range_ib[1]]
+            hfpsi_d3_ib = hfpsi_d3[:,:,range_ib[0]:range_ib[1]]
             if not order is None:
                 order_ib = np.argsort(order[range_ib[0]:range_ib[1]])
             n = range_ib[1]-range_ib[0]
@@ -140,10 +155,10 @@ def gramm_schmidt(hfpsi, order=None, normalize=True, check=False):
                 i = order_ib[I] if (order is not None) else I
                 for J in range(I):
                     j = order_ib[J] if (order is not None) else J
-                    hfpsi_data3_ib[:,:,i] -= _projector(hfpsi_data3_ib,i,j) * hfpsi_data3_ib[:,:,j]
+                    hfpsi_d3_ib[:,:,i] -= _projector(hfpsi_d3_ib,i,j) * hfpsi_d3_ib[:,:,j]
                 # for J in range(0,I):
                 #     j = order_ib[J]
-                #     Oij = np.einsum("hk,hk", hfpsi_data3_ib[:,:,i], hfpsi_data3_ib[:,:,j])
+                #     Oij = np.einsum("hk,hk", hfpsi_d33_ib[:,:,i], hfpsi_d33_ib[:,:,j])
                 #     print(f"{ib=} ({i},{j}) {Oij=}")
 
     if normalize:

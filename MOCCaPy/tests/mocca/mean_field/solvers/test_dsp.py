@@ -84,6 +84,6 @@ def test_evolve():
     )
     hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
     dsp = DSP(hamiltonian, alpha=.002)
-    with Timer(name="DSP.evolve") as timer:
-        dsp.evolve(nsteps=100)
-    Timer.report()
+    # with Timer(name="DSP.evolve") as timer:
+    dsp.evolve(nsteps=200)
+    # Timer.report()

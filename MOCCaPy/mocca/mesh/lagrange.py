@@ -358,12 +358,13 @@ class LagrangeMesh:
     # ---------------------------------------------------------------------------
     # functions on the mesh
     # ---------------------------------------------------------------------------
-    def apply(self, function, out=None):
+    def apply(self, function, kwargs=None, out=None):
         """Apply a function on the mesh, i.e. compute the function value on every grid point.
 
         Args:
             function: function f(x,y,z) to be applied on the mesh array. If f accepts additional
                 parameters, a closure must be provided.
+            kwargs: dict with the parameters to be passed to the function.
             out: if provided the result is stored there. (I expect providing `out` makes only
                 sense if `function` itself accepts an `out` parameter.)
 
@@ -383,13 +384,17 @@ class LagrangeMesh:
                 args = (self.gridx, self.gridy)
         else:
             args = (self.gridx, )
+
+        if kwargs is None:
+            kwargs = {}
+
         if out is None:
-            return function(*args)
+            return function(*args, **kwargs)
         else:
             try:
-                function(*args, out=out)
+                function(*args, **kwargs, out=out)
             except:
-                out = function(*args)
+                out = function(*args, **kwargs)
         return out
 
 
