@@ -384,12 +384,10 @@ class HFPsi(Observable):
         # overlap = Overlap(self)
         # norm = 1.0 / np.sqrt(overlap.compute_diagonal_elements())
         # # np.sqrt(norm, out=norm)
-        if not hasattr(self, 'd3'):
-            self.d3 = self.data.reshape(self.spwf_shape, order='F')
 
-        for i_spwf in range(self.n_total_wf):
-            f = np.einsum('jk,jk', self.d3[:,:,i_spwf], self.d3[:,:,i_spwf], optimize=True)*self.mesh.dv
-            self.d3[:,:,i_spwf] *= 1./np.sqrt(f)
+        for i in range(self.n_total_wf):
+            O_ii = np.einsum('jk,jk', self.d3[:,:,i], self.d3[:,:,i], optimize=True)*self.mesh.dv
+            self.d3[:,:,i] *= 1./np.sqrt(O_ii)
         # overlap = Overlap(self)
         # overlap.compute_diagonal_elements()
         # pass

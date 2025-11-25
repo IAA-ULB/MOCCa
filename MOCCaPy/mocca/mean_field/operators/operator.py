@@ -81,12 +81,6 @@ class Operator:
         self.add_local_terms()
         self.add_non_local_terms()
 
-        if not hasattr(self, 'O_ket'):
-            raise AttributeError(
-                f"Calling {self.__class__.__name__}.compute_action() failed to create "
-                f"Attribute 'self.O_ket'. This is probably an implementation error."
-            )
-
         return self.O_ket
 
     def compute_matrix_representation(self, recompute_action=True):
@@ -141,10 +135,11 @@ class Operator:
 
         np.einsum("ijk,ijk->k", self.ket.d3, self.O_ket.d3, out=self.diagonal, order='F', optimize=True)
         self.diagonal *= self.mesh.dv
+
         return self.diagonal
 
     def compute_dispersion(self, recompute_action=True):
-        """Compute the dispersion and the diagonal of this operator: <bra_i|h^dagger h|ket_i> - <bra_i|h|ket_i>**2
+        """Compute the dispersion and the diagonal of this operator: <bra_i|O^dagger O|ket_i> - <bra_i|O|ket_i>**2
 
         Args:
             recompute_action: bool, If True, the action will be recomputed, i.e. `self.compute_action()`

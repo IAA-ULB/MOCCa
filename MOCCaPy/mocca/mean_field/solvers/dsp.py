@@ -19,15 +19,17 @@ def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):
         epsilon: contains the diagonal elements of the hamiltonian wrt ket:
             diag(<ket|h|ket>).
     """
-    epsilon *= alpha
-    epsilon += 1.
-
+    # DO NOT overwrite epsilon! it is needed by gramm_schmidt.
+    f = epsilon * alpha + 1.0
+    ket_d3_copy = ket_d3.copy()
     for i in range(epsilon.size):
-        ket_d3[:, :, i] *= epsilon[i]
+        ket_d3[:, :, i] *= f[i] # *= (1 + alph*epsilon+ii)
 
     h_ket_d3 *= alpha
+    # if we do not update ket, nothing should change. That turned out to be correct, so the hamiltionian's
+    # ket member is not accidently changed, and its O_ket member is correctly recomputed.
     ket_d3 -= h_ket_d3
-
+    pass
 
 class DSP:
     """A class for evolving the single particle wave functions as part of the
@@ -57,7 +59,7 @@ class DSP:
         self.hamiltonian = hamiltonian
 
     # @Timer("DSP.step()")
-    def step(self, check=False):
+    def step(self, check=False, debug=False):
         """Apply a single step (gradient descent or heavy ball dynamics, iff self.mu>0).
 
         1. Compute the diagonal elements of the hamiltonian
@@ -66,7 +68,15 @@ class DSP:
         """
 
         # 1. Compute the diagonal elements of the hamiltonian
-        epsilon = self.hamiltonian.compute_diagonal_elements()
+        if debug or self._counter == 0:
+            epsilon = self.hamiltonian.compute_diagonal_elements()
+            print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
+            # print(  f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
+            # epsilon, dispersion = self.hamiltonian.compute_dispersion()
+            # print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
+            # print(  f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
+        else:
+            epsilon = self.hamiltonian.compute_diagonal_elements()
 
         # 2. Update the single particle wave functions (HFPsi)
         #    This requires ket, epsilon and h_ket (both of which have been computed
@@ -103,24 +113,21 @@ class DSP:
         # 3. Orthogonalize and normalize the single particle wave functions (HFPsi)
         gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True, check=check)
 
-    def evolve(self, nsteps=1, check=True):
+    def evolve(self, nsteps=1, check=True, debug=False):
         """"""
         if not hasattr(self, '_step'):
-            self._step = 0
-
-        self.hamiltonian.compute_dispersion()
-        print(f"\niter = {self._step}: h_ii = {self.hamiltonian.diagonal}")
-        print(  f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
+            self._counter = 0
 
         for i in range(nsteps):
-            self.step(check=check)
-            self._step +=1
+            self.step(check=check, debug=debug)
+            self._counter +=1
+
 
         self.hamiltonian.compute_dispersion()
-        print(f"iter = {self._step}: h_ii = {self.hamiltonian.diagonal}")
-        print(f"iter = {self._step}: d_ii = {self.hamiltonian.dispersion}")
+        print(f"iter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
+        print(f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
 
-@Timer("_projector()")
+# @Timer("_projector()")
 def _projector(hfpsi_d3_ib, i, j):
     """Used by gramm_schmidt."""
     Overlap_ij = np.einsum("hk,hk", hfpsi_d3_ib[:, :, i], hfpsi_d3_ib[:, :, j], order='F', optimize=True)

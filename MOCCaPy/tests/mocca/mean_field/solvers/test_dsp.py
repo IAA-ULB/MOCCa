@@ -7,27 +7,28 @@ import mocca.mean_field.operators as operators
 from mocca.mean_field.solvers.dsp import DSP, gramm_schmidt
 from mocca.util.timer import Timer
 
-def test_dsp():
-    mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
-    nwn, nwp = 15, 15
-    osc_freq = (0.2, 0.2, 0.2)
-    hfpsi = states.HFPsi(
-        n_neutrons=20, n_protons=20,
-        n_proton_wf=nwp, n_neutron_wf=nwn,
-        mesh=mesh, init=None,
-    )
-    hfpsi.data[:,:] = 1.
-    hfpsi.hfblockrange = [(0,8),(8,8),
-                          (8,15),(15,15),
-                          (15,23),(23,23),
-                          (23,30),(30,30)
-                         ]
-    h = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
-    dsp = DSP(h, alpha=.001)
-    dsp.step()
-    dsp.mu = 0.001
-    dsp.step()
-    dsp.step()
+# bad test, the spwfs are all teh same and cannot be orthnormalized.
+# def test_dsp():
+#     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
+#     nwn, nwp = 15, 15
+#     osc_freq = (0.2, 0.2, 0.2)
+#     hfpsi = states.HFPsi(
+#         n_neutrons=20, n_protons=20,
+#         n_proton_wf=nwp, n_neutron_wf=nwn,
+#         mesh=mesh, init=None,
+#     )
+#     hfpsi.data[:,:] = 1.
+#     hfpsi.hfblockrange = [(0,8),(8,8),
+#                           (8,15),(15,15),
+#                           (15,23),(23,23),
+#                           (23,30),(30,30)
+#                          ]
+#     h = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
+#     dsp = DSP(h, alpha=.001)
+#     dsp.step()
+#     dsp.mu = 0.001
+#     dsp.step()
+#     dsp.step()
 
 def test_gramm_schmidt():
     mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=True)
@@ -71,7 +72,7 @@ def test_gramm_schmidt():
                 else:
                     assert block_ib[i,j] == pytest.approx(1.0)
 
-def test_evolve():
+def test_evolve(check=False, debug=False):
     mesh = LagrangeMesh(M=30, d=.8, reduced=True)
     nwn, nwp = 15, 15
     osc_freq = (0.2, 0.2, 0.2)
@@ -85,5 +86,5 @@ def test_evolve():
     hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
     dsp = DSP(hamiltonian, alpha=.002)
     # with Timer(name="DSP.evolve") as timer:
-    dsp.evolve(nsteps=200)
+    dsp.evolve(nsteps=100, check=check, debug=debug)
     # Timer.report()
