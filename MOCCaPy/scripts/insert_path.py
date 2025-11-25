@@ -8,9 +8,11 @@ def insert_path(rel_path='', verbose=False):
       - sandbox/*.py (MOCCaPy/sandbox/*.py): call `insert_path('MOCCaPy/sandbox')`
     """
     path = Path(__file__).parent
-    while path.name != "tantalus_full":
+    while path.name != "MOCCaPy":
         path = path.parent
-    path = path / rel_path
+    proj_dir_path = path.parent # because the project directory is not everywhere the same
+
+    path = proj_dir_path / rel_path
     if not path.exists():
         raise FileNotFoundError(f"Folder '{path}' does not exist.")
     sys.path.insert(0, str(path))
