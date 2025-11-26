@@ -807,12 +807,15 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     ! isoscalar monopole
     if(l == 0) then
       moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
-      ewsr =  4.0 * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons
+      ewsr =  4.0 * eff_charge_p**2 * hbm(1) * sum(moment_ptr%Value)
+      ! note that moment_ptr%Value contains a factor A 
 
     ! isoscalar quadrupole
     else if(l == 2) then
       moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
-      ewsr = (5.0 / (2.0 * pi)) * eff_charge_p**2 * hbm(1) * (Neutrons+Protons) * moment_ptr%ChargeValue/Protons 
+      ewsr = (5.0 / (2.0 * pi)) * eff_charge_p**2 * hbm(1) * sum(moment_ptr%Value)
+      ! note that moment_ptr%Value contains a factor A 
+
 
       ! deformation correction, still to be worked out for more general shapes. 
       print *, 'INCOMPLETE: deformation correction for EWSR assumes axial shape '
