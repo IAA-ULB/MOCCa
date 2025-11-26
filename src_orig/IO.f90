@@ -428,6 +428,7 @@ contains
     ! like an inefficient use of human time since it concerns only the set-up
     ! of a given calculation.
     !---------------------------------------------------------------------------
+    use wavefunctions, only : deriveHF
     use IO_wf, only : read_tantalus_wf, file_HFB_blocks
 #if(USE_HDF5 == 1)
     use IO_wf, only : read_tantalus_hdf5
@@ -467,6 +468,12 @@ contains
     if( inputoption.eq.0  .or. inputoption .eq. 1) then
       ! Generate starting point with Nilsson wavefunctions.
       call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
+      nwt_local = nwt
+
+      call allocate_memory_derivatives(0)
+      call set_spwf_symmetries(sx, sy, sz, HFblocks)
+      call deriveHF()
+      call write_Bert_output("nilsson")
 
       guessgaps         = .true.
       fileblocks        = HFBlocks
@@ -564,6 +571,10 @@ contains
     ! ... and make sure the results get back to the original layout
     call transfer_2D_to_1D(HFPsi_2D, HFPsi)
 #endif
+
+    call set_spwf_symmetries(sx, sy, sz, HFblocks)
+    call deriveHF()
+    call write_Bert_output("after-ortho")
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
@@ -872,6 +883,143 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     close(10)
 
   end subroutine Brussels_output
+
+  subroutine write_Bert_output(suffix )
+    !
+    !
+    !
+    !
+
+    character(len=*), intent(in) :: suffix
+    character(len=100) :: filename
+    integer :: i,j,k,l,mu, wave, mi
+
+    write(filename, '("Bert_", a,"_wfs.txt")') trim(suffix)
+    print *, 'Writing Bert output to file: ', trim(filename)
+    open(unit=20, file=filename)
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \psi(i,1,1) \psi(i,2,1) \psi(i,3,1) \psi(i,4,1) \psi(i,1,2) ....'
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(20, '(3es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+          mi = meshindex(i,j,k)
+          do wave=1,nwt
+            do l=1,4
+              write(20, '(es15.5)', advance='no') HFPsi(mi,l,wave)
+            enddo
+          enddo
+          write(20, '(a)') '' ! newline character
+        enddo
+      enddo
+    enddo 
+    close(20)
+
+    write(filename, '("Bert_", a,"_nabla_x_wfs.txt")') trim(suffix)
+    print *, 'Writing Bert output to file: ', trim(filename)
+    open(unit=20, file=filename)
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_x \psi(i,1,1)  \nabla_x \psi(i,2,1)  \nabla_x \psi(i,3,1)  \nabla_x \psi(i,4,1)  \nabla_x \psi(i,1,2) ....'
+    do k=1,nz
+      do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 8es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+        mi = meshindex(i,j,k)
+        do wave=1,nwt 
+        do l=1,4
+          !print *, i,j,k,l,wave, allocated(HFdPsi), size(HFdPsi,1), size(HFdPsi,2), size(HFdPsi,3), size(HFdPsi,4)
+          write(20, '(es15.5)', advance='no') HFdPsi(mi,1,l,wave)
+        enddo       
+      enddo
+      write(20, '(a)') '' ! newline character
+      enddo
+      enddo
+    enddo 
+    close(20)
+
+    write(filename, '("Bert_", a,"_nabla_y_wfs.txt")') trim(suffix)
+    print *, 'Writing Bert output to file: ', trim(filename)
+    open(unit=20, file=filename)
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_y \psi(i,1,1)  \nabla_y \psi(i,2,1)  \nabla_y \psi(i,3,1)  \nabla_y \psi(i,4,1)  \nabla_y \psi(i,1,2) ....'
+    do k=1,nz
+      do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 8es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+        mi = meshindex(i,j,k)
+        do wave=1,nwt 
+        do l=1,4
+          write(20, '(es15.5)', advance='no') HFdPsi(mi,2,l,wave) 
+        enddo       
+      enddo
+      write(20, '(a)') '' ! newline character
+      enddo
+      enddo
+    enddo 
+    close(20)
+
+    write(filename, '("Bert_", a,"_nabla_z_wfs.txt")') trim(suffix)
+    print *, 'Writing Bert output to file: ', trim(filename)
+    open(unit=20, file=filename)
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_z \psi(i,1,1)  \nabla_z \psi(i,2,1)  \nabla_z \psi(i,3,1)  \nabla_z \psi(i,4,1)  \nabla_z \psi(i,1,2) ....'
+    do k=1,nz
+      do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 8es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+        mi = meshindex(i,j,k)
+        do wave=1,nwt 
+        do l=1,4
+          write(20, '(es15.5)', advance='no') HFdPsi(mi,3,l,wave) 
+        enddo       
+      enddo
+      write(20, '(a)') '' ! newline character
+      enddo
+      enddo
+    enddo 
+    close(20)
+
+    write(filename, '("Bert_", a,"_laplacian_wfs.txt")') trim(suffix)
+    print *, 'Writing Bert output to file: ', trim(filename)
+    open(unit=20, file=filename)
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]   \Delta \psi(i,1,1) \Delta \psi(i,2,1) \Delta \psi(i,3,1) \Delta\psi(i,4,1) \Delta \psi(i,1,2) ....'
+    do k=1,nz
+      do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 8es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+        mi = meshindex(i,j,k)
+        do wave=1,nwt 
+        do l=1,4
+          write(20, '(es15.5)', advance='no') HFddPsi(mi,1,l,wave) + HFddPsi(mi,4,l,wave) + HFddPsi(mi,6,l,wave)
+        enddo       
+      enddo
+      write(20, '(a)') '' ! newline character
+      enddo
+      enddo
+    enddo 
+    close(20)
+
+   open(unit=20, file='Bert_lagx.txt')
+   do i=1,nx
+     do j=1,nx 
+       write(20, '(4es15.5)') derX(i,j,1), derX(i,j,2), laplaX(i,j,1), laplaX(i,j,2)
+     enddo
+   enddo
+   close(20)
+
+   open(unit=20, file='Bert_lagy.txt')
+   do i=1,nx
+     do j=1,nx 
+       write(20, '(4es15.5)') derY(i,j,1), derY(i,j,2), laplaY(i,j,1), laplaY(i,j,2)
+     enddo
+   enddo
+   close(20)
+
+   open(unit=20, file='Bert_lagz.txt')
+   do i=1,nx
+     do j=1,nx 
+       write(20, '(4es15.5)') derZ(i,j,1), derZ(i,j,2), laplaZ(i,j,1), laplaZ(i,j,2)
+     enddo
+   enddo
+   close(20)
+
+  end subroutine write_Bert_output
   
   subroutine write_densities(R, fname)
     !---------------------------------------------------------------------------
