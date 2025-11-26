@@ -5,10 +5,10 @@ The necessary theory - for non-reduced axes - is found in [Ryssens et al, PHYSIC
 
 > [!Note]
 > The figures in this document are created by the tests. If the document complains `blablablah.png could not be found.`, please run the tests (`pytest tests` from folder `MOCCaPy`)
-## Non-reduced axes
+## 1. Non-reduced axes
 
 (As from [Ryssens et al, PHYSICAL REVIEW C 92, 064318 (2015)](../../literature/Ryssens%20et%20al.%20-%202015%20-%20Numerical%20accuracy%20of%20mean-field%20calculations%20in%20coordinate%20space.pdf) _section III.B Lagrange-mesh representation_)
-### Grid points
+### 1.1. Grid points
 Using M evenly space grid point at distance $\Delta$, the boundaries of the box are $[−\frac{M}{2}\Delta,\frac{M}{2}\Delta]$. The width of the box is $L=M\Delta$. We require $M=2N$ to be even such that there are $N=\frac{M}{2}$ grid points on each side of the origin and the origin is avoided as a grid point.
 
 
@@ -32,7 +32,7 @@ or
 [eq 4.1]
 $$x_i=-\frac{2N-1-2i}{2}dx=(\frac{1}{2}+i-N)dx$$
 $$i=-(N-1)..(N-1)$$
-### Basis functions
+### 1.2. Basis functions
 The basis functions are plane waves:
 [eq 5]
 $$\phi_k(x)=\frac{1}{\sqrt{L}}\exp({\frac{2\pi\mathrm{j}}{L}kx})$$
@@ -50,7 +50,7 @@ First order derivatives are:
 $$\frac{d}{dx}\mathrm{Re}(\phi_{x_i}(x))=-\frac{1}{\sqrt{L}}\frac{2\pi}{L\Delta}\sin({\frac{2\pi}{L\Delta}x_ix})$$
 $$\mathrm{Im}(\phi_{x_i}(x))=\frac{1}{\sqrt{L}}\frac{2\pi}{L\Delta}\cos({\frac{2\pi}{L\Delta}x_ix})$$
 
-### Interpolation 
+### 1.3. Interpolation 
 The Lagrange interpolation functions are:
 [eq 6]
 $$f_i(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(x-x_i))}{\sin(\frac{\pi}{\Delta}\frac{x-x_i}{2N})}$$
@@ -74,7 +74,7 @@ An arbitrary function $h(x)$ taking the values $h_i =h(x_i)$ on the grid points 
 [eq 9]
 $$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
 This is essentially a dot product $\mathbf{f}\cdot\mathbf{h}$ .
-### Derivatives
+### 1.5. Derivatives
 The 1st and 2nd order derivatives of the Lagrange interpolation functions are:
 [eq 10.1]
 $$D_{ji}^{(1)}=\left.{\frac{df_i(x)}{dx}}\right\rvert_{x=x_j}=
@@ -101,9 +101,9 @@ So, the column vector $\frac{d\mathbf{h}}{dx}$ of the derivatives of $\mathbf{h}
 [eq 12]
 $$\frac{d^2\mathbf{h}}{dx^2}=\mathbf{D}^{(2)}\mathbf{h}$$
 Note, that single differentiation toggles the symmetry behavior of the function: if $h(x)$ is a symmetric function, $h'(x)$ is skew-symmetric, and *vice versa*. Consequentially, double differentiation toggles it twice, hence keeps the symmetry behaviour the same.
-## Reduced axes
+## 2. Reduced axes
 
-### Grid points
+### 2.1. Grid points
 On reduced axes only the $N$ grid points to the right of the origin are kept:
 [eq 13]
 $$\frac{1}{2}dx, \frac{3}{2}dx, ..., \frac{2N-3}{2}dx, \frac{2 N-1}{2}dx$$
@@ -112,7 +112,7 @@ or
 $$x_i=(i+\frac{1}{2})dx$$
 $$i=0..N-1$$
 (In de case of reduced axis a shift $\sigma<dx$ may be subtracted from each grid point.)
-### Interpolation
+### 2.2. Interpolation
 According to (eq 9) an arbitrary function $h(x)$ can be interpolated as:
 
 $$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
@@ -142,7 +142,7 @@ Clearly, each one yields 1 at one grid point and 0 at the others. Note also that
 Consequently, a constant function cannot be interpolated because it is periodic. The sum of the 6 Lagrange functions is shown below. it is definitely not the constant function $f(x)=1$.
 ![sum of the Lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/sum_lagrange_functions.png)
 According to the discussion in [github issue 52](https://github.com/IAA-nuclear/tantalus_full/issues/52) periodic functions can be interpolated with Lagrange functions provided they vanish at the boundary of the interval.
-### Derivatives
+### 2.3. Derivatives
 The formula for the derivative of a function $h$ expanded on a reduced grid is found easily by extending the column vector $\mathbf{h}$ (of length $N$) on the reduced grid as 
 [eq 17]
 $$\begin{bmatrix}\mathbf{\pm g}\\
@@ -258,14 +258,14 @@ $$\frac{d^2\mathbf{h}}{dx^2}
 > Rather then storing  $\mathbf{D}$ and $\mathbf{E}$, it is more efficient to store  $\mathbf{D}+\mathbf{E}$ and  $\mathbf{D}-\mathbf{E}$, where $\mathbf{D}=\mathbf{D}^{lr}$ and $\mathbf{E}=\mathbf{E}^{ll}$ are derived from the corresponding full higher order $\mathbf{D}$ matrix. So, for every differentiation order $n$,  a full $\mathbf{D}^{(n)}$ matrix is stored for non-reduced coordinate axes, and for reduced coordinates axes two $1/4$ matrices, $[\mathbf{D}^{(n)}+\mathbf{E}^{(n)}]$ and  $[\mathbf{D}^{(n)}-\mathbf{E}^{(n)}]$, are stored.
  
 
-## $N$-dimensional grids
+## 3. $N$-dimensional grids
 The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mathbf{r}=\begin{bmatrix}x & y & z\end{bmatrix}$ (3D case),  is then provided (for the 3D case) by
 [eq 23]
 $$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
 where the number of discretization points does not have to be the same in each direction. 
 
 Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis, and the grid spacing is not necessarily the same.
-### Derivatives
+### 3.1 Derivatives
  In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
  [eq 23.1]
  $$\left.{\frac{d\Phi}{dx}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ljk}}$$
@@ -274,7 +274,7 @@ $$\left.{\frac{d\Phi}{dz}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ijl}}$$
 The summation is over the index of $\Phi_{ijk}$ that corresponds to the axis wrt which the derivative is taken: the derivative wrt $x$/$y$/$z$ sums over the 1st/2nd/3rd index. The same holds for 2nd, 3rd, 4th order derivatives ($\frac{d^n}{du^n}$, $u=x,y,z$, $n\ge0$). 
 > [!Note]
 > [`numpy.einsum`](https://numpy.org/doc/stable/reference/generated/numpy.einsum.html#numpy-einsum) is ideally suited to compute sums like these.
-### Basis functions
+### 3.2. Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
 $$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{j}}{L_x}kx})\exp({\frac{2\pi\mathrm{j}}{L_y}ly})\exp({\frac{2\pi\mathrm{j}}{L_z}mz})$$
