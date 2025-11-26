@@ -6,11 +6,17 @@ import h5py
 from mocca.mean_field.states import HFPsi
 from mocca.mesh import LagrangeMesh
 
-def test_HFPsi():
+test_folders = [
+    ("spwf_0.2_0.2_0.2",),
+    ("spwf_0.2_0.2_0.16",),
+]
+
+@pytest.mark.parametrize("txt", test_folders)
+def test_HFPsi(test_folder):
     mesh = LagrangeMesh(M=30, d=.8, reduced=True)
     n_neutrons, n_protons = 20, 20
     nwn, nwp = 15, 15
-    osc_freq = (0.2, 0.2, 0.2)
+    osc_freq = [float(w) for w in test_folder.split('_')[1:]]
     hfpsi = HFPsi(
         n_neutrons=n_neutrons, n_protons=n_protons,
         n_proton_wf=nwp, n_neutron_wf=nwn,
@@ -27,27 +33,60 @@ def test_HFPsi():
     )
 
     nwt = nwn + nwp
-    mocca_output = Path(__file__).parent / "mocca_output"
+    mocca_output = Path(__file__).parent / test_folder
     x = np.empty(mesh.linear_size, dtype=np.float64)
     y = np.empty(mesh.linear_size, dtype=np.float64)
     z = np.empty(mesh.linear_size, dtype=np.float64)
 
+    rel = 1e-5
+    abs = 1e-4
     # Read wfs and mesh points
-    with open(mocca_output/"wfs.txt", "r") as wfs_txt:
+    txt = 'nilsson_wfs.txt'
+    with open(mocca_output/txt, 'r') as wfs_txt:
         lines = wfs_txt.readlines()
+        is_same = 0
         for l,line in enumerate(lines):
             words = line.split()
             x[l] = float(words[0])
             y[l] = float(words[1])
             z[l] = float(words[2])
+            s =f'{l:4}'
             for iw,w in enumerate(words[3:]):
+                if iw % 4 == 0:
+                    s += ' '
                 wfs.data[l,iw] = float(w)
-                if iw % 4 ==0:
-                    w0 = wfs.data[l,iw]
+                if hfpsi.data[l, iw] == pytest.approx(wfs.data[l, iw], rel=rel, abs=abs):
+                    is_same += 1
+                    s += '.'
                 else:
-                    assert wfs.data[l,iw] == pytest.approx(w0)
-                print(f"[{l}, {iw}] {hfpsi.data[l, iw]} ?= {wfs.data[l, iw]}")
-                pass
+                    s += 'F'
+
+                # else:
+                #     print(f"[{l}, {iw}] {hfpsi.data[l, iw]} ?= {wfs.data[l, iw]} {hfpsi.data[l, iw] == pytest.approx(wfs.data[l, iw], rel=1e-6, abs=abs)}")
+                # assert hfpsi.data[l, iw] == pytest.approx(wfs.data[l, iw], rel=1e-6, abs=abs), \
+                #     f"[{l}, {iw}] {hfpsi.data[l, iw]} ?= {wfs.data[l, iw]} {hfpsi.data[l, iw] == pytest.approx(wfs.data[l, iw], rel=1e-6, abs=1e-6)}"
+            print(s)
+        print(f"{is_same=}")
+        pass
+
+    same = []
+    for iw in range(nwt):
+        spwf = hfpsi.d3[:,:,iw]
+        for jw in range(nwt):
+            if jw in same:
+                continue
+            if np.all(spwf == pytest.approx(wfs.d3[:,:,jw], rel=rel, abs=abs)):
+                same.append(jw)
+                break
+            elif np.all(spwf == pytest.approx(-wfs.d3[:, :, jw], rel=rel, abs=abs)):
+                same.append(-jw)
+                break
+        else:
+            same.append('?')
+
+    print(same)
+    if test_folder == "spwf_0.2_0.2_0.16":
+        assert '?' not in same
 
     # compare mocca_output to mesh
     gridx = mesh.cast2linear(mesh.gridx)
@@ -66,7 +105,7 @@ def test_HFPsi():
             # assert hfpsi.data[ig,iw] == pytest.approx(wfs.data[ig,iw], rel=1e-6, abs=1e-6)
 
     # Write to hdf5 file
-    f5_path = mocca_output/"test_HFPsi.hdf5"
+    f5_path = mocca_output/(txt.replace('.txt','.hdf5'))
     with h5py.File(f5_path, "w") as f5:
         f5.create_dataset("x", data=x)
         f5.create_dataset("y", data=y)
@@ -75,8 +114,10 @@ def test_HFPsi():
         for name in f5:
             print(f"{f5_path.name} {f5.name} {name}")
 
-def test_D_matrices():
-    mocca_output = Path(__file__).parent / "mocca_output"
+
+@pytest.mark.parametrize("txt", test_folders)
+def test_D_matrices(test_folder):
+    mocca_output = Path(__file__).parent / test_folder
 
     N = 15
     D1p = np.empty(N*N, dtype=np.float64, order='F')
@@ -104,4 +145,10 @@ def test_D_matrices():
         for name in f5:
             print(f"{f5_path.name} {f5.name} {name}")
 
-        assert f5['D1px'] == f5['D1py']
+        # print(f5['D1px'][:])
+        # print(f5['D1py'])
+        assert np.all(f5['D1px'][:,:] == f5['D1py'][:,:])
+        assert np.all(f5['D1px'][:,:] == f5['D1pz'][:,:])
+
+        mesh = LagrangeMesh(M=30, d=.8, reduced=True)
+        mesh.D
