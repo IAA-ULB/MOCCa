@@ -63,7 +63,7 @@ implicit none
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile='', famfile=''
+  character(len=80)   :: inertfile='', famfile='', xyfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
@@ -167,7 +167,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, N_inertia
+    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -294,7 +294,8 @@ contains
              & '    TO file        = ', a80, / & 
              & '    BLOCK file     = ', a80, / &
              & '    INERT file     = ', a80, / &
-             & '    FAM file       = ', a80) 
+             & '    FAM file       = ', a80, / &
+             & '    XY file        = ', a80) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
@@ -359,7 +360,7 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE
       if(present(file_number)) then
         print 1111,  adjustl(trim(input_file)), file_number
       endif
@@ -1854,6 +1855,206 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     close(1)
 
   end subroutine append_fam_file_new
+
+  subroutine init_xy_file(fname)
+    !---------------------------------------------------------------------------
+    ! Create file to write X and Y amplitudes for each freq obtained from FAMtalus
+    ! as well as the perturbing operator F. 
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! The complex matrices X_ph Y_ph are written in a sparse format as 
+    !    p    h    X_ph%re   X_ph%im     Y_ph%re   Y_ph%im
+    ! The file is appended for each FAM frequency, different blocks seperated by 
+    ! a single line:
+    !   & omega = [omega]  [smear]
+    ! At the top of the file, the perturbing operator F is written. 
+    !---------------------------------------------------------------------------
+    use fam
+    character(len=*), intent(in)      :: fname
+    integer                           :: io
+
+    print *, ' writing XY to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+
+    2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
+    3 format('#', 5x, 'p', 6x, 'h',14x, 'X(/F)_ph_re', 14x, 'X(/F)_ph_im', 14x, 'Y(/F)_ph_re', 14x, 'Y(/F)_ph_im') 
+
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2) ewsr ! write sum rules  
+    write(1, fmt=3)      ! write column names
+
+    close(1)
+
+
+  end subroutine init_xy_file
+
+
+  subroutine append_xy_file(fname, O_ph, O_hp)
+    use fam
+    character(len=*), intent(in)           :: fname
+    complex(KIND=dp), intent(in), optional :: O_ph(:,:), O_hp(:,:)
+    integer                                :: io, h, p
+
+    1 format ( '& omega = ', f10.3, f10.3) 
+    2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+
+    if (present(O_ph)) then
+      do h = 1, nwt
+        do p = 1, nwt
+          if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
+            write(1, fmt=2) p, h, O_ph(p,h)%re, O_ph(p,h)%im, O_hp(p,h)%re, O_hp(p,h)%im
+          end if
+        enddo
+      enddo
+
+    else
+      write(1, fmt=1) omega_fam, smear
+
+      do h = 1, nwt
+        do p = 1, nwt
+          if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
+            write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
+          end if
+        enddo
+      enddo
+    endif
+
+    close(1)
+
+  end subroutine append_xy_file
+
+
+subroutine init_perturbed_denfile(fname)
+    !---------------------------------------------------------------------------
+    ! Create file named "fname"to write the following perturbed densities 
+    !    drho(neutron), drho(proton), drho(charge)
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by a dedicated line explaining the content of each column.
+    ! The format of the body of said file is
+    ! 
+    !   x, y, z, drho_n_sym%re, drho_n_sym%im, drho_n_asym%re, drho_n_asym%im, 
+    !     drho_p_sym%re, drho_p_sym%im, drho_p_asym%re, drho_p_asym%im, 
+    !     drho_c_sym%re, drho_c_sym%im, drho_c_asym%re, drho_c_asym%im
+    !
+    ! where the first three numbers are the Cartesian coordinates in fm, withµ
+    ! the densities all in their natural units. The mesh points are traverse in 
+    ! column-major order ('Fortran order'), which might not be how your favorite 
+    ! plotting tool prefers it. Note that the densities are written "as-is" to 
+    ! file, i.e. only in part of the box that is actually represented 
+    ! numerically. It is up to postprocessing to construct the densities in the 
+    ! simulation volume.
+    !---------------------------------------------------------------------------
+    use fam
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io
+
+    print *, ' writing perturbed densities to file :  ', fname
+
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
+
+    2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
+    3 format('#', 19x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]',  &
+      & 12x, 'drho_n_sym_re', 12x , 'drho_n_sym_im', 11x, 'drho_n_asym_re', 11x , 'drho_n_asym_im', &
+      & 12x, 'drho_p_sym_re', 12x , 'drho_p_sym_im', 11x, 'drho_p_asym_re', 11x , 'drho_p_asym_im', &
+      & 12x, 'drho_c_sym_re', 12x , 'drho_c_sym_im', 11x, 'drho_c_asym_re', 11x , 'drho_c_asym_im')
+
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
+    write(1, fmt=2) ewsr ! write sum rules  
+    write(1, fmt=3)      ! write column names
+
+    close(1)
+
+  end subroutine init_perturbed_denfile
+
+subroutine append_perturbed_denfile(Rs, Ra, fname)
+    !---------------------------------------------------------------------------
+    ! Append the the file named "fname" the following perturbed densities 
+    !    drho(neutron), drho(proton), drho(charge)
+    !---------------------------------------------------------------------------
+    ! Different blocks corresponding to different fam frequencies omega are 
+    ! separated by a single line 
+    !     & omega = [omega%re] [omega%im]
+    !---------------------------------------------------------------------------
+    use fam
+    type(DensityVector), intent(in), target :: Rs, Ra
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io, i,j,k, mi
+
+
+    1 format ( '& omega = ', f10.3, f10.3) 
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then 
+      print *, 'Something went wrong with writing a density to file.'
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, fmt=1) omega_fam, smear
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for most of the densities
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The ordinary and charge density; always defined
+          write(1, fmt='(2es25.12)', advance='no') Rs%D_I_I(mi,1)%re,Rs%D_I_I(mi,1)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%D_I_I(mi,1)%re,Ra%D_I_I(mi,1)%im
+          write(1, fmt='(2es25.12)', advance='no') Rs%D_I_I(mi,2)%re,Rs%D_I_I(mi,2)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%D_I_I(mi,2)%re,Ra%D_I_I(mi,2)%im
+          write(1, fmt='(2es25.12)', advance='no') Rs%chargedensity(i,j,k)%re,Rs%chargedensity(i,j,k)%im
+          write(1, fmt='(2es25.12)', advance='no') Ra%chargedensity(i,j,k)%re,Ra%chargedensity(i,j,k)%im
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! We are done writing this line in the output
+          write(1, fmt='()') !  newline character
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine append_perturbed_denfile
 
 #endif
 

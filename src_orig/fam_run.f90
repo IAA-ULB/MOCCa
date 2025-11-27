@@ -20,7 +20,6 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
-  real(kind=dp) :: strength_free
 
   complex(KIND=dp) :: S_complex_decomp(8) = 0
   real(KIND=dp) :: S_decomp(8) = 0
@@ -113,6 +112,14 @@ program run_FAM
   ! create the FAM output file
   call init_fam_file_new(famfile)
 
+  if(xyfile .ne. '') then
+    call init_xy_file(xyfile)
+  endif
+
+  if(DENFILE .ne. '') then
+    call init_perturbed_denfile(DENFILE)
+  endif
+
 
 
   !---------------------------------------------------------------------------------
@@ -140,14 +147,13 @@ program run_FAM
     ! initialise FAM matrices end set perturbing external field
     !-------------------------------------------------------------------------------
 
+    num_iter = 0
     call inifam(omega_curr, Density, Potentials)
-
-    strength_free = calc_strength()
 
     is_converged = .false.
     is_divergent = .false.
 
-    if (fam_mixingscheme == 0) then
+    if (fam_mixingscheme == 0 .and. fam_maxiter > 1) then
 
       !---------------------------------------------------------------------------------
       ! via GMRES on implicit matrix*vector procedure one_minus_T()
@@ -215,9 +221,6 @@ program run_FAM
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
-        ! shift dH to prepare for the next iteration
-        dH_flat = dH_flat_next
-
         !---------------------------------------------------------------------------------
         ! test convergenence
 
@@ -228,6 +231,7 @@ program run_FAM
             print 1
             print 1
             print *, "   Hooray! FAM is converged! "
+            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = iter
             exit
           endif
@@ -235,6 +239,7 @@ program run_FAM
             print 1
             print 1
             print *, "   FAM diverges, exiting"
+            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = - iter
             exit
           endif
@@ -243,14 +248,14 @@ program run_FAM
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
+          print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
           num_iter = - fam_maxiter
         endif
+
+        ! shift dH to prepare for the next iteration
+        dH_flat = dH_flat_next
+      
       enddo
-
-      ! fixed-point check
-      call iterate_dHsp(dH_flat, dH_flat_next)
-      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
-
     endif
 
 
@@ -270,9 +275,17 @@ program run_FAM
 
     call calc_strength_decomp(S_complex_decomp, S_decomp)
 
-    ! call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
-
     call append_fam_file_new(S_decomp, num_iter, famfile)
+
+    if(xyfile .ne. '') then
+      if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
+      call append_xy_file(xyfile)
+    endif
+
+
+    if(DENFILE .ne. '') then
+      call append_perturbed_denfile(dRs, dRa, DENFILE)
+    endif
 
     omega_curr = omega_curr + omega_step
 
