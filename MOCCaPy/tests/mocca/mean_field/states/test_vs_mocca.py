@@ -218,6 +218,11 @@ def test_create_hdf5(test_folder):
     nwt = 30
     nq = 4*nwt
     p_h5 = Path(__file__).parent / (test_folder + '.h5')
+
+    if p_h5.exists():
+        print(f"File {p_h5} already exists")
+        return
+
     p_test_folder = Path(__file__).parent / test_folder
     with h5py.File(p_h5, "w") as f5:
         print(f"Creating {p_h5}")
