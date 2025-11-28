@@ -7,11 +7,11 @@ from mocca.mean_field.states import HFPsi
 from mocca.mesh import LagrangeMesh
 
 test_folders = [
-    ("spwf_0.2_0.2_0.2",),
-    ("spwf_0.2_0.2_0.16",),
+    "spwf_0.2_0.2_0.2",
+    "spwf_0.2_0.2_0.16",
 ]
 
-@pytest.mark.parametrize("txt", test_folders)
+@pytest.mark.parametrize("test_folder", test_folders)
 def test_HFPsi(test_folder):
     mesh = LagrangeMesh(M=30, d=.8, reduced=True)
     n_neutrons, n_protons = 20, 20
@@ -115,7 +115,7 @@ def test_HFPsi(test_folder):
             print(f"{f5_path.name} {f5.name} {name}")
 
 
-@pytest.mark.parametrize("txt", test_folders)
+@pytest.mark.parametrize("test_folder", test_folders)
 def test_D_matrices(test_folder):
     mocca_output = Path(__file__).parent / test_folder
 
@@ -149,6 +149,65 @@ def test_D_matrices(test_folder):
         # print(f5['D1py'])
         assert np.all(f5['D1px'][:,:] == f5['D1py'][:,:])
         assert np.all(f5['D1px'][:,:] == f5['D1pz'][:,:])
+        assert np.all(f5['D1mx'][:,:] == f5['D1my'][:,:])
+        assert np.all(f5['D1mx'][:,:] == f5['D1mz'][:,:])
 
         mesh = LagrangeMesh(M=30, d=.8, reduced=True)
-        mesh.D
+        DpEx = mesh.D[0,0]
+        DmEx = mesh.DmE[0,0]
+        print(DpEx[:4, :4])
+        # print(DmEx[:4, :4])
+        # print(f5['D1px'][:4,:4])
+        print(f5['D1mx'][:4,:4])
+        rel=1e-5
+        abs=1e-5
+        assert (DpEx[:, :] == pytest.approx(-f5['D1mx'][:, :],rel=rel,abs=abs))
+        assert (DmEx[:, :] == pytest.approx(-f5['D1px'][:, :],rel=rel,abs=abs))
+        pass
+
+@pytest.mark.parametrize("test_folder", test_folders)
+def test_derivatives(test_folder):
+    mocca_output = Path(__file__).parent / test_folder
+    hfpsi_h5 = mocca_output/"nilsson_wfs.hdf5"
+    with h5py.File(hfpsi_h5, "r") as f5:
+        wfs = f5['wfs']
+        # shape = wfs.shape
+        hfpsi_data = np.array(f5['wfs'][:,:])
+
+    mesh = LagrangeMesh(M=30, d=.8, reduced=True)
+
+    n_neutrons, n_protons = 20, 20
+    nwn, nwp = 15, 15
+    osc_freq = [float(w) for w in test_folder.split('_')[1:]]
+    hfpsi = HFPsi(
+        n_neutrons=n_neutrons, n_protons=n_protons,
+        n_proton_wf=nwp, n_neutron_wf=nwn,
+        mesh=mesh,
+        init='nilsson', osc_freq=osc_freq,
+        # orthogonalize=True, normalize=True
+    )
+    # store the MOCCa hfpsi in the MOCCaPy HFPsi
+    hfpsi.data[:,:] = hfpsi_data
+
+
+    f5_path = mocca_output/"test_derivatives.hdf5"
+    with h5py.File(f5_path, "w") as f5:
+        for axes in ['x','y','z', 'Laplacian']:
+            dhfpsi_du = hfpsi.differentiate(axes)
+            dwfs_du = np.empty_like(dhfpsi_du)
+            txt = f'nilsson_nabla_{axes}_wfs.txt' if len(axes) == 1 else f'nilsson_laplacian_wfs.txt'
+            with open(mocca_output / txt, 'r') as wfs_txt:
+                lines = wfs_txt.readlines()
+                for l, line in enumerate(lines):
+                    words = line.split()
+                    for iw,word in enumerate(words[3:]):
+                        dwfs_du[l,iw] = float(word)
+
+                f5.create_dataset(f'dwfs_d{axes}', data=dwfs_du)
+
+            for ig in range(mesh.linear_size):
+                print(f"{axes} {ig}")
+                for iw in range(4*hfpsi.n_total_wf):
+                    # assert dhfpsi_du[ig,iw] == dwfs_du[ig,iw]
+                    if not dhfpsi_du[ig,iw] == pytest.approx(dwfs_du[ig,iw], rel=1e-5, abs=1e-3):
+                        print(f"({ig},{iw}) {dhfpsi_du[ig,iw]} != {dwfs_du[ig,iw]}")

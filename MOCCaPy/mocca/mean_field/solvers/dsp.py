@@ -23,7 +23,7 @@ def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):
     f = epsilon * alpha + 1.0
     ket_d3_copy = ket_d3.copy()
     for i in range(epsilon.size):
-        ket_d3[:, :, i] *= f[i] # *= (1 + alph*epsilon+ii)
+        ket_d3[:, :, i] *= f[i] # *= (1 + alph*epsilon_ii)
 
     h_ket_d3 *= alpha
     # if we do not update ket, nothing should change. That turned out to be correct, so the hamiltionian's

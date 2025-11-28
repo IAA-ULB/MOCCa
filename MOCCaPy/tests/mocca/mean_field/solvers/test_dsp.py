@@ -83,8 +83,8 @@ def test_evolve(check=False, debug=False):
         init='nilsson',osc_freq=osc_freq,
         orthogonalize=True, normalize=True
     )
-    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
+    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi, V0=.0) 
     dsp = DSP(hamiltonian, alpha=.002)
     # with Timer(name="DSP.evolve") as timer:
-    dsp.evolve(nsteps=100, check=check, debug=debug)
+    dsp.evolve(nsteps=500, check=check, debug=debug)
     # Timer.report()

@@ -32,7 +32,7 @@ class KineticEnergyOperator(Operator):
             else:
                 raise ValueError(f"{extra_derivatives=}, must be a string or a list, not {type(extra_derivatives)}.")
 
-        self.nabla = 'xx' if self.mesh.dim == 1 else 'Laplacian'
+        self.Delta = 'xx' if self.mesh.dim == 1 else 'Laplacian'
         # The kinetic energy term has a minus sign which we incorporate in hbm.
         if isinstance(hbm, float):
             if hbm > 0:
@@ -49,7 +49,7 @@ class KineticEnergyOperator(Operator):
         if isinstance(self.hbm, float):
             # Neutrons and protons are treated equally (mass)
             assert self.hbm < 0, "hbm must incorporate the minus sign in the Kinetic Energy Operator"
-            self.O_ket.data[:, :] = self.hbm * self.ket.derivatives[self.nabla]
+            self.O_ket.data[:, :] = self.hbm * self.ket.derivatives[self.Delta]
 
         else:
             # Neutrons and protons are treated differently (mass)
@@ -60,9 +60,9 @@ class KineticEnergyOperator(Operator):
             # Blocks[0:4] are for neutrons
             # Blocks[4:8] are for protons
             n = self.O_ket.hfblockrange[3][1]  # end of neutron range in the spwfs and begin of proton range
-            nabla3 = hbm_n * self.ket.derivatives[self.nabla].reshape(self.ket.spwf_shape, order='F')
-            self.O_ket.data[:, :, :n] = hbm_n * nabla3[:, :, :]
-            self.O_ket.data[:, :, n:] = hbm_p * nabla3[:, :, :]
+            Delta3 = hbm_n * self.ket.derivatives[self.Delta].reshape(self.ket.spwf_shape, order='F')
+            self.O_ket.data[:, :, :n] = hbm_n * Delta3[:, :, :]
+            self.O_ket.data[:, :, n:] = hbm_p * Delta3[:, :, :]
 
 
 # ==============================================================================
@@ -115,11 +115,11 @@ class KineticEnergyOperator(Operator):
 #         Vr = self.mesh.apply(V_WoodsSaxon)
 #         self.O_ket.data = Vr * self.ket.data
 #
-#         nabla = 'Laplacian' if self.mesh.dim >= 2 else \
+#         Delta = 'Laplacian' if self.mesh.dim >= 2 else \
 #             'xx'
 #         if isinstance(self.hbm, float):
 #             # Neutrons and protons are treated equally (mass)
-#             self.O_ket.data += self.hbm * self.ket.derivatives[nabla]
+#             self.O_ket.data += self.hbm * self.ket.derivatives[Delta]
 #         else:
 #             # Neutrons and protons are treated differently (mass)
 #             hbm_n = self.hbm[0]
@@ -127,8 +127,8 @@ class KineticEnergyOperator(Operator):
 #             # Blocks[0:4] are for neutrons
 #             # Blocks[4:8] are for protons
 #             n = self.O_ket.hfblockrange[3][1]  # end of neutron range in the spwfs and begin of proton range
-#             self.O_ket.data[:, :, :n] += hbm_n * self.ket.derivatives[nabla][:, :, :n]
-#             self.O_ket.data[:, :, n:] += hbm_p * self.ket.derivatives[nabla][:, :, n:]
+#             self.O_ket.data[:, :, :n] += hbm_n * self.ket.derivatives[Delta][:, :, :n]
+#             self.O_ket.data[:, :, n:] += hbm_p * self.ket.derivatives[Delta][:, :, n:]
 
 
 # TODO: speed up with numba decorators?

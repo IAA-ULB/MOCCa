@@ -391,3 +391,15 @@ class HFPsi(Observable):
         # overlap = Overlap(self)
         # overlap.compute_diagonal_elements()
         # pass
+
+    def __str__(self):
+        """
+        "index" -> the wavefunction index in memory
+        "shell" -> the number of particles you can fit in the levels up to and including the current one; i.e. 2 * the position of the level in the energ-ordering. It is the column "n" in the example.
+        "parity" -> parity of the spwf; +1 in blocks 1,2,5,6; -1 in blocks 3,4,7,8 (fortran indices)
+        "signature" -> +1 for now
+        "occupation" -> the occupation of the spwfs; I'm not sure if you already construct this?
+        "energy" -> the single-particle energy, or rather h_ii
+        "MPIrank" -> the rank that stores this particular spwf; 0 for now.
+        "Dispersion" -> the dispersion of the single-particle energy,
+        """

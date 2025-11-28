@@ -629,8 +629,8 @@ class LagrangeMesh:
 
                     # Copy the columns of Dlr into D
                     # Reverse the columns of the lower left quadrant Dll and copy into E
+                    D[:,:] = self.D[axis, order][N:,N:] # copy Dlr (lower right quadrant)
                     for icol in range(N):
-                        D[:,icol]     = self.D[axis, order][N:,N+icol] # copy Dlr (lower right quadrant)
                         E[:,N-1-icol] = self.D[axis, order][N:,  icol] # the 1st column of Dll becomes the last column of E
                                                                        # the 2nd column of Dll becomes the second last column of E
                                                                        # ...
@@ -719,7 +719,7 @@ class LagrangeMesh:
                     np.einsum(subscripts, DE, op2_iq, out=out_, order='F', optimize=True)
 
         elif self.dim >=1 and axis == 1: # y-axis
-            subscripts = 'il,jlkq' if (self.dim == 3) else \
+            subscripts = 'jl,ilkq' if (self.dim == 3) else \
                          'il,jlq'  #  (self.dim == 2)
             if not self.reduced[axis]:
                 D = self._get_D(axis=1, order=order)
@@ -734,7 +734,7 @@ class LagrangeMesh:
                     np.einsum(subscripts, DE, op2_iq, out=out_, order='F', optimize=True)
 
         elif axis == 2 : # z-axis (self.dim == 3 obviously)
-            subscripts = 'il,jklq'
+            subscripts = 'kl,ijlq'
             if not self.reduced[axis]:
                 D = self._get_D(axis=2, order=order)
                 np.einsum(subscripts, D, op2, out=out, order='F', optimize=True)
