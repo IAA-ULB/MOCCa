@@ -211,3 +211,29 @@ def test_derivatives(test_folder):
                     # assert dhfpsi_du[ig,iw] == dwfs_du[ig,iw]
                     if not dhfpsi_du[ig,iw] == pytest.approx(dwfs_du[ig,iw], rel=1e-5, abs=1e-3):
                         print(f"({ig},{iw}) {dhfpsi_du[ig,iw]} != {dwfs_du[ig,iw]}")
+
+@pytest.mark.parametrize("test_folder", test_folders)
+def test_create_hdf5(test_folder):
+    npoints = 15**3
+    nwt = 30
+    nq = 4*nwt
+    p_h5 = Path(__file__).parent / (test_folder + '.h5')
+    p_test_folder = Path(__file__).parent / test_folder
+    with h5py.File(p_h5, "w") as f5:
+        print(f"Creating {p_h5}")
+        for p in p_test_folder.glob('*.txt'):
+            shape = (npoints, nq) if ('wfs' in p.name) else \
+                    (nwt * nwt, 4)
+            data = np.empty(shape, dtype=np.float64, order='F')
+            with open(p, 'r') as f:
+                lines = f.readlines()
+                for l, line in enumerate(lines):
+                    words = line.split()
+                    if 'wfs' in p.name:
+                        for iq, word in enumerate(words[3:]):
+                            data[l,iq] = float(word)
+                    else:
+                        for iq, word in enumerate(words):
+                            data[l,iq] = float(word)
+            print(f"Adding dataset {p.stem}")
+            f5.create_dataset(p.stem, data=data)
