@@ -74,4 +74,6 @@ MOCCaPy/uv.lock
 
 *.so
 MOCCaPy/f90/_build_*/
-MOCCaPy/tests/mocca/mean_field/states/mocca_output_0
+MOCCaPy/tests/mocca/mean_field/states/spwf_0.2_0.2_0.2/*.hdf5
+MOCCaPy/tests/mocca/mean_field/states/spwf_0.2_0.2_0.16/*.hdf5
+
