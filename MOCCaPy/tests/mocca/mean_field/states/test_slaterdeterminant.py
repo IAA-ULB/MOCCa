@@ -16,9 +16,11 @@ def test_SlaterDeterminant_ctor():
         init='nilsson', osc_freq=osc_freq,
     ))
     mfs.validate()
+    d = {mfs: 'mfs'}
 
 
 def test_occupancies():
+
     n_neutrons = 20
     n_protons  = 20
     nwn = 15

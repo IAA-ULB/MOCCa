@@ -8,29 +8,6 @@ from mocca.mean_field.states import gramm_schmidt
 from mocca.util.timer import Timer
 
 
-def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):
-    """Take a single gradient descent step (eq 63 ine see Ryssens et al (2019)
-    Eur. Phys. J. A (2019) 55:93 section 3.
-
-    Args:
-        ket_data: HFPsi.data member of ket.
-        h_ket_data: HFPsi.data member of h_ket containing the hamiltonian applied
-            to ket.
-        epsilon: contains the diagonal elements of the hamiltonian wrt ket:
-            diag(<ket|h|ket>).
-    """
-    # DO NOT overwrite epsilon! it is needed by gramm_schmidt.
-    f = epsilon * alpha + 1.0
-    ket_d3_copy = ket_d3.copy()
-    for i in range(epsilon.size):
-        ket_d3[:, :, i] *= f[i] # *= (1 + alph*epsilon_ii)
-
-    h_ket_d3 *= alpha
-    # if we do not update ket, nothing should change. That turned out to be correct, so the hamiltionian's
-    # ket member is not accidently changed, and its O_ket member is correctly recomputed.
-    ket_d3 -= h_ket_d3
-    pass
-
 class DSP:
     """A class for evolving the single particle wave functions as part of the
     Diagonalization SubProblem, either by gradient descent step or heavy ball
@@ -70,7 +47,7 @@ class DSP:
         # 1. Compute the diagonal elements of the hamiltonian
         if debug or self._counter == 0:
             epsilon = self.hamiltonian.compute_diagonal_elements()
-            print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
+            print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.operand_data}")
             # print(  f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
             # epsilon, dispersion = self.hamiltonian.compute_dispersion()
             # print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
@@ -81,8 +58,8 @@ class DSP:
         # 2. Update the single particle wave functions (HFPsi)
         #    This requires ket, epsilon and h_ket (both of which have been computed
         #    in the call to self.hamiltonian.compute_diagonal_elements())
-        ket_d3   = self.hamiltonian.  ket.d3
-        h_ket_d3 = self.hamiltonian.O_ket.d3
+        ket_d3   = self.hamiltonian.operand_data.  ket.d3
+        h_ket_d3 = self.hamiltonian.operand_data.O_ket.d3
         if self.mu == 0:
             _gradient_descent_step(ket_d3, h_ket_d3, epsilon, self.alpha)
         else:
@@ -111,7 +88,9 @@ class DSP:
                 _gradient_descent_step(ket_d3, h_ket_d3, epsilon, self.alpha)
 
         # 3. Orthogonalize and normalize the single particle wave functions (HFPsi)
-        gramm_schmidt(self.hamiltonian.ket, self.hamiltonian.diagonal, normalize=True, check=check)
+        gramm_schmidt(self.hamiltonian.operand_data.ket, self.hamiltonian.operand_data.diagonal, normalize=True, check=check)
+
+        self.hamiltonian.invalidate()
 
     def evolve(self, nsteps=1, check=True, debug=False):
         """"""
@@ -121,9 +100,33 @@ class DSP:
         for i in range(nsteps):
             self.step(check=check, debug=debug)
             self._counter +=1
+            # print(f"counter={self._counter}/{nsteps}")
 
-
+        self.hamiltonian.invalidate()
         self.hamiltonian.compute_dispersion()
-        print(f"iter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
-        print(f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
+        print(f"iter = {self._counter}: h_ii = {self.hamiltonian.operand_data.diagonal}")
+        print(f"iter = {self._counter}: d_ii = {self.hamiltonian.operand_data.dispersion}")
+
+
+def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):
+    """Take a single gradient descent step (eq 63 ine see Ryssens et al (2019)
+    Eur. Phys. J. A (2019) 55:93 section 3.
+
+    Args:
+        ket_data: HFPsi.data member of ket.
+        h_ket_data: HFPsi.data member of h_ket containing the hamiltonian applied
+            to ket.
+        epsilon: contains the diagonal elements of the hamiltonian wrt ket:
+            diag(<ket|h|ket>).
+    """
+    # DO NOT overwrite epsilon! it is needed by gramm_schmidt.
+    f = epsilon * alpha + 1.0
+    ket_d3_copy = ket_d3.copy()
+    for i in range(epsilon.size):
+        ket_d3[:, :, i] *= f[i] # *= (1 + alph*epsilon_ii)
+
+    h_ket_d3 *= alpha
+    # if we do not update ket, nothing should change. That turned out to be correct, so the hamiltionian's
+    # ket member is not accidently changed, and its O_ket member is correctly recomputed.
+    ket_d3 -= h_ket_d3
 

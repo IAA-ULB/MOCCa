@@ -5,7 +5,7 @@ from mocca.mesh import LagrangeMesh
 import mocca.mean_field.states as states
 import mocca.mean_field.operators as operators
 from mocca.mean_field.solvers.dsp import DSP
-from mocca.mean_field.states import gramm_schmidt
+from mocca.mean_field.states import gramm_schmidt, SlaterDeterminant
 from mocca.util.timer import Timer
 
 # bad test, the spwfs are all teh same and cannot be orthnormalized.
@@ -47,7 +47,8 @@ def test_gramm_schmidt():
                           (15, 23), (23, 23),
                           (23, 30), (30, 30)
                           ]
-    overlap = operators.Overlap(hfpsi)
+    mfs = SlaterDeterminant(hfpsi)
+    overlap = operators.Overlap(mfs)
     hfpsi.sp_energies = overlap.compute_diagonal_elements()
     gramm_schmidt(hfpsi, order=hfpsi.sp_energies, normalize=False)
 
@@ -61,6 +62,7 @@ def test_gramm_schmidt():
                 if i != j:
                     assert block_ib[i,j] == pytest.approx(0.0)
     hfpsi.normalize()
+    overlap.invalidate()
     overlap_matrix = overlap.compute_matrix_representation()
     for ib in range(8):
         block_ib = overlap_matrix[ib]
@@ -73,6 +75,7 @@ def test_gramm_schmidt():
                 else:
                     assert block_ib[i,j] == pytest.approx(1.0)
 
+
 def test_evolve(check=False, debug=False):
     mesh = LagrangeMesh(M=30, d=.8, reduced=True)
     nwn, nwp = 15, 15
@@ -84,7 +87,8 @@ def test_evolve(check=False, debug=False):
         init='nilsson',osc_freq=osc_freq,
         orthogonalize=True, normalize=True
     )
-    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
+    mfs = SlaterDeterminant(hfpsi)
+    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(mfs)
     dsp = DSP(hamiltonian, alpha=.002)
     # with Timer(name="DSP.evolve") as timer:
     dsp.evolve(nsteps=200, check=check, debug=debug)

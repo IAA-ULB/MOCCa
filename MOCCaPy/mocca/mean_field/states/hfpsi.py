@@ -235,6 +235,9 @@ class HFPsi(Observable):
                     symmetry=np.ones((4*self.n_total_wf,mesh.dim), dtype=np.int32, order='F'),
                     name='hfpsi'
                 )
+                self.sp_energies = np.empty(self.n_total_wf, dtype=np.float64, order='F')
+                self.d3 = self.data.reshape(self.spwf_shape, order='F')
+
                 print(f"\nWARNING: Initialization strategy {None} is only for testing purposes.\n")
                 return
             else:
