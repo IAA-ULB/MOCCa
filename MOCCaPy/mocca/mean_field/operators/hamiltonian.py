@@ -44,7 +44,6 @@ class KineticEnergyOperator(Operator):
             hbm = [ -h if h > 0 else h for h in hbm]
         self.hbm = hbm
 
-
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
 
@@ -69,27 +68,15 @@ class KineticEnergyOperator(Operator):
             self.operand_data.O_ket.data[:, :, :n] = hbm_n * Delta3[:, :, :]
             self.operand_data.O_ket.data[:, :, n:] = hbm_p * Delta3[:, :, :]
 
-    def __str__(self):
-        """
-        cfr https://github.com/IAA-nuclear/tantalus_full/issues/66
-        "index" -> the wavefunction index in memory
-        "shell" -> the number of particles you can fit in the levels up to and including the current one; i.e. 2 * the position of the level in the energ-ordering. It is the column "n" in the example.
-        "parity" -> parity of the spwf; +1 in blocks 1,2,5,6; -1 in blocks 3,4,7,8 (fortran indices)
-        "signature" -> +1 for now
-        "occupation" -> the occupation of the spwfs; I'm not sure if you already construct this?
-        "energy" -> the single-particle energy, or rather h_ii
-        "MPIrank" -> the rank that stores this particular spwf; 0 for now.
-        "Dispersion" -> the dispersion of the single-particle energy,
+    def set_property_list(self, property_list=None):
+        self.property_list = property_list
 
-        Blok (0): neutrons with positive parity en signature +i
-        Blok (1): neutrons with positive parity en signature -i
-        Blok (2): neutrons with negative parity en signature +i
-        Blok (3): neutrons with negative parity en signature -i
-        Blok (4): protons  with positive parity en signature +i
-        Blok (5): protons  with positive parity en signature -i
-        Blok (6): protons  with negative parity en signature +i
-        Blok (7): protons  with negative parity en signature -i
+    def __str__(self):
+        """Create a string representation of the mean-field state in the form of a table.
+
+        Feature requested in issue/66.
         """
+        # TODO: add customization of the table.
         mfs_name = self.operand_data.mfs.__class__.__name__
         h_ii, d2h = self.compute_dispersion()
         self.operand_data.mfs.rho[:], shell, order_n, order_p = self.operand_data.mfs.occupancies(h_ii=h_ii)
@@ -105,13 +92,15 @@ class KineticEnergyOperator(Operator):
                 for i in range(*r):
                     S[i] = -1
         tbl = SpwfTable(order_n, order_p, mfs_name)
-        tbl.add_column('n', shell)
-        tbl.add_column('i', np.arange(self.operand_data.ket.n_total_wf))
-        tbl.add_column('p', P)
-        tbl.add_column('s', S)
-        tbl.add_column('occ', self.operand_data.mfs.rho )
-        tbl.add_column('E', h_ii)
-        tbl.add_column('d2h', d2h)
+        tbl.add_column('n', shell, property_list=self.property_list)
+        tbl.add_column('i', np.arange(self.operand_data.ket.n_total_wf)
+                                 , property_list=self.property_list)
+        tbl.add_column('p', P    , property_list=self.property_list)
+        tbl.add_column('s', S    , property_list=self.property_list)
+        tbl.add_column('occ', self.operand_data.mfs.rho
+                                 , property_list=self.property_list)
+        tbl.add_column('E', h_ii , property_list=self.property_list)
+        tbl.add_column('d2h', d2h, property_list=self.property_list)
         return str(tbl)
 
 def V_WoodsSaxon1D(r, V0, ainv, R):
@@ -215,13 +204,21 @@ class SpwfTable:
         self.headers = []
         self.name = name
 
-    def add_column(self, name, data):
+    def add_column(self, name, data, property_list):
         """Add a column to the table, The order of adding is also the print order.
 
         Args:
             name: column header
             data: np.ndarray. Its length is the total number of spwfs in the mean-field state.
+                The order of the elements is the order of the spwfs in the mean-field state.
+                They are automatically sorted from low to high energy.
+            property_list: list of property names to include in the table. None includes all
+                known properties.
         """
+        if (property_list is not None) and \
+           (name not in property_list):
+            return
+
         self.headers.append(name)
         self.n_columns.append(data[self.order[:self.n]])
         self.p_columns.append(data[self.order[self.n:]])
