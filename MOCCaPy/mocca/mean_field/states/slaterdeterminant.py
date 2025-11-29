@@ -18,7 +18,7 @@ class SlaterDeterminant(BCSState):
         """
         super().__init__(hfpsi, _is_base_class=True)
         if not _is_base_class:
-            self.rho = np.zeros(self.n_total_wf, dtype=np.float64)
+            self.rho = np.zeros(self.hfpsi.n_total_wf, dtype=np.float64)
 
     def validate(self):
         """Verify that all conditions for representing a BCS mean-field State
@@ -56,7 +56,7 @@ class SlaterDeterminant(BCSState):
     @property
     def n_total_wf(self):
         """Return the total number of single particle wave functions in this mean-field state."""
-        return self.hfpsi.n_proton_wf
+        return self.hfpsi.n_total_wf
 
     @property
     def mesh(self):
@@ -75,7 +75,7 @@ class SlaterDeterminant(BCSState):
         """"""
         return {'?': .0}
 
-    def occupancies(self, hamiltonian=None) -> np.ndarray:
+    def occupancies(self, h_ii=None) -> np.ndarray:
         """Compute the occupancies of this mean-field state.
 
         Args:
@@ -89,9 +89,7 @@ class SlaterDeterminant(BCSState):
             order_protons: array of indices that sort the proton part of h_diag
             Args:
         """
-        h = hamiltonian if hamiltonian is not None else \
-            self.hamiltonian
-        return _sd_occupancies(self.hfpsi.n_neutrons, self.hfpsi.n_protons, h.diagonal(), self.hfpsi.n_neutron_wf)
+        return _sd_occupancies(self.hfpsi.n_neutrons, self.hfpsi.n_protons, h_ii, self.hfpsi.n_neutron_wf)
 
 
 def _sd_occupancies(n_neutrons, n_protons, h_diag, nwn):

@@ -42,6 +42,7 @@ class DSP:
         1. Compute the diagonal elements of the hamiltonian
         2. Update the single particle wave functions (HFPsi)
         3. Orthogonalize and normalize the single particle wave functions (HFPsi)
+        4. Invalidate the operand data of the hamiltonian operator.
         """
 
         # 1. Compute the diagonal elements of the hamiltonian
@@ -90,6 +91,7 @@ class DSP:
         # 3. Orthogonalize and normalize the single particle wave functions (HFPsi)
         gramm_schmidt(self.hamiltonian.operand_data.ket, self.hamiltonian.operand_data.diagonal, normalize=True, check=check)
 
+        # 4. Invalidate the operand data of the hamiltonian operator.
         self.hamiltonian.invalidate()
 
     def evolve(self, nsteps=1, check=True, debug=False):
@@ -100,7 +102,9 @@ class DSP:
         for i in range(nsteps):
             self.step(check=check, debug=debug)
             self._counter +=1
-            # print(f"counter={self._counter}/{nsteps}")
+            if self._counter % 20 == 0:
+                print(f"counter={self._counter}")
+                print(self.hamiltonian)
 
         self.hamiltonian.invalidate()
         self.hamiltonian.compute_dispersion()

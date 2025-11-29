@@ -1,6 +1,8 @@
 import numpy as np
+from tabulate import tabulate
 
 from .operator import Operator
+from mocca.util import title_line
 
 # ==============================================================================
 # Base classes
@@ -88,7 +90,29 @@ class KineticEnergyOperator(Operator):
         Blok (6): protons  with negative parity en signature +i
         Blok (7): protons  with negative parity en signature -i
         """
-        col_parity = np.empty(self.O_ket.data.shape[1], dtype=int)
+        mfs_name = self.operand_data.mfs.__class__.__name__
+        h_ii, d2h = self.compute_dispersion()
+        self.operand_data.mfs.rho[:], shell, order_n, order_p = self.operand_data.mfs.occupancies(h_ii=h_ii)
+        P = np.ones(self.operand_data.mfs.n_total_wf, dtype=np.int32)
+        S = np.ones(self.operand_data.mfs.n_total_wf, dtype=np.int32)
+        for ib in range(8):
+            if ib % 4 >= 2:
+                r = self.operand_data.hfblockrange[ib]
+                for i in range(*r):
+                    P[i] = -1
+            if ib % 2 == 1:
+                r = self.operand_data.hfblockrange[ib]
+                for i in range(*r):
+                    S[i] = -1
+        tbl = _Str_table(order_n, order_p, mfs_name)
+        tbl.add_column('n', shell)
+        tbl.add_column('i', np.arange(self.operand_data.ket.n_total_wf))
+        tbl.add_column('p', P)
+        tbl.add_column('s', S)
+        tbl.add_column('occ', self.operand_data.mfs.rho )
+        tbl.add_column('E', h_ii)
+        tbl.add_column('d2h', d2h)
+        return str(tbl)
 
 def V_WoodsSaxon1D(r, V0, ainv, R):
     return V0 / (1. + np.exp(ainv * (r - R)))
@@ -142,3 +166,90 @@ class HamiltonianWoodsSaxon(KineticEnergyOperator):
         # add to O_ket
         self.operand_data.O_ket.data += Vr * self.operand_data.ket.data
 
+
+class SpwfTable:
+    """Create spwf tables like
+    ```
+    ------------- SlaterDeterminant -----------------
+    -------------------------------------------------
+    --- Neutron functions ---------------------------
+      n    i    p    s    occ          E          d2h
+    ---  ---  ---  ---  -----  ---------  -----------
+      2    0    1    1      1  -39.0633   1.70414e-08
+      4    7   -1    1      1  -29.0719   2.67243e-08
+      6    8   -1    1      1  -29.0719   2.67228e-08
+      8    9   -1    1      1  -29.0719   2.67255e-08
+     10    3    1    1      1  -17.6487   9.24864e-07
+     ...
+    -------------------------------------------------
+    --- Proton functions ----------------------------
+      n    i    p    s    occ          E          d2h
+    ---  ---  ---  ---  -----  ---------  -----------
+      2   15    1    1      1  -39.0633   1.97081e-08
+      4   22   -1    1      1  -29.0719   2.91585e-08
+      6   24   -1    1      1  -29.0719   2.91673e-08
+      8   23   -1    1      1  -29.0719   2.91703e-08
+     10   18    1    1      1  -17.6487   1.01297e-06
+     ...
+    -------------------------------------------------
+    ```
+    Useful for monitoring progress.
+    As requested in https://github.com/IAA-nuclear/tantalus_full/issues/66
+    """
+    def __init__(self, order_n, order_p, name):
+        """
+        Args:
+            order_n: indices of the spwf's when sorted from low to high energy
+                (diagonal elements of the hamiltonian)
+            order_p: indices of the protons when sorted from low to high energy
+                (diagonal elements of the hamiltonian)
+            name: class name of the mean-field state object, Appears in the title line.
+        """
+        self.order_n = order_n
+        self.n = len(order_n)
+        self.order_p = order_p
+        self.p = len(order_p)
+        self.order = np.concatenate((order_n, order_p))
+        self.n_columns = []
+        self.p_columns = []
+        self.headers = []
+        self.name = name
+
+    def add_column(self, name, data):
+        """Add a column to the table, The order of adding is also the print order.
+
+        Args:
+            name: column header
+            data: np.ndarray. Its length is the total number of spwfs in the mean-field state.
+        """
+        self.headers.append(name)
+        self.n_columns.append(data[self.order[:self.n]])
+        self.p_columns.append(data[self.order[self.n:]])
+
+    def transpose(self, columns):
+        """Transpose the columns into rows so that tabulate can handle it."""
+        ncols = len(columns)
+        nrows = len(columns[0])
+        rows = [ ]
+        for irow in range(nrows):
+            rows.append([])
+            for icol in range(ncols):
+                rows[irow].append(columns[icol][irow])
+        return rows
+
+    def __str__(self):
+        """Create a string representation of the mean-field state."""
+        rows = self.transpose(self.n_columns)
+        sn = tabulate(rows, headers=self.headers, tablefmt="simple")
+        sn +='\n'
+
+        w = sn.index('\n')
+        s = title_line(text=self.name, char='-', width=w, start=-1, below=True)
+        s += title_line(text='Neutron functions', char='-', width=w)
+        s += sn
+        s += title_line(text='Proton functions', char='-', width=w, above=True)
+        rows = self.transpose(self.p_columns)
+        s += tabulate(rows, headers=self.headers, tablefmt="simple")
+        s += '\n'
+        s += title_line(char='-', width=w)
+        return s
