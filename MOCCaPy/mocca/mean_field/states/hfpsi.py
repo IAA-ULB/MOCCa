@@ -3,7 +3,7 @@ import numpy as np
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
 from mocca.mesh.observable import Observable
 from mocca.mean_field.operators import Overlap
-from mocca.mean_field.solvers.dsp import gramm_schmidt
+from mocca.mean_field.states.gramm_schmidt import gramm_schmidt
 
 from mocca.f90.nil8_f90 import nilsson
 from mocca.f90.randomspwfs_f90 import randomspwfs
@@ -343,7 +343,6 @@ class HFPsi(Observable):
             mesh=None,
         )
 
-
     def ilc(self, i4, i_wf):
         """Return the linear component index from the wave function component index `i4`
         (`0<=i4<4`) and the wave function index `i_wf`.
@@ -392,14 +391,15 @@ class HFPsi(Observable):
         # overlap.compute_diagonal_elements()
         # pass
 
-    def __str__(self):
-        """
-        "index" -> the wavefunction index in memory
-        "shell" -> the number of particles you can fit in the levels up to and including the current one; i.e. 2 * the position of the level in the energ-ordering. It is the column "n" in the example.
-        "parity" -> parity of the spwf; +1 in blocks 1,2,5,6; -1 in blocks 3,4,7,8 (fortran indices)
-        "signature" -> +1 for now
-        "occupation" -> the occupation of the spwfs; I'm not sure if you already construct this?
-        "energy" -> the single-particle energy, or rather h_ii
-        "MPIrank" -> the rank that stores this particular spwf; 0 for now.
-        "Dispersion" -> the dispersion of the single-particle energy,
-        """
+    def has_time_reversal(self) -> bool:
+        """Return whether this HFPsi assumes time reversal symmetry. If so
+        every second symmetry block is empty (1,3,5,and 7) """
+        def is_empty(ib):
+            """Return True if symmetry block `ib` is empty."""
+            return self.hfblockrange[ib][0] == self.hfblockrange[ib][1]
+
+        return is_empty(1) and \
+               is_empty(3) and \
+               is_empty(5) and \
+               is_empty(7)
+

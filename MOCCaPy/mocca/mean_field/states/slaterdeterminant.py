@@ -74,3 +74,64 @@ class SlaterDeterminant(BCSState):
     def multipole_moments(self, edf=None) -> dict[str, float]:
         """"""
         return {'?': .0}
+
+    def occupancies(self, hamiltonian=None) -> np.ndarray:
+        """Compute the occupancies of this mean-field state.
+
+        Args:
+            hamiltionian: an Operator instance representing the Hamiltonian.
+
+        Returns:
+            rho, rho2, order_neutrons, order_protons
+            rho: the occupancies
+            rho2: number of neutrons/protons in the current level and all levels below.
+            order_neutrons: array of indices that sort the neutron part of h_diag
+            order_protons: array of indices that sort the proton part of h_diag
+            Args:
+        """
+        h = hamiltonian if hamiltonian is not None else \
+            self.hamiltonian
+        return _sd_occupancies(self.hfpsi.n_neutrons, self.hfpsi.n_protons, h.diagonal(), self.hfpsi.n_neutron_wf)
+
+
+def _sd_occupancies(n_neutrons, n_protons, h_diag, nwn):
+    """Compute SlaterDeterminant occupancies, given these arguments:
+
+    Args:
+        n_neutrons: number of neutrons
+        n_protons: number of protons
+        h_diag: diagonal elements of the hamiltonian
+        nwn: number of neutron wave functions
+
+    Returns:
+        rho, rho2, order_neutrons, order_protons
+        rho: the occupancies
+        rho2: number of neutrons/protons in the current level and all levels below.
+        order_neutrons: array of indices that sort the neutron part of h_diag
+        order_protons: array of indices that sort the proton part of h_diag
+    """
+    rho  = np.zeros_like(h_diag)
+    rho2 = np.zeros_like(h_diag)
+    order_neutrons = np.argsort(h_diag[:nwn])
+    order_protons  = np.argsort(h_diag[nwn:]) + nwn
+
+    n = n_neutrons // 2
+    rho [order_neutrons[:n]] = 1.0
+    rho2[order_neutrons[:n]] = 1.0
+    if n_neutrons % 2 == 1:
+        rho[order_neutrons[n+1]] = 1.0
+    p = n_protons // 2
+    rho [order_protons [:p]] = 1.0
+    rho2[order_protons [:p]] = 1.0
+    if n_protons % 2 == 1:
+        rho[order_protons [p+1]] = 1.0
+    rho2 += rho
+    _sum = 0.
+    for i in range(nwn):
+        _sum += rho2[order_neutrons[i]]
+        rho2[order_neutrons[i]] = _sum
+    _sum = .0
+    for i in range(nwn,h_diag.size):
+        _sum += rho2[order_protons[i-nwn]]
+        rho2[order_protons[i-nwn]] = _sum
+    return rho, rho2, order_neutrons, order_protons

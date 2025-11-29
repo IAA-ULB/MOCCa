@@ -64,75 +64,29 @@ class KineticEnergyOperator(Operator):
             self.O_ket.data[:, :, :n] = hbm_n * Delta3[:, :, :]
             self.O_ket.data[:, :, n:] = hbm_p * Delta3[:, :, :]
 
+    def __str__(self):
+        """
+        cfr https://github.com/IAA-nuclear/tantalus_full/issues/66
+        "index" -> the wavefunction index in memory
+        "shell" -> the number of particles you can fit in the levels up to and including the current one; i.e. 2 * the position of the level in the energ-ordering. It is the column "n" in the example.
+        "parity" -> parity of the spwf; +1 in blocks 1,2,5,6; -1 in blocks 3,4,7,8 (fortran indices)
+        "signature" -> +1 for now
+        "occupation" -> the occupation of the spwfs; I'm not sure if you already construct this?
+        "energy" -> the single-particle energy, or rather h_ii
+        "MPIrank" -> the rank that stores this particular spwf; 0 for now.
+        "Dispersion" -> the dispersion of the single-particle energy,
 
-# ==============================================================================
-# Derived classes
-# ==============================================================================
-# class HamiltonianWoodsSaxon(Operator):
-#     """Compute the matrix representation of the hamiltonian h with a Woods-Saxon potential. <hfpsi|h|hfpsi>."""
-#
-#     def __init__(self, hfpsi, hbm=20.73553000, V0=-50.0, r0=1.25, a=0.5):
-#         """Initialize the operator with a wave function `hfpsi` to operate on and set the parameters for the
-#         operator.
-#
-#         Args:
-#             hbm: prefactor of the kinetic energy operator. A single value considers the masses of neutrons
-#                 and protons to be identical, a tuple of 2 values (hbar^2/2m_n, hbar^2/2m_p) considers
-#                 the masses to differ.
-#             V0, r0, a:  parameters of the Woods-Saxon potential
-#                 (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
-#         """
-#         super().__init__(hfpsi)
-#         self.hbm = hbm
-#         self.V0 = V0
-#         self.ainv = 1 / a
-#         self.R = r0 * np.pow(hfpsi.n_neutrons + hfpsi.n_protons, 1 / 3)
-#         self.derivatives = ['Laplacian' if self.mesh.dim >= 2 else 'xx']
-#
-#     def add_local_terms(self):
-#         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
-#         self.O_ket = self.ket.clone()
-#         self.O_ket.d3 = self.O_ket.data.reshape(self.O_ket.spwf_shape, order='F')
-#
-#         def V_WoodsSaxon1D(r):
-#             return self.V0 / (1. + np.exp(self.ainv * (r - self.R)))
-#
-#         def V_WoodsSaxon2D(x, y):
-#             return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x * x + y * y) - self.R)))
-#
-#         def V_WoodsSaxon3D(x, y, z):
-#             return self.V0 / (1. + np.exp(self.ainv * (np.sqrt(x * x + y * y + z * z) - self.R)))
-#
-#         dim = self.mesh.dim
-#         if dim == 3:
-#             V_WoodsSaxon = V_WoodsSaxon3D
-#         elif dim == 2:
-#             V_WoodsSaxon = V_WoodsSaxon2D
-#         else:  # dim == 1:
-#             V_WoodsSaxon = V_WoodsSaxon1D
-#
-#         # aply the Woods-Saxon potential
-#         Vr = self.mesh.apply(V_WoodsSaxon)
-#         self.O_ket.data = Vr * self.ket.data
-#
-#         Delta = 'Laplacian' if self.mesh.dim >= 2 else \
-#             'xx'
-#         if isinstance(self.hbm, float):
-#             # Neutrons and protons are treated equally (mass)
-#             self.O_ket.data += self.hbm * self.ket.derivatives[Delta]
-#         else:
-#             # Neutrons and protons are treated differently (mass)
-#             hbm_n = self.hbm[0]
-#             hbm_p = self.hbm[1]
-#             # Blocks[0:4] are for neutrons
-#             # Blocks[4:8] are for protons
-#             n = self.O_ket.hfblockrange[3][1]  # end of neutron range in the spwfs and begin of proton range
-#             self.O_ket.data[:, :, :n] += hbm_n * self.ket.derivatives[Delta][:, :, :n]
-#             self.O_ket.data[:, :, n:] += hbm_p * self.ket.derivatives[Delta][:, :, n:]
+        Blok (0): neutrons with positive parity en signature +i
+        Blok (1): neutrons with positive parity en signature -i
+        Blok (2): neutrons with negative parity en signature +i
+        Blok (3): neutrons with negative parity en signature -i
+        Blok (4): protons  with positive parity en signature +i
+        Blok (5): protons  with positive parity en signature -i
+        Blok (6): protons  with negative parity en signature +i
+        Blok (7): protons  with negative parity en signature -i
+        """
+        col_parity = np.empty(self.O_ket.data.shape[1], dtype=int)
 
-
-# TODO: speed up with numba decorators?
-# Define Woods-Saxon potential functions
 def V_WoodsSaxon1D(r, V0, ainv, R):
     return V0 / (1. + np.exp(ainv * (r - R)))
 
