@@ -104,7 +104,7 @@ class KineticEnergyOperator(Operator):
                 r = self.operand_data.hfblockrange[ib]
                 for i in range(*r):
                     S[i] = -1
-        tbl = _Str_table(order_n, order_p, mfs_name)
+        tbl = SpwfTable(order_n, order_p, mfs_name)
         tbl.add_column('n', shell)
         tbl.add_column('i', np.arange(self.operand_data.ket.n_total_wf))
         tbl.add_column('p', P)
