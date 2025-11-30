@@ -6,7 +6,7 @@ from mocca.mesh.lagrange_function import lagrange_function
 
 
 def create_mesh(gx, gy=None, gz=None):
-    """Create a rectangular mesh from 1D arrays with coordinates.
+    """Create a rectangular mesh (1D, 2D, 3D) from 1D arrays with coordinates.
 
     Args:
         gx (ndarray): 1D array
@@ -47,12 +47,16 @@ def create_mesh(gx, gy=None, gz=None):
     else:
         return gx
 
-
 def _split_axes(axes, Q):
-    """split axes in a part that is already computed and a part that still has to be computed.
+    """Split axes in a part that is already computed and a part that still has to be computed.
+    E.g. 'xyz' if 'yz' was already computed yields `0, 1, 'yz'`, where 0 is the axis of the
+    derivative that still must be computed, 1 the order of that derivative (thus `0, 1` means
+    d/dx), and 'yz' is the derivative that will be recycled.
+
     Args:
         axes: a sorted string of 'x'|'y'|'z' characters
         Q: the MeshQuantity being differentiated.
+
     Returns:
         (axis, order, reused_derivative):
             axis (int): differentiation axis
