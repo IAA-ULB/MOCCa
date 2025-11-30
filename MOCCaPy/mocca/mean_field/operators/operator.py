@@ -15,7 +15,7 @@ class Operator:
         derivatives: list of derivatives needed by the operator.
     Methods:
         add_local_terms, add_non_local_terms: these methods can be overridden to
-            define the action of the operator to ket resulting in an observable O_ket. In principle,
+            define the action of the operator to ket resulting in a MeshQuantity O_ket. In principle,
             there is only need for one method to be overridden, one that implements the action of the
             operator on the ket. However, the names of the three methods serve as a hint to the things
             that must be computed.
@@ -29,7 +29,7 @@ class Operator:
         Args:
             mfs: mean-field state object to which the operator will be applied.
             derivatives: str|list of derivatives needed by the operator. See the `axes` parameter
-                of Observable.differentiate() for details
+                of MeshQuantity.differentiate() for details
         """
         # if not hasattr(hfpsi, 'd3'):
         #     hfpsi.d3 = hfpsi.data.reshape(hfpsi.spwf_shape, order='F')

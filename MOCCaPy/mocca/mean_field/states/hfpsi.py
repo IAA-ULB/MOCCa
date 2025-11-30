@@ -1,7 +1,7 @@
 import numpy as np
 
 # from MOCCaPy.mocca.mean_field.bcs import BCSState
-from mocca.mesh.observable import Observable
+from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mean_field.operators import Overlap
 from mocca.mean_field.states.gramm_schmidt import gramm_schmidt
 
@@ -173,7 +173,7 @@ class F90WfInitializer:
         return init_args[0], hfblocks, esp1
 
 
-class HFPsi(Observable):
+class HFPsi(MeshQuantity):
     """ Data structure for Hartree-Fock wave function."""
 
     def __init__(self,

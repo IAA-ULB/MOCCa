@@ -1,2 +1,2 @@
 from .lagrange import LagrangeMesh
-from .observable import Observable
+from .mesh_quantity import MeshQuantity

@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 
-from mocca.mesh.observable import Observable
+from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mesh.lagrange_function import lagrange_function
 
 
@@ -52,7 +52,7 @@ def _split_axes(axes, Q):
     """split axes in a part that is already computed and a part that still has to be computed.
     Args:
         axes: a sorted string of 'x'|'y'|'z' characters
-        Q: the observable being differentiated.
+        Q: the MeshQuantity being differentiated.
     Returns:
         (axis, order, reused_derivative):
             axis (int): differentiation axis
@@ -402,7 +402,7 @@ class LagrangeMesh:
         """Compute the integral of a scalar quantity `q` on the mesh.
 
         Args:
-            Q (Observable) : discretized on the grid.
+            Q (MeshQuantity) : discretized on the grid.
 
         Returns:
             a scalar:
@@ -660,10 +660,10 @@ class LagrangeMesh:
 
 
     def differentiate(self, Q, axes, out):
-        """Differentiate Observable Q wrt axes.
+        """Differentiate MeshQuantity Q wrt axes.
 
         Args:
-            Q: Observable to be differentiated.
+            Q: MeshQuantity to be differentiated.
             axes: Axes to be differentiated.
                 A single derivative can be requested as a `str` combining the characters 'x', 'y', 'z'. E.g. the
                  `str` 'xyz' requests d^3/dxdydz. Multiple derivatives can be requested too:
@@ -674,7 +674,7 @@ class LagrangeMesh:
 
         Note that
         - Q.data must have shape (*self.mesh_shape, n_components) be in mesh_shape and that the caller is responsible for this.
-        - this is a low-level method, to be called by Observable.differentiate()
+        - this is a low-level method, to be called by MeshQuantity.differentiate()
 
         """
 # Handle single entries:
@@ -748,7 +748,7 @@ class LagrangeMesh:
     # ---------------------------------------------------------------------------
     # Interpolation methods
     #----------------------------------------------------------------------------
-    def interpolate(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
+    def interpolate(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
         Args:
@@ -771,7 +771,7 @@ class LagrangeMesh:
             return self._interpolate1D(Q, r)
 
 
-    def _interpolate1D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
+    def _interpolate1D(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 1D  mesh."""
         nr = r.shape[0]
         nq = Q.n_components
@@ -785,11 +785,11 @@ class LagrangeMesh:
         return Qr
 
 
-    def _interpolate2D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
+    def _interpolate2D(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 2D mesh.
 
         Args:
-            Q: An observable with values specified on all grid points
+            Q: A MeshQuantity with values specified on all grid points
             r: array of points at which to interpolate Q. 'r.shape == (nr, self.dim)'
         Returns:
             An array with the interpolated values.
@@ -811,11 +811,11 @@ class LagrangeMesh:
         return Qr
 
 
-    def _interpolate3D(self, Q:Observable, r:npt.NDArray) -> npt.NDArray:
+    def _interpolate3D(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
         """Interpolate `Q` on a 2D mesh.
 
         Args:
-            Q: An observable with values specified on all grid points
+            Q: A MeshQuantity with values specified on all grid points
             r: array of points at which to interpolate Q. 'r.shape == (nr, self.dim)'
         """
         nr = r.shape[0]

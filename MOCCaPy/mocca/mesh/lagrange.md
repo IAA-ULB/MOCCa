@@ -229,7 +229,7 @@ $$\frac{d^2\mathbf{h}}{dx^2}
 =(\mathbf{D}+\mathbf{E})(\mathbf{D}-\mathbf{E})\mathbf{h}_{\mathrm{skew-symmetric}}$$
 
 > [!Note]
-> There is an additional catch when applying the $\mathbf{D}\pm\mathbf{E}$ formulas, namely that they depend on the symmetry of $\mathbf{h}$. As the different components of an observable may have different symmetries, we must apply it to each component separately. This complicates the implementation, and may impact the performance. However, the memory use is 1/4th of the full matrix ($N\times N$ vs $2N\times2N$). As this part of the code will probably be memory-bound, the reduced approach is most probably faster.
+> There is an additional catch when applying the $\mathbf{D}\pm\mathbf{E}$ formulas, namely that they depend on the symmetry of $\mathbf{h}$. As the different components of a MeshQuantity may have different symmetries, we must apply it to each component separately. This complicates the implementation, and may impact the performance. However, the memory use is 1/4th of the full matrix ($N\times N$ vs $2N\times2N$). As this part of the code will probably be memory-bound, the reduced approach is most probably faster.
 
 > [!Note] 
 > Keeping track of the symmetry is non-trivial. It is perhaps better to first implement the full matrix approach for reduced axes and then use that to validate the approach based on eq 19. On the other hand, completing $h_{ijk}$ to a non-reduced grid isn't easy either. 

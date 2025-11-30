@@ -14,4 +14,4 @@ def test_BogoliubovState_ctor():
         n_proton_wf=nwp, n_neutron_wf=nwn, mesh=mesh,
         init='nilsson', osc_freq=osc_freq,
     ))
-    mfs.validate()
+    mfs.dbg_assert()

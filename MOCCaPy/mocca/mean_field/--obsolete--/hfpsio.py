@@ -1,6 +1,6 @@
 import numpy as np
 
-from mocca.mesh.observable import Observable
+from mocca.mesh.mesh_quantity import MeshQuantity
 # from mocca.mean_field.bcs import BCSState
 from .nil8_f90 import nilsson
 from .randomspwfs_f90 import randomspwfs
@@ -9,12 +9,12 @@ from .randomspwfs_f90 import randomspwfs
 #   Note that Fortran `integer`s are 32-bit, which corresponds to `dtype=np.int32`.
 #   The standard Python `int`s are 64-bit
 
-class HFPsiO(Observable):
+class HFPsiO(MeshQuantity):
     """Hartree-Fock wave function."""
 
-    # TODO: Maybe HFPsi needs to derive from Observable, so that we can take lagrange derivatives
-    #       This may require an extension of Observable as HFPsi.data has shape (mesh.linear_size,
-    #       4, n_spwf), and Observable does only provide one dimension for the components.
+    # TODO: Maybe HFPsi needs to derive from MeshQuantity, so that we can take lagrange derivatives
+    #       This may require an extension of MeshQuantity as HFPsi.data has shape (mesh.linear_size,
+    #       4, n_spwf), and MeshQuantity does only provide one dimension for the components.
 
     init_f90_registry = {
         'nilsson' : nilsson,

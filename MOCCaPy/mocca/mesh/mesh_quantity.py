@@ -18,22 +18,22 @@ def sort_axes(axes:str) -> str:
            axes
 
 
-class Observable:
+class MeshQuantity:
     """Base class for observables."""
     def __init__(self, mesh, n_components=None, data=None, symmetry=None, name=''):
         """
         Args:
             mesh: a mesh object - Currently, only LagrangeMesh objects are supported.
-            data (np.array): Observable values on the mesh points. Array shape is (n_gridpoints, n_components),
+            data (np.array): MeshQuantity values on the mesh points. Array shape is (n_gridpoints, n_components),
                 if None, an empty array is created with shape (mesh.linear_size, n_components).
             n_components (int): number of components to use. used if data is None. If both data and n_components
                 are provided, then n_components must equal data.shape[1]
-            symmetry: symmetry behavior of the observable's components wrt the coordinate axes of the mesh.
+            symmetry: symmetry behavior of the MeshQuantity's components wrt the coordinate axes of the mesh.
                 The argument is converted to a numpy array of shape (mesh.dim, n_components). Possible values
                 are 0, 1, or -1 implying, resp. no symmetry, symmetric or skew-symmetric behavior of the selected
                 component on the selected coordinate axis. The value is critical for computing derivatives on
                 reduced axes.
-            name: optional name of the observable.
+            name: optional name of the MeshQuantity.
         Raises:
             ValueError: if n_components is None and data is None.
             RuntimeWarning if symmetry is not set for reduced coordinate axes.
@@ -70,7 +70,7 @@ class Observable:
         if symmetry is None:
             self.symmetry = None
             if any(self.mesh.reduced):
-                raise UserWarning(f"Observable {self.name}: {symmetry=} was specified.\n"
+                raise UserWarning(f"MeshQuantity {self.name}: {symmetry=} was specified.\n"
                                   f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                   )
 
@@ -104,7 +104,7 @@ class Observable:
                 if mesh.reduced[idim]:
                     for iq in range(self.n_components):
                         if self.symmetry[iq,idim] == 0:
-                            raise UserWarning(f"Observable {self.name}: No symmetry specified for component {iq}.\n"
+                            raise UserWarning(f"MeshQuantity {self.name}: No symmetry specified for component {iq}.\n"
                                               f"\tThis will yield ValueErrors when taking derivatives or interpolating."
                                              )
         # Grid-based access
@@ -156,7 +156,7 @@ class Observable:
             # Accessing derivatives
             axes = index[0]
             if is_composite(axes) and axes != 'Laplacian':
-                raise ValueError(f"Accessing composite derivatives, like '{axes}', of Observable ({name}) is forbidden"
+                raise ValueError(f"Accessing composite derivatives, like '{axes}', of MeshQuantity ({name}) is forbidden"
                                  f" (except for 'Laplacian'.")
             if not (index[1] in 'LG'):
                 raise ValueError("Access identifier must be 'L' or 'G', got {index[1]}.")
@@ -181,10 +181,10 @@ class Observable:
         for idim in range(self.mesh.dim):
             if self.mesh.reduced[idim]:
                 if self.symmetry is None:
-                    raise ValueError(f"Observable {self.name}: No symmetry behavior specified for all components on reduced axis {'xyz'[idim]}.\n"
+                    raise ValueError(f"MeshQuantity {self.name}: No symmetry behavior specified for all components on reduced axis {'xyz'[idim]}.\n"
                                      f"\tInterpolation not possible.")
                 if self.symmetry[iq,idim] == 0:
-                    raise ValueError(f"Observable {self.name}: No symmetry behavior specified for component {iq} on reduced axis {'xyz'[idim]}.\n"
+                    raise ValueError(f"MeshQuantity {self.name}: No symmetry behavior specified for component {iq} on reduced axis {'xyz'[idim]}.\n"
                                      f"\tInterpolation not possible.")
                 result[idim] = self.symmetry[iq,idim]
             else:
@@ -331,7 +331,7 @@ class Observable:
 
             out = self.derivativesG[axes]
 
-            # This is where the responsibility of Observable ends and the responsibility of
+            # This is where the responsibility of MeshQuantity ends and the responsibility of
             # the mesh object (typically, LagrangeMesh) begins.
             if debug:
                 print(f"Debug log>  mesh.differentiate(Q=self, axes='{axes}', out=out)")
@@ -342,7 +342,7 @@ class Observable:
 
 
     def differentiate(self, axes:str|list[str], access='L', recompute:bool=True, debug=False):
-        """Compute some spatial derivative(s) of this Observable's components.
+        """Compute some spatial derivative(s) of this MeshQuantity's components.
 
         If composite derivatives are requested ('Grad', 'Hessian', 'Laplacian', ...) the `axes` list
         is first completed with all the needed simple derivatives.
@@ -367,15 +367,15 @@ class Observable:
                 computation. Default is linear access in agreement with standard MOCCa data
                 structures.
              recompute: If `True` (=default) all the derivatives needed by the `axes` request are recomputed.
-                If `False`, derivatives computed in previous calls to `Observable.differentiate()` can be
+                If `False`, derivatives computed in previous calls to `MeshQuantity.differentiate()` can be
                 reused as a starting point for the requested derivatives.
-                After modifying the Observable, `differentiate` should, obviously, be called with
+                After modifying the MeshQuantity, `differentiate` should, obviously, be called with
                 'recompute=True' (=default). Sometimes it is more practical to split the derivatives
                 request over several calls where the first call uses `recompute=True` and succeeding
                 calls use `recompute=False`. The succeeding calls can e.g. request increasingly
                 higher order derivatives.
-                >>> Q = Observable(...)
-                >>> Q.data = ... # modify the observable's data, derivatives are now outdated
+                >>> Q = MeshQuantity(...)
+                >>> Q.data = ... # modify the MeshQuantity's data, derivatives are now outdated
                 >>> Q.differentiate(axes=['Grad'])
                 >>> Q.differentiate(axes=['Hessian'], recompute=False)
                 The first call uses `recompute=True` and requires all previously computed derivatives to be
@@ -396,7 +396,7 @@ class Observable:
               - in case of a composite derivative on a 1D mesh.
 
         All computed derivatives are stored internally and can be accessed by the Observables as
-        `observable.derivatives[axes:str]` (linear access) or `observable.derivativesG[axes:str]` (grid-based
+        `MeshQuantity.derivatives[axes:str]` (linear access) or `MeshQuantity.derivativesG[axes:str]` (grid-based
         access).
 
         For tensor-like derivatives, tensor-shaped structures can be created using  the `grad`, `hessian`,
@@ -500,7 +500,7 @@ class Observable:
             self._differentiate1(axes=ax, debug=debug)
 
     def derivative_symmetry(self, axes):
-        """Return the symmetry of the derivative of this observable wrt axes .
+        """Return the symmetry of the derivative of this MeshQuantity wrt axes .
         """
         symmetry = self.symmetry.copy()
 
@@ -529,24 +529,24 @@ class Observable:
             self._derivative_is_uptodate[axes] = False
 
     def derivative_set_uptodate(self, axes, value=True):
-        """Indicate that the derivative wrt axes was computed after modifying the observable's data,
-        and, thus, that the derivative uptodate relative to the observable's data."""
+        """Indicate that the derivative wrt axes was computed after modifying the MeshQuantity's data,
+        and, thus, that the derivative uptodate relative to the MeshQuantity's data."""
         self._derivative_is_uptodate[axes] = value
 
     def derivative_is_uptodate(self, axes):
         """Is the derivative wrt axes upto date?"""
         return self._derivative_is_uptodate.get(axes, False)
 
-    # Forwarding methods: Since the observable stores (a reference to) the mesh on which it is defined, we can call
-    # LagrangeMesh methods directly on the Observable.
+    # Forwarding methods: Since the MeshQuantity stores (a reference to) the mesh on which it is defined, we can call
+    # LagrangeMesh methods directly on the MeshQuantity.
     def integrate(self):
-        """Integrate the observable over the simulation volume."""
+        """Integrate the MeshQuantity over the simulation volume."""
         return self.mesh.integrate(self)
 
     def dbg_assert(self):
         """Assert some conditions that may indicate bugs when `False`."""
 
-        print(f"\nObservable.dbg_assert() called on instance `{self}`")
+        print(f"\nMeshQuantity.dbg_assert() called on instance `{self}`")
         # Test that access methods still correctly share memory. See issues/51.
         assert np.shares_memory(self.data, self.dataG), \
             (f"`data` and `dataG` are expected to share memory with different shapes. "

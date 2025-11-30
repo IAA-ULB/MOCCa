@@ -15,4 +15,4 @@ def test_BCSState_ctor():
         init='nilsson', osc_freq=osc_freq,
     ))
     mfs.rho[:] = np.random.random(mfs.rho.shape)
-    mfs.validate()
+    mfs.dbg_assert()

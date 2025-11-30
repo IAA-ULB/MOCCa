@@ -8,7 +8,7 @@ import pytest
 
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.lagrange import create_mesh
-from mocca.mesh.observable import Observable
+from mocca.mesh.mesh_quantity import MeshQuantity
 
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
@@ -397,7 +397,7 @@ def test_LagrangeMesh_integrate():
 
     q = np.ones((mesh.linear_size,))
     with pytest.raises(UserWarning):
-        Q = Observable(mesh, data=q)
+        Q = MeshQuantity(mesh, data=q)
         integral_of_Q = Q.integrate()
         assert integral_of_Q == mesh.linear_size * mesh.dv
 
@@ -434,7 +434,7 @@ def test_LagrangeMesh_interpolate1D(no_plot, debug=False):
             lcpw_rgp = mesh.basis_function(i,r  )
             lcpw_rip = mesh.basis_function(i,rip)
 
-            Q = Observable( mesh, data=lcpw_rgp, symmetry=[1,-1]) # real/imag component is symmetric/skew-symmetric
+            Q = MeshQuantity( mesh, data=lcpw_rgp, symmetry=[1,-1]) # real/imag component is symmetric/skew-symmetric
 
             Qrip = mesh.interpolate(Q, rip)
 
@@ -488,7 +488,7 @@ def test_LagrangeMesh_interpolate1D(no_plot, debug=False):
                 lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip) + \
                             coeff[2*i+1] * mesh.basis_function(i,rip, ijk_sign=-1)
 
-        Q = Observable(mesh, data=lcpw_rgp, symmetry=[1,-1])
+        Q = MeshQuantity(mesh, data=lcpw_rgp, symmetry=[1,-1])
         Qrip = mesh.interpolate(Q, rip)
 
         if no_plot:
@@ -568,8 +568,8 @@ def test_LagrangeMesh_interpolate2D_basisfunction(no_plot, debug=False):
 
                 # compute the values of the basis function at the grid points
                 bf_xy_g  = mesh.basis_function((ibfx,ibfy), mesh.grid)
-                # wrap the interpolated quantity in an observable
-                Q = Observable(mesh, data=bf_xy_g, symmetry=[1,-1])
+                # wrap the interpolated quantity in a MeshQuantity
+                Q = MeshQuantity(mesh, data=bf_xy_g, symmetry=[1,-1])
 
                 # interpolate Q at xy
                 Qxy = mesh.interpolate(Q, xy)
@@ -650,8 +650,8 @@ def test_LagrangeMesh_interpolate2D_bell(no_plot, debug=False):
         mesh = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
         bell_g = gauss(mesh.grid, sigma=sigma)
 
-        # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bell_g, symmetry=1)
+        # wrap the interpolated quantity in a MeshQuantity
+        Q = MeshQuantity(mesh, data=bell_g, symmetry=1)
         # interpolate Q at xy
         Qxy = mesh.interpolate(Q, xy)
         Qxy_plot = Qxy.reshape((nip, nip), order='F')
@@ -730,8 +730,8 @@ def test_LagrangeMesh_interpolate2D_bellx(no_plot, debug=False):
         mesh = LagrangeMesh(dim=2, M=2*N, d=d, reduced=reduced)
         bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
 
-        # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bellx_g, symmetry=[[-1,1]])
+        # wrap the interpolated quantity in a MeshQuantity
+        Q = MeshQuantity(mesh, data=bellx_g, symmetry=[[-1,1]])
         # interpolate Q at xy
         Qxy = mesh.interpolate(Q, xy)
         Qxy_plot = Qxy.reshape((nip, nip), order='F')
@@ -800,8 +800,8 @@ def test_LagrangeMesh_interpolate3D_bell(debug=False):
         mesh = LagrangeMesh(dim=3, M=2*N, d=d, reduced=reduced)
         bell_g = gauss(mesh.grid, sigma=sigma)
 
-        # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bell_g, symmetry=1)
+        # wrap the interpolated quantity in a MeshQuantity
+        Q = MeshQuantity(mesh, data=bell_g, symmetry=1)
         # interpolate Q at xy
         Qxyz = mesh.interpolate(Q, xyz)
 
@@ -844,8 +844,8 @@ def test_LagrangeMesh_interpolate3D_bellx(debug=False):
         mesh = LagrangeMesh(dim=3, M=2*N, d=d, reduced=reduced)
         bellx_g = gauss(mesh.grid, sigma=sigma) * mesh.grid[:,0]
 
-        # wrap the interpolated quantity in an observable
-        Q = Observable(mesh, data=bellx_g, symmetry=[[-1,1,1]])
+        # wrap the interpolated quantity in a MeshQuantity
+        Q = MeshQuantity(mesh, data=bellx_g, symmetry=[[-1,1,1]])
         # interpolate Q at xy
         Qxyz = mesh.interpolate(Q, xyz)
 

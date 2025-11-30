@@ -11,14 +11,11 @@ from .randomspwfs_f90 import randomspwfs
 class HFPsi:
     """Hartree-Fock wave function."""
 
-    # TODO: Maybe HFPsi needs to derive from Observable, so that we can take lagrange derivatives
-    #       This may require an extension of Observable as HFPsi.data has shape (mesh.linear_size,
-    #       4, n_spwf), and Observable does only provide one dimension for the components.
-
     init_f90_registry = {
         'nilsson' : nilsson,
         'random'  : randomspwfs,
     }
+
     def __init__(self,
                  n_neutrons:int, n_protons:int,
                  n_neutron_wf:int, n_proton_wf:int,

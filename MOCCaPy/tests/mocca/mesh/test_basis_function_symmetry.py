@@ -6,7 +6,7 @@ from matplotlib import cm
 
 from mocca.mesh import LagrangeMesh
 # from mocca.mesh.lagrange import create_mesh
-# from mocca.mesh.observable import Observable
+# from mocca.mesh.mesh_quantity import MeshQuantity
 
 project_folder = Path(__file__)
 while project_folder.name != 'tantalus_full':
