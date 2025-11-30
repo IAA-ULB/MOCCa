@@ -35,6 +35,10 @@ class DSP:
 
         self.hamiltonian = hamiltonian
 
+    def __repr__(self):
+        return f"DSP(H={self.hamiltonian}, alpha={self.alpha}, mu={self.mu})" if (self.mu > 0) else \
+               f"DSP(H={self.hamiltonian}, alpha={self.alpha})"
+
     # @Timer("DSP.step()")
     def step(self, check=False, debug=False):
         """Apply a single step (gradient descent or heavy ball dynamics, iff self.mu>0).

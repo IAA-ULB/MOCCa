@@ -20,6 +20,9 @@ class BCSState(BogoliubovState):
         if not _is_base_class:
             self.rho = np.empty(self.hfpsi.n_total_wf, dtype=np.float64)
 
+    def __repr__(self):
+        return f"<BCSState(BogoliubovState)[{self.hfpsi}]>"
+
     def dbg_assert(self):
         """Assert some conditions that may indicate bugs when `False`."""
 
@@ -27,8 +30,5 @@ class BCSState(BogoliubovState):
         assert self.rho.shape == (self.n_total_wf,)
         assert np.all(self.rho >= 0)
         assert np.all(self.rho <= 1)
-
-    def __repr__(self):
-        return f"BCSState->{self.hfpsi}"
 
 

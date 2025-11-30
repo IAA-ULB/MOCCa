@@ -39,6 +39,10 @@ class Timer(ContextDecorator):
         self.timers[name] = [ 0, .0, .0, sys.float_info.max, .0 ]
         #   [count, sum, ssq, min, max]
 
+    def __repr__(self):
+        data = self.timers[self.name]
+        return f"Timer({self.name}: count={data[0]}, min={data[3]}, max={data[4]})"
+
     def start(self) -> None:
         """Start the timer"""
         if self._start_time is not None:

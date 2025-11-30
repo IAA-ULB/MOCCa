@@ -30,9 +30,6 @@ class NumpyWfInitializer:
         self.n_proton_wf = n_proton_wf
         self.mesh = mesh
 
-    def __repr__(self):
-        return f""
-
     def __call__(self):
         """Do the initialization.
         Returns:
@@ -155,7 +152,6 @@ class F90WfInitializer:
             self.osc_freq,
             spwf_map,
         ]
-
 
         self.init(*init_args)
 
@@ -335,6 +331,9 @@ class HFPsi(MeshQuantity):
             gramm_schmidt(self, self.sp_energies, normalize=normalize)
         elif normalize:
             self.normalize()
+
+    def __repr__(self):
+        return f"<HFPsi(MeshQuantity)[{self.mesh}, nwn={self.n_neutron_wf}, nwp={self.n_proton_wf}, N={self.n_neutrons}, Z={self.n_protons}]>"
 
     @property
     def spwf_shape(self):

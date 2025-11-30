@@ -45,6 +45,9 @@ class KineticEnergyOperator(Operator):
         self.hbm = hbm
         self.set_property_list()
 
+    def __repr__(self):
+        return f"<KineticEnergyOperator(Operator)[{self.operand_data.mfs}]>"
+
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
 
@@ -71,9 +74,6 @@ class KineticEnergyOperator(Operator):
 
     def set_property_list(self, property_list=None):
         self.property_list = property_list
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__}: {self.operand_data.mfs.__class__.__name__}>"
 
     def __str__(self):
         """Create a string representation of the mean-field state in the form of a table.
@@ -144,6 +144,9 @@ class HamiltonianWoodsSaxon(KineticEnergyOperator):
             'ainv': self.ainv,
             'R'   : self.R,
         }
+
+    def __repr__(self):
+        return f"<HamiltonianWoodsSaxon(KineticEnergyOperator)[{self.operand_data.mfs}]>"
 
     def add_local_terms(self):
         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""

@@ -44,6 +44,9 @@ class Operator:
             # replace 'laplacian' with 'xx'
             self.derivatives = [ 'xx' if axes == 'Laplacian' else axes for axes in self.derivatives]
 
+    def __repr__(self):
+        return f"<Operator[{self.operand_data.mfs}]>"
+
     # --------------------------------------------------------------------------
     # Methods to be overridden by derived classes (at least one of them)
     # --------------------------------------------------------------------------
