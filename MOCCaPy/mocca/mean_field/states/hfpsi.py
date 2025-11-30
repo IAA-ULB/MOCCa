@@ -30,6 +30,9 @@ class NumpyWfInitializer:
         self.n_proton_wf = n_proton_wf
         self.mesh = mesh
 
+    def __repr__(self):
+        return f""
+
     def __call__(self):
         """Do the initialization.
         Returns:
@@ -406,3 +409,12 @@ class HFPsi(Observable):
                is_empty(5) and \
                is_empty(7)
 
+    def dbg_assert(self):
+        """Assert some conditions that may indicate bugs when `False`."""
+
+        print(f"\nHFPsi.dbg_assert() called on instance `{self}`")
+        # Test that access methods still correctly share memory. See issues/51.
+        assert np.shares_memory(self.data, self.d3), \
+            (f"`data` and `dataG` are expected to share memory with different shapes. "
+             f"See https://github.com/IAA-nuclear/tantalus_full/issues/51.")
+        super().dbg_assert()

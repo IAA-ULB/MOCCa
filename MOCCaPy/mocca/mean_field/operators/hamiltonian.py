@@ -43,6 +43,7 @@ class KineticEnergyOperator(Operator):
         else:
             hbm = [ -h if h > 0 else h for h in hbm]
         self.hbm = hbm
+        self.set_property_list()
 
     def apply_base_operator(self):
         """apply the kinetic energy operator."""
@@ -70,6 +71,9 @@ class KineticEnergyOperator(Operator):
 
     def set_property_list(self, property_list=None):
         self.property_list = property_list
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}: {self.operand_data.mfs.__class__.__name__}>"
 
     def __str__(self):
         """Create a string representation of the mean-field state in the form of a table.

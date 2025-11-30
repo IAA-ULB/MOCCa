@@ -20,18 +20,15 @@ class SlaterDeterminant(BCSState):
         if not _is_base_class:
             self.rho = np.zeros(self.hfpsi.n_total_wf, dtype=np.float64)
 
-    def validate(self):
-        """Verify that all conditions for representing a BCS mean-field State
-        are satisfied.
+    def dbg_assert(self):
+        """Assert some conditions that may indicate bugs when `False`."""
 
-        Returns:
-            None
-        Raises:
-            AssertionError: If any of the conditions are not satisfied.
-        """
+        print(f"\nSlaterDeterminant.dbg_assert() called on instance `{self}`")
         assert self.rho.shape == (self.n_total_wf, )
         assert (self.rho == 0).sum() + (self.rho == 1).sum() == self.n_total_wf
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}->{self.hfpsi}"
 
     @property
     def n_neutrons(self):

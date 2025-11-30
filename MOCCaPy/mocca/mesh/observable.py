@@ -121,7 +121,7 @@ class Observable:
         
 
     def __repr__(self):
-        return f"Observable {self.name} {self.data.shape}"
+        return f"{self.name}:{self.data.shape}"
 
     @property
     def shape(self):
@@ -543,7 +543,15 @@ class Observable:
         """Integrate the observable over the simulation volume."""
         return self.mesh.integrate(self)
 
-    # def multiply(self, function):
-    #     """Apply `function` on the mesh and multiply with observable"""
-    #     V = self.mesh.apply_function(function)
-    #     self.data *= V.reshape((self.mesh.linear_size,1))
+    def dbg_assert(self):
+        """Assert some conditions that may indicate bugs when `False`."""
+
+        print(f"\nObservable.dbg_assert() called on instance `{self}`")
+        # Test that access methods still correctly share memory. See issues/51.
+        assert np.shares_memory(self.data, self.dataG), \
+            (f"`data` and `dataG` are expected to share memory with different shapes. "
+             f"See https://github.com/IAA-nuclear/tantalus_full/issues/51.")
+        for ax,derivative in self.derivatives.items():
+            assert np.shares_memory(derivative, self.derivatives[ax]), \
+                (f"`data` and `dataG` are expected to share memory with different shapes. "
+                 f"See https://github.com/IAA-nuclear/tantalus_full/issues/51.")

@@ -25,17 +25,14 @@ class BogoliubovState:
         if not _is_base_class:
             self.rho = np.empty((self.hfpsi.n_total_wf, self.hfpsi.n_total_wf), dtype=np.float64, order='F')
 
-    def validate(self):
-        """Verify that all conditions for representing a Bogoliubov mean-field State
-        are satisfied.
+    def dbg_assert(self):
+        """Assert some conditions that may indicate bugs when `False`."""
 
-        Returns:
-            None
-        Raises:
-            AssertionError: if any of the conditions are not satisfied.
-        """
+        print(f"\nBogoliubovState.dbg_assert() called on instance `{self}`")
         assert self.rho.shape == (self.n_total_wf,self.n_total_wf)
 
+    def __repr__(self):
+        return f"BogoliubovState->{self.hfpsi}"
 
     @property
     def n_neutrons(self):

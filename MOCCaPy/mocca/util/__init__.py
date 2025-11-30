@@ -38,3 +38,17 @@ def title_line(text='', width=80, char='*', start=4, above=False, below=False, c
     if below:
         line = line+line0
     return line
+
+def dbg_assert(d):
+    """Call dbg_assert() for all objects in `d` which have this attribute. Typically called
+    as:
+    >>> dbg_assert(locals())
+
+    Args:
+        d: dict "variable_name : instance".
+    """
+    for instance in d.values():
+        try:
+            instance.dbg_assert()
+        except AttributeError:
+            pass # instance does not have `dbg_assert()` method.
