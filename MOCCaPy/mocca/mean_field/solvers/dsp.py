@@ -109,11 +109,11 @@ class DSP:
             self._counter +=1
             if self._counter % 10 == 0:
                 h_ii, d2_ii = self.hamiltonian.compute_dispersion()
-                rho_ii ,_,_,_ = self.hamiltonian.operand_data.mfs.occupancies(h_ii=h_ii)
+                rho_ii, _, _ = self.hamiltonian.operand_data.mfs.occupancies(h_ii=h_ii)
                 res = np.einsum('i,i', d2_ii, rho_ii) / (0.5*(self.hamiltonian.operand_data.mfs.n_neutrons + self.hamiltonian.operand_data.mfs.n_protons))
                 #   this is basically the average of the dispersions of occupied energy levels (rho_ii == 1.0)
                 converged = res <= residual
-                print(f"iter={self._counter}: res = {res:.2e} <=? {residual} : {'' if converged else 'not '}converged")
+                print(f"iter={self._counter}: res = {res:.2e} {'<=' if converged else '>'} {residual}{' : CONVERGED' if converged else ''}")
                 if converged:
                     print(self.hamiltonian)
                     break

@@ -79,12 +79,13 @@ class KineticEnergyOperator(Operator):
     def __str__(self):
         """Create a string representation of the mean-field state in the form of a table.
 
-        Feature requested in issue/66.
+        Feature requested in issues/66.
         """
         # TODO: add customization of the table.
         mfs_name = self.operand_data.mfs.__class__.__name__
         h_ii, d2h = self.compute_dispersion()
-        self.operand_data.mfs.rho[:], shell, order_n, order_p = self.operand_data.mfs.occupancies(h_ii=h_ii)
+        # self.operand_data.mfs.rho[:], shell, order_n, order_p = self.operand_data.mfs.occupancies(h_ii=h_ii)
+        self.operand_data.mfs.rho[:], order_n, order_p = self.operand_data.mfs.occupancies(h_ii=h_ii)
         P = np.ones(self.operand_data.mfs.n_total_wf, dtype=np.int32)
         S = np.ones(self.operand_data.mfs.n_total_wf, dtype=np.int32)
         for ib in range(8):
@@ -97,7 +98,6 @@ class KineticEnergyOperator(Operator):
                 for i in range(*r):
                     S[i] = -1
         tbl = SpwfTable(order_n, order_p, mfs_name)
-        tbl.add_column('n', shell, property_list=self.property_list)
         tbl.add_column('i', np.arange(self.operand_data.ket.n_total_wf)
                                  , property_list=self.property_list)
         tbl.add_column('p', P    , property_list=self.property_list)
@@ -156,6 +156,9 @@ class SpwfTable:
         self.p_columns = []
         self.headers = []
         self.name = name
+        n_spwfs = len(self.order)
+        shell = 2*np.ones(n_spwfs, dtype=np.int32)
+        self.add_column('n', shell, property_list=None)
 
     def add_column(self, name, data, property_list):
         """Add a column to the table, The order of adding is also the print order.
@@ -173,8 +176,12 @@ class SpwfTable:
             return
 
         self.headers.append(name)
-        self.n_columns.append(data[self.order[:self.n]])
-        self.p_columns.append(data[self.order[self.n:]])
+        if name == 'n':
+            self.n_columns.append(np.cumsum(data[self.order[:self.n]]))
+            self.p_columns.append(np.cumsum(data[self.order[self.n:]]))
+        else:
+            self.n_columns.append(data[self.order[:self.n]])
+            self.p_columns.append(data[self.order[self.n:]])
 
     def transpose(self, columns):
         """Transpose the columns into rows so that tabulate can handle it."""

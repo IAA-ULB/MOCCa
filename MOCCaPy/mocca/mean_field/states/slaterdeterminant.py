@@ -99,34 +99,36 @@ def _sd_occupancies(n_neutrons, n_protons, h_diag, nwn):
         nwn: number of neutron wave functions
 
     Returns:
-        rho, rho2, order_neutrons, order_protons
+        rho, order_neutrons, order_protons
         rho: the occupancies
-        rho2: number of neutrons/protons in the current level and all levels below.
+        [rho2: number of neutrons/protons in the current level and all levels below.
+            No longer needed according to https://github.com/IAA-nuclear/tantalus_full/issues/66#issuecomment-3595093107]
         order_neutrons: array of indices that sort the neutron part of h_diag
         order_protons: array of indices that sort the proton part of h_diag
     """
     rho  = np.zeros_like(h_diag)
-    rho2 = np.zeros_like(h_diag)
+    # rho2 = np.zeros_like(h_diag)
     order_neutrons = np.argsort(h_diag[:nwn])
     order_protons  = np.argsort(h_diag[nwn:]) + nwn
 
     n = n_neutrons // 2
-    rho [order_neutrons[:n]] = 1.0
-    rho2[order_neutrons[:n]] = 1.0
+    rho[order_neutrons[:n]] = 1.0
+    # rho2[order_neutrons[:n]] = 1.0
     if n_neutrons % 2 == 1:
         rho[order_neutrons[n+1]] = 1.0
     p = n_protons // 2
-    rho [order_protons [:p]] = 1.0
-    rho2[order_protons [:p]] = 1.0
+    rho[order_protons [:p]] = 1.0
+    # rho2[order_protons [:p]] = 1.0
     if n_protons % 2 == 1:
         rho[order_protons [p+1]] = 1.0
-    rho2 += rho
-    _sum = 0.
-    for i in range(nwn):
-        _sum += rho2[order_neutrons[i]]
-        rho2[order_neutrons[i]] = _sum
-    _sum = .0
-    for i in range(nwn,h_diag.size):
-        _sum += rho2[order_protons[i-nwn]]
-        rho2[order_protons[i-nwn]] = _sum
-    return rho, rho2, order_neutrons, order_protons
+    # rho2 += rho
+    # _sum = 0.
+    # for i in range(nwn):
+    #     _sum += rho2[order_neutrons[i]]
+    #     rho2[order_neutrons[i]] = _sum
+    # _sum = .0
+    # for i in range(nwn,h_diag.size):
+    #     _sum += rho2[order_protons[i-nwn]]
+    #     rho2[order_protons[i-nwn]] = _sum
+    # return rho, rho2, order_neutrons, order_protons
+    return rho, order_neutrons, order_protons
