@@ -2,8 +2,8 @@ from .operator import Operator
 
 class Overlap(Operator):
     """Compute the matrix representation of the overlap operator. <hfpsi|hfpsi>."""
-    def __init__(self, hfpsi):
-        super().__init__(hfpsi)
+    def __init__(self, mfs):
+        super().__init__(mfs)
 
     def __repr__(self):
         return f"<Overlap(Operator)[{self.operand_data.mfs}]>"

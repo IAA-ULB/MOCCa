@@ -193,11 +193,20 @@ class OperandData:
         Args:
             mfs: mean field state
         """
-        self.mfs = mfs
-        self.mesh = mfs.hfpsi.mesh
-        self.hfblocks = mfs.hfpsi.hfblocks
-        self.hfblockrange = mfs.hfpsi.hfblockrange
-        self.ket = mfs.hfpsi
+        try:
+            self.mfs = mfs
+            self.mesh = mfs.hfpsi.mesh
+            self.hfblocks = mfs.hfpsi.hfblocks
+            self.hfblockrange = mfs.hfpsi.hfblockrange
+            self.ket = mfs.hfpsi
+        except AttributeError:
+            hfpsi = mfs # HFPsi instance, instead of mfs
+            self.mfs = None
+            self.mesh = hfpsi.mesh
+            self.hfblocks = hfpsi.hfblocks
+            self.hfblockrange = hfpsi.hfblockrange
+            self.ket = hfpsi
+
         self.O_ket = None  # where the action of the operator is stored
         self.diagonal = None            # where the diagonal elements of the operator are stored
         self.dispersion = None          # where the dispersion elements of the operator are stored
