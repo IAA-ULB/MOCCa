@@ -40,7 +40,7 @@ class DSP:
                f"DSP(H={self.hamiltonian}, alpha={self.alpha})"
 
     # @Timer("DSP.step()")
-    def step(self, check=False, debug=False):
+    def step(self, check=False, verbose=False):
         """Apply a single step (gradient descent or heavy ball dynamics, iff self.mu>0).
 
         1. Compute the diagonal elements of the hamiltonian
@@ -50,15 +50,9 @@ class DSP:
         """
 
         # 1. Compute the diagonal elements of the hamiltonian
-        if debug or self._counter == 0:
-            epsilon = self.hamiltonian.compute_diagonal_elements()
-            print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.operand_data}")
-            # print(  f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
-            # epsilon, dispersion = self.hamiltonian.compute_dispersion()
-            # print(f"\niter = {self._counter}: h_ii = {self.hamiltonian.diagonal}")
-            # print(  f"iter = {self._counter}: d_ii = {self.hamiltonian.dispersion}")
-        else:
-            epsilon = self.hamiltonian.compute_diagonal_elements()
+        epsilon = self.hamiltonian.compute_diagonal_elements()
+        if verbose:
+            print(f"iter = {self._counter}: h_ii = {epsilon}")
 
         # 2. Update the single particle wave functions (HFPsi)
         #    This requires ket, epsilon and h_ket (both of which have been computed
@@ -98,22 +92,31 @@ class DSP:
         # 4. Invalidate the operand data of the hamiltonian operator.
         self.hamiltonian.invalidate()
 
-    def evolve(self, nsteps=1, check=True, debug=False):
-        """"""
+    def evolve(self, nsteps=100, residual=1e-8, check=False, verbose=False):
+        """
+        Args:
+            nsteps (int): maximum number of steps to evolve
+            residual: convergence is assumed when the average dispersions of occupied
+                levels becomes <= residual.
+            check (bool): whether to check ortohonality in gramm_schmidt
+            verbose:
+        """
         if not hasattr(self, '_step'):
             self._counter = 0
 
         for i in range(nsteps):
-            self.step(check=check, debug=debug)
+            self.step(check=check, verbose=verbose)
             self._counter +=1
-            if self._counter % 20 == 0:
-                print(f"counter={self._counter}")
-                print(self.hamiltonian)
-
-        self.hamiltonian.invalidate()
-        self.hamiltonian.compute_dispersion()
-        print(f"iter = {self._counter}: h_ii = {self.hamiltonian.operand_data.diagonal}")
-        print(f"iter = {self._counter}: d_ii = {self.hamiltonian.operand_data.dispersion}")
+            if self._counter % 10 == 0:
+                h_ii, d2_ii = self.hamiltonian.compute_dispersion()
+                rho_ii ,_,_,_ = self.hamiltonian.operand_data.mfs.occupancies(h_ii=h_ii)
+                res = np.einsum('i,i', d2_ii, rho_ii) / (0.5*(self.hamiltonian.operand_data.mfs.n_neutrons + self.hamiltonian.operand_data.mfs.n_protons))
+                #   this is basically the average of the dispersions of occupied energy levels (rho_ii == 1.0)
+                converged = res <= residual
+                print(f"iter={self._counter}: res = {res:.2e} <=? {residual} : {'' if converged else 'not '}converged")
+                if converged:
+                    print(self.hamiltonian)
+                    break
 
 
 def _gradient_descent_step(ket_d3, h_ket_d3, epsilon, alpha):

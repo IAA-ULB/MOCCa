@@ -96,5 +96,5 @@ def test_evolve(check=False, debug=False):
         dbg_assert(locals())
 
     # with Timer(name="DSP.evolve") as timer:
-    dsp.evolve(nsteps=200, check=check, debug=debug)
+    dsp.evolve(nsteps=300, residual=1e-6)
     # Timer.report()

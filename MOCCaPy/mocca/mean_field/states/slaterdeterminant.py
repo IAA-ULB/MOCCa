@@ -72,11 +72,11 @@ class SlaterDeterminant(BCSState):
         """"""
         return {'?': .0}
 
-    def occupancies(self, h_ii=None) -> np.ndarray:
+    def occupancies(self, h_ii) -> np.ndarray:
         """Compute the occupancies of this mean-field state.
 
         Args:
-            hamiltionian: an Operator instance representing the Hamiltonian.
+            h_ii: diagonal elements of the Hamiltonian.
 
         Returns:
             rho, rho2, order_neutrons, order_protons

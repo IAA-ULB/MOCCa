@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from mocca.mean_field.operators.overlap import Overlap
 
@@ -52,7 +53,7 @@ def gramm_schmidt(hfpsi, order=None, normalize=True, check=False):
         overlap.compute_matrix_representation()
         for ib in range(8):
             n_ib = hfpsi.hfblocks[ib]
-            block_ib = overlap.matrix[ib]
+            block_ib = overlap.operand_data.matrix[ib]
             for i in range(0, n_ib):
                 for j in range(i, n_ib):
                     if i == j:
