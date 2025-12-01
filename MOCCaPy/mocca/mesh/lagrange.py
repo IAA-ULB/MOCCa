@@ -304,7 +304,8 @@ class LagrangeMesh:
 
     def __repr__(self):
         reduced = ''.join(['T' if r else 'F' for r in self.reduced])
-        return f"<LagrangeMesh[ ]{self.mesh_shape}, size={self.linear_size}, {reduced=},>"
+        shape = 'x'.join([str(m) for m in self.mesh_shape ])
+        return (f"<LagrangeMesh[{shape}={self.linear_size}, {reduced=}]>")
 
     # ---------------------------------------------------------------------------
     # Casting arrays between linear and mesh shape
