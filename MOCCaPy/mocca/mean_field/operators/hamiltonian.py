@@ -3,6 +3,7 @@ from tabulate import tabulate
 
 from .operator import Operator
 from mocca.util import title_line
+from mocca.edf import EDF
 
 # ==============================================================================
 # Base classes
@@ -107,62 +108,7 @@ class KineticEnergyOperator(Operator):
         tbl.add_column('d2h', d2h, property_list=self.property_list)
         return str(tbl)
 
-def V_WoodsSaxon1D(r, V0, ainv, R):
-    return V0 / (1. + np.exp(ainv * (r - R)))
-
-def V_WoodsSaxon2D(x, y, V0, ainv, R):
-    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y) - R)))
-
-def V_WoodsSaxon3D(x, y, z, V0, ainv, R):
-    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y + z * z) - R)))
-
-
-#=======================================================================================================================
-# Derived classes
-#=======================================================================================================================
-class HamiltonianWoodsSaxon(KineticEnergyOperator):
-    """A hamiltonian with a Woods-Saxon potential. <hfpsi|h|hfpsi>."""
-
-    def __init__(self, mfs, hbm=20.73553000, V0=-50.0, r0=1.25, a=0.5):
-        """Initialize the operator with a wave function `hfpsi` to operate on and set the parameters for the
-        operator.
-
-        Args:
-            hbm: prefactor of the kinetic energy operator. A single value considers the masses of neutrons
-                and protons to be identical, a tuple of 2 values (hbar^2/2m_n, hbar^2/2m_p) considers
-                the masses to differ.
-            V0, r0, a:  parameters of the Woods-Saxon potential
-                (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
-        """
-        super().__init__(mfs, hbm)
-        self.V0 = V0 if (V0 < 0) else -V0 # incorporate the minus sign of the potential
-        self.ainv = 1 / a
-        # Note that this line makes the hamiltionian implicitly dependent on the system
-        self.R = r0 * np.pow(mfs.hfpsi.n_neutrons + mfs.hfpsi.n_protons, 1 / 3)
-        self.ws_parms = {
-            'V0'  : self.V0,
-            'ainv': self.ainv,
-            'R'   : self.R,
-        }
-
-    def __repr__(self):
-        return f"<HamiltonianWoodsSaxon(KineticEnergyOperator)[{self.operand_data.mfs}]>"
-
-    def add_local_terms(self):
-        """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
-
-        # Select Woods-Saxon potential functions
-        V_WoodsSaxon = V_WoodsSaxon3D if self.operand_data.mesh.dim == 3 else \
-            V_WoodsSaxon2D if self.operand_data.mesh.dim == 2 else \
-                V_WoodsSaxon1D
-
-        # Apply the Woods-Saxon potential to the mesh points
-        Vr = self.operand_data.mesh.apply(V_WoodsSaxon, self.ws_parms)
-
-        # add to O_ket
-        self.operand_data.O_ket.data += Vr * self.operand_data.ket.data
-
-
+# helper class
 class SpwfTable:
     """Create spwf tables like
     ```
@@ -257,3 +203,79 @@ class SpwfTable:
         s += '\n'
         s += title_line(char='-', width=w)
         return s
+
+#=======================================================================================================================
+# Derived classes
+#=======================================================================================================================
+def V_WoodsSaxon1D(r, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (r - R)))
+
+def V_WoodsSaxon2D(x, y, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y) - R)))
+
+def V_WoodsSaxon3D(x, y, z, V0, ainv, R):
+    return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y + z * z) - R)))
+
+class HamiltonianWoodsSaxon(KineticEnergyOperator):
+    """A hamiltonian with a Woods-Saxon potential. <hfpsi|h|hfpsi>."""
+
+    def __init__(self, mfs, hbm=20.73553000, V0=-50.0, r0=1.25, a=0.5):
+        """Initialize the operator with a mean-field state instance `mfs` to operate on
+        and set the parameters for the operator.
+
+        Args:
+            hbm: prefactor of the kinetic energy operator. A single value considers the masses of neutrons
+                and protons to be identical, a tuple of 2 values (hbar^2/2m_n, hbar^2/2m_p) considers
+                the masses to differ.
+            V0, r0, a:  parameters of the Woods-Saxon potential
+                (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
+        """
+        super().__init__(mfs, hbm)
+        self.V0 = V0 if (V0 < 0) else -V0 # incorporate the minus sign of the potential
+        self.ainv = 1 / a
+        # Note that this line makes the hamiltionian implicitly dependent on the system
+        self.R = r0 * np.pow(mfs.hfpsi.n_neutrons + mfs.hfpsi.n_protons, 1 / 3)
+        self.ws_parms = {
+            'V0'  : self.V0,
+            'ainv': self.ainv,
+            'R'   : self.R,
+        }
+
+    def __repr__(self):
+        return f"<HamiltonianWoodsSaxon(KineticEnergyOperator)[{self.operand_data.mfs}]>"
+
+    def add_local_terms(self):
+        """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""
+
+        # Select Woods-Saxon potential functions
+        V_WoodsSaxon = V_WoodsSaxon3D if self.operand_data.mesh.dim == 3 else \
+            V_WoodsSaxon2D if self.operand_data.mesh.dim == 2 else \
+                V_WoodsSaxon1D
+
+        # Apply the Woods-Saxon potential to the mesh points
+        Vr = self.operand_data.mesh.apply(V_WoodsSaxon, self.ws_parms)
+
+        # add to O_ket
+        self.operand_data.O_ket.data += Vr * self.operand_data.ket.data
+
+class EdfHamiltonian(KineticEnergyOperator):
+    """Hamiltonian based an energy density functional."""
+
+    def __init__(self, mfs, hbm=20.73553000, edf=None):
+        """Initialize the operator with a wave function `hfpsi` to operate on and set the parameters for the
+        operator.
+
+        Args:
+            hbm: prefactor of the kinetic energy operator. A single value considers the masses of neutrons
+                and protons to be identical, a tuple of 2 values (hbar^2/2m_n, hbar^2/2m_p) considers
+                the masses to differ.
+            V0, r0, a:  parameters of the Woods-Saxon potential
+                (cfr https://en.wikipedia.org/wiki/Woods–Saxon_potential).
+        """
+        if not issubclass(edf.__class__, EDF):
+            raise ValueError("Parameter edf=`{edf=}`, must be a subclass of mocca.edf.EDF")
+
+        super().__init__(mfs, hbm)
+        self.edf = edf
+
+    # TODO: override base methods.
