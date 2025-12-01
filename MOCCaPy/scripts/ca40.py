@@ -6,6 +6,7 @@ import mocca
 from mocca.edf.param  import Param
 from mocca.mesh       import LagrangeMesh
 from mocca.mean_field import SlaterDeterminant, HFPsi
+from mocca.mean_field.operators import EdfHamiltonian
 try:
     from mocca.solve_mfe  import MFESolver, HeavyBall, LinearMix
 except ImportError:
@@ -21,14 +22,15 @@ hfpsi = HFPsi(
     mesh=mesh,
     init='nilsson', osc_freq=(0.2, 0.2, 0.2),
 )
-wf0 = SlaterDeterminant(hfpsi)
+mfs = SlaterDeterminant(hfpsi)
 
 # Energy density functional
 param = Param("BSkG1")
 bxl = param.create_EDF()
+H = EdfHamiltonian(mfs, edf=bxl)
 
 mfe_solver = MFESolver(
-    wf0=wf0, edf=bxl,
+    wf0=mfs, edf=bxl,
     energy_tol=1e-9, moment_tol=1e-3,
     spwf_algo=HeavyBall(...),
     scf_algo=LinearMix(...)

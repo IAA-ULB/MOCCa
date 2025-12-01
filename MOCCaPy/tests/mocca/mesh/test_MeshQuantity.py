@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 import pytest
 
-from MOCCaPy.mocca import HFPsi
+from mocca.mean_field.states import HFPsi
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mesh.lagrange import create_mesh
