@@ -1859,6 +1859,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   subroutine init_xy_file(fname)
     !---------------------------------------------------------------------------
     ! Create file to write X and Y amplitudes for each freq obtained from FAMtalus
+    ! as well as the perturbing operator F. 
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
     ! The complex matrices X_ph Y_ph are written in a sparse format as 
@@ -1866,6 +1867,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     ! The file is appended for each FAM frequency, different blocks seperated by 
     ! a single line:
     !   & omega = [omega]  [smear]
+    ! At the top of the file, the perturbing operator F is written. 
     !---------------------------------------------------------------------------
     use fam
     character(len=*), intent(in)      :: fname
@@ -1879,7 +1881,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &          '#    proton eff charge  = ', f10.3, ' e')
 
     2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
-    3 format('#', 5x, 'p', 6x, 'h',18x, 'X_ph_re', 18x, 'X_ph_im', 18x, 'Y_ph_re', 18x, 'Y_ph_im') 
+    3 format('#', 5x, 'p', 6x, 'h',14x, 'X(/F)_ph_re', 14x, 'X(/F)_ph_im', 14x, 'Y(/F)_ph_re', 14x, 'Y(/F)_ph_im') 
 
 
     open(1,file=fname, iostat=io)
@@ -1900,10 +1902,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine init_xy_file
 
 
-  subroutine append_xy_file(fname)
+  subroutine append_xy_file(fname, O_ph, O_hp)
     use fam
-    character(len=*), intent(in)      :: fname
-    integer                           :: io, h, p
+    character(len=*), intent(in)           :: fname
+    complex(KIND=dp), intent(in), optional :: O_ph(:,:), O_hp(:,:)
+    integer                                :: io, h, p
 
     1 format ( '& omega = ', f10.3, f10.3) 
     2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
@@ -1916,15 +1919,27 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       call stp('')
     endif
     
-    write(1, fmt=1) omega_fam, smear
 
-    do h = 1, nwt
-      do p = 1, nwt
-        if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
-          write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
-        end if
+    if (present(O_ph)) then
+      do h = 1, nwt
+        do p = 1, nwt
+          if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
+            write(1, fmt=2) p, h, O_ph(p,h)%re, O_ph(p,h)%im, O_hp(p,h)%re, O_hp(p,h)%im
+          end if
+        enddo
       enddo
-    enddo
+
+    else
+      write(1, fmt=1) omega_fam, smear
+
+      do h = 1, nwt
+        do p = 1, nwt
+          if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
+            write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
+          end if
+        enddo
+      enddo
+    endif
 
     close(1)
 
