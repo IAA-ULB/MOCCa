@@ -213,12 +213,12 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation):
+def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation, dry_run=False, verbose=True):
     """
-     Master routine calling the other routines based on a list of densities.
-     Also prints output.
+    Master routine calling the other routines based on a list of densities.
+    Also prints output.
 
-     Input:
+    Input:
         fname                 : name of the file to write the output to
         src                   : source directory where the template file is
         target                : target directory where the output file should be
@@ -230,8 +230,10 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                 through summation over spwfs
                                 If False, calculate them directly from the 
                                 wavefunctions.
+        dry_run               : if True, do not write any files (default: False)
+        verbose               : if True, print detailed output (default: True)
 
-     Output:
+    Output:
         Declaration           : string that declares the density in FORTRAN
         Memory                : string that gets the contribution to memory 
                                 requirements for this density
@@ -272,11 +274,13 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     Memory           = ''
     Write            = ''
 
-    print (line)
-    print (' Densities necessary for the functional                                    ')
-    print (line)
-    print ('      Name       Calc?     TR    Intermediate?  DIM with / out  Derivative combs.      ')
-    print (line)
+    if(verbose):
+        print (line)
+        print (' Densities necessary for the functional                                    ')
+        print (line)
+        print ('      Name       Calc?     TR    Intermediate?  DIM with / out  Derivative combs.      ')
+        print (line)
+
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
         
@@ -285,11 +289,15 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         T        = TimeDen(den)
         D        = deriv_needed[i]
         I        = intermediate_status[i]
-        print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
-    print (line)
-    print (' Symmetries of the densities')
-    print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
-    print (line)
+        if(verbose):
+            print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
+
+    if(verbose):
+        print (line)
+        print (' Symmetries of the densities')
+        print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
+        print (line)
+
     for i in range(len(Densities_needed)):
       den = Densities_needed[i]
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -299,7 +307,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so, fam_active,                     \
-                           density_spwf_summation)
+                           density_spwf_summation, silent=not verbose)
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Off-diagonal" summation of densities in the HF-basis
@@ -392,7 +400,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                 'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                                 complex_component=-1, weight='potential', symmetrize=0, silent=True)
             e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
-      print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+      if(verbose):
+          print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
        Declaration     = Declaration    + '\n' + dec
@@ -407,12 +416,16 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+' in the indices 
+
+        silent_call = False 
+        if(not verbose):
+            silent_call = True
         (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],    \
                                           intermediate_status[i],                  \
                                          'si+wave2' , 'si+wave'  ,                 \
                                          'der_index', 'der_index', so, fam_active, \
-                                          density_spwf_summation, silent=False)
+                                          density_spwf_summation, silent=silent_call)
         HFBExpression = HFBExpression + '\n' + e
 
         Expression_offdiag_pp  = Expression_offdiag_pp + e_sph_sym
@@ -445,7 +458,9 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         Multiply       = Multiply       + '\n' + multi
         Memory         = Memory         + '\n' + memi
         Write          = Write          + '\n' + writei
-    print (line)
+    
+    if(verbose):
+        print (line)
 
     # Substitute into the densities.f90 file.
     dic={}
@@ -456,7 +471,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         dic['FAM'] = 1
     else:   
         dic['FAM'] = 0
-       
+
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # These are the strings detailing the calculation of densities in all possible contexts
     #
@@ -558,11 +573,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       if (sym == symdic['P']):
         dic['PBROKEN'] = '!'
 
-    substitute(src+fname, target+fname, dic)           
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))  
+    if(not dry_run):
+        substitute(src+fname, target+fname, dic)           
 
     # Return the declaration of all densities for use in vectors.f90
     return Declaration, Memory

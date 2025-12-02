@@ -7,12 +7,6 @@
 #-------------------------------------------------------------------------------
 # Director of preprocessing of the FORTRAN files: knows which file gets which
 # make-over. 
-# 
-# Currently linked: 
-#
-#       densities.f90   <=> heph_densities.py
-#       derivatives.f90 <=> heph_derivatives.py
-#       functional.f90  <=> heph_functional.py
 #===============================================================================
 
 import os
@@ -29,21 +23,13 @@ from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Almost all files are processed by a matching Hephaestos routine. The exception
-# is the vectors.f90 file, which is processed with results from the
-# heph_densities and heph_potentials modules. The vectors.f90 file contains
-# the definition of the potential and density vectors, and thus needs the
-# list of densities and potentials. To avoid having to call the entire machinery
-# twice, I simply save the relevant strings here. This means it is important
-# that densities.f90 and potentials.f90 get processed BEFORE vectors.f90.
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# String variables that should be passed from one preprocessing function to another
 vectors_densities  = ''
 vectors_potentials = ''
 memory_densities   = ''
 
 def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
-               fam_active, density_spwf_summation):
+               fam_active, density_spwf_summation, dry_run=False):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
@@ -62,110 +48,92 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                         prepared for complex densities - among other things.
       density_spwf_summation: Boolean. If .True., calculate the derivatives of
                               densities by summing 
+      dry_run: Boolean. If True, do not actually process anything, but do print output.
+                        If False, actually process the files but do not print output.
     """
     
     global vectors_densities
     global vectors_potentials
     global memory_densities
 
-    if(fname=='compilation.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='sphericalharmonics.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='geninfo.f90'):
-        ProcessGeninfo(fname, src, target, so)
-    if(fname=='derivatives.f90'):
-        ProcessDerivatives(fname, src, target, so)
-    if(fname=='wavefunctions.f90'):
-        ProcessWavefunctions(fname, src, target, so, fam_active)             
-    if(fname=='precondition.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='tantalus.f90'):
-        ProcessGeneric(fname,src,target,so,fam_active)
-    if(fname=='version.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='run_single.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='run_mpi.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='multirun_example.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='parameterization.f90'):
-        ProcessParameterization(fname, src, target)                    
-    if(fname=='functional.f90'):
-        vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
-                                               ph_pp_decoupl,fam_active, density_spwf_summation)
-    if(fname=='vectors.f90'):
-        ProcessVectors(src,target,so,vectors_densities,vectors_potentials, \
-                                     memory_densities,fam_active) 
-    if(fname=='nil8.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='scfiteration.f90'):
-        ProcessGeneric(fname,src,target,so,fam_active)
-    if(fname=='basis_transform.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='moments.f90'):
-        ProcessMoments(fname, src, target, so, fam_active)
-    if(fname=='constants.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='diag.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='evolution.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='IO.f90'):
-        ProcessIO(fname, src, target, so, oldso, fam_active)  
-    if(fname=='coulomb.f90'):
-        ProcessCoulomb(fname, src, target, so, fam_active)             
-    if(fname=='pairing.f90'):
-        ProcessPairing(fname, src, target, so)                        
-    if(fname=='pairing_strengths.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='pairingcutoffs.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='printing.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='HFB_gradient.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='HFB_direct.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='HFB.f90' or fname == 'BCS.f90'): 
-        # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
-        # preprocessing by Hephaestos
-        ProcessHFB(fname, src, target, so)
-    if(fname=='hartree-fock.f90'):
-        ProcessHartreeFock(fname, src, target, so)
-    if(fname=='folding.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='momentsofinertia.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='fission_MOI.f90'):
-        ProcessFission_MOI(fname, src, target, so)
-    if(fname=='timing.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='transform.f90'):
-        ProcessTransform(fname, src, target, so, oldso) 
-    if(fname=='densities.f90'): 
-        vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation)
-    if(fname=='cranking.f90'):
-        ProcessCranking(fname, src, target, so)
-    if(fname=='convergence.f90'):
-        ProcessCranking(fname, src, target, so)
-    if(fname=='hdf5_auxiliary.f90'): 
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='IO_aux.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='IO_wf.f90'):
-        ProcessIO_wf(fname, src, target, so, oldso, fam_active) 
-    if(fname=='fam.f90'):
-        ProcessGeneric(fname, src, target, so, fam_active)
-    if(fname=='fam_run.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='fam_gmres.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='fam_testing.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+    # List of files that require no preprocessing at all
+    no_process_files = [ 'compilation.f90', 'sphericalharmonics.f90', \
+                         'precondition.f90', 'constants.f90', 'version.f90', \
+                         'run_single.f90', 'run_mpi.f90', \
+                         'multirun_example.f90', 'nil8.f90', \
+                         'pairing_strengths.f90', 'pairingcutoffs.f90', \
+                         'folding.f90', 'timing.f90', \
+                         'fam_run.f90', 'fam_gmres.f90', \
+                         'fam_testing.f90', 'hdf5_auxiliary.f90', \
+                         'IO_aux.f90', 'basis_transform.f90' ]
+    # List of files that can be processed by a generic preprocessor
+    generic_process_files = [ 'tantalus.f90', 'scfiteration.f90', \
+                              'printing.f90', 'HFB_gradient.f90', \
+                              'HFB_direct.f90', 'momentsofinertia.f90', \
+                              'evolution.f90', 'fam.f90' ]
 
-def ProcessGeninfo(fname, src, target, so):
+    if(fname in no_process_files):
+        # Preprocessing = is a simple copy operation for these files
+        if(not dry_run):
+            os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    elif(fname in generic_process_files):
+        # A generic preprocessor that makes a few simple substitutions                        
+        ProcessGeneric(fname,src,target,so,fam_active, dry_run)
+        return
+    else: 
+        # For these files, there is more work to do!
+        if(fname=='geninfo.f90'):
+            ProcessGeninfo(fname, src, target, so, dry_run)
+        if(fname=='derivatives.f90'):
+            ProcessDerivatives(fname, src, target, so, dry_run)
+        if(fname=='wavefunctions.f90'):
+            ProcessWavefunctions(fname, src, target, so, fam_active, dry_run)             
+        if(fname=='parameterization.f90'):
+            ProcessParameterization(fname, src, target, dry_run)                    
+        if(fname=='functional.f90'):
+            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
+        if(fname=='vectors.f90'):
+            # Temporary workaround : run both processings in dry_run mode to get the strings
+            #  TODO: fix this mess!
+            vectors_densities, memory_densities = ProcessDensities('densities.f90', src, target, so, fam_active,  density_spwf_summation, dry_run=True, verbose=False)
+            vectors_potentials                  = ProcessFunctional('functional.f90', src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run=True)
+            # Actual preprocessing
+            ProcessVectors(src,target,so,vectors_densities,vectors_potentials, memory_densities,fam_active, dry_run) 
+        if(fname=='moments.f90'):
+            ProcessMoments(fname, src, target, so, fam_active, dry_run)
+        if(fname=='evolution.f90'):
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
+        if(fname=='IO.f90'):
+            ProcessIO(fname, src, target, so, oldso, fam_active, dry_run)  
+        if(fname=='coulomb.f90'):
+            ProcessCoulomb(fname, src, target, so, fam_active, dry_run)             
+        if(fname=='pairing.f90'):
+            ProcessPairing(fname, src, target, so, dry_run)                        
+        if(fname=='HFB.f90' or fname == 'BCS.f90'): 
+            # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
+            # preprocessing by Hephaestos
+            ProcessHFB(fname, src, target, so, dry_run)
+        if(fname=='hartree-fock.f90'):
+            ProcessHartreeFock(fname, src, target, so, dry_run)
+        if(fname=='momentsofinertia.f90'):
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
+        if(fname=='fission_MOI.f90'):
+            ProcessFission_MOI(fname, src, target, so, dry_run)
+        if(fname=='transform.f90'):
+            ProcessTransform(fname, src, target, so, oldso, dry_run) 
+        if(fname=='densities.f90'): 
+            vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation, dry_run, verbose=dry_run)
+        if(fname=='cranking.f90'):
+            ProcessCranking(fname, src, target, so, dry_run)
+        if(fname=='convergence.f90'):
+            ProcessCranking(fname, src, target, so, dry_run)
+        if(fname=='IO_wf.f90'):
+            ProcessIO_wf(fname, src, target, so, oldso, fam_active, dry_run) 
+        if(fname=='fam.f90'):
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
+
+def ProcessGeninfo(fname, src, target, so, dry_run=False):
     """
      This one is already more complicated. 
     """
@@ -197,14 +165,10 @@ def ProcessGeninfo(fname, src, target, so):
     else:
        dic['LINESIZEZ']    = 'nz'
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))   
+    if(not dry_run):
+        substitute(src+fname, target+fname, dic)
 
-
-def ProcessGeneric(fname, src, target, so, fam_active):
+def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     """
 
     """
@@ -237,14 +201,11 @@ def ProcessGeneric(fname, src, target, so, fam_active):
     else:
       dic['FAM'] = 0
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))
+    if(not dry_run):    
+        substitute(src+fname, target+fname, dic)
 
 
-def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active):
+def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active, dry_run=False):
   """
     Process the vectors.f90 template Fortran file to filled versions
 
@@ -280,8 +241,5 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam
     dic['COULOMB_REAL']           = ''
     dic['COULOMB_COMPLEX']        = '!'
 
-  substitute(src+'vectors.f90', target+'vectors.f90', dic)
-#   with open(src+'vectors.f90', 'r') as template:
-#     with open(target+'vectors.f90', 'w') as generated:
-#         for line in template:
-#             generated.write(Template(line).substitute(dic))
+  if(not dry_run):
+    substitute(src+'vectors.f90', target+'vectors.f90', dic)
