@@ -56,19 +56,19 @@ env
 .DS_Store
 # pycharm
 .idea
+.obsidian
 experiments/
+MOCCaPy/sandbox/shenfun/
+MOCCaPy/sandbox/mocca/
+MOCCaPy/tests/mocca/mesh/png/
+
+MOCCaPy/mocca/data/parameterizations
 MOCCaPy/scripts/Ca40.f90/BSkG1.param
 MOCCaPy/scripts/Ca40.f90/trash
 MOCCaPy/scripts/Ca40.f90/*.param
-
-experiments/
-
 MOCCaPy/scripts/tryout.py
 MOCCaPy/scripts/sandbox.py
-MOCCaPy/mocca/data/parameterizations
-.obsidian
 
-MOCCaPy/tests/mocca/mesh/png/
 MOCCaPy/.python-version
 MOCCaPy/uv.lock
 

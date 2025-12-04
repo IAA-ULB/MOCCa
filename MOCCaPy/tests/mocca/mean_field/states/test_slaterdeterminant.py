@@ -32,13 +32,13 @@ def test_occupancies():
         -17.64860771, -17.64860768, -29.07192623, -29.07192623, -29.07192623,
          -5.39339387,  -5.39326771,  -5.39343963,  -5.39365522,  -3.25464135,
     ])
-    rho,rho2,_,_ = _sd_occupancies(n_neutrons, n_protons, h_diag, nwn)
+    rho, _, _ = _sd_occupancies(n_neutrons, n_protons, h_diag, nwn)
     print(f"\n{n_neutrons=}: {n_protons=}")
     for i in range(h_diag.size):
-        print(f"{i}: {rho[i]} {rho2[i]}")
+        print(f"{i}: {rho[i]}")
 
     n_neutrons = 19
     print(f"\n{n_neutrons=}: {n_protons=}")
-    rho,rho2,_,_ = _sd_occupancies(n_neutrons, n_protons, h_diag, nwn)
+    rho, _, _ = _sd_occupancies(n_neutrons, n_protons, h_diag, nwn)
     for i in range(h_diag.size):
-        print(f"{i}: {rho[i]} {rho2[i]}")
+        print(f"{i}: {rho[i]}")
