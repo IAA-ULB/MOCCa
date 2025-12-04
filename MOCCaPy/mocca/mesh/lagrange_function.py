@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 
-
+# TODO: obsolete?
 def lagrange_function(x:npt.NDArray|float, x_i:float, d:float, M:int):
     """Compute the 1D Lagrange function on `x`.
 

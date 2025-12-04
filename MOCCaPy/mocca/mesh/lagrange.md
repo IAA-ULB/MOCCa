@@ -64,6 +64,13 @@ $$= \frac{1}{2N}\lim_{x \to x_i}\frac{\sin'(\frac{\pi}{\Delta}(x-x_i))}{\sin'(\f
 $$= \frac{1}{2N}\lim_{x \to x_i}\frac{\frac{\pi}{\Delta}\cos(\frac{\pi}{\Delta}(x-x_i))}{\frac{\pi}{2N\Delta}\cos(\frac{\pi}{\Delta}\frac{x-x_i}{2N})}$$
 $$=\frac{2N}{2N}\lim_{x \to x_i}\frac{cos(0)}{cos(0)} = 1$$
 In order to avoid testing for $\frac{0}{0}$ it suffices to add $\varepsilon\approx\mathrm{1e-9}$ to $x_i$ to avoid the `nan` and yield something close to $1$.
+We also note that ,  $f_i(x)=f_{-i}(-x)$ :
+$$f_{i}(x)
+=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(x-x_{i}))}{\sin(\frac{\pi}{\Delta}\frac{x-x_{i}}{2N})}
+\quad
+f_{-i}(-x)
+=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(-x+x_{i}))}{\sin(\frac{\pi}{\Delta}\frac{-x+x_{i}}{2N})}$$
+(since $sin(-x)=-sinx$, and the minus sine in nominator and denominator cancel out).
 
 The arguments of the two sine functions in eq 6 are the same, apart from a factor ${1}/{2N}$:
 [eq 8]
@@ -117,7 +124,12 @@ According to (eq 9) an arbitrary function $h(x)$ can be interpolated as:
 
 $$h(x)= \sum_{i=0}^{2N-1} h(x_i) f_i(x)$$
 If the $x$-axis is reduced, i.e. we require $h(x)$ to be symmetric ($h(-x)=h(x)$) or skew-symmetric ($h(-x)=-h(x)$), then the above equation becomes:
-$$h(x)=\sum_{i=0}^{N-1} h(x_i) f_i(x) + \sum_{i=0}^{N-1} h(-x_i) f_{-i}(x) $$
+$$h(x)
+=\sum_{i=0}^{N-1} h(x_i) f_i(x) + \sum_{i=0}^{N-1} h(-x_i) f_{-i}(x) 
+$$
+$$h(x)
+=\sum_{i=0}^{N-1} h(x_i) f_i(x) + \sum_{i=0}^{N-1} \pm h(x_i) f_{-i}(x) 
+$$
 where $f_{-i}(x)$ is the Lagrange interpolation function corresponding to the $i$-th grid point to the left of the origin
 [eq 14.1]
 $$f_{-i}(x)=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(x-x_{-i}))}{\sin(\frac{\pi}{\Delta}\frac{x-x_{-i}}{2N})}=\frac{1}{2N}\frac{\sin(\frac{\pi}{\Delta}(x+x_{i}))}{\sin(\frac{\pi}{\Delta}\frac{x+x_{i}}{2N})}$$
@@ -129,8 +141,10 @@ h(x_i)(f_i(x)-f_{-i}(x)), & h \text{ is skew-symmetric}
 or
 [eq 15]
 $$h(x)=\sum_{i=0}^{N-1} h(x_i)(f_i(x)\pm f_{-i}(x))= \mathbf{h}\cdot\mathbf{f_{\pm}}$$
-where the $\pm$ is $+$ for the symmetric case and $-$ for the skew-symmetric case, and $\mathbf{f_{\pm}} = \mathbf{f_{+}} \pm \mathbf{f_{-}}$ 
-. 
+where the $\pm$ is $+$ for the symmetric case and $-$ for the skew-symmetric case, and $\mathbf{f_{\pm}} = \mathbf{f_{+}} \pm \mathbf{f_{-}}$ .
+
+> [!Note]
+> Note, however, that we do not escape from evaluating also the Lagrange interpolating functions to the left of the origin. As the cost of interpolating will be dominated by evaluating the quotient of the two sine functions, interpolating on a reduced grid computationally not significantly cheaper than interpolating on a non-reduced grid. (There may be a small advantage from the smaller memory footprint, but the number of evaluations of $f_i(x)$ is the same).
 #### General remark on interpolation with Lagrange functions
 On a 1D grid with 6 grid points at $-1.25, -.75, -.25, .25, .75, 1.25$ on the interval $[-1.5,1.5]$, these are the 6 Lagrange functions:
 ![lagrange functions](MOCCaPy/tests/mocca/mesh/png/test_lagrange_function/lagrange_function_0.png)![]()
@@ -264,6 +278,8 @@ The full Cartesian 3D representation of a function $h(\mathbf{r})$, where  $\mat
 $$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
 where the number of discretization points does not have to be the same in each direction. 
 
+In the case of a reduced axis $f_k(u)$ equals $f_k(u)\pm f_{-k}(u)$, depending on whether $h$ is symmetric or skew-symmetric wrt th $u$-axis.
+
 Note that $f_i$, $f_j$ and $f_k$ are generally different objects, even if accidentally the indices $i$, $j$ and $k$ are identical, as they pertain, resp., to the $x$-axis, the $y$-axis and the $z$-axis, and the grid spacing is not necessarily the same.
 ### 3.1 Derivatives
  In this case, the derivative matrices $\mathbf{D}^{(1)}$ and $\mathbf{D}^{(2)}$ have to be set up separately for each direction, taking into account wether the axis is reduced or not.
@@ -274,7 +290,7 @@ $$\left.{\frac{d\Phi}{dz}}\right\rvert_{ijk}=\sum_l{D_{il}^1\Phi_{ijl}}$$
 The summation is over the index of $\Phi_{ijk}$ that corresponds to the axis wrt which the derivative is taken: the derivative wrt $x$/$y$/$z$ sums over the 1st/2nd/3rd index. The same holds for 2nd, 3rd, 4th order derivatives ($\frac{d^n}{du^n}$, $u=x,y,z$, $n\ge0$). 
 > [!Note]
 > [`numpy.einsum`](https://numpy.org/doc/stable/reference/generated/numpy.einsum.html#numpy-einsum) is ideally suited to compute sums like these.
-### 3.2..Basis functions
+### 3.2. Basis functions
 The basis functions are plane wave products of the different axes:
 [eq 24]
 $$\Phi_{klm}(x,y,z)=\phi_k(x)\phi_l(y)\phi_m(z)=\frac{1}{\sqrt{L_x}}\frac{1}{\sqrt{L_y}}\frac{1}{\sqrt{L_z}}\exp({\frac{2\pi\mathrm{j}}{L_x}kx})\exp({\frac{2\pi\mathrm{j}}{L_y}ly})\exp({\frac{2\pi\mathrm{j}}{L_z}mz})$$
@@ -301,13 +317,18 @@ and $\cos(-k_xx+k_yy+k_zz)=\cos(k_xx+k_yy+k_zz)$ only if $k_yy+k_zz$ is a multip
 
 ![2D basis function real](MOCCaPy/tests/mocca/mesh/png/test_LagrangeMesh/2D_basis_function_1_imag.png) 
 ### Interpolation
-As described by eq 23 Interpolating a scalar quantity $h$ at a single point requires a sum over all grid points which may be costly (speaking of working interactively). If $h$ needs to be interpolated on a large number of points, $p$,
+As described by [eq 23]
+$$h(\mathbf{r})=\sum_{ijk}h_{ijk}f_i(x)f_j(y)f_k(z)$$
+interpolating a scalar quantity $h$ at a single point $\mathbf{r}$ requires a sum over all grid points and evaluating the Lagrange interpolation function for each axis. 
+If $h$ needs to be interpolated on a large number of points, $p$,
 $$\mathbf{r} = \begin{bmatrix}x_0 & y_0 & z_0 \\
 							 x_1 & y_1 & z_1 \\
 							 x_2 & y_2 & z_2 \\
 							 \vdots &\vdots &\vdots \\
 							 x_{p-1} & y_{p-1} & z_{p-1}
 \end{bmatrix}$$
+
+
 it will be advantageous to move the loop over the points $0..p-1$ inside the loop over $ijk$ product $h_{ijk}f_i(x)f_j(y)f_k(z)$.
 In case $h$ is not a scalar quantity but a tensor it is advantageous to move the loop over the components between the loop over the $p$ interpolation points and the loop over $ijk$:
 ```
@@ -323,4 +344,66 @@ for all grid points ijk:
 		h(r) +=  h_ijk * f_i(r[:,0]) * f_j(r[:,1]) * f_k(r[:,2])  
 ```
 Furthermore, in case e.g. the $x$ axis is reduced, according to eq 15 one must replace $f_i(x)$ by $(f_i(x) \pm f_{-i}(x))$, where the sign is $+$ if $h$ is symmetric w.r.t. $x$ and $-$ if $h$ is skew-symmetric w.r.t. $x$ . 
+This turned out to be quite slow (as a proof of the principle that _intuition is a bad predictor for performance_). It is perhaps better to compute $f_i(x)$, $f_j(y)$, and $f_k(z)$ and store them in arrays `f_i`, `f_j`, and `f_k`, and compute `h[p]` as 
+```
+h[p] = np.einsum('ijk,i,j,k', h_ijk, f_i, f_j, f_k)
+```
+At least that reduces the number of nested Python loops (which is known to be bad for performance if large) to 1. 
+```
+----------------------------- Started test_LagrangeMesh_interpolate3D_bell
+reduced=(False, False, False)
+Timer(old: count=1, min=1.4369691669999156, max=1.4369691669999156)
+Timer(new: count=1, min=0.22159904199361335, max=0.22159904199361335)
+reduced=(False, False, True)
+Timer(old: count=1, min=0.956784958994831, max=0.956784958994831)
+Timer(new: count=1, min=0.08517299999948591, max=0.08517299999948591)
+reduced=(False, True, False)
+Timer(old: count=1, min=0.9751682920032181, max=0.9751682920032181)
+Timer(new: count=1, min=0.08935508299327921, max=0.08935508299327921)
+reduced=(False, True, True)
+Timer(old: count=1, min=0.5876467920024879, max=0.5876467920024879)
+Timer(new: count=1, min=0.04127133300062269, max=0.04127133300062269)
+reduced=(True, False, False)
+Timer(old: count=1, min=1.6869884170009755, max=1.6869884170009755)
+Timer(new: count=1, min=0.12277629099844489, max=0.12277629099844489)
+reduced=(True, False, True)
+Timer(old: count=1, min=0.7792774999979883, max=0.7792774999979883)
+Timer(new: count=1, min=0.04877870799100492, max=0.04877870799100492)
+reduced=(True, True, False)
+Timer(old: count=1, min=0.8881947089976165, max=0.8881947089976165)
+Timer(new: count=1, min=0.04896379199635703, max=0.04896379199635703)
+reduced=(True, True, True)
+Timer(old: count=1, min=0.4408809580054367, max=0.4408809580054367)
+Timer(new: count=1, min=0.019392624992178753, max=0.019392624992178753)
+------------------------------ Finished test_LagrangeMesh_interpolate3D_bell
+```
+Quite an improvement! In addition the method `LagrangeMesh._interpolateND_new` is independent of the number of dimensions. After engaging `numba.guvectorize` the timings are even better
+```
+------------------------------- Started test_LagrangeMesh_interpolate3D_bell
+reduced=(False, False, False)
+Timer(old: count=1, min=1.4207376670092344, max=1.4207376670092344)
+Timer(new: count=1, min=0.180379958008416, max=0.180379958008416)
+reduced=(False, False, True)
+Timer(old: count=1, min=0.9302612920000684, max=0.9302612920000684)
+Timer(new: count=1, min=0.05438612498983275, max=0.05438612498983275)
+reduced=(False, True, False)
+Timer(old: count=1, min=0.9548907080024946, max=0.9548907080024946)
+Timer(new: count=1, min=0.05668587499530986, max=0.05668587499530986)
+reduced=(False, True, True)
+Timer(old: count=1, min=0.606931332993554, max=0.606931332993554)
+Timer(new: count=1, min=0.018919292007922195, max=0.018919292007922195)
+reduced=(True, False, False)
+Timer(old: count=1, min=0.9756492090091342, max=0.9756492090091342)
+Timer(new: count=1, min=0.06045312499918509, max=0.06045312499918509)
+reduced=(True, False, True)
+Timer(old: count=1, min=0.5991447500127833, max=0.5991447500127833)
+Timer(new: count=1, min=0.02015537500847131, max=0.02015537500847131)
+reduced=(True, True, False)
+Timer(old: count=1, min=0.591157499991823, max=0.591157499991823)
+Timer(new: count=1, min=0.01932624999608379, max=0.01932624999608379)
+reduced=(True, True, True)
+Timer(old: count=1, min=0.3500813749997178, max=0.3500813749997178)
+Timer(new: count=1, min=0.007518166996305808, max=0.007518166996305808)
+------------------------------ Finished test_LagrangeMesh_interpolate3D_bell
 
+```

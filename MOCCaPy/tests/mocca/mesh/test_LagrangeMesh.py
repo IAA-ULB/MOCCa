@@ -9,6 +9,7 @@ import pytest
 from mocca.mesh import LagrangeMesh
 from mocca.mesh.lagrange import create_mesh
 from mocca.mesh.mesh_quantity import MeshQuantity
+from mocca.util.timer import Timer
 
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
@@ -803,16 +804,22 @@ def test_LagrangeMesh_interpolate3D_bell(debug=False):
         # wrap the interpolated quantity in a MeshQuantity
         Q = MeshQuantity(mesh, data=bell_g, symmetry=1)
         # interpolate Q at xy
-        Qxyz = mesh.interpolate(Q, xyz)
 
+        with Timer('old') as t:
+            Qxyz = mesh.interpolate(Q, xyz, algo='old')
+        print(t)
+
+        with Timer('new') as t:
+            Qxyz = mesh.interpolate(Q, xyz, algo='new')
+        print(t)
         err = np.abs(Qxyz-bell)
         error[reduced] = err
         # the interpolation is not particularly accurate, but all four interpolations give very comparable errors
-    prev = None
-    for k,v in error.items():
-        if prev is not None:
-            for i in range(v.shape[0]):
-                assert v[i,0] == pytest.approx(prev[i,0])
+        prev = None
+        for k,v in error.items():
+            if prev is not None:
+                for i in range(v.shape[0]):
+                    assert v[i,0] == pytest.approx(prev[i,0])
         prev = v
 
 

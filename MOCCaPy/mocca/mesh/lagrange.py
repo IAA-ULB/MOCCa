@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+from numba import guvectorize, float64
 
 from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mesh.lagrange_function import lagrange_function
@@ -98,18 +99,10 @@ def _split_axes(axes, Q):
             reused_axes = axes.replace('y', '')
             return 1, ny, Q.derivativesG[reused_axes]
 
-
-class LagrangeMesh:
-    def __init__(self, M: int|tuple,
-                       d: int|float|tuple,
-                       dim: int=0,
-                       bc:str='antiperiodic',
-                       reduced:tuple|bool=True,
-                       shift:tuple|float=.0,
-                       highest_derivative_order:int=2,
-                       name=''
-                 ) -> None:
-        """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
+class Mesh:
+    """Base class for LagrangeMesh and Poisson mesh"""
+    def __init__(self, M:int|tuple, d:int|float|tuple, dim:int=0, reduced:tuple|bool=True):
+        """Construct a Mesh in 1, 2 or 3 dimensions.
 
         Args:
             dim (int): dimension of mesh. if not specified, dim is guessed as len(M), where M must be a tuple.
@@ -120,31 +113,16 @@ class LagrangeMesh:
                 (2015) section III.B Lagrange-mesh representation.
             d: spacing of points in the respective dimensions. If d is a float or an int, d is the same on each
                 coordinate axis.
-            bc: boundary condition type. 'antiperiodic' or 'periodic'.
             reduced: Restrict the corresponding coordinate axis to the positive half-axis. This implies that all
                 quantities represented on the mesh are either symmetric or skew-symmetric with respect to that
                 axis. A single bool indicates that all coordinate axes are reduced. A tuple of bools can be used
                 to reduce some of the axes (True) and others not (False).
-            shift: subtract shift from the grid points. If non-zero, the corresponding `reduced` entry must be
-                `False`.
-            highest_derivative_order: allow for differentiation up to this order. D-matrices are pre-constructed
-                up to this order.
-            name: optional name for the mesh.
-
-        Raises:
-            ValueError: in case of invalid choices.
-
-        Remark:
-            The `reduced` parameter is derived from symmetry considerations and may at some point - when the complexity
-             of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
-             we content with explicitly indicating which coordinate axes must be 'reduced'
         """
-        self.name = name
         if not (0 <= dim <= 3):
             raise ValueError(f"`dim` parameter violates 0<={dim=}<=3.")
 
         expected_dim = None
-        tuples = [M, d, reduced, shift]
+        tuples = [M, d, reduced]
         for tpl in tuples:
             if isinstance(tpl, tuple):
                 if expected_dim is None:
@@ -201,7 +179,52 @@ class LagrangeMesh:
 
         self.reduced = reduced
 
-        if not isinstance(shift, tuple):
+        # Compute dv, the integration volume per mesh point.
+        self.dv = np.prod(self.d) * 2 ** self.reduced.count(True)
+
+        # Compute the unreduced (!) box widths
+        # The full (unreduced box width is needed by the plane wave base functions
+        self.box_width = np.array([M*d for (M,d) in zip(self.M, self.d)])
+
+    def initialize_gridpoints(self, **kwargs):
+        raise NotImplementedError
+
+class LagrangeMesh(Mesh):
+    """
+    Attributes:
+        g1D: list of ndarrays containing the grid points in each dimension.
+    """
+    def __init__(self, M:int|tuple, d:int|float|tuple, reduced:tuple|bool=True, dim:int=0,
+                       shift:tuple|float=.0,
+                       bc:str='antiperiodic',
+                       highest_derivative_order:int=2,
+                 ) -> None:
+        """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
+
+        Args:
+            dim, M, d, reduced: see base class Mesh
+            bc: boundary condition type. 'antiperiodic' or 'periodic'.
+            shift: subtract shift from the grid points. If non-zero, the corresponding `reduced` entry must be
+                `False`.
+            highest_derivative_order: allow for differentiation up to this order. D-matrices are pre-constructed
+                up to this order.
+            name: optional name for the mesh.
+
+        Raises:
+            ValueError: in case of invalid choices.
+
+        Remark:
+            The `reduced` parameter is derived from symmetry considerations and may at some point - when the complexity
+             of Hephaestos is taken into account - be replaced with a `Symmetry` object. For the time being, however,
+             we content with explicitly indicating which coordinate axes must be 'reduced'
+        """
+        super().__init__(dim=dim, M=M, d=d, reduced=reduced)
+
+        # Validate shift parameter
+        if isinstance(shift, tuple):
+            if not len(shift) == self.dim:
+                raise ValueError(f"`shift` parameter violates `len(shift)==self.dim`: {len(shift)=} != {self.dim=}.")
+        else:
             if isinstance(shift, float):
                 shift = self.dim * (shift,)
             else:
@@ -217,32 +240,31 @@ class LagrangeMesh:
             raise ValueError(f"`bc` parameter must be either 'antiperiodic' or 'periodic' (got {bc=}).")
 
         self.bc = bc
-        # convenience attributes
+        # Related convenience attributes
         self.antiperiodic = bc == 'antiperiodic'
         self.periodic = not self.antiperiodic # since there are only 2 options.
 
-        # Compute dv, the integration volume per mesh point.
-        self.dv = np.prod(self.d) * 2 ** self.reduced.count(True)
+        self.initalize_gridpoints()
 
-        # Compute the unreduced (!) box widths
-        # The full (unreduced box width is needed by the plane wave base functions
-        self.box_width = np.array([M*d for (M,d) in zip(self.M, self.d)])
+        self._setup_D_matrices(highest_derivative_order)
 
+
+    def initalize_gridpoints(self) -> None:
         # initialize grid points:
         start = self.dim*[.0]
         n_reduced = self.dim*[0]
         g1D = self.dim*[0]
-        for i, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
+        for idim, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
             if reduced_i:
-                n_reduced[i] = n_i//2
-                start[i] = 0.5
+                n_reduced[idim] = n_i//2
+                start[idim] = 0.5
             else:
-                n_reduced[i] = n_i
-                start[i] = -(n_i - 1)*0.5 - shift_i/d_i
+                n_reduced[idim] = n_i
+                start[idim] = -(n_i - 1)*0.5 - shift_i/d_i
 
-            g1D[i] = np.linspace(start[i], start[i] + n_reduced[i] - 1, n_reduced[i])
-            g1D[i] *= d_i
-            # print(f"{i=} {g1D[i]=}")
+            g1D[idim] = np.linspace(start[idim], start[idim] + n_reduced[idim] - 1, n_reduced[idim])
+            g1D[idim] *= d_i
+            # print(f"{idim=} {g1D[idim]=}")
 
         self.gx = g1D[0]
         if self.dim > 1:
@@ -300,12 +322,11 @@ class LagrangeMesh:
         self.mesh_shape   = self.gridx.shape
         self.linear_size = int(np.prod(self.mesh_shape))
 
-        self._setup_D_matrices(highest_derivative_order)
 
     def __repr__(self):
         reduced = ''.join(['T' if r else 'F' for r in self.reduced])
         shape = 'x'.join([str(m) for m in self.mesh_shape ])
-        return (f"<LagrangeMesh[{shape}={self.linear_size}, {reduced=}]>")
+        return (f"<LagrangeMesh(Mesh)[{shape}={self.linear_size}, {reduced=}]>")
 
     # ---------------------------------------------------------------------------
     # Casting arrays between linear and mesh shape
@@ -752,7 +773,7 @@ class LagrangeMesh:
     # ---------------------------------------------------------------------------
     # Interpolation methods
     #----------------------------------------------------------------------------
-    def interpolate(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
+    def interpolate(self, Q:MeshQuantity, r:npt.NDArray, algo='new') -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
         Args:
@@ -761,18 +782,21 @@ class LagrangeMesh:
         """
         # TODO (?) speed this stuff up... Performance may be wrecked by numerous nested python loops.
 
-        if self.dim == 3:
-            self.gridx = self.cast2linear(self.gridx)
-            self.gridy = self.cast2linear(self.gridy)
-            self.gridz = self.cast2linear(self.gridz)
-            return self._interpolate3D(Q, r)
-        elif self.dim == 2:
-            self.gridx = self.cast2linear(self.gridx)
-            self.gridy = self.cast2linear(self.gridy)
-            return self._interpolate2D(Q, r)
+        if algo == 'new':
+            return self._interpolateND_new(Q, r)
         else:
-            self.gridx = self.cast2linear(self.gridx)
-            return self._interpolate1D(Q, r)
+            if self.dim == 3:
+                self.gridx = self.cast2linear(self.gridx)
+                self.gridy = self.cast2linear(self.gridy)
+                self.gridz = self.cast2linear(self.gridz)
+                return self._interpolate3D(Q, r)
+            elif self.dim == 2:
+                self.gridx = self.cast2linear(self.gridx)
+                self.gridy = self.cast2linear(self.gridy)
+                return self._interpolate2D(Q, r)
+            else:
+                self.gridx = self.cast2linear(self.gridx)
+                return self._interpolate1D(Q, r)
 
 
     def _interpolate1D(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
@@ -814,9 +838,38 @@ class LagrangeMesh:
 
         return Qr
 
+    def _interpolateND_new(self, Q:MeshQuantity, r:npt.NDArray):
+        """Interpolate `Q` on a 3D mesh.
+
+        Args:
+            Q: A MeshQuantity with values specified on all grid points
+            r: array of points at which to interpolate Q. 'r.shape == (nr, self.dim)'
+        """
+        pi_over_Delta = [np.pi / d for d in self.d]
+        inv2N         = [1. / M    for M in self.M]
+        g1D = [self.gx, self.gy, self.gz] if (self.dim == 3) else \
+              [self.gx, self.gy] if (self.dim == 2) else \
+              [self.gx]
+        f = [np.empty(self.mesh_shape[idim], dtype=np.float64) for idim in range(3)]
+        nr = Q.shape[0]
+        nq = Q.n_components
+        Qr = np.empty((nr,nq), dtype=np.float64, order='F')
+        for iq in range(nq):
+            h_ijk = Q.dataG[:,:,:,iq]
+            lifs = [lif if not self.reduced[idim] else
+                    lif_symm if Q.symmetry[iq,idim] == 1 else
+                    lif_skew for idim in range(3)]
+            for p in range(nr): # loop over all points to be interpolated
+                rp = r[p,:]
+                for idim in range(3):
+                    lifs[idim](g1D[idim], rp[idim], pi_over_Delta[idim], inv2N[idim], out=f[idim])
+
+                Qr[p,iq] = np.einsum('ijk,i,j,k',h_ijk,f[0],f[1],f[2])
+
+        return Qr
 
     def _interpolate3D(self, Q:MeshQuantity, r:npt.NDArray) -> npt.NDArray:
-        """Interpolate `Q` on a 2D mesh.
+        """Interpolate `Q` on a 3D mesh.
 
         Args:
             Q: A MeshQuantity with values specified on all grid points
@@ -839,7 +892,7 @@ class LagrangeMesh:
                     ig += 1
         return Qr
 
-
+    # TODO: formulate in terms of lif/lif_symm/lif_skew
     def lagrange_function(self, x:npt.NDArray|float, ijk:tuple|int, sign=1):
         """Evaluate the Lagrange function corresponding to the `ijk` grid point at `x`.
         Args:
@@ -861,6 +914,8 @@ class LagrangeMesh:
                                            - - -
             If one of the axes is not reduced the rows with a - on that axes are removed
         """
+        dim = len(ijk)
+        assert dim == self.dim
 
         if self.dim == 3:
 
@@ -989,4 +1044,39 @@ class LagrangeMesh:
                 fx =   lagrange_function(x,  x_i, self.d[0], self.M[0])
 
             return fx
+
+@guvectorize([(float64[:], float64, float64, float64, float64[:])], '(n),(),(),()->(n)')
+def lif(ui, u, pi_over_Delta, inv2N, out):
+    """Lagrange interpolation function on not-reduced mesh. Used by `LagrangeMesh._interpolateND_new()`
+    Args:
+         ui: array with $\frac{\pi}{\Delta}u_i$, i=1..N corresponding to the grid points on the u-axis
+         u : $\frac{\pi}{\Delta}u$ interpolation point on u-axis
+         inv2N: $\frac{1}{2N}$
+    """
+    out[:] = inv2N * np.sin(pi_over_Delta*(u-ui))/np.sin(inv2N*pi_over_Delta*(u-ui))
+
+@guvectorize([(float64[:], float64, float64, float64, float64[:])], '(n),(),(),()->(n)')
+def lif_symm(ui, u, pi_over_Delta, inv2N, out):
+    """Lagrange interpolation function on reduced mesh, for a symmetry quantity.
+    Used by `LagrangeMesh._interpolateND_new()`
+
+    Args:
+        as for `lif`.
+    """
+    out[:] = inv2N * ( np.sin(pi_over_Delta * (u - ui)) / np.sin(inv2N * pi_over_Delta * (u - ui)) +
+                       np.sin(pi_over_Delta * (u + ui)) / np.sin(inv2N * pi_over_Delta * (u + ui))
+                     )
+
+
+@guvectorize([(float64[:], float64, float64, float64, float64[:])], '(n),(),(),()->(n)')
+def lif_skew(ui, u, pi_over_Delta, inv2N, out):
+    """Lagrange interpolation function on reduced mesh, for skew-symmetry quantity.
+    Used by `LagrangeMesh._interpolateND_new()`
+
+    Args:
+        as for `lif`.
+    """
+    out[:] = inv2N * ( np.sin(pi_over_Delta * (u - ui)) / np.sin(inv2N * pi_over_Delta * (u - ui)) -
+                       np.sin(pi_over_Delta * (u + ui)) / np.sin(inv2N * pi_over_Delta * (u + ui))
+                     )
 
