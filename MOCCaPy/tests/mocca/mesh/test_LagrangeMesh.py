@@ -528,7 +528,7 @@ def test_LagrangeMesh_interpolate2D_basisfunction(no_plot, debug=False):
     N = 2
     nip = 61
     r = np.linspace(-2,2,num=nip)
-    xy = create_mesh(r, r)
+    xy = create_mesh([r, r])
     xy += 1e-9
     x = xy[:,0].reshape((nip,nip), order='F')
     y = xy[:,1].reshape((nip,nip), order='F')
@@ -621,7 +621,7 @@ def test_LagrangeMesh_interpolate2D_bell(no_plot, debug=False):
     N = 40
     nip = 61
     r = np.linspace(-2,2,num=nip)
-    xy = create_mesh(r, r)
+    xy = create_mesh([r, r])
     xy += 1e-9
     x = xy[:,0].reshape((nip,nip), order='F')
     y = xy[:,1].reshape((nip,nip), order='F')
@@ -701,7 +701,7 @@ def test_LagrangeMesh_interpolate2D_bellx(no_plot, debug=False):
     N = 40
     nip = 61
     r = np.linspace(-2,2,num=nip)
-    xy = create_mesh(r, r)
+    xy = create_mesh([r, r])
     xy += 1e-9
     x = xy[:,0].reshape((nip,nip), order='F')
     y = xy[:,1].reshape((nip,nip), order='F')
@@ -780,7 +780,7 @@ def test_LagrangeMesh_interpolate3D_bell(debug=False):
     N = 10
     nip = 21
     r = np.linspace(-2,2,num=nip)
-    xyz = create_mesh(r, r, r)
+    xyz = create_mesh([r, r, r])
     xyz += 1e-9
 
     sigma = 1.0
@@ -830,7 +830,7 @@ def test_LagrangeMesh_interpolate3D_bellx(debug=False):
     N = 10
     nip = 21
     r = np.linspace(-2,2,num=nip)
-    xyz = create_mesh(r, r, r)
+    xyz = create_mesh([r, r, r])
     xyz += 1e-9
 
     sigma = 1.0
@@ -878,7 +878,7 @@ def test_create_mesh():
     nx = len(gx)
     ny = len(gy)
     nz = len(gz)
-    gxyz = create_mesh(gx, gy, gz)
+    gxyz = create_mesh([gx, gy, gz])
     for i in range(nx*ny*nz):
         assert gxyz[i,0] == gx[i   %2]
         assert gxyz[i,1] == gy[i//2%2]
@@ -892,7 +892,7 @@ def test_LagrangeMesh_lagrange_function():
         print(f"1D case, {reduced=}")
         mesh = LagrangeMesh(dim=1, M=6, d=1, reduced=False)
         for ix,xi in enumerate(mesh.grid):
-            fgridx = mesh.lagrange_function(mesh.gridx, ix)
+            fgridx = mesh.lagrange_function(mesh.gridx, (ix,))
             for (f,x) in zip(fgridx,mesh.gridx):
                 if x == xi:
                     assert np.isnan(f), f"{ix=} {xi=} {f=} expected nan"# corner case due to 0/0, which by l'Hopitals rule should be 1
@@ -936,7 +936,7 @@ def test_LagrangeMesh_lagrange_function_plot2D(no_plot):
     mesh = LagrangeMesh(dim=2, M=M, d=d, reduced=False)
     nip = 61
     r = np.linspace(-2,2,num=nip)
-    xy = create_mesh(r, r)
+    xy = create_mesh([r, r])
     x = xy[:,0].reshape((nip,nip), order='F')
     y = xy[:,1].reshape((nip,nip), order='F')
     for i in range(M):

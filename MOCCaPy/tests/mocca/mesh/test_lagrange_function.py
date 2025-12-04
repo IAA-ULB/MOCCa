@@ -101,7 +101,7 @@ def test_lagrange_function_plot2():
         figi, axi = plt.subplots()
         plt.title(f"lagrange function {i}")
 
-        f = mesh.lagrange_function(x,i)
+        f = mesh.lagrange_function(x,(i,))
         sumf += f
         ax.plot(x, f)
         axi.plot(x, f)

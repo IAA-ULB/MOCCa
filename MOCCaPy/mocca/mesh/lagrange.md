@@ -377,7 +377,7 @@ Timer(old: count=1, min=0.4408809580054367, max=0.4408809580054367)
 Timer(new: count=1, min=0.019392624992178753, max=0.019392624992178753)
 ------------------------------ Finished test_LagrangeMesh_interpolate3D_bell
 ```
-Quite an improvement! In addition the method `LagrangeMesh._interpolateND_new` is independent of the number of dimensions. After engaging `numba.guvectorize` the timings are even better
+Quite an improvement!  After engaging `numba.guvectorize` the timings are even better
 ```
 ------------------------------- Started test_LagrangeMesh_interpolate3D_bell
 reduced=(False, False, False)

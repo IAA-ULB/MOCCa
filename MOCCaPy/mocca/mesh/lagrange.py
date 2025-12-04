@@ -6,47 +6,40 @@ from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mesh.lagrange_function import lagrange_function
 
 
-def create_mesh(gx, gy=None, gz=None):
+def create_mesh(g1D):
     """Create a rectangular mesh (1D, 2D, 3D) from 1D arrays with coordinates.
 
     Args:
-        gx (ndarray): 1D array
-        gy (ndarray): 1D array
-        gz (ndarray): 1D array
-            gx, gy, gz may refer to the same array.
+        g1D: list of 1D ndarrays with the grid points on the respective coordinate axes.
+            `len(g1D)` is the dimension of the space (1D/2D/3D)
     Returns:
         an array (order='F)
-        if only gx is provided, gx is returned
-        if only gx and gy are provided, gxy of shape (nx*ny,2) is returned
-        if gx, gy and gz are provided, gxzy of shape (nx*ny*nz,3) is returned
-    Raises:
-        ValueError:
+        if `len(g1D)==1`, g1D[0] is returned
+        if `len(g1D)==1`, gxy of shape (nx*ny,2) is returned (Fortran order)
+        if `len(g1D)==3`, gxzy of shape (nx*ny*nz,3) is returned (Fortran order)
     """
-    if gz is not None:
-        if (gy is None):
-                raise ValueError("Argument gy must be provided too, if gz is provided.")
-
-        nx = len(gx)
-        ny = len(gy)
-        nz = len(gz)
+    if len(g1D)==3:
+        nx = g1D[0].size
+        ny = g1D[1].size
+        nz = g1D[2].size
         gxyz = np.empty((nx*ny*nz,3), dtype=np.float64, order='F')
-        gxy = create_mesh(gx, gy)
+        gxy = create_mesh(g1D[0:2])
         nxy = nx*ny
         for iz in range(nz):
-            gxyz[iz * nxy:(iz + 1) * nxy, 0:2] = gxy
-            gxyz[iz * nxy:(iz + 1) * nxy, 2] = gz[iz]
+            gxyz[iz * nxy : (iz + 1) * nxy, 0:2] = gxy
+            gxyz[iz * nxy : (iz + 1) * nxy, 2] = g1D[2][iz]
         return gxyz
 
-    elif gy is not None:
-        nx = len(gx)
-        ny = len(gy)
+    elif len(g1D) == 2:
+        nx = g1D[0].size
+        ny = g1D[1].size
         gxy = np.empty((nx*ny,2), dtype=np.float64, order='F')
         for iy in range(ny):
-            gxy[iy * nx:(iy + 1) * nx, 0] = gx
-            gxy[iy * nx:(iy + 1) * nx, 1] = gy[iy]
+            gxy[iy * nx : (iy + 1) * nx, 0] = g1D[0]
+            gxy[iy * nx : (iy + 1) * nx, 1] = g1D[1][iy]
         return gxy
     else:
-        return gx
+        return g1D[0]
 
 def _split_axes(axes, Q):
     """Split axes in a part that is already computed and a part that still has to be computed.
@@ -266,6 +259,8 @@ class LagrangeMesh(Mesh):
             g1D[idim] *= d_i
             # print(f"{idim=} {g1D[idim]=}")
 
+        self.g1D = g1D
+        self.grid = create_mesh(self.g1D)
         self.gx = g1D[0]
         if self.dim > 1:
             self.gy = g1D[1]
@@ -273,8 +268,6 @@ class LagrangeMesh(Mesh):
             self.gz = g1D[2]
 
         if self.dim == 3:
-            self.grid = create_mesh(self.gx, self.gy, self.gz)
-
             self.gridx = np.empty(n_reduced, order='F')
             self.gridy = np.empty(n_reduced, order='F')
             self.gridz = np.empty(n_reduced, order='F')
@@ -301,8 +294,6 @@ class LagrangeMesh(Mesh):
             # print(f"{self.gridz.ravel(order='F')=}")
 
         elif self.dim == 2:
-            self.grid = create_mesh(self.gx, self.gy)
-
             self.gridx = np.empty(n_reduced, order='F')
             self.gridy = np.empty(n_reduced, order='F')
             for j in range(n_reduced[1]):
@@ -315,7 +306,6 @@ class LagrangeMesh(Mesh):
             # print(f"{self.gridy.ravel(order='F')=}")
 
         else: # self.dim == 1
-            self.grid = create_mesh(self.gx)
             self.gridx = g1D[0]
             # print(f"{self.gridx=}")
 
@@ -773,7 +763,8 @@ class LagrangeMesh(Mesh):
     # ---------------------------------------------------------------------------
     # Interpolation methods
     #----------------------------------------------------------------------------
-    def interpolate(self, Q:MeshQuantity, r:npt.NDArray, algo='new') -> npt.NDArray:
+    # TODO: provide out= parameter?
+    def interpolate(self, Q:MeshQuantity, r:npt.NDArray, algo='new', out=None) -> npt.NDArray:
         """Interpolate a quantity `Q` on the mesh.
 
         Args:
@@ -783,8 +774,9 @@ class LagrangeMesh(Mesh):
         # TODO (?) speed this stuff up... Performance may be wrecked by numerous nested python loops.
 
         if algo == 'new':
-            return self._interpolateND_new(Q, r)
+            return self._interpolateND_new(Q, r, out=out)
         else:
+            # TODO: obsolete? _interpolateND_new is generic and much faster
             if self.dim == 3:
                 self.gridx = self.cast2linear(self.gridx)
                 self.gridy = self.cast2linear(self.gridy)
@@ -838,8 +830,8 @@ class LagrangeMesh(Mesh):
 
         return Qr
 
-    def _interpolateND_new(self, Q:MeshQuantity, r:npt.NDArray):
-        """Interpolate `Q` on a 3D mesh.
+    def _interpolateND_new(self, Q:MeshQuantity, r:npt.NDArray, out):
+        """Interpolate `Q` on a ND mesh.
 
         Args:
             Q: A MeshQuantity with values specified on all grid points
@@ -847,24 +839,30 @@ class LagrangeMesh(Mesh):
         """
         pi_over_Delta = [np.pi / d for d in self.d]
         inv2N         = [1. / M    for M in self.M]
-        g1D = [self.gx, self.gy, self.gz] if (self.dim == 3) else \
-              [self.gx, self.gy] if (self.dim == 2) else \
-              [self.gx]
-        f = [np.empty(self.mesh_shape[idim], dtype=np.float64) for idim in range(3)]
-        nr = Q.shape[0]
+        g1D = self.g1D
+        f = [np.empty(self.mesh_shape[idim], dtype=np.float64) for idim in range(self.dim)]
+        nr = r.shape[0]
         nq = Q.n_components
-        Qr = np.empty((nr,nq), dtype=np.float64, order='F')
+        Qr = np.empty((nr,nq), dtype=np.float64, order='F') if (out is None) else \
+             out
+        R = r if (len(r.shape) > 1) else \
+            r.reshape((nr,1))
+
         for iq in range(nq):
-            h_ijk = Q.dataG[:,:,:,iq]
+            h_ijk = Q.dataG[:,:,:,iq] if (self.dim == 3) else \
+                    Q.dataG[:,:,  iq] if (self.dim == 2) else \
+                    Q.dataG[:,    iq]
             lifs = [lif if not self.reduced[idim] else
                     lif_symm if Q.symmetry[iq,idim] == 1 else
-                    lif_skew for idim in range(3)]
+                    lif_skew for idim in range(self.dim)]
             for p in range(nr): # loop over all points to be interpolated
-                rp = r[p,:]
-                for idim in range(3):
+                rp = R[p,:]
+                for idim in range(self.dim):
                     lifs[idim](g1D[idim], rp[idim], pi_over_Delta[idim], inv2N[idim], out=f[idim])
 
-                Qr[p,iq] = np.einsum('ijk,i,j,k',h_ijk,f[0],f[1],f[2])
+                Qr[p,iq] = np.einsum('ijk,i,j,k', h_ijk, f[0], f[1], f[2]) if (self.dim == 3) else \
+                           np.einsum('ij,i,j'   , h_ijk, f[0], f[1]      ) if (self.dim == 2) else \
+                           np.einsum('i,i'      , h_ijk, f[0]            )
 
         return Qr
 
@@ -892,7 +890,7 @@ class LagrangeMesh(Mesh):
                     ig += 1
         return Qr
 
-    # TODO: formulate in terms of lif/lif_symm/lif_skew
+    # TODO: formulate in terms of lif/lif_symm/lif_skew?
     def lagrange_function(self, x:npt.NDArray|float, ijk:tuple|int, sign=1):
         """Evaluate the Lagrange function corresponding to the `ijk` grid point at `x`.
         Args:

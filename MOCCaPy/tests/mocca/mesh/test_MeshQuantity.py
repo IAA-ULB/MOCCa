@@ -398,7 +398,7 @@ def test_differentiate_2D_Grad_reduced(debug=False, no_plot=False):
 
     mesh_2N = LagrangeMesh(dim=dim, M=M, d=1., reduced=False)
     rx = np.linspace(-L/2, L/2, 100)
-    rxy = create_mesh(rx,mesh_2N.gy)
+    rxy = create_mesh([rx,mesh_2N.gy])
 
     # r = mesh_2N.gridx[:,0,0].reshape((M*M,), order='F')
     pw_full = mesh_2N.plane_wave(L=L, k=k, r=rxy[:,0])
