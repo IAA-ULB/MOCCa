@@ -16,7 +16,7 @@ def create_mesh(g1D):
         an array (order='F)
         if `len(g1D)==1`, g1D[0] is returned
         if `len(g1D)==1`, gxy of shape (nx*ny,2) is returned (Fortran order)
-        if `len(g1D)==3`, gxzy of shape (nx*ny*nz,3) is returned (Fortran order)
+        if `len(g1D)==3`, g1D[0]zy of shape (nx*ny*nz,3) is returned (Fortran order)
     """
     if len(g1D)==3:
         nx = g1D[0].size
@@ -261,11 +261,11 @@ class LagrangeMesh(Mesh):
 
         self.g1D = g1D
         self.grid = create_mesh(self.g1D)
-        self.gx = g1D[0]
-        if self.dim > 1:
-            self.gy = g1D[1]
-        if self.dim > 2:
-            self.gz = g1D[2]
+        # self.g1D[0] = g1D[0]
+        # if self.dim > 1:
+        #     self.g1D[1] = g1D[1]
+        # if self.dim > 2:
+        #     self.g1D[2] = g1D[2]
 
         if self.dim == 3:
             self.gridx = np.empty(n_reduced, order='F')
@@ -491,14 +491,14 @@ class LagrangeMesh(Mesh):
             i = ijk[0]
             j = ijk[1]
             k = ijk[2]
-            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                 self.gx[i] * ijk_sign[0]
+            two_pi_K = np.array([ 2. * np.pi * ( self.g1D[0][i] if not self.reduced[0] else
+                                                 self.g1D[0][i] * ijk_sign[0]
                                                ) / (self.box_width[0] * self.d[0])
-                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
-                                                 self.gy[j] * ijk_sign[1]
+                                , 2. * np.pi * ( self.g1D[1][j] if not self.reduced[0] else
+                                                 self.g1D[1][j] * ijk_sign[1]
                                                ) / (self.box_width[1] * self.d[1])
-                                , 2. * np.pi * ( self.gz[k] if not self.reduced[0] else
-                                                 self.gz[k] * ijk_sign[2]
+                                , 2. * np.pi * ( self.g1D[2][k] if not self.reduced[0] else
+                                                 self.g1D[2][k] * ijk_sign[2]
                                                ) / (self.box_width[2] * self.d[2])
                                 ], dtype=np.float64, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1] * self.box_width[2]))
@@ -507,11 +507,11 @@ class LagrangeMesh(Mesh):
             assert r.shape[1] == 2
             i = ijk[0]
             j = ijk[1]
-            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                 self.gx[i] * ijk_sign[0]
+            two_pi_K = np.array([ 2. * np.pi * ( self.g1D[0][i] if not self.reduced[0] else
+                                                 self.g1D[0][i] * ijk_sign[0]
                                                ) / (self.box_width[0] * self.d[0])
-                                , 2. * np.pi * ( self.gy[j] if not self.reduced[0] else
-                                                 self.gy[j] * ijk_sign[1]
+                                , 2. * np.pi * ( self.g1D[1][j] if not self.reduced[0] else
+                                                 self.g1D[1][j] * ijk_sign[1]
                                                ) / (self.box_width[1] * self.d[1])
                                 ], dtype=np.float64, order='F')
             factor = np.sqrt(1/(self.box_width[0] * self.box_width[1]))
@@ -522,8 +522,8 @@ class LagrangeMesh(Mesh):
             assert r.shape[1] == 1
             # ijk == i
             i = ijk
-            two_pi_K = np.array([ 2. * np.pi * ( self.gx[i] if not self.reduced[0] else
-                                                self.gx[i] * ijk_sign[0]
+            two_pi_K = np.array([ 2. * np.pi * ( self.g1D[0][i] if not self.reduced[0] else
+                                                self.g1D[0][i] * ijk_sign[0]
                                                ) / (self.box_width[0] * self.d[0])
                                 ], dtype=np.float64, order='F')
             factor = np.sqrt(1 / self.box_width[0])
@@ -818,8 +818,8 @@ class LagrangeMesh(Mesh):
         nq = Q.n_components
         Qr = np.zeros(shape=(nr,nq), dtype=np.float64, order='F')
         ig = 0
-        Nx = len(self.gx)
-        Ny = len(self.gy)
+        Nx = len(self.g1D[0])
+        Ny = len(self.g1D[1])
         for iy in range(Ny):
             for ix in range(Nx):
                 for iq in range(nq):
@@ -877,9 +877,9 @@ class LagrangeMesh(Mesh):
         nq = Q.n_components
         Qr = np.zeros(shape=(nr, nq), dtype=np.float64, order='F')
         ig = 0
-        Nx = len(self.gx)
-        Ny = len(self.gy)
-        Nz = len(self.gz)
+        Nx = len(self.g1D[0])
+        Ny = len(self.g1D[1])
+        Nz = len(self.g1D[2])
         for iz in range(Nz):
             for iy in range(Ny):
                 for ix in range(Nx):
@@ -918,7 +918,7 @@ class LagrangeMesh(Mesh):
         if self.dim == 3:
 
             i,j,k = ijk
-            x_i, y_j, z_k = self.gx[i], self.gy[j], self.gz[k]
+            x_i, y_j, z_k = self.g1D[0][i], self.g1D[1][j], self.g1D[2][k]
 
             if self.reduced[0]:
                 if sign[0] == 1:
@@ -996,7 +996,7 @@ class LagrangeMesh(Mesh):
 
         elif self.dim == 2:
             i, j = ijk
-            x_i, y_j = self.gx[i], self.gy[j]
+            x_i, y_j = self.g1D[0][i], self.g1D[1][j]
 
             if self.reduced[0]:
                 if sign[0] == 1:

@@ -34,8 +34,8 @@ for png in png_folder.glob('*.png'):
 
 
 def bf(mesh, i, r, i_sign=1):
-    two_pi_K = 2. * np.pi * ( mesh.gx[i] if not mesh.reduced[0] else
-                              mesh.gx[i] * i_sign
+    two_pi_K = 2. * np.pi * ( mesh.g1D[0][i] if not mesh.reduced[0] else
+                              mesh.g1D[0][i] * i_sign
                             ) / (mesh.box_width[0] * mesh.d[0])
 
     factor = np.sqrt(1. / mesh.box_width[0])
@@ -50,8 +50,8 @@ def bf(mesh, i, r, i_sign=1):
 
 
 def dbf_dx(mesh, i, r, i_sign=1):
-    two_pi_K = 2. * np.pi * ( mesh.gx[i] if not mesh.reduced[0] else
-                              mesh.gx[i] * i_sign
+    two_pi_K = 2. * np.pi * ( mesh.g1D[0][i] if not mesh.reduced[0] else
+                              mesh.g1D[0][i] * i_sign
                             ) / (mesh.box_width[0] * mesh.d[0])
 
     factor = 1. / np.sqrt(mesh.box_width[0])
@@ -103,7 +103,7 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
     mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False, highest_derivative_order=1)
     D1 = mesh._get_D(axis=0, order=1)
     pw = mesh.basis_function(0, r)
-    two_pi_K = abs(2. * np.pi * mesh.gx[0]) / (mesh.box_width[0] * mesh.d[0])
+    two_pi_K = abs(2. * np.pi * mesh.g1D[0][0]) / (mesh.box_width[0] * mesh.d[0])
 
     # Validate D1 against a literal coding of the Ryssens et al 2015 eq 18
     # (correcting the sign error in that formula)
@@ -120,23 +120,23 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
         print(f"No plotting because {no_plot=}")
     else:
         fig, ax = plt.subplots()
-        plt.title(f'{0}, x_i={mesh.gx[0]}')
+        plt.title(f'{0}, x_i={mesh.g1D[0][0]}')
         ax.plot([-N,N],[0,0],color='k')
         ax.plot([0,0],[-1,1],color='k')
-        ax.plot(mesh.gx,  2*N*[0], 'rs')
-        ax.plot(mesh.gx[0], [0], 'gs') # mark the mesh point to which the basis function corresponds
+        ax.plot(mesh.g1D[0],  2*N*[0], 'rs')
+        ax.plot(mesh.g1D[0][0], [0], 'gs') # mark the mesh point to which the basis function corresponds
         ax.plot(r, pw[:,0], label='real')
         ax.plot(r, pw[:,1], label='imag')
 
-    mbf = mesh.basis_function(ijk=0, r=mesh.gx)
+    mbf = mesh.basis_function(ijk=0, r=mesh.g1D[0])
     Q = MeshQuantity(mesh, data=mbf, symmetry=[1,-1])
     # check Q against bf() above
-    Q_expected = bf(mesh, i=0, r=mesh.gx)
+    Q_expected = bf(mesh, i=0, r=mesh.g1D[0])
 
     if no_plot:
         print(f"No plotting because {no_plot=}")
     else:
-        ax.plot(mesh.gx, Q_expected[:,0], 'bo', label='bf real')
+        ax.plot(mesh.g1D[0], Q_expected[:,0], 'bo', label='bf real')
 
     assert Q.data == pytest.approx(Q_expected)
     # for i in range(2*N):
@@ -164,7 +164,7 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
         assert DQI[i] == pytest.approx(dQdx[i,1]), f"{i=}: {DQI[i]=}, {dQdx[i,1]=}"
 
     # check dQdx against dbf_dx
-    dQdx_expected = dbf_dx(mesh, i=0, r=mesh.gx)
+    dQdx_expected = dbf_dx(mesh, i=0, r=mesh.g1D[0])
     #   the derivative apart from a factor that makes sure that the real part of dbf_dx conincides
     #   with the imaginary part of Q (because the latter is proportional to the derivative of the
     #   real part of Q).
@@ -172,9 +172,9 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
     if no_plot:
         pass
     else:
-        ax.plot(mesh.gx, dQdx_expected[:, 0], 'yo--', label='dbf/dx real')
-        ax.plot(mesh.gx, dQdx_expected[:, 0]*two_pi_K, 'yo', label='dbf/dx real*')
-        # ax.plot(mesh.gx, dQdx_expected[:,1], '--', label='dbf/dx imag')
+        ax.plot(mesh.g1D[0], dQdx_expected[:, 0], 'yo--', label='dbf/dx real')
+        ax.plot(mesh.g1D[0], dQdx_expected[:, 0]*two_pi_K, 'yo', label='dbf/dx real*')
+        # ax.plot(mesh.g1D[0], dQdx_expected[:,1], '--', label='dbf/dx imag')
 
     for i in range(2*N):
         print(f"{i=}: real {dQdx[i,0]} {dQdx_expected[i,0]}")
@@ -198,13 +198,13 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
     if no_plot:
         pass
     else:
-        # ax.plot(mesh.gx, Q_expected[:,0], 'b--')
-        # ax.plot(mesh.gx, Q_expected[:,1], 'r--')
+        # ax.plot(mesh.g1D[0], Q_expected[:,0], 'b--')
+        # ax.plot(mesh.g1D[0], Q_expected[:,1], 'r--')
 
-        # ax.plot(mesh.gx, Q.data[:,0], 'co', label='Q real')
-        # ax.plot(mesh.gx, Q.data[:,1], 'c*', label='Q imag')
-        ax.plot(mesh.gx, dQdx[:,0], 'yx', label='dQ/dx real')
-        # ax.plot(mesh.gx, dQdx[:,1], '*', label='dQ/dx imag')
+        # ax.plot(mesh.g1D[0], Q.data[:,0], 'co', label='Q real')
+        # ax.plot(mesh.g1D[0], Q.data[:,1], 'c*', label='Q imag')
+        ax.plot(mesh.g1D[0], dQdx[:,0], 'yx', label='dQ/dx real')
+        # ax.plot(mesh.g1D[0], dQdx[:,1], '*', label='dQ/dx imag')
 
         plt.legend()
         fig.savefig(png_folder/f"1D_basis_function_{0}_differentiation.png")
@@ -223,8 +223,8 @@ def test_differentiate_1D_x_reduced(debug=False):
     mesh    = LagrangeMesh(dim=1, M=2*N, d=d, reduced=True , highest_derivative_order=1)
     mesh_nr = LagrangeMesh(dim=1, M=2*N, d=d, reduced=False, highest_derivative_order=1)
 
-    bfr  = mesh   .basis_function(ijk=0, r=mesh   .gx)
-    bfnr = mesh_nr.basis_function(ijk=3, r=mesh_nr.gx)
+    bfr  = mesh   .basis_function(ijk=0, r=mesh   .g1D[0])
+    bfnr = mesh_nr.basis_function(ijk=3, r=mesh_nr.g1D[0])
     for i in range(2*N):
         if i<N:
             print(f"bf{i} real: {bfnr[i,0]}")
@@ -274,7 +274,7 @@ def test_differentiate_1D_xx():
         mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced)
 
         if reduced == False:
-            bfq = mesh.basis_function(ijk=0, r=mesh .gx)
+            bfq = mesh.basis_function(ijk=0, r=mesh .g1D[0])
             Q = MeshQuantity(mesh, data=bfq, symmetry=[1,-1])
             d2Qdx2 = Q.differentiate(axes='xx')
 
@@ -312,7 +312,7 @@ def test_differentiate_1D_xxx():
         mesh = LagrangeMesh(dim=1, M=2*N, d=d, reduced=reduced, highest_derivative_order=3)
 
         if reduced == False:
-            bfq = mesh.basis_function(ijk=0, r=mesh.gx)
+            bfq = mesh.basis_function(ijk=0, r=mesh.g1D[0])
             Q = MeshQuantity(mesh, data=bfq, symmetry=[1,-1])
             d3Qdx3 = Q.differentiate(axes='xxx')
 
@@ -398,7 +398,7 @@ def test_differentiate_2D_Grad_reduced(debug=False, no_plot=False):
 
     mesh_2N = LagrangeMesh(dim=dim, M=M, d=1., reduced=False)
     rx = np.linspace(-L/2, L/2, 100)
-    rxy = create_mesh([rx,mesh_2N.gy])
+    rxy = create_mesh([rx,mesh_2N.g1D[1]])
 
     # r = mesh_2N.gridx[:,0,0].reshape((M*M,), order='F')
     pw_full = mesh_2N.plane_wave(L=L, k=k, r=rxy[:,0])
