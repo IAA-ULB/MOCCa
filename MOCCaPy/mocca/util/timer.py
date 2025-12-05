@@ -4,6 +4,7 @@ from contextlib import ContextDecorator
 from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Dict, Optional
 from tabulate import tabulate
+from mocca.util import title_line
 
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
@@ -79,16 +80,27 @@ class Timer(ContextDecorator):
         self.stop()
 
     @classmethod
-    def report(cls):
-        print("Timers [s}")
+    def report(cls, sort=True):
+        """Report all timers. description, count, total, mean, stddev, min, max.
+        Args:
+            sort (bool, optional): timers with the largest total are printed first.
+                If False they are printed in the order of creation.
+        """
         table = []
-        for name,value in cls.timers.items():
+        for description,value in cls.timers.items():
             count = value[0]
             total = value[1]
             mean = total/count
             stddev = (value[2] - total*total/count) / (count-1) if (count > 1) else None
             mn = value[3]
             mx = value[4]
-            table.append([name, count, total, mean, stddev, mn, mx])
-        table.sort(key=lambda x: x[2], reverse=True)
-        print(tabulate(table, tablefmt="fancy_grid", headers=['name', 'count', 'total', 'mean', 'stddev', 'min', 'max' ]))
+            table.append([description, count, total, mean, stddev, mn, mx])
+        if sort:
+            table.sort(key=lambda x: x[2], reverse=True)
+
+        s = tabulate(table, tablefmt="simple", headers=['description', 'count', 'total', 'mean', 'stddev', 'min', 'max' ])
+        w = s.index('\n')
+        print(title_line(char='-',width=w),end='')
+        print("Timers [s}")
+        print(s)
+        print(title_line(char='-', width=w))
