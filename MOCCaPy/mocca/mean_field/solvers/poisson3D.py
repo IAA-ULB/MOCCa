@@ -41,11 +41,11 @@ def poisson3D(rhs, N=None, family='Chebyshev', out=None, verbose=False):
     # Domain and BC
     domain = []
     bc = []
-    for id in range(rhs.mesh.dim):
-        w = mesh.d[id] * (mesh.M[id] // 2)
-        if mesh.reduced[id]:
+    for idim in range(rhs.mesh.dim):
+        w = mesh.d[idim] * (mesh.M[idim] // 2)
+        if mesh.reduced[idim]:
             left, right = 0, w
-            bc_left  = {'N': 0.} if (rhs.symmetry[id,0] == 1) else {'D': 0.}
+            bc_left  = {'N': 0.} if (rhs.symmetry[0,idim] == 1) else {'D': 0.}
             # TODO: use eq 23 from PhysRevC92
             bc_right = {'D': 0.}
         else:
@@ -70,7 +70,7 @@ def poisson3D(rhs, N=None, family='Chebyshev', out=None, verbose=False):
     v = TestFunction(B)
 
     # Get f on quad points
-    with Timer("Poisson3D.1 Transfer problem to shenfun (interpolate quadrature points)") as t:
+    with Timer("Poisson3D.1 Transfer problem to shenfun (interpolate rhs on quadrature points)") as t:
         xyz_qp = T.mesh() # the mesh of quadrature points: a list of three ndarrays of shape [(N,1,1), (1,N,1), (1,1,N)]
         # TODO: interpolate T.mesh()
         rhs_qp = np.empty((*N,1), np.float64)
@@ -91,7 +91,7 @@ def poisson3D(rhs, N=None, family='Chebyshev', out=None, verbose=False):
     f_hat = Function(B)
     f_hat = inner(v, fj, output_array=f_hat)
 
-    # Get left hand side of Poisson equation
+    # Get left hand sidime of Poisson equation
     matrices = inner(v, div(grad(u)))
 
     # Create linear algebra solver
@@ -111,7 +111,7 @@ def poisson3D(rhs, N=None, family='Chebyshev', out=None, verbose=False):
     # u_gr = np.empty(mesh.linear_size, dtype=np.float64)
     # u_hat(gr, output_array=u_gr)
 
-    with Timer("Poisson3D.3 Transfer shenfun solution to LagrangeMesh" ) as t:
+    with Timer("Poisson3D.3 Transfer shenfun solution to LagrangeMesh points") as t:
         if out is None:
             result = u_hat(gr)
         elif out == 'rhs':
