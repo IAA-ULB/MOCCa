@@ -25,6 +25,7 @@ module fam
   use moments
   use fission_MOI
   use evolution
+  use pairing
 
   implicit none
 
@@ -706,7 +707,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
   end subroutine test_convergence
 
 
-  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_ph_hp)
+  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the particle-hole and hole-particle matrix elements of the multipole
     ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
@@ -742,14 +743,14 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
 
     implicit none
-    complex(KIND=dp), allocatable :: f_LK_ph_hp(:,:,:)
     integer, intent(in) :: L, K
     real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
     logical :: ImPart
+    complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_LK_spme(:,:)
       
     allocate(f_LK_spme(nwt,nwt)) 
-    allocate(f_LK_ph_hp(nwt,nwt,2)) 
+    allocate(f_LK_qpme(nwt,nwt,2)) 
 
    
 
@@ -797,7 +798,17 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! hole-particle subblocks of f_LK by multiplying by their 
       ! occupation, i.e. diagonal elements of rho in the canonical basis
 
-    call get_ph_hp_blocks(f_LK_spme, f_LK_ph_hp(:,:,1), f_LK_ph_hp(:,:,2))
+   
+    if (pairingtype==0) then
+      call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
+    else
+      call transform_O11_to_O20_O02(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
+
+
+      call print_spme_complex( f_LK_qpme(:,:,1))
+      call print_spme_complex( f_LK_qpme(:,:,2))
+
+    endif
 
     deallocate(f_LK_spme)
 
@@ -934,6 +945,66 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
   end subroutine get_ph_hp_blocks_real
 
 
+  subroutine transform_O11_to_O20_O02(Bogo, O11_sp, O20, O02)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle transformation of a particle-number conserving 
+    ! Hermitian 1-body operator O11_sp. The function returns the 20 and 02 
+    ! components of the operator in the QP-basis.
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! and 
+    !          O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
+    !          O02b = - Vb^T        o11b Ub   + Ub^T        o11b^T Vb = - O20b^{dagger}
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in)     :: Bogo(:,:)
+    complex(KIND=dp), intent(in)  :: O11_sp(:,:)
+    complex(KIND=dp), intent(out) :: O20(:,:), O02(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:)
+    complex(KIND=dp), allocatable :: Ob(:,:)
+    integer                       :: B, N, N2, si, sb, T
+
+     if (fam_verbose > 2) print *, "transform_O11_to_O20_O02"
+
+    ! si = O index, sb = bogo index (increases twice as fast)
+    si = 0 ; sb = 0
+    
+    do B = 1, 8, 2 ! run over TP blocks without resolving Sz
+      ! size of block is sum of two Sz subblocks
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+      print *, 'Blocks: ', B, B+1, 'with size', T
+
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+      Ob = O11_sp(si+1:si+T,si+1:si+T)
+
+
+      O20(si+1:si+T,si+1:si+T) =   matmul(transpose(Ub), matmul(Ob, Vb)) &
+                               & - matmul(transpose(Vb), matmul(Ob, Ub))
+      ! O02(si+1:si+T,si+1:si+T) = - matmul(transpose(Vb), matmul(Ob, Ub)) &
+                               ! & + matmul(transpose(Ub), matmul(Ob, Vb))
+      O02(si+1:si+T,si+1:si+T) = - transpose(O20(si+1:si+T,si+1:si+T))
+
+
+      si = si + T
+      sb = sb + 2*T
+ 
+    enddo
+    
+  end subroutine transform_O11_to_O20_O02
+
+
   function Rsq_spme() result (Rsq)
 
     real(kind=dp) , allocatable :: Rsq(:,:)
@@ -1026,7 +1097,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     si = 0
     do B=1,8
-      N = HFBLocks(B)
+      N = HFBlocks(B)
 
       print *, 'BLOCK', B
       do i=si+1,si+N
@@ -1046,7 +1117,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     si = 0
     do B=1,8
-      N = HFBLocks(B)
+      N = HFBlocks(B)
 
       print *, 'BLOCK', B
       do i=si+1,si+N
