@@ -58,8 +58,8 @@ env
 .idea
 .obsidian
 experiments/
-/MOCCaPy/sandbox/shenfun/
-/MOCCaPy/sandbox/mocca/
+./MOCCaPy/sandbox/mocca
+./MOCCaPy/sandbox/shenfun
 MOCCaPy/tests/mocca/mesh/png/
 
 MOCCaPy/mocca/data/parameterizations
