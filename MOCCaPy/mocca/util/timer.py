@@ -101,6 +101,10 @@ class Timer(ContextDecorator):
         s = tabulate(table, tablefmt="simple", headers=['description', 'count', 'total', 'mean', 'stddev', 'min', 'max' ])
         w = s.index('\n')
         print(title_line(char='-',width=w),end='')
-        print("Timers [s}")
+        print("Timers [s]")
         print(s)
         print(title_line(char='-', width=w))
+
+    @classmethod
+    def reset(cls):
+        cls.timers = {}

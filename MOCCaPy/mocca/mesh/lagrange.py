@@ -179,8 +179,9 @@ class Mesh:
         # The full (unreduced box width is needed by the plane wave base functions
         self.box_width = np.array([M*d for (M,d) in zip(self.M, self.d)])
 
-    def initialize_gridpoints(self, **kwargs):
+    def _initialize_gridpoints(self, **kwargs):
         raise NotImplementedError
+
 
 class LagrangeMesh(Mesh):
     """
@@ -237,23 +238,22 @@ class LagrangeMesh(Mesh):
         self.antiperiodic = bc == 'antiperiodic'
         self.periodic = not self.antiperiodic # since there are only 2 options.
 
-        self.initalize_gridpoints()
+        self._initalize_gridpoints()
 
         self._setup_D_matrices(highest_derivative_order)
 
-
-    def initalize_gridpoints(self) -> None:
+    def _initalize_gridpoints(self) -> None:
         # initialize grid points:
         start = self.dim*[.0]
         n_reduced = self.dim*[0]
         g1D = self.dim*[0]
-        for idim, (n_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
+        for idim, (M_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
             if reduced_i:
-                n_reduced[idim] = n_i//2
+                n_reduced[idim] = M_i // 2
                 start[idim] = 0.5
             else:
-                n_reduced[idim] = n_i
-                start[idim] = -(n_i - 1)*0.5 - shift_i/d_i
+                n_reduced[idim] = M_i
+                start[idim] = -(M_i - 1) * 0.5 - shift_i / d_i
 
             g1D[idim] = np.linspace(start[idim], start[idim] + n_reduced[idim] - 1, n_reduced[idim])
             g1D[idim] *= d_i
@@ -261,22 +261,11 @@ class LagrangeMesh(Mesh):
 
         self.g1D = g1D
         self.grid = create_mesh(self.g1D)
-        # self.g1D[0] = g1D[0]
-        # if self.dim > 1:
-        #     self.g1D[1] = g1D[1]
-        # if self.dim > 2:
-        #     self.g1D[2] = g1D[2]
 
         if self.dim == 3:
             self.gridx = np.empty(n_reduced, order='F')
             self.gridy = np.empty(n_reduced, order='F')
             self.gridz = np.empty(n_reduced, order='F')
-            # for k in range(n_reduced[2]):
-            #     for j in range(n_reduced[1]):
-            #         for i in range(n_reduced[0]):
-            #             self.gridx[i, j, k] = g1D[0][i]
-            #             self.gridy[i, j, k] = g1D[1][j]
-            #             self.gridz[i, j, k] = g1D[2][k]
             for k in range(n_reduced[2]):
                 for j in range(n_reduced[1]):
                     self.gridx[:,j,k] = g1D[0]
@@ -286,12 +275,6 @@ class LagrangeMesh(Mesh):
             for j in range(n_reduced[1]):
                 for i in range(n_reduced[0]):
                     self.gridz[i,j,:] = g1D[2]
-            # print(f"{self.gridx=}")
-            # print(f"{self.gridy=}")
-            # print(f"{self.gridz=}")
-            # print(f"{self.gridx.ravel(order='F')=}")
-            # print(f"{self.gridy.ravel(order='F')=}")
-            # print(f"{self.gridz.ravel(order='F')=}")
 
         elif self.dim == 2:
             self.gridx = np.empty(n_reduced, order='F')
@@ -300,10 +283,6 @@ class LagrangeMesh(Mesh):
                 self.gridx[:, j] = g1D[0]
             for i in range(n_reduced[0]):
                 self.gridy[i, :] = g1D[1]
-            # print(f"{self.gridx=}")
-            # print(f"{self.gridy=}")
-            # print(f"{self.gridx.ravel(order='F')=}")
-            # print(f"{self.gridy.ravel(order='F')=}")
 
         else: # self.dim == 1
             self.gridx = g1D[0]
