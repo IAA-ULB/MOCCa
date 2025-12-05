@@ -103,7 +103,7 @@ program run_FAM
   call setBelyaevProcedure()
   ! Calculate the energy ... but do not include expensive contributions that have to be calculated in the canonical basis - which is not constructed in FAM runs.
   call CalcEnergy(Density,Potentials,pairingtype.ne.2) 
-  call calc_avg_gap()
+  ! call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
   
   !---------------------------------------------------------------------------------
