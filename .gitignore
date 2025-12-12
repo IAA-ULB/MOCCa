@@ -61,6 +61,7 @@ experiments/
 ./MOCCaPy/sandbox/mocca
 ./MOCCaPy/sandbox/shenfun
 MOCCaPy/tests/mocca/mesh/png/
+MOCCaPy/design_docs/__marimo__/
 
 MOCCaPy/mocca/data/parameterizations
 MOCCaPy/scripts/Ca40.f90/BSkG1.param

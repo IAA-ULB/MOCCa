@@ -1,6 +1,7 @@
 r"""
 This module is meant to solve the 3D Poisson equation arising in MOCCaPy.
 It is built after `shenfun/demos/poisson3D.py`
+It is not satisfying ... rmse is high
 """
 import os
 import sympy as sp

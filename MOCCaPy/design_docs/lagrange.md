@@ -198,8 +198,10 @@ $$
 $$
 If we divide $\mathbf{D}$ in 4 $N \times N$ quadrants:
 $$\mathbf{D}
-= \begin{bmatrix}\mathbf{D}^\mathrm{ul}&\mathbf{D}^\mathrm{ur}\\
-\mathbf{D}^\mathrm{ll}&\mathbf{D}^\mathrm{lr}\end{bmatrix}$$
+= \begin{bmatrix}
+\mathbf{D}^\mathrm{ul} & \mathbf{D}^\mathrm{ur}\\
+\mathbf{D}^\mathrm{ll} & \mathbf{D}^\mathrm{lr}
+\end{bmatrix}$$
 $$\begin{bmatrix}\mathbf{D^+\begin{bmatrix}\mathbf{\pm g}\\
 \mathbf{h}\end{bmatrix}}\end{bmatrix}_i
 =\pm\sum_{l=0}^{N-1}D_{il}^\mathrm{ll}h_{N-1-l}
@@ -407,3 +409,4 @@ Timer(new: count=1, min=0.007518166996305808, max=0.007518166996305808)
 ------------------------------ Finished test_LagrangeMesh_interpolate3D_bell
 
 ```
+

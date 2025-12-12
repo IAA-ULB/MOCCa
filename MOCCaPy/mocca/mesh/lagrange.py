@@ -5,6 +5,11 @@ from numba import guvectorize, float64
 from mocca.mesh.mesh_quantity import MeshQuantity
 from mocca.mesh.lagrange_function import lagrange_function
 
+# TODO: consider https://numpy.org/doc/2.1/reference/generated/numpy.meshgrid.html#numpy-meshgrid
+#       np.meshgrid returns a sequence with a item for each coordinate axis, whereas
+#       create_mesh returns a single array
+#       the main benefit it reduction in code size and readability, the performance improvement
+#       relative to an *entire* MOCCaPy run is marginal.
 
 def create_mesh(g1D):
     """Create a rectangular mesh (1D, 2D, 3D) from 1D arrays with coordinates.
@@ -16,7 +21,7 @@ def create_mesh(g1D):
         an array (order='F)
         if `len(g1D)==1`, g1D[0] is returned
         if `len(g1D)==1`, gxy of shape (nx*ny,2) is returned (Fortran order)
-        if `len(g1D)==3`, g1D[0]zy of shape (nx*ny*nz,3) is returned (Fortran order)
+        if `len(g1D)==3`, gxzy of shape (nx*ny*nz,3) is returned (Fortran order)
     """
     if len(g1D)==3:
         nx = g1D[0].size
@@ -168,9 +173,11 @@ class Mesh:
             if isinstance(reduced, bool):
                 reduced = self.dim * (reduced,)
             else:
-                raise ValueError("`reduced` parameter must be an bool or a tuple of bools (got {reduced=}).")
+                raise ValueError(f"`reduced` parameter must be an bool or a tuple of bools (got {reduced=}).")
 
         self.reduced = reduced
+
+        self.N = [ M//2 if r else M for M,r in zip(self.M,self.reduced)]
 
         # Compute dv, the integration volume per mesh point.
         self.dv = np.prod(self.d) * 2 ** self.reduced.count(True)
@@ -182,7 +189,6 @@ class Mesh:
     def _initialize_gridpoints(self, **kwargs):
         raise NotImplementedError
 
-
 class LagrangeMesh(Mesh):
     """
     Attributes:
@@ -192,6 +198,7 @@ class LagrangeMesh(Mesh):
                        shift:tuple|float=.0,
                        bc:str='antiperiodic',
                        highest_derivative_order:int=2,
+                       collect_boundary_points:bool=False,
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
@@ -242,6 +249,9 @@ class LagrangeMesh(Mesh):
 
         self._setup_D_matrices(highest_derivative_order)
 
+        if collect_boundary_points:
+            self.collect_boundary_points()
+
     def _initalize_gridpoints(self) -> None:
         # initialize grid points:
         start = self.dim*[.0]
@@ -290,6 +300,96 @@ class LagrangeMesh(Mesh):
 
         self.mesh_shape   = self.gridx.shape
         self.linear_size = int(np.prod(self.mesh_shape))
+
+    def collect_boundary_points(self):
+        """Collect and store the boundary points of this mesh. Reduced axes have only boundary points
+        on the right side. (Points are ordered in the Fortran way, i.e. left-most indices
+        vary faster. Needs to be called only once
+
+        Returns:
+            bp_l, bp_ijk, bp_xyz:
+                bp_l: linear index of the boundary points, shape (n,)
+                bp_ijk: grid indices of  the boundary points, shape (n, self.dim)
+                bp_xyz: coordinates of the boundary points, shape (n, self.dim)
+        """
+        if self.dim == 3:
+            # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
+            lx = self.M[0] // 2 - 1
+            ly = self.M[1] // 2 - 1
+            lz = self.M[2] // 2 - 1
+            x_boundary = [[lx,iy,iz] for iz in range(lz+1) for iy in range(ly+1)]
+            y_boundary = [[ix,ly,iz] for iz in range(lz+1) for ix in range(lx)  ]
+            z_boundary = [[ix,iy,lz] for iy in range(ly)   for ix in range(lx)  ]
+            boundary = []
+            boundary.extend(x_boundary)
+            boundary.extend(y_boundary)
+            boundary.extend(z_boundary)
+            if not self.reduced[0]:
+                M = self.M[0]
+                halfM = M // 2
+                boundary = [ [bp[0] + halfM, bp[1], bp[2]] for bp in boundary ]
+                # mirror x
+                mirror   = [ [M - bp[0] - 1, bp[1], bp[2]] for bp in boundary]
+                boundary.extend(mirror)
+
+            if not self.reduced[1]:
+                M = self.M[1]
+                halfM = M // 2
+                boundary = [ [bp[0], bp[1] + halfM, bp[2]] for bp in boundary ]
+                # mirror x
+                mirror   = [ [bp[0], M - bp[1] - 1, bp[2]] for bp in boundary]
+                boundary.extend(mirror)
+
+            if not self.reduced[2]:
+                M = self.M[2]
+                halfM = M // 2
+                boundary = [ [bp[0], bp[1], bp[2] + halfM] for bp in boundary ]
+                # mirror x
+                mirror   = [ [bp[0], bp[1], M - bp[2] - 1] for bp in boundary]
+                boundary.extend(mirror)
+
+            self.bp_ijk = np.array(boundary, order='F')
+
+            self.bp_l   = self.bp_ijk[:, 0] \
+                        + self.bp_ijk[:, 1] * self.N[0] \
+                        + self.bp_ijk[:, 2] * self.N[0] * self.N[1]
+            self.bp_xyz = self.grid[self.bp_l, :]
+
+        elif self.dim == 2:
+            # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
+            lx = self.M[0] // 2 - 1
+            ly = self.M[1] // 2 - 1
+            x_boundary = [[lx,iy] for iy in range(ly)]   # [lx, ly] not included
+            y_boundary = [[ix,ly] for ix in range(lx+1)] # [lx, ly]     included
+            boundary = []
+            boundary.extend(x_boundary)
+            boundary.extend(y_boundary)
+            if not self.reduced[0]:
+                M = self.M[0]
+                halfM = M // 2
+                boundary = [ [bp[0] + halfM, bp[1]] for bp in boundary ]
+                # mirror x
+                mirror   = [ [M - bp[0] - 1, bp[1]] for bp in boundary]
+                boundary.extend(mirror)
+
+            if not self.reduced[1]:
+                M = self.M[1]
+                halfM = M // 2
+                boundary = [ [bp[0], bp[1] + halfM] for bp in boundary ]
+                # mirror x
+                mirror   = [ [bp[0], M - bp[1] - 1] for bp in boundary]
+                boundary.extend(mirror)
+
+            self.bp_ijk = np.array(boundary, order='F')
+            self.bp_l   = self.bp_ijk[:,0] + self.N[0]*self.bp_ijk[:,1]
+            self.bp_xyz = self.grid[self.bp_l, :]
+
+        else: # self.dim == 1
+            last = self.N[0] - 1
+            self.bp_l   = np.array([   last,]) if self.reduced[0] else \
+                          np.array([0, last,])
+            self.bp_ijk = self.bp_l
+            self.bp_xyz = self.g1D[0][self.bp_l]
 
 
     def __repr__(self):
