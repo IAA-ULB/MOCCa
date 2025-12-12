@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import sympy
 
-from mocca.mean_field.solvers.poisson3D import poisson3D
+from mocca.mean_field.solvers.shenfun_poisson3D import poisson3D
 from mocca.mesh import LagrangeMesh, MeshQuantity
 from mocca.util.timer import Timer
 

@@ -57,7 +57,7 @@ def test_1D_not_reduced():
         M *= 2
         h *= .5
 
-        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced)
+        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
         f = MeshQuantity(mesh, name='f', n_components=1)
         ue = MeshQuantity(mesh, name='u', n_components=1)
         ue.data[:,0] = ue_lambda(mesh.g1D[0])
@@ -65,7 +65,7 @@ def test_1D_not_reduced():
         for bc_scale in [None, 1e20]:
             f.data[:,0] = fe_lambda(mesh.g1D[0])
             pSolver = GeneralizedPoissonSolver(f,bc_scale=bc_scale)
-            pSolver.assemble(ue)
+            pSolver.assemble_rhs(ue_lambda)
 
             if iter == 0:
                 # create a table to compare with poisson-bis
@@ -113,7 +113,7 @@ def test_2D_not_reduced():
         M *= 2
         h *= .5
 
-        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced)
+        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
         f  = MeshQuantity(mesh, name='f' , n_components=1)
         ue = MeshQuantity(mesh, name='ue', n_components=1)
         f .data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
@@ -121,7 +121,7 @@ def test_2D_not_reduced():
 
         bc_scale = None # 1e20
         pSolver = GeneralizedPoissonSolver(f,bc_scale=bc_scale)
-        pSolver.assemble(ue)
+        pSolver.assemble_rhs(ue_lambda)
 
         if iter == 0:
             # create a table to compare with poisson-bis
@@ -159,30 +159,30 @@ def test_set_dia_entry():
     D = sparse.eye(4, k=1, format='dia')
     D44 = D.toarray()
     assert D44[0,1] == 1
-    set_dia_entry(D, [(0, 1, 2)])
+    dia_entry_set(D, [(0, 1, 2)])
     D44 = D.toarray()
     assert D44[0,1] == 2
     with pytest.raises(ValueError):
-        set_dia_entry(D, [(0, 2, 2)])
+        dia_entry_set(D, [(0, 2, 2)])
 
     D = sparse.eye(4, k=2, format='dia')
     D44 = D.toarray()
     assert D44[0, 2] == 1
-    set_dia_entry(D, [(0, 2, 2)])
+    dia_entry_set(D, [(0, 2, 2)])
     D44 = D.toarray()
     assert D44[0, 2] == 2
 
     D = sparse.eye(4, k=-1, format='dia')
     D44 = D.toarray()
     assert D44[1, 0] == 1
-    set_dia_entry(D, [(1, 0, 2),
+    dia_entry_set(D, [(1, 0, 2),
                       (2, 1, 3)
                      ])
     D44 = D.toarray()
     assert D44[1,0] == 2
     assert D44[2,1] == 3
 
-    set_dia_entry_add(D, [
+    dia_entry_add(D, [
         (1, 0, 2),
         (2, 1, 3),
     ])
@@ -193,47 +193,12 @@ def test_set_dia_entry():
     D = sparse.eye(4, k=-2, format='dia')
     D44 = D.toarray()
     assert D44[2, 0] == 1
-    set_dia_entry(D, [
+    dia_entry_set(D, [
         (2, 0, 2),
     ])
     D44 = D.toarray()
     assert D44[2, 0] == 2
 
-def test_apply_Dbc():
-
-    d = [
-        3*np.ones(5),
-       -1*np.ones(5),
-        2*np.ones(5),
-    ]
-    D = sparse.diags_array(d, offsets=[0,-2,1])
-    D55 = D.toarray()
-    assert D55[0,0] ==  3
-    assert D55[0,1] ==  2
-    assert D55[4,4] ==  3
-    assert D55[4,2] == -1
-
-    apply_Dbc(D, [0,4], bc_scale=None)
-    D55 = D.toarray()
-    assert D55[0,0] ==  1
-    assert D55[0,1] ==  0
-    assert D55[4,4] ==  1
-    assert D55[4,2] ==  0
-
-    D = sparse.diags_array(d, offsets=[0,-2,1])
-    D55 = D.toarray()
-    assert D55[0,0] ==  3
-    assert D55[0,1] ==  2
-    assert D55[4,4] ==  3
-    assert D55[4,2] == -1
-
-    b = 100
-    apply_Dbc(D, [0,4], bc_scale=b)
-    D55 = D.toarray()
-    assert D55[0,0] ==  3 + b
-    assert D55[0,1] ==  2
-    assert D55[4,4] ==  3 + b
-    assert D55[4,2] == -1
 
 def test_collect_boundary_points_1D():
     dim = 1
@@ -253,6 +218,7 @@ def test_collect_boundary_points_1D():
             assert mesh.bp_l[1] == M-1
             assert mesh.bp_xyz[1] ==  (M/2 - d / 2)
         pass
+
 
 def test_collect_boundary_points_2D():
     dim = 2

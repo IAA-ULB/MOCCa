@@ -312,6 +312,10 @@ class LagrangeMesh(Mesh):
                 bp_ijk: grid indices of  the boundary points, shape (n, self.dim)
                 bp_xyz: coordinates of the boundary points, shape (n, self.dim)
         """
+        if hasattr(self, 'bpl'):
+            # already called
+            return
+
         if self.dim == 3:
             # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
             lx = self.M[0] // 2 - 1

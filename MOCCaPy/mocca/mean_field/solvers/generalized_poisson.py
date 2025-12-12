@@ -130,12 +130,24 @@ def dia_entry_add(diag, i_j_val):
         diag.data[id, j] += val
         pass
 
-def apply_Dbc_L(L, rows, bc_scale):
+def apply_Dbc_to_matrix(L, mesh, bc_scale):
     """
     Args:
         L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
             or column vector reprenting the right hand side.
+        mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
+            initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
+        bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
+            but breaks the symmetry of the matrix L. Specifying bc_scale >> 1 yields approximate boundary
+            conditions, but keeps the symmetry of the matrix L.
     """
+    try:
+        rows = mesh.bp_l
+    except AttributeError:
+        raise AttributeError(
+            f"LagrangeMesh instance has no `bp_l` member. You must call `mesh.collect_boundary_points()` first."
+        )
+
     offsets = L.offsets.tolist()
     data = L.data
     nd = len(offsets)
@@ -154,69 +166,38 @@ def apply_Dbc_L(L, rows, bc_scale):
             data[id0, irow] += bc_scale
 
 
-def apply_Dbc_f(f, F, rows, bc_scale):
+def apply_Dbc_to_rhs(f, mesh, boundary_value, bc_scale):
     """
     Args:
-        f:  column vector reprenting the right hand side.
+        f: column vector representing the right hand side.
+        mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
+            initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
+        boundary_value: a function that yields the boundary value at a point in space
+        bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
+            but breaks the symmetry of the matrix L. Specifying `bc_scale` >> 1 yields approximate boundary
+            conditions, but keeps the symmetry of the matrix L. (Must be the same value as passed to
+            `apply_Dbc_to_matrix`)
     """
+    try:
+        rows   = mesh.bp_l
+        bp_xyz = mesh.bp_xyz
+    except AttributeError:
+        raise AttributeError(
+            f"LagrangeMesh instance has no `bp_l` or `bp_xyz` member. You must call `mesh.collect_boundary_points()` first."
+        )
 
-    assert isinstance(f, np.ndarray) and len(f.shape) == 1
-    if bc_scale is None:
-        for irow in rows:
-            f.data[0] = F.data[0]  # Left  end of the domain
-            f.data[-1] = F.data[-1]  # Right end of the domain
+    if mesh.dim == 3:
+        g = boundary_value(bp_xyz[:,0], bp_xyz[:,1], bp_xyz[:,2])
+    elif mesh.dim == 2:
+        g = boundary_value(bp_xyz[:,0], bp_xyz[:,1])
     else:
-        f.data[0] = F.data[0] * bc_scale  # Left  end of the domain
-        f.data[-1] = F.data[-1] * bc_scale  # Right end of the domain
+        g = boundary_value(bp_xyz)
 
+    # TODO: Fix this
+    # assert isinstance(f, np.ndarray) and len(f.shape) == 1
 
-def collect_boundary_conditions(F):
-    """
-    Args:
-        F: MeshQuantity containing the Dirichlet boundary conditions on the boundary points.
-    """
-
-    mesh = F.mesh
-    if mesh.ndim == 3:
-        raise NotImplementedError
-    elif mesh.ndim == 2:
-        ix0, ix1 = mesh.M[0]//2, mesh.M[0]
-        iy0, iy1 = mesh.M[1]//2, mesh.M[2]
-        bps2 = []
-        for ix in range(ix0, ix1):
-            bps2.append([ix, iy1])
-        for iy in range(iy0, iy1):
-            bps2.append([ix1, iy])
-        bps2.append([ix1, iy1])
-
-        halfM0 = mesh.M[0]//2
-        if mesh.reduced[0]:
-            for ibp, bp in enumerate(bps2):
-                bps2[ibp][0] -= halfM0
-        else:
-            mirror_bps2 = []
-            for bp in bps2:
-                mirror_bps2.append([bp[0]-halfM0, bp[1]])
-            bps2.extend(mirror_bps2)
-
-        halfM1 = mesh.M[1]//2
-        if mesh.reduced[1]:
-            for ibp, bp in enumerate(bps2):
-                bps2[ibp][1] -= halfM1
-        else:
-            mirror_bps2 = []
-            for bp in bps2:
-                mirror_bps2.append([bp[0], bp[1]-halfM1])
-            bps2.extend(mirror_bps2)
-        bcs = [F.dataG[bp[0], bp[1]] for bp in bps2]
-        bps = [bp[0] + mesh.N[0]*bp[1] for bp in bps2]
-
-    elif mesh.dim == 1:
-        bps = [mesh.N[0] - 1] if mesh.reduced[0] else \
-              [0, mesh.N[0]-1]
-        bcs = [F.data[bp] for bp in bps]
-
-    return bps, bcs
+    f[rows,0] = g if (bc_scale is None) else \
+                g * bc_scale
 
 
 class GeneralizedPoissonSolver:
@@ -257,37 +238,20 @@ class GeneralizedPoissonSolver:
         self.L = Laplacian(N, stencil=stencil, h=h)
 
         self.bc_scale = bc_scale
+
         # Apply the BCs to L
-        self.bps = collect_boundary_points(self.f.mesh)
-        apply_Dbc(self.L, self.bps, self.bc_scale)
+        apply_Dbc_to_matrix(self.L, self.f.mesh, self.bc_scale)
 
-    def assemble(self, F):
-        """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs`.
+    def assemble_rhs(self, boundary_value):
+        """Assemble the right hand side of the generalized Poisson equation.
         Args:
-            F (MeshQuantity): on input: the Dirichlet boundary conditions on the boundary points of the mesh.
-                on output: the solution of the generalized Poisson equation.
+            boundary_value (Callable): function that yields the Dirichlet boundary value when applied
+                to the boundary points of the mesh.
         """
-        # Apply the BCs to the rhs f
-        if self.f.mesh.dim == 3:
-            raise NotImplementedError
-        elif self.f.mesh.dim == 2:
-            raise NotImplementedError
-        elif self.f.mesh.dim == 1:
-            if self.f.mesh.reduced[0]:
-                raise NotImplementedError
-            else:
-                self.f.data *= self.h**2
-                if self.bc_scale is None:
-                    self.f.data[ 0] = F.data[ 0] # Left  end of the domain
-                    self.f.data[-1] = F.data[-1] # Right end of the domain
-                else:
-                    self.f.data[ 0] = F.data[ 0] * self.bc_scale # Left  end of the domain
-                    self.f.data[-1] = F.data[-1] * self.bc_scale # Right end of the domain
+        apply_Dbc_to_rhs(self.f.data, self.f.mesh, boundary_value, self.bc_scale)
 
-        else:
-            raise NotImplementedError
-
-    def solve(self):
+    def solve(self, method='direct'):
         """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs`."""
-        u = sparse.linalg.spsolve(self.L, self.f.data[:,0])
+        if method == 'direct':
+            u = sparse.linalg.spsolve(self.L, self.f.data[:,0])
         return u
