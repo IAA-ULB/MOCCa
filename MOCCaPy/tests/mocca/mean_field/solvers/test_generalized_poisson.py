@@ -383,3 +383,59 @@ def test_1D_reduced():
     print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
 
 
+@started_finished
+def test_2D_reduced():
+    tbl = []
+
+    reduced = True
+    dim = 2
+    sigma = 2
+    ue_lambda, fe_lambda = gauss(dim=dim, sigma=sigma)
+
+    M = 6
+    h = 1.6
+    for iter in range(10):
+        M *= 2
+        h *= .5
+        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
+        f  = MeshQuantity(mesh, name='f', n_components=1, symmetry=1)
+        ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=1)
+        ue.data[:, 0] = ue_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
+
+        for bc_scale in [None, 1e20]:
+            f.data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
+            pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda, symmetry=1)
+
+            # if iter == 0:
+            #     # create a table to compare with poisson-bis
+            #     t = []
+            #     A = pSolver.L.toarray()
+            #     b = pSolver.f.data[:,0]
+            #     for i in range(M):
+            #         ti = [i]
+            #         for j in range(M):
+            #             ti.append(A[i,j])
+            #         ti.append(b[i])
+            #         t.append(ti)
+
+            u = pSolver.solve()
+            diff = np.abs(ue.data[:,0] - u)
+
+            # if iter == 0:
+            #     for i in range(M):
+            #         t[i].extend([u[i], ue.data[i,0], diff[i]])
+            #     headers = ['i']
+            #     headers.extend([str(i) for i in range(M)])
+            #     headers.extend(['f', 'u', 'ue', 'diff'])
+            #     print(tabulate(t, tablefmt="simple", headers=headers))
+
+            rmse = np.sqrt(np.sum(np.square(diff)) / M)
+            mean_diff = float(np.mean(diff))
+            max_diff = float(np.max(diff))
+            print(f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} ")
+            tbl.append([bc_scale, M, rmse, mean_diff, max_diff])
+
+    print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
+
+

@@ -302,11 +302,25 @@ class GeneralizedPoissonSolver:
         if not isinstance(symmetry, list):
             symmetry = [symmetry] * self.mesh.dim
 
-        if self.mesh.dim == 3:
-            NotImplementedError
+        if self.mesh.dim > 1:
+            offsets = self.L.offsets.tolist()
+            data = self.L.data
+            if self.stencil == 3:
+                for idim in range(3):
+                    rows = self.mesh.sp_l[idim]
+                    if rows is not None:
+                        data[2, rows] += symmetry[idim] # only changes on the main diagonal
 
-        elif self.mesh.dim == 2:
-            NotImplementedError
+            elif self.stencil == 5:
+                # TODO: test this!
+                N = 1
+                for idim in range(3):
+                    rows = self.mesh.sp_l[idim]
+                    if rows is not None:
+                        data[2,                            rows] += symmetry[idim] * 16
+                        data[2+idim, offsets[2+idim] +     rows] -= symmetry[idim]
+                        data[2-idim, offsets[2-idim] + N + rows] -= symmetry[idim]
+                    N *= self.mesh.N[idim]
 
         else: # mesh.dim == 1
             # L[0,0] += symmetry[0]
@@ -317,7 +331,5 @@ class GeneralizedPoissonSolver:
                 self.L.data[0,0] += 16*s_x
                 self.L.data[1,1] += 16-s_x # diagonal  1
                 self.L.data[2,0] += 16-s_x # diagonal -1
-            else:
-                raise NotImplementedError(f"Stencil {self.stencil} is not recognized by PyMOCCa.")
         pass
 

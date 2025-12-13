@@ -402,12 +402,12 @@ class LagrangeMesh(Mesh):
         self.collect_symmetry_points()
 
     def collect_symmetry_points(self):
-        """Collect the points where symmetry must be applied """
-        """The symmetry points of reduced axes are needed by the GeneralizedPoissonSolver.
-        This method collects and stores the symmetry points of this mesh. Points are ordered 
-        in the Fortran way, i.e. left-most indices vary faster. The method needs to be called 
-        only once and is always called by `collect_boundary_methods()`.  It is thus automatically
-        called during `LagrangeMesh.__init__()` when passing `collect_boundary_methods=True`.
+        """Collect the points where symmetry must be applied. The symmetry points of reduced
+        axes are needed by the GeneralizedPoissonSolver. This method collects and stores the
+        symmetry points of this mesh. Points are ordered in the Fortran way, i.e. left-most
+        indices vary faster. The method needs to be called only once and is always called by
+        `collect_boundary_methods()`.  It is thus automatically called during
+        `LagrangeMesh.__init__()` when passing `collect_boundary_methods=True`.
 
         Sets the following attributes:
             self.sp_l  : linear index of the boundary points, shape (n,). The linear index 
@@ -416,39 +416,36 @@ class LagrangeMesh(Mesh):
            ? self.sp_xyz: coordinates of the boundary points, shape (n, self.dim) 
         """
         if any(self.reduced):
+            N0 = self.N[0]
+            N1 = self.N[1]
             if self.dim == 3:
-                ijk = []
-                if self.reduced[0]:
-                    ijk = [[0,j,k] for j in range(self.N[1]-1) for k in range(self.N[2]-1)]
-
-                if self.reduced[1]:
-                    ijk1 = [[i,0,k] for i in range(self.N[0]-1) for k in range(self.N[2]-1)]
-                    ijk.extend(ijk1)
-
-                if self.reduced[2]:
-                    ijk2 = [[i,j,0] for i in range(self.N[0]-1) for j in range(self.N[1]-1)]
-                    ijk.extend(ijk2)
-
-                self.sp_ijk = np.array(ijk, order='F')
-                self.sp_l = self.sp_ijk[:, 0] \
-                          + self.sp_ijk[:, 1] * self.N[0] \
-                          + self.sp_ijk[:, 2] * self.N[0] * self.N[1]
+                N2 = self.N[2]
+                N0N1 = N0 * N1
+                ijk = [
+                    np.array([[0,j,k] for j in range(N1-1) for k in range(N2-1)], order='F') if self.reduced[0] else None,
+                    np.array([[i,0,k] for i in range(N0-1) for k in range(N2-1)], order='F') if self.reduced[1] else None,
+                    np.array([[i,j,0] for i in range(N0-1) for j in range(N1-1)], order='F') if self.reduced[2] else None,
+                ]
+                self.sp_l = [
+                    None if (self.sp_ijk[0] is None) else self.sp_ijk[0][:, 0] + self.sp_ijk[0][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
+                    None if (self.sp_ijk[1] is None) else self.sp_ijk[1][:, 0] + self.sp_ijk[1][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
+                    None if (self.sp_ijk[2] is None) else self.sp_ijk[2][:, 0] + self.sp_ijk[2][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
+                ]
 
             elif self.dim == 2:
-                ijk = []
-                if self.reduced[0]:
-                    ijk = [[0,j] for j in range(self.N[1]-1)]
-
-                if self.reduced[1]:
-                    ijk1 = [[i,0] for i in range(self.N[0]-1)]
-                    ijk.extend(ijk1)
-
-                self.sp_ijk = np.array(ijk, order='F')
-                self.sp_l = self.bp_ijk[:, 0] \
-                          + self.bp_ijk[:, 1] * self.N[0]
+                self.sp_ijk = [
+                    np.array([[0,j] for j in range(N1-1)], order='F') if self.reduced[0] else None,
+                    np.array([[i,0] for i in range(N0-1)], order='F') if self.reduced[1] else None,
+                    None
+                ]
+                self.sp_l = [
+                    None if (self.sp_ijk[0] is None) else self.sp_ijk[0][:, 0] + self.sp_ijk[0][:, 1] * N0,
+                    None if (self.sp_ijk[1] is None) else self.sp_ijk[1][:, 0] + self.sp_ijk[1][:, 1] * N0,
+                    None
+                ]
 
             else: # self.dim == 1:
-                self.sp_l = np.array([0])
+                self.sp_l = [np.array([0]), None, None]
                 self.sp_ijk = self.sp_l
             pass
 
