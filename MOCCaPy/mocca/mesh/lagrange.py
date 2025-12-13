@@ -302,15 +302,18 @@ class LagrangeMesh(Mesh):
         self.linear_size = int(np.prod(self.mesh_shape))
 
     def collect_boundary_points(self):
-        """Collect and store the boundary points of this mesh. Reduced axes have only boundary points
-        on the right side. (Points are ordered in the Fortran way, i.e. left-most indices
-        vary faster. Needs to be called only once
+        """The boundary points are needed by the GeneralizedPoissonSolver. This method collects
+        and stores the boundary points of this mesh. Reduced axes have only boundary points
+        on the right side. Points are ordered in the Fortran way, i.e. left-most indices
+        vary faster. The method needs to be called only once and can be automatically called
+        during `LagrangeMesh.__init__` by passing `collect_boundary_methods=True`.
+        If there are any reduced axes `collect_symmetry_points()` is also called.
 
-        Returns:
-            bp_l, bp_ijk, bp_xyz:
-                bp_l: linear index of the boundary points, shape (n,)
-                bp_ijk: grid indices of  the boundary points, shape (n, self.dim)
-                bp_xyz: coordinates of the boundary points, shape (n, self.dim)
+        Sets the following attributes:
+            self.bp_l  : linear index of the boundary points, shape (n,). The linear index
+                is the row index of L of rows that correspond to boundary points.
+            self.bp_ijk: grid indices of  the boundary points, shape (n, self.dim)
+            self.bp_xyz: coordinates of the boundary points, shape (n, self.dim)
         """
         if hasattr(self, 'bpl'):
             # already called
@@ -385,7 +388,8 @@ class LagrangeMesh(Mesh):
                 boundary.extend(mirror)
 
             self.bp_ijk = np.array(boundary, order='F')
-            self.bp_l   = self.bp_ijk[:,0] + self.N[0]*self.bp_ijk[:,1]
+            self.bp_l   = self.bp_ijk[:,0] \
+                        + self.bp_ijk[:,1] * self.N[0]
             self.bp_xyz = self.grid[self.bp_l, :]
 
         else: # self.dim == 1
@@ -395,6 +399,58 @@ class LagrangeMesh(Mesh):
             self.bp_ijk = self.bp_l
             self.bp_xyz = self.g1D[0][self.bp_l]
 
+        self.collect_symmetry_points()
+
+    def collect_symmetry_points(self):
+        """Collect the points where symmetry must be applied """
+        """The symmetry points of reduced axes are needed by the GeneralizedPoissonSolver.
+        This method collects and stores the symmetry points of this mesh. Points are ordered 
+        in the Fortran way, i.e. left-most indices vary faster. The method needs to be called 
+        only once and is always called by `collect_boundary_methods()`.  It is thus automatically
+        called during `LagrangeMesh.__init__()` when passing `collect_boundary_methods=True`.
+
+        Sets the following attributes:
+            self.sp_l  : linear index of the boundary points, shape (n,). The linear index 
+                is the row index of L of rows that correspond to boundary points.
+            self.sp_ijk: grid indices of  the boundary points, shape (n, self.dim) 
+           ? self.sp_xyz: coordinates of the boundary points, shape (n, self.dim) 
+        """
+        if any(self.reduced):
+            if self.dim == 3:
+                ijk = []
+                if self.reduced[0]:
+                    ijk = [[0,j,k] for j in range(self.N[1]-1) for k in range(self.N[2]-1)]
+
+                if self.reduced[1]:
+                    ijk1 = [[i,0,k] for i in range(self.N[0]-1) for k in range(self.N[2]-1)]
+                    ijk.extend(ijk1)
+
+                if self.reduced[2]:
+                    ijk2 = [[i,j,0] for i in range(self.N[0]-1) for j in range(self.N[1]-1)]
+                    ijk.extend(ijk2)
+
+                self.sp_ijk = np.array(ijk, order='F')
+                self.sp_l = self.sp_ijk[:, 0] \
+                          + self.sp_ijk[:, 1] * self.N[0] \
+                          + self.sp_ijk[:, 2] * self.N[0] * self.N[1]
+
+            elif self.dim == 2:
+                ijk = []
+                if self.reduced[0]:
+                    ijk = [[0,j] for j in range(self.N[1]-1)]
+
+                if self.reduced[1]:
+                    ijk1 = [[i,0] for i in range(self.N[0]-1)]
+                    ijk.extend(ijk1)
+
+                self.sp_ijk = np.array(ijk, order='F')
+                self.sp_l = self.bp_ijk[:, 0] \
+                          + self.bp_ijk[:, 1] * self.N[0]
+
+            else: # self.dim == 1:
+                self.sp_l = np.array([0])
+                self.sp_ijk = self.sp_l
+            pass
 
     def __repr__(self):
         reduced = ''.join(['T' if r else 'F' for r in self.reduced])

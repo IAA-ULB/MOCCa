@@ -1,6 +1,7 @@
 """
 Solve the generalized Poisson equation
 
+
 $$
 ( a \Delta + b ) F(r) = f(r)
 $$
@@ -133,111 +134,7 @@ def dia_entry_add(diag, i_j_val):
         diag.data[id, j] += val
         pass
 
-def apply_Dbc_to_matrix(L, mesh, bc_scale):
-    """
-    Args:
-        L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
-            or column vector representing the right hand side.
-        mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
-            initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
-        bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
-            but breaks the symmetry of the matrix L. Specifying bc_scale >> 1 yields approximate boundary
-            conditions, but keeps the symmetry of the matrix L.
-    """
-    try:
-        rows = mesh.bp_l
-    except AttributeError:
-        raise AttributeError(
-            f"LagrangeMesh instance has no `bp_l` member. You must call `mesh.collect_boundary_points()` first."
-        )
 
-    offsets = L.offsets.tolist()
-    data = L.data
-    nd = len(offsets)
-    ld = data.shape[1]
-    if bc_scale is None:
-        # set 0-th diagonal to 1 and all others to zero
-        for irow in rows:
-            for io ,o in enumerate(offsets):
-                if o == 0:
-                    data[io, irow] = 1
-                elif 0 <= irow + o < ld:
-                    data[io, irow + o] = 0
-    else:
-        id0 = offsets.index(0)
-        for irow in rows:
-            data[id0, irow] += bc_scale
-
-
-def apply_Dbc_to_rhs(f, mesh, boundary_value, bc_scale):
-    """
-    Args:
-        f: column vector representing the right hand side.
-        mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
-            initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
-        boundary_value: a function that yields the boundary value at a point in space
-        bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
-            but breaks the symmetry of the matrix L. Specifying `bc_scale` >> 1 yields approximate boundary
-            conditions, but keeps the symmetry of the matrix L. (Must be the same value as passed to
-            `apply_Dbc_to_matrix`)
-    """
-    try:
-        rows   = mesh.bp_l
-        bp_xyz = mesh.bp_xyz
-    except AttributeError:
-        raise AttributeError(
-            f"LagrangeMesh instance has no `bp_l` or `bp_xyz` member. You must call `mesh.collect_boundary_points()` first."
-        )
-
-    if mesh.dim == 3:
-        g = boundary_value(bp_xyz[:,0], bp_xyz[:,1], bp_xyz[:,2])
-    elif mesh.dim == 2:
-        g = boundary_value(bp_xyz[:,0], bp_xyz[:,1])
-    else:
-        g = boundary_value(bp_xyz)
-
-    # TODO: Fix this
-    # assert isinstance(f, np.ndarray) and len(f.shape) == 1
-
-    f[rows,0] = g if (bc_scale is None) else \
-                g * bc_scale
-
-def apply_symmetry_to_matrix(L, mesh, stencil, symmetry):
-    """
-    Args:
-        L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
-            or column vector representing the right hand side.
-        mesh: LagrangeMesh for which L was constructed
-        symmetry (list[int]): the symmetry components of the solution
-        stencil: stencil used for L, 3-point or 5-point per dimension
-    """
-    if symmetry is None:
-        raise ValueError("The symmetry components of the solution must be specified.")
-
-    if symmetry not in  [1,-1]:
-        raise ValueError("The symmetry components of the solution must be 1 or -1.")
-
-    if not isinstance(symmetry, list):
-        symmetry = [symmetry]*mesh.dim
-
-    if mesh.dim == 3:
-        NotImplementedError
-
-    elif mesh.dim == 2:
-        NotImplementedError
-
-    else: # mesh.dim == 1
-        # L[0,0] += symmetry[0]
-        s_x = symmetry[0]
-        if stencil == 3:
-            L.data[0,0] += s_x
-        elif stencil == 5:
-            L.data[0,0] += 16*s_x
-            L.data[1,1] += 16-s_x # diagonal  1
-            L.data[2,0] += 16-s_x # diagonal -1
-        else:
-            raise NotImplementedError(f"Stencil {stencil} is not recognized by PyMOCCa.")
-    pass
 
 class GeneralizedPoissonSolver:
     """
@@ -286,7 +183,7 @@ class GeneralizedPoissonSolver:
         self.bc_scale = bc_scale
 
         # Apply the Dirichlet boundary conditions to L
-        apply_Dbc_to_matrix(self.L, self.mesh, self.bc_scale)
+        self.apply_Dbc_to_matrix()
 
 
     def assemble(self, f, boundary_value, symmetry=None):
@@ -310,15 +207,15 @@ class GeneralizedPoissonSolver:
             else:
                 self.L = self.L0.copy()
 
-            apply_symmetry_to_matrix(self.L, self.mesh, self.stencil, symmetry)
+            self.apply_symmetry_to_matrix(symmetry)
 
         if self.h is not None:
             f.data[:,0] *= self.h**2
 
-        apply_Dbc_to_rhs(f.data, f.mesh, boundary_value, self.bc_scale)
+        self.f = f
+        self.apply_Dbc_to_rhs(boundary_value)
 
         self.L = self.L.tocsr()  # diagonal format raises SparseEfficiencyWarning
-        self.f = f
 
 
     def solve(self, method='direct'):
@@ -326,3 +223,101 @@ class GeneralizedPoissonSolver:
         if method == 'direct':
             u = sparse.linalg.spsolve(self.L, self.f.data[:,0])
         return u
+
+    def apply_Dbc_to_matrix(self):
+        """
+        """
+        try:
+            rows = self.mesh.bp_l
+        except AttributeError:
+            raise AttributeError(
+                f"LagrangeMesh instance has no `bp_l` member. You must call `mesh.collect_boundary_points()` first."
+            )
+
+        offsets = self.L.offsets.tolist()
+        data = self.L.data
+        nd = len(offsets)
+        ld = data.shape[1]
+        if self.bc_scale is None:
+            # set 0-th diagonal to 1 and all others to zero
+            for irow in rows:
+                for io, o in enumerate(offsets):
+                    if o == 0:
+                        data[io, irow] = 1
+                    elif 0 <= irow + o < ld:
+                        data[io, irow + o] = 0
+        else:
+            id0 = offsets.index(0)
+            for irow in rows:
+                data[id0, irow] += self.bc_scale
+
+    def apply_Dbc_to_rhs(self, boundary_value):
+        """
+        Args:
+            f: column vector representing the right hand side.
+            mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
+                initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
+            boundary_value: a function that yields the boundary value at a point in space
+            bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
+                but breaks the symmetry of the matrix L. Specifying `bc_scale` >> 1 yields approximate boundary
+                conditions, but keeps the symmetry of the matrix L. (Must be the same value as passed to
+                `apply_Dbc_to_matrix`)
+        """
+        try:
+            rows   = self.mesh.bp_l
+            bp_xyz = self.mesh.bp_xyz
+        except AttributeError:
+            raise AttributeError(
+                f"LagrangeMesh instance has no `bp_l` or `bp_xyz` member. You must call `mesh.collect_boundary_points()` first."
+            )
+
+        if self.mesh.dim == 3:
+            g = boundary_value(bp_xyz[:,0], bp_xyz[:,1], bp_xyz[:,2])
+        elif self.mesh.dim == 2:
+            g = boundary_value(bp_xyz[:,0], bp_xyz[:,1])
+        else:
+            g = boundary_value(bp_xyz)
+
+        # TODO: Fix this
+        # assert isinstance(f, np.ndarray) and len(f.shape) == 1
+
+        self.f.data[rows,0] = g if (self.bc_scale is None) else \
+                              g * self.bc_scale
+
+    def apply_symmetry_to_matrix(self, symmetry):
+        """
+        Args:
+            L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
+                or column vector representing the right hand side.
+            mesh: LagrangeMesh for which L was constructed
+            symmetry (list[int]): the symmetry components of the solution
+            stencil: stencil used for L, 3-point or 5-point per dimension
+        """
+        if symmetry is None:
+            raise ValueError("The symmetry components of the solution must be specified.")
+
+        if symmetry not in  [1,-1]:
+            raise ValueError("The symmetry components of the solution must be 1 or -1.")
+
+        if not isinstance(symmetry, list):
+            symmetry = [symmetry] * self.mesh.dim
+
+        if self.mesh.dim == 3:
+            NotImplementedError
+
+        elif self.mesh.dim == 2:
+            NotImplementedError
+
+        else: # mesh.dim == 1
+            # L[0,0] += symmetry[0]
+            s_x = symmetry[0]
+            if self.stencil == 3:
+                self.L.data[0,0] += s_x
+            elif self.stencil == 5:
+                self.L.data[0,0] += 16*s_x
+                self.L.data[1,1] += 16-s_x # diagonal  1
+                self.L.data[2,0] += 16-s_x # diagonal -1
+            else:
+                raise NotImplementedError(f"Stencil {self.stencil} is not recognized by PyMOCCa.")
+        pass
+
