@@ -11,6 +11,8 @@ using the Finite Difference Method.
 import numpy as np
 import scipy.sparse as sparse
 
+from src_heph.heph_symmetries import symmetry
+
 
 def Laplacian1D(n, stencil=3, h=None):
     """Construct 1D Laplacian matrix for a grid with n points.
@@ -135,7 +137,7 @@ def apply_Dbc_to_matrix(L, mesh, bc_scale):
     """
     Args:
         L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
-            or column vector reprenting the right hand side.
+            or column vector representing the right hand side.
         mesh: LagrangeMesh instance that provides `bpl` member: linear indices of boundary points. You must
             initialize mesh with `collect_boundary_points=True` or explicitly call `mesh.collect_boundary_points()`.
         bc_scale: scaling factor for boundary conditions, specifying None yields exact boundary conditions,
@@ -200,13 +202,57 @@ def apply_Dbc_to_rhs(f, mesh, boundary_value, bc_scale):
     f[rows,0] = g if (bc_scale is None) else \
                 g * bc_scale
 
+def apply_symmetry_to_matrix(L, mesh, stencil, symmetry):
+    """
+    Args:
+        L: dia_array representing the Laplacian to which to apply Dirichlet boundary conditions,
+            or column vector representing the right hand side.
+        mesh: LagrangeMesh for which L was constructed
+        symmetry (list[int]): the symmetry components of the solution
+        stencil: stencil used for L, 3-point or 5-point per dimension
+    """
+    if symmetry is None:
+        raise ValueError("The symmetry components of the solution must be specified.")
+
+    if symmetry not in  [1,-1]:
+        raise ValueError("The symmetry components of the solution must be 1 or -1.")
+
+    if not isinstance(symmetry, list):
+        symmetry = [symmetry]*mesh.dim
+
+    if mesh.dim == 3:
+        NotImplementedError
+
+    elif mesh.dim == 2:
+        NotImplementedError
+
+    else: # mesh.dim == 1
+        # L[0,0] += symmetry[0]
+        s_x = symmetry[0]
+        if stencil == 3:
+            L.data[0,0] += s_x
+        elif stencil == 5:
+            L.data[0,0] += 16*s_x
+            L.data[1,1] += 16-s_x # diagonal  1
+            L.data[2,0] += 16-s_x # diagonal -1
+        else:
+            raise NotImplementedError(f"Stencil {stencil} is not recognized by PyMOCCa.")
+    pass
 
 class GeneralizedPoissonSolver:
     """
     This class solves the generalized Poisson equation
     """
-    def __init__(self, f, a=1, b=0, stencil=3, bc_scale=None):
+    # TODO: test non-uniform spacing
+    # TODO: implement reduced axes
+    # TODO: test 5 point stencil
+    # TODO: implement generalized poisson
+
+    def __init__(self, mesh, stencil=3, bc_scale=None):
         """
+        This solver depends only on the mesh, the stencil and the way it treats Dirichlet boundary condition
+        (`bc_scale`). The right hand side only appears when calling `assemble`.
+
         Args:
             f (MeshQuantity): right hand side of the generalized Poisson equation.
             a, b (float) parameters of the generalized Poisson equation.
@@ -216,13 +262,12 @@ class GeneralizedPoissonSolver:
                 Otherwise the diagonal elements of the boundary rows of the matrix are incremented by bc_scale
                 (>>1) and the rhs entries is set equal to the boundary value times bc_scale.
         """
-        self.f = f
-        self.a = a # TODO: poisson -> generalized poisson
-        self.b = b # TODO: poisson -> generalized poisson
+        self.mesh = mesh
+        self.stencil = stencil
 
-        dim = self.f.mesh.dim
-        N = self.f.mesh.N
-        h = self.f.mesh.d
+        dim = self.mesh.dim
+        N = self.mesh.N
+        h = self.mesh.d
         for hi in h[1:dim]:
             if h[0] != hi:
                 break
@@ -240,19 +285,41 @@ class GeneralizedPoissonSolver:
 
         self.bc_scale = bc_scale
 
-        # Apply the BCs to L
-        apply_Dbc_to_matrix(self.L, self.f.mesh, self.bc_scale)
-        self.L = self.L.tocsr()
+        # Apply the Dirichlet boundary conditions to L
+        apply_Dbc_to_matrix(self.L, self.mesh, self.bc_scale)
 
-    def assemble_rhs(self, boundary_value):
-        """Assemble the right hand side of the generalized Poisson equation.
+
+    def assemble(self, f, boundary_value, symmetry=None):
+        """Assemble the equations. This involves treating reduced axes and applying the Dirichlet
+        boundary conditions to the rhs.
+
         Args:
+            f (MeshQuantity): right hand side of the generalized Poisson equation.
             boundary_value (Callable): function that yields the Dirichlet boundary value when applied
                 to the boundary points of the mesh.
+            symmetry (list[int]): the symmetry components of the solution
         """
+        assert f.mesh == self.mesh
+
+        # treat reduced axes
+        if any(f.mesh.reduced):
+            # If we need to solve the Poisson equation for more problems with different symmetry,
+            # it is better to keep a copy of L
+            if not hasattr(self, 'L0'):
+                self.L0 = self.L.copy()
+            else:
+                self.L = self.L0.copy()
+
+            apply_symmetry_to_matrix(self.L, self.mesh, self.stencil, symmetry)
+
         if self.h is not None:
-            self.f.data[:,0] *= self.h**2
-        apply_Dbc_to_rhs(self.f.data, self.f.mesh, boundary_value, self.bc_scale)
+            f.data[:,0] *= self.h**2
+
+        apply_Dbc_to_rhs(f.data, f.mesh, boundary_value, self.bc_scale)
+
+        self.L = self.L.tocsr()  # diagonal format raises SparseEfficiencyWarning
+        self.f = f
+
 
     def solve(self, method='direct'):
         """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs`."""

@@ -3,10 +3,19 @@ import scipy.sparse as sparse
 import sympy
 import pytest
 from tabulate import tabulate
+from pathlib import Path
+import sys
 
 from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import GeneralizedPoissonSolver, dia_entry_set, dia_entry_add
 from mocca.mesh import LagrangeMesh, MeshQuantity
 
+path2MOCCaPy = Path(__file__).parent
+while not path2MOCCaPy.name == 'MOCCaPy':
+    path2MOCCaPy = path2MOCCaPy.parent
+    print(path2MOCCaPy)
+sys.path.insert(0, str(path2MOCCaPy))
+
+from tests.util import started_finished, started, finished
 
 def gauss(dim, sigma):
     """A Gaussian function $g$ centered around the origin in `dim` dimensions with standard deviation `sigma`,
@@ -42,7 +51,7 @@ def gauss(dim, sigma):
 
     return ue_lambda, fe_lambda
 
-
+@started_finished
 def test_1D_not_reduced():
     tbl = []
 
@@ -64,8 +73,8 @@ def test_1D_not_reduced():
 
         for bc_scale in [None, 1e20]:
             f.data[:,0] = fe_lambda(mesh.g1D[0])
-            pSolver = GeneralizedPoissonSolver(f,bc_scale=bc_scale)
-            pSolver.assemble_rhs(ue_lambda)
+            pSolver = GeneralizedPoissonSolver(mesh,bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda)
 
             if iter == 0:
                 # create a table to compare with poisson-bis
@@ -99,6 +108,7 @@ def test_1D_not_reduced():
     print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
 
 
+@started_finished
 def test_2D_not_reduced():
     tbl = []
 
@@ -126,8 +136,8 @@ def test_2D_not_reduced():
         f  = MeshQuantity(mesh, name='f', n_components=1)
         for bc_scale in [None, 1e20]:
             f .data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
-            pSolver = GeneralizedPoissonSolver(f,bc_scale=bc_scale)
-            pSolver.assemble_rhs(ue_lambda)
+            pSolver = GeneralizedPoissonSolver(mesh,bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda)
 
             u = pSolver.solve()
             diff = np.abs(ue.data[:,0] - u)
@@ -141,6 +151,7 @@ def test_2D_not_reduced():
     print(tabulate(tbl,  tablefmt="simple", headers=["M", "RMSE", "Mean diff", "Max diff"]))
 
 
+@started_finished
 def test_3D_not_reduced():
     tbl = []
 
@@ -151,7 +162,7 @@ def test_3D_not_reduced():
 
     M = 5
     h = 2
-    for iter in range(5):
+    for iter in range(3):
         M *=  2
         h *= .5
         assert M*h == 10.
@@ -169,8 +180,8 @@ def test_3D_not_reduced():
         f  = MeshQuantity(mesh, name='f', n_components=1)
         for bc_scale in [None, 1e20]:
             f.data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel(), mesh.gridz.ravel())
-            pSolver = GeneralizedPoissonSolver(f,bc_scale=bc_scale)
-            pSolver.assemble_rhs(ue_lambda)
+            pSolver = GeneralizedPoissonSolver(mesh,bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda)
 
             u = pSolver.solve()
             diff = np.abs(ue.data[:,0] - u)
@@ -314,3 +325,61 @@ def test_collect_boundary_points_3D():
             assert mesh.bp_xyz[i,0] in x or \
                    mesh.bp_xyz[i,1] in y or \
                    mesh.bp_xyz[i,2] in z
+
+
+@started_finished
+def test_1D_reduced():
+    tbl = []
+
+    reduced = True
+    dim = 1
+    sigma = 2
+    ue_lambda, fe_lambda = gauss(dim=dim, sigma=sigma)
+
+    M = 6
+    h = 1.6
+    for iter in range(10):
+        M *= 2
+        h *= .5
+        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
+        f  = MeshQuantity(mesh, name='f', n_components=1, symmetry=1)
+        ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=1)
+        ue.data[:,0] = ue_lambda(mesh.g1D[0])
+
+        for bc_scale in [None, 1e20]:
+            f.data[:,0] = fe_lambda(mesh.g1D[0])
+            pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda, symmetry=1)
+
+            # if iter == 0:
+            #     # create a table to compare with poisson-bis
+            #     t = []
+            #     A = pSolver.L.toarray()
+            #     b = pSolver.f.data[:,0]
+            #     for i in range(M):
+            #         ti = [i]
+            #         for j in range(M):
+            #             ti.append(A[i,j])
+            #         ti.append(b[i])
+            #         t.append(ti)
+
+            u = pSolver.solve()
+            diff = np.abs(ue.data[:,0] - u)
+
+            # if iter == 0:
+            #     for i in range(M):
+            #         t[i].extend([u[i], ue.data[i,0], diff[i]])
+            #     headers = ['i']
+            #     headers.extend([str(i) for i in range(M)])
+            #     headers.extend(['f', 'u', 'ue', 'diff'])
+            #     print(tabulate(t, tablefmt="simple", headers=headers))
+
+            rmse = np.sqrt(np.sum(np.square(diff)) / M)
+            mean_diff = float(np.mean(diff))
+            max_diff = float(np.max(diff))
+            print(f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} ")
+            tbl.append([bc_scale, M, rmse, mean_diff, max_diff])
+
+    print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
+
+

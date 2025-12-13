@@ -238,3 +238,56 @@ $$
 L^{3D} = I_{N_z} \otimes I_{N_y} \otimes D_{xx}^{1D} + I_{N_z} \otimes D_{yy}^{1D} \otimes I_{N_x} + D_{zz}^{1D} \otimes I_{N_y} \otimes I_{N_x}
 $$
 There exist implementations for the Kronecker product in Numpy ([`np.kron`](https://numpy.org/doc/2.1/reference/generated/numpy.kron.html#numpy.kron)) and SciPy ([`scipy.sparse.kron`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.kron.html)) 
+
+## Reduced axes
+
+3-point stencil
+$$
+\left. \Delta f(x) \right|_{x = \frac{1}{2} dx} 
+= \frac{
+f(-\frac{1}{2}dx)  - 2f(\frac{1}{2}dx) + f(\frac{3}{2}dx)
+}{2dx} 
+= \frac{
+s_x f(\frac{1}{2}dx) - 2f(\frac{1}{2}dx)  + f(\frac{3}{2}dx) 
+}{2dx}.
+$$
+$$
+= \frac{
+(s_x - 2)f(\frac{1}{2}dx)  + f(\frac{3}{2}dx) 
+}{2dx}.
+$$
+5-point stencil
+$$
+\left. \Delta f(x) \right|_{x = \frac{1}{2} dx} 
+= \frac{
+- f(-\frac{3}{2}dx) + 16f(-\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
+}{2dx} 
+$$
+$$
+= \frac{
+- s_xf(\frac{3}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
+}{2dx}
+$$
+$$
+= \frac{
+(16s_x-30)f(\frac{1}{2}dx) + (16-s_x)f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
+}{2dx} 
+$$
+Also the second point is influenced:
+$$
+\left. \Delta f(x) \right|_{x = \frac{3}{2} dx} 
+= \frac{
+- f(-\frac{1}{2}dx) + 16f(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
+}{2dx} 
+$$
+$$
+= \frac{
+- s_xf(\frac{1}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
+}{2dx}
+$$
+$$
+= \frac{
+(16-s_x)f(\frac{1}{2}dx) -30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
+}{2dx} 
+$$
+and, consequently, $L$ remains a symmetric matrix.
