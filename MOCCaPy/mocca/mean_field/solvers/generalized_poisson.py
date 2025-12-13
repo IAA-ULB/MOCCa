@@ -76,14 +76,15 @@ def Laplacian3D(n, stencil=3, h=None):
         a sparse matrix.
     """
     if h is None:
-        d = sparse.kron(    sparse.eye(n[2]), sparse.kron(    sparse.eye(n[1]), Laplacian1D(stencil, n[0]) )) \
-          + sparse.kron(    sparse.eye(n[2]), sparse.kron(Laplacian1D(stencil, n[1]),     sparse.eye(n[0]) )) \
-          + sparse.kron(Laplacian1D(stencil, n[2]), sparse.kron(    sparse.eye(n[1]),     sparse.eye(n[0]) ))
+        d = sparse.kron( sparse.eye(n[2])          , sparse.kron( sparse.eye(n[1])         , Laplacian1D(n[0], stencil) ), format='dia') \
+          + sparse.kron( sparse.eye(n[2])          , sparse.kron(Laplacian1D(n[1], stencil),  sparse.eye(n[0])          ), format='dia') \
+          + sparse.kron(Laplacian1D(n[2] , stencil), sparse.kron( sparse.eye(n[1])         ,  sparse.eye(n[0])          ), format='dia')
     else:
         d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil, h[0]) )) \
           + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil, h[1]),  sparse.eye(n[0])                )) \
           + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])                ))
     return d
+
 
 def dia_entry_set(diag, i_j_val):
     """Set the [i,j] element of sparse 'dia'-format matrix `diag` to `val`.
@@ -241,6 +242,7 @@ class GeneralizedPoissonSolver:
 
         # Apply the BCs to L
         apply_Dbc_to_matrix(self.L, self.f.mesh, self.bc_scale)
+        self.L = self.L.tocsr()
 
     def assemble_rhs(self, boundary_value):
         """Assemble the right hand side of the generalized Poisson equation.
