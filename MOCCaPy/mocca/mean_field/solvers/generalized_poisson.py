@@ -248,6 +248,8 @@ class GeneralizedPoissonSolver:
             boundary_value (Callable): function that yields the Dirichlet boundary value when applied
                 to the boundary points of the mesh.
         """
+        if self.h is not None:
+            self.f.data[:,0] *= self.h**2
         apply_Dbc_to_rhs(self.f.data, self.f.mesh, boundary_value, self.bc_scale)
 
     def solve(self, method='direct'):
