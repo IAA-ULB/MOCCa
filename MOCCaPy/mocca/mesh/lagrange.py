@@ -1191,7 +1191,7 @@ class LagrangeMesh(Mesh):
     def point_info(self, l):
         """Returns info about a point with linear index `l`.
         For debugging purposes mainnly
-        
+
         Args: l linear index of a mesh point
         Returns:
             "b" if l is a boundary point,
@@ -1202,14 +1202,16 @@ class LagrangeMesh(Mesh):
         if np.count_nonzero(self.bp_l ==l) > 0:
             s = "b "
         else:
+            s = ['x', 'y', 'z'] if self.dim == 3 else \
+                ['x', 'y']      if self.dim == 2 else \
+                ['x']
             for idim in range(self.dim):
-                xyz = "xyz"
-                if self.reduced[0]:
-                    if np.count_nonzero(self.sp_l[0] == l):
-                        s = f"s{xyz[idim]}"
-                        break
-            else:
-                s = "i "
+                if self.reduced[idim]:
+                    if np.count_nonzero(self.sp_l[idim] == l) == 0:
+                        s[idim] = ''
+            s = 's' + ''.join(s)
+            if s == "s":
+                s = "i"
 
         if self.dim == 3:
             k = l // (self.N[0]*self.N[1])
@@ -1224,7 +1226,7 @@ class LagrangeMesh(Mesh):
             ijk = f"[{i},{j}][{self.g1D[0][i]},{self.g1D[1][j]}]"
 
         else:
-            ijk = f"[{i}]"
+            ijk = f"[{l}][{self.gridx[l]}]"
 
         return f"{s}{ijk}"
 

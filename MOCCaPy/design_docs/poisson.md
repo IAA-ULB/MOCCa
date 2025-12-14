@@ -246,15 +246,15 @@ $$
 \left. \Delta f(x) \right|_{x = \frac{1}{2} dx} 
 = \frac{
 f(-\frac{1}{2}dx)  - 2f(\frac{1}{2}dx) + f(\frac{3}{2}dx)
-}{2dx} 
+}{dx^2} 
 = \frac{
 s_x f(\frac{1}{2}dx) - 2f(\frac{1}{2}dx)  + f(\frac{3}{2}dx) 
-}{2dx}.
+}{dx^2}.
 $$
 $$
 = \frac{
 (s_x - 2)f(\frac{1}{2}dx)  + f(\frac{3}{2}dx) 
-}{2dx}.
+}{dx^2}.
 $$
 that is, $s_x$ is added to the midpoint's matrix entry. This is on the main diagonal.
 5-point stencil
@@ -262,17 +262,17 @@ $$
 \left. \Delta f(x) \right|_{x = \frac{1}{2} dx} 
 = \frac{
 - f(-\frac{3}{2}dx) + 16f(-\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{2dx} 
+}{dx^2} 
 $$
 $$
 = \frac{
 - s_xf(\frac{3}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{2dx}
+}{dx^2}
 $$
 $$
 = \frac{
 (16s_x-30)f(\frac{1}{2}dx) + (16-s_x)f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{2dx} 
+}{dx^2} 
 $$
 that is the main diagonal gets an extra $16s_x$ and the +1 diagonal an extra $-s_x$.
 Also the second point is influenced:
@@ -280,16 +280,16 @@ $$
 \left. \Delta f(x) \right|_{x = \frac{3}{2} dx} 
 = \frac{
 - f(-\frac{1}{2}dx) + 16f(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{2dx} 
+}{dx^2} 
 $$
 $$
 = \frac{
 - s_xf(\frac{1}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{2dx}
+}{dx^2}
 $$
 $$
 = \frac{
 (16-s_x)f(\frac{1}{2}dx) -30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{2dx} 
+}{dx^2} 
 $$
 and, consequently, $L$ remains a symmetric matrix, since the -1 diagonal get an extra $-s_x$.

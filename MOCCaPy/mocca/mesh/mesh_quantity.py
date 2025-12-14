@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import ndarray
 
 
 def is_composite(axes:str) -> bool:
@@ -78,17 +79,25 @@ class MeshQuantity:
             self.symmetry = np.zeros((self.n_components, mesh.dim), dtype=np.int32, order='F')
             if isinstance(symmetry, int):
                 self.symmetry[:,:] = symmetry
-            else:
-                if isinstance(symmetry, (tuple,list)):
-                    symmetry = np.array(symmetry, dtype=np.int32)
 
-                if symmetry.shape == (self.n_components, ):
-                    for idim in range(self.mesh.dim):
-                        self.symmetry[:,idim] = symmetry
-                elif symmetry.shape == (self.n_components, mesh.dim):
-                        self.symmetry = symmetry
+            elif isinstance(symmetry, (tuple,list)) and \
+                 len(symmetry) == self.mesh.dim:
+                # Assume same symmetry for all components
+                symmetry = np.array(symmetry, dtype=np.int32)
+                for iq in range(self.n_components):
+                    self.symmetry[iq,:] = symmetry[:]
+
+            elif isinstance(symmetry, np.ndarray):
+                if symmetry.shape == self.symmetry.shape:
+                    self.symmetry = symmetry
+
                 else:
-                    raise ValueError(f"Symmetry: bad {symmetry.shape=}, expecting ({self.n_components=},) or ({self.n_components=},{self.mesh.dim=}).")
+                    raise ValueError(f"Symmetry {symmetry} not understood. Either specify:\n"
+                                     f"  - a single value (+1|-1) -> same symmetry for all {n_components} components\n"
+                                     f"  - a tuple or list of length {mesh.dim=} -> all components have the same symmetry\n"
+                                     f"    behavior on the same axis, but axes may have different symmetry behavior.\n"
+                                     f"  - a numpy.ndarray of shape ({n_components=},{mesh.dim=}) -> each component and\n"
+                                     f"    each axis is explicitly specified.")
 
             assert len(self.symmetry.shape) == 2
 

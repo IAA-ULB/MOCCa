@@ -6,8 +6,16 @@ from tabulate import tabulate
 from pathlib import Path
 import sys
 
-from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import GeneralizedPoissonSolver, dia_entry_set, dia_entry_add
+from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import \
+    GeneralizedPoissonSolver, \
+    Laplacian1D
+from MOCCaPy.scripts.mocca.util import title_line
+# dia_entry_set, dia_entry_add
+
 from mocca.mesh import LagrangeMesh, MeshQuantity
+from mocca.util.timer import Timer
+
+output = open(Path(__file__).parent / "test_generalized_poisson.py.txt", mode="w")
 
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
@@ -25,7 +33,11 @@ def gauss(dim, sigma):
          dim: number of spatial dimensions.
          sigma: standard deviation.
     Returns:
-        ue_lambda, fe_lambda:
+        ue_lambda, fe_lambda, symmetry
+        ue_lambda : function of position in dim-D space which is the analytical solution of the Poisson equation.
+            Used for validating the numerical solution, and for the Dirichlet boundary conditions.
+        fe_lambda : function of position in dim-D space which is the analytical solution of the Poisson equation
+        symmetry: symmetry components of ue and fe:
     """
     sigma2 = sigma**2
 
@@ -49,63 +61,445 @@ def gauss(dim, sigma):
     else:
         raise ValueError(f"dim must be 1, 2, or 3, got {dim}.")
 
-    return ue_lambda, fe_lambda
+    symmetry = 1
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def x_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $x$, and therefor skew-symmetric in the x-direction,
+    adn symmetric in the other directions.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim == 1:
+        ue = x * sympy.exp(-0.5 * (x ** 2) / sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2)
+        ue_lambda = sympy.lambdify([x], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x], fe.simplify(), "numpy")
+        symmetry = -1
+
+    elif dim == 2:
+        ue = x * sympy.exp(-0.5*(x**2 + y**2)/sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2)
+        ue_lambda = sympy.lambdify([x,y], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x,y], fe.simplify(), "numpy")
+        symmetry = (-1,1)
+
+    elif dim == 3:
+        ue = x * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+        ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+        symmetry = (-1, 1, 1)
+
+    else:
+        raise ValueError(f"dim must be 1, 2, or 3, got {dim}.")
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def y_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $y$, and therefor skew-symmetric in the y-direction,
+    adn symmetric in the other directions.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim == 1:
+        raise ValueError(f"y_gauss(x,y[,z]) requires dim to be 2, or 3, got {dim}.")
+
+    elif dim == 2:
+        ue = y * sympy.exp(-0.5*(x**2 + y**2)/sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2)
+        ue_lambda = sympy.lambdify([x,y], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x,y], fe.simplify(), "numpy")
+        symmetry = (1,-1)
+
+    elif dim == 3:
+        ue = y * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+        ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+        symmetry = (1, -1, 1)
+
+    else:
+        raise ValueError(f"dim must be 1, 2, or 3, got {dim}.")
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def z_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $y$, and therefor skew-symmetric in the z-direction,
+    adn symmetric in the other directions.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim !=3 :
+        raise ValueError(f"z_gauss(x,y,z) requires dim to be 3, got {dim}.")
+
+    ue = z * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+    fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+    ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+    fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+    symmetry = (1, 1, -1)
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def xy_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $xy$, and therefor skew-symmetric in the x- and y-direction,
+    adn symmetric in the z-direction.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim == 1:
+        raise ValueError(f"xy_gauss(x,y[,z]) requires dim to be 2, or 3, got {dim}.")
+
+    elif dim == 2:
+        ue = x * y * sympy.exp(-0.5*(x**2 + y**2)/sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2)
+        ue_lambda = sympy.lambdify([x,y], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x,y], fe.simplify(), "numpy")
+        symmetry = (-1,-1)
+
+    elif dim == 3:
+        ue = x * y * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+        ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+        symmetry = (-1, -1, 1)
+
+    else:
+        raise ValueError(f"dim must be 1, 2, or 3, got {dim}.")
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def xz_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $xz$, and therefor skew-symmetric in the x- and z-direction,
+    adn symmetric in the y-direction.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim != 3:
+        raise ValueError(f"xz_gauss(x,y,z) requires dim to be 2, or 3, got {dim}.")
+
+    elif dim == 3:
+        ue = x * z * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+        fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+        ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+        fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+        symmetry = (-1, 1, -1)
+
+    else:
+        raise ValueError(f"dim must be 1, 2, or 3, got {dim}.")
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def yz_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $yz$, and therefor skew-symmetric in the y- and z-direction,
+    and symmetric in the x-direction.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim != 3:
+        raise ValueError(f"xz_gauss(x,y,z) requires dim to be 2, or 3, got {dim}.")
+
+    ue = y * z * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+    fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+    ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+    fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+    symmetry = (1, -1, -1)
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def xyz_gauss(dim, sigma):
+    """A Gauss function $g$ multiplied by $xyz$, and therefor skew-symmetric in all three directions.
+    (and its Laplacian $f = \Delta x g$)
+
+    Args:
+         as for `gauss`
+    Returns:
+         as for `gauss`
+    """
+    sigma2 = sigma**2
+
+    x,y,z = sympy.symbols('x y z', real=True)
+
+    if dim != 3:
+        raise ValueError(f"xz_gauss(x,y,z) requires dim to be 2, or 3, got {dim}.")
+
+    ue = x * y * z * sympy.exp(-0.5 * (x ** 2 + y ** 2 + z ** 2) / sigma2)  # a gaussian curve
+    fe = ue.diff(x, 2) + ue.diff(y, 2) + ue.diff(z, 2)
+    ue_lambda = sympy.lambdify([x, y, z], ue.simplify(), "numpy")
+    fe_lambda = sympy.lambdify([x, y, z], fe.simplify(), "numpy")
+    symmetry = (-1, -1, -1)
+
+    return ue_lambda, fe_lambda, symmetry
+
+
+def run_ND(
+        analytical_solution, sigma,
+        dim, M, h, reduced,
+        bc_scale=None, stencil=3, method='direct',
+        verbosity = 1,
+    ):
+    # Warming up Timer instance
+    tmr = Timer()
+    tmr.start()
+    elapsed = tmr.stop()
+
+    ue_lambda, fe_lambda, symmetry = analytical_solution(dim=dim, sigma=sigma)
+
+    mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
+
+    s = title_line(char='-', width=120)
+    s += f"solution: u(r)={analytical_solution.__name__}, {sigma=}, {symmetry=}\n"
+    s += f"mesh    : {dim=}, {M=}, {h=}, {reduced=}\n"
+    s += f"solver  : {bc_scale=}, {stencil=}, {method=}\n"
+    s += f"linear system : {mesh.linear_size}x{mesh.linear_size}"
+    if verbosity:
+        print(s)
+    print(s, file=output)
+
+    ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=symmetry)
+    ue.data[:,0] = ue_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2]) if (dim == 3) else \
+                   ue_lambda(mesh.grid[:,0], mesh.grid[:,1]) if (dim == 2) else \
+                   ue_lambda(mesh.grid[:])
+
+    f = MeshQuantity(mesh, name='f', n_components=1, symmetry=symmetry)
+    f.data[:, 0] = fe_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2]) if (dim == 3) else \
+                   fe_lambda(mesh.grid[:,0], mesh.grid[:,1]) if (dim == 2) else \
+                   fe_lambda(mesh.grid[:])
+    tmr.start()
+    pSolver = GeneralizedPoissonSolver(mesh, stencil=stencil, bc_scale=bc_scale)
+    pSolver.assemble(f, ue_lambda, symmetry=symmetry)
+    cput_asmbl = tmr.stop()
+
+    if verbosity >= 2:
+        print(pSolver)
+
+    tmr.start()
+    u = pSolver.solve(method=method)
+    cput_solve = tmr.stop()
+
+    diff = np.abs(ue.data[:, 0] - u)
+    rmse = np.sqrt(np.sum(np.square(diff)) / M)
+    mean_diff = float(np.mean(diff))
+    max_diff = float(np.max(diff))
+
+    s = f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} {cput_asmbl:.5f}s {cput_solve:.5f}s"
+    if verbosity:
+        print(s)
+    print(s, file=output)
+
+    return rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u
+
 
 @started_finished
-def test_1D_not_reduced():
+def test_1D():
+    dim = 1
+
+    s = title_line(text='test_1D', char='-', width=120)
+    print(s)
+    print(s, file=output)
+
     tbl = []
 
-    reduced = False
-    dim = 1
     sigma = 2
-    ue_lambda, fe_lambda = gauss(dim=dim, sigma=sigma)
+    for analytical_solution in [gauss, x_gauss]:
 
-    M = 6
-    h = 1.6
-    for iter in range(10):
-        M *= 2
-        h *= .5
+        stencil = 3
+        for reduced in [True, False]:
+            for bc_scale in [None, 1e20]:
+                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                M = 6
+                h = 1.6
+                for iter in range(10):
+                    M *= 2
+                    h *= .5
+                    verbosity = 2 if (iter == 0) else 1
 
-        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
-        f = MeshQuantity(mesh, name='f', n_components=1)
-        ue = MeshQuantity(mesh, name='u', n_components=1)
-        ue.data[:,0] = ue_lambda(mesh.g1D[0])
+                    rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                        analytical_solution=analytical_solution, sigma=sigma,
+                        dim=dim, M=M, h=h, reduced=reduced,
+                        bc_scale=bc_scale, stencil=stencil,
+                        verbosity=verbosity,
+                    )
 
-        for bc_scale in [None, 1e20]:
-            f.data[:,0] = fe_lambda(mesh.g1D[0])
-            pSolver = GeneralizedPoissonSolver(mesh,bc_scale=bc_scale)
-            pSolver.assemble(f, ue_lambda)
+                    tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                    assert rmse < rmse0
+                    assert mean_diff < mean_diff0
+                    assert max_diff < max_diff0
 
-            if iter == 0:
-                # create a table to compare with poisson-bis
-                t = []
-                A = pSolver.L.toarray()
-                b = pSolver.f.data[:,0]
-                for i in range(M):
-                    ti = [i]
-                    for j in range(M):
-                        ti.append(A[i,j])
-                    ti.append(b[i])
-                    t.append(ti)
+                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
 
-            u = pSolver.solve()
-            diff = np.abs(ue.data[:,0] - u)
+    s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
+    s += tabulate(tbl
+        , headers=["u(r)", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+        , tablefmt="simple"
+    )
+    print(s)
+    print(s, file=output)
 
-            if iter == 0:
-                for i in range(M):
-                    t[i].extend([u[i], ue.data[i,0], diff[i]])
-                headers = ['i']
-                headers.extend([str(i) for i in range(M)])
-                headers.extend(['f', 'u', 'ue', 'diff'])
-                print(tabulate(t, tablefmt="simple", headers=headers))
 
-            rmse = np.sqrt(np.sum(np.square(diff)) / M)
-            mean_diff = float(np.mean(diff))
-            max_diff = float(np.max(diff))
-            print(f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} ")
-            tbl.append([bc_scale, M, rmse, mean_diff, max_diff])
+@started_finished
+def test_2D():
+    dim = 2
 
-    print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
+    s = title_line(text='test_2D', char='-', width=120)
+    print(s)
+    print(s, file=output)
+
+    tbl = []
+
+    sigma = 2
+    for analytical_solution in [gauss, x_gauss, y_gauss, xy_gauss]:
+
+        stencil = 3
+        for reduced in [
+            True,
+            False,
+            (True, False),
+            (False, True),
+        ]:
+            for bc_scale in [None, 1e20]:
+                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                M = 6
+                h = 1.6
+                for iter in range(6):
+                    M *= 2
+                    h *= .5
+                    verbosity = 2 if (iter == 0) else 1
+
+                    rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                        analytical_solution=analytical_solution, sigma=sigma,
+                        dim=dim, M=M, h=h, reduced=reduced,
+                        bc_scale=bc_scale, stencil=stencil,
+                        verbosity=verbosity,
+                    )
+
+                    tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                    assert rmse < rmse0
+                    assert mean_diff < mean_diff0
+                    assert max_diff < max_diff0
+
+                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+
+    s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
+    s += tabulate(tbl
+        , headers=["u(r)", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+        , tablefmt="simple"
+    )
+    print(s)
+    print(s, file=output)
+
+@started_finished
+def test_3D():
+    dim = 3
+
+    s = title_line(text='test_3D', char='-', width=120)
+    print(s)
+    print(s, file=output)
+
+    tbl = []
+
+    sigma = 2
+    for analytical_solution in [gauss, x_gauss, y_gauss, z_gauss, xy_gauss, xz_gauss, yz_gauss, xyz_gauss]:
+
+        stencil = 3
+        for reduced in [
+            True,
+            False,
+            (True, False, False),
+            (False, True, False),
+            (False, False, True),
+            (True, True, False),
+            (True, False, True),
+            (False, True, True),
+        ]:
+            for bc_scale in [None, 1e20]:
+                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                M = 4
+                h = 4
+                w = M*h
+                for iter in range(7):
+                    # Doubling M increases the linear system's size way too fast in 3D.
+                    M += 4
+                    h = w/M
+                    verbosity = 2 if (iter == 0) else 1
+
+                    rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                        analytical_solution=analytical_solution, sigma=sigma,
+                        dim=dim, M=M, h=h, reduced=reduced,
+                        bc_scale=bc_scale, stencil=stencil,
+                        verbosity=verbosity,
+                    )
+
+                    tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                    assert rmse < rmse0
+                    assert mean_diff < mean_diff0
+                    assert max_diff < max_diff0
+
+                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+
+    s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
+    s += tabulate(tbl
+                  , headers=["u(r)", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+                  , tablefmt="simple"
+                  )
+    print(s)
+    print(s, file=output)
 
 
 @started_finished
@@ -195,49 +589,50 @@ def test_3D_not_reduced():
     print(tabulate(tbl,  tablefmt="simple", headers=["M", "RMSE", "Mean diff", "Max diff"]))
 
 
-def test_set_dia_entry():
-    D = sparse.eye(4, k=1, format='dia')
-    D44 = D.toarray()
-    assert D44[0,1] == 1
-    dia_entry_set(D, [(0, 1, 2)])
-    D44 = D.toarray()
-    assert D44[0,1] == 2
-    with pytest.raises(ValueError):
-        dia_entry_set(D, [(0, 2, 2)])
-
-    D = sparse.eye(4, k=2, format='dia')
-    D44 = D.toarray()
-    assert D44[0, 2] == 1
-    dia_entry_set(D, [(0, 2, 2)])
-    D44 = D.toarray()
-    assert D44[0, 2] == 2
-
-    D = sparse.eye(4, k=-1, format='dia')
-    D44 = D.toarray()
-    assert D44[1, 0] == 1
-    dia_entry_set(D, [(1, 0, 2),
-                      (2, 1, 3)
-                     ])
-    D44 = D.toarray()
-    assert D44[1,0] == 2
-    assert D44[2,1] == 3
-
-    dia_entry_add(D, [
-        (1, 0, 2),
-        (2, 1, 3),
-    ])
-    D44 = D.toarray()
-    assert D44[1,0] == 4
-    assert D44[2,1] == 6
-
-    D = sparse.eye(4, k=-2, format='dia')
-    D44 = D.toarray()
-    assert D44[2, 0] == 1
-    dia_entry_set(D, [
-        (2, 0, 2),
-    ])
-    D44 = D.toarray()
-    assert D44[2, 0] == 2
+# TODO: dia_entry_set and dia_entry_add are no longer used. discard or improve.
+# def test_set_dia_entry():
+#     D = sparse.eye(4, k=1, format='dia')
+#     D44 = D.toarray()
+#     assert D44[0,1] == 1
+#     dia_entry_set(D, [(0, 1, 2)])
+#     D44 = D.toarray()
+#     assert D44[0,1] == 2
+#     with pytest.raises(ValueError):
+#         dia_entry_set(D, [(0, 2, 2)])
+#
+#     D = sparse.eye(4, k=2, format='dia')
+#     D44 = D.toarray()
+#     assert D44[0, 2] == 1
+#     dia_entry_set(D, [(0, 2, 2)])
+#     D44 = D.toarray()
+#     assert D44[0, 2] == 2
+#
+#     D = sparse.eye(4, k=-1, format='dia')
+#     D44 = D.toarray()
+#     assert D44[1, 0] == 1
+#     dia_entry_set(D, [(1, 0, 2),
+#                       (2, 1, 3)
+#                      ])
+#     D44 = D.toarray()
+#     assert D44[1,0] == 2
+#     assert D44[2,1] == 3
+#
+#     dia_entry_add(D, [
+#         (1, 0, 2),
+#         (2, 1, 3),
+#     ])
+#     D44 = D.toarray()
+#     assert D44[1,0] == 4
+#     assert D44[2,1] == 6
+#
+#     D = sparse.eye(4, k=-2, format='dia')
+#     D44 = D.toarray()
+#     assert D44[2, 0] == 1
+#     dia_entry_set(D, [
+#         (2, 0, 2),
+#     ])
+#     D44 = D.toarray()
+#     assert D44[2, 0] == 2
 
 
 def test_collect_boundary_points_1D():
@@ -351,33 +746,14 @@ def test_1D_reduced():
             pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
             pSolver.assemble(f, ue_lambda, symmetry=1)
 
-            # if iter == 0:
-            #     # create a table to compare with poisson-bis
-            #     t = []
-            #     A = pSolver.L.toarray()
-            #     b = pSolver.f.data[:,0]
-            #     for i in range(M):
-            #         ti = [i]
-            #         for j in range(M):
-            #             ti.append(A[i,j])
-            #         ti.append(b[i])
-            #         t.append(ti)
-
             u = pSolver.solve()
+
             diff = np.abs(ue.data[:,0] - u)
-
-            # if iter == 0:
-            #     for i in range(M):
-            #         t[i].extend([u[i], ue.data[i,0], diff[i]])
-            #     headers = ['i']
-            #     headers.extend([str(i) for i in range(M)])
-            #     headers.extend(['f', 'u', 'ue', 'diff'])
-            #     print(tabulate(t, tablefmt="simple", headers=headers))
-
             rmse = np.sqrt(np.sum(np.square(diff)) / M)
             mean_diff = float(np.mean(diff))
             max_diff = float(np.max(diff))
             print(f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} ")
+
             tbl.append([bc_scale, M, rmse, mean_diff, max_diff])
 
     print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
@@ -406,29 +782,9 @@ def test_2D_reduced():
             pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
             pSolver.assemble(f, ue_lambda, symmetry=1)
 
-            # if iter == 0:
-            #     # create a table to compare with poisson-bis
-            #     t = []
-            #     A = pSolver.L.toarray()
-            #     b = pSolver.f.data[:,0]
-            #     for i in range(M):
-            #         ti = [i]
-            #         for j in range(M):
-            #             ti.append(A[i,j])
-            #         ti.append(b[i])
-            #         t.append(ti)
-
             u = pSolver.solve()
+
             diff = np.abs(ue.data[:,0] - u)
-
-            # if iter == 0:
-            #     for i in range(M):
-            #         t[i].extend([u[i], ue.data[i,0], diff[i]])
-            #     headers = ['i']
-            #     headers.extend([str(i) for i in range(M)])
-            #     headers.extend(['f', 'u', 'ue', 'diff'])
-            #     print(tabulate(t, tablefmt="simple", headers=headers))
-
             rmse = np.sqrt(np.sum(np.square(diff)) / M)
             mean_diff = float(np.mean(diff))
             max_diff = float(np.max(diff))
@@ -470,7 +826,6 @@ def test_2D_reduced_TF():
             u = pSolver.solve()
             diff = np.abs(ue.data[:,0] - u)
 
-
             rmse = np.sqrt(np.sum(np.square(diff)) / M)
             mean_diff = float(np.mean(diff))
             max_diff = float(np.max(diff))
@@ -479,3 +834,12 @@ def test_2D_reduced_TF():
 
     print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
 
+def test_Laplacia1D_non_uniform():
+    n = 8
+    h = 2
+    L1 = Laplacian1D(8,    ).toarray() # h=None, corresponds to h=1 (for L at least)
+    L2 = Laplacian1D(8, h=h).toarray()
+    invh2 = 1/h**2
+    for i in range(n):
+        for j in range(n):
+            assert L1[i,j]*invh2 == pytest.approx(L2[i,j])

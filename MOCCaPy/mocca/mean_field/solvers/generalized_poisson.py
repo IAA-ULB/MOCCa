@@ -17,13 +17,13 @@ from tabulate import tabulate
 def Laplacian1D(n, stencil=3, h=None):
     """Construct 1D Laplacian matrix for a grid with n points.
     Args:
-        stencil (list): number of points in the stencil: 3 -> [1,-2,1], 5 -> [-1,16,-30,16,-1]
         n (int): dimension of the matrix.
+        stencil (list): number of points in the stencil: 3 -> [1,-2,1], 5 -> [-1,16,-30,16,-1]
         h float: lattice spacing, if not None, the matrix is scaled by 1/h**2
     Returns:
         a diagonal matrix of the 1D Laplacian.
     """
-    if isinstance(n, (tuple, list)):
+    if isinstance(n, list):
         n = n[0]
 
     if stencil == 3:
@@ -33,11 +33,12 @@ def Laplacian1D(n, stencil=3, h=None):
     else:
         raise NotImplementedError(f'{stencil}-point 1D stencil not implemented.')
 
-    c = [np.int8(ci) for ci in c]
 
-    if not h is None:
+    if h is not None:
         inv_h2 = 1. / h**2
-        c = [ ci*inv_h2 for ci in c ]
+        c = [ ci*inv_h2  for ci in c ]
+    else:
+        c = [ np.int8(ci) for ci in c]
 
     for i, ci in enumerate(c):
         if i == 0:
@@ -87,62 +88,64 @@ def Laplacian3D(n, stencil=3, h=None):
           + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])                ))
     return d
 
-
-def dia_entry_set(diag, i_j_val):
-    """Set the [i,j] element of sparse 'dia'-format matrix `diag` to `val`.
-    This method is useful to apply the boundary conditions to a Laplacian matrix.
-
-    Args:
-        diag (scipy.sparse.diag_array): sparse matrix in 'dia' format
-        i_j_val: list of tuples with `(i,j,val)` : `diag[i,j] = val`
-
-    Raises:
-        ValueError if [i,j] is not on one of the diagonals in `diag`
-    """
-    offsets = diag.offsets.tolist()
-    for tpl in i_j_val:
-        i, j, val = tpl
-        id = j-i
-        try:
-            idd = offsets.index(id) # may raise ValueError
-        except ValueError:
-            raise ValueError(f"dia_array has no {id}-th diagonal.")
-        diag.data[idd,j] = val
-        pass
-
-
-def dia_entry_add(diag, i_j_val):
-    """Add val to the [i,j] element of sparse 'dia'-format matrix `diag` to `val`.
-    This method is useful to apply the boundary conditions to a Laplacian matrix.
-
-    Args:
-        diag (scipy.sparse.diag_array): sparse matrix in 'dia' format
-        i_j_val: list of tuples with `(i,j,val)` : `diag[i,j] += val`
-
-    Raises:
-        ValueError if [i,j] is not on one of the diagonals in `diag`
-    """
-    offsets = diag.offsets.tolist()
-    for tpl in i_j_val:
-        i, j, val = tpl
-        id = j - i
-        try:
-            idd = offsets.index(id)  # may raise ValueError
-        except ValueError:
-            raise ValueError(f"dia_array has no {id}-th diagonal.")
-        diag.data[id, j] += val
-        pass
-
+# TODO: dia_entry_set and dia_entry_add are no longer used. discard or improve.
+# def dia_entry_set(diag, i_j_val):
+#     """Set the [i,j] element of sparse 'dia'-format matrix `diag` to `val`.
+#     This method is useful to apply the boundary conditions to a Laplacian matrix.
+#
+#     Args:
+#         diag (scipy.sparse.diag_array): sparse matrix in 'dia' format
+#         i_j_val: list of tuples with `(i,j,val)` : `diag[i,j] = val`
+#
+#     Raises:
+#         ValueError if [i,j] is not on one of the diagonals in `diag`
+#     """
+#     offsets = diag.offsets.tolist()
+#     for tpl in i_j_val:
+#         i, j, val = tpl
+#         id = j-i
+#         try:
+#             idd = offsets.index(id) # may raise ValueError
+#         except ValueError:
+#             raise ValueError(f"dia_array has no {id}-th diagonal.")
+#         diag.data[idd,j] = val
+#         pass
+#
+#
+# def dia_entry_add(diag, i_j_val):
+#     """Add val to the [i,j] element of sparse 'dia'-format matrix `diag` to `val`.
+#     This method is useful to apply the boundary conditions to a Laplacian matrix.
+#
+#     Args:
+#         diag (scipy.sparse.diag_array): sparse matrix in 'dia' format
+#         i_j_val: list of tuples with `(i,j,val)` : `diag[i,j] += val`
+#
+#     Raises:
+#         ValueError if [i,j] is not on one of the diagonals in `diag`
+#     """
+#     offsets = diag.offsets.tolist()
+#     for tpl in i_j_val:
+#         i, j, val = tpl
+#         id = j - i
+#         try:
+#             idd = offsets.index(id)  # may raise ValueError
+#         except ValueError:
+#             raise ValueError(f"dia_array has no {id}-th diagonal.")
+#         diag.data[id, j] += val
+#         pass
+#
 
 
 class GeneralizedPoissonSolver:
     """
     This class solves the generalized Poisson equation
     """
-    # TODO: test non-uniform spacing
-    # TODO: implement reduced axes
+    # TODO: test non-uniform spacing           2D 3D
+    # TODO=done: implement reduced axes
     # TODO: test 5 point stencil
     # TODO: implement generalized poisson
+    # TODO=done: test symmetric solutions      1D 2D 3D
+    # TODO=done: test skew-symmetric solutions 1D 2D 3D
 
     def __init__(self, mesh, stencil=3, bc_scale=None):
         """
@@ -295,30 +298,33 @@ class GeneralizedPoissonSolver:
         if symmetry is None:
             raise ValueError("The symmetry components of the solution must be specified.")
 
-        if symmetry not in  [1,-1]:
-            raise ValueError("The symmetry components of the solution must be 1 or -1.")
-
-        if not isinstance(symmetry, list):
+        if isinstance(symmetry, int):
             symmetry = [symmetry] * self.mesh.dim
+
+        if isinstance(symmetry, (tuple, list)):
+            for s in symmetry:
+                if s not in  [1,-1]:
+                    raise ValueError(f"The symmetry components of the solution must be 1 or -1, not {s}.")
 
         if self.mesh.dim > 1:
             offsets = self.L.offsets.tolist()
+            md = len(offsets) // 2
             data = self.L.data
-            if self.stencil == 3:
+            if self.stencil == 3:  # only changes on the main diagonal
                 for idim in range(3):
                     rows = self.mesh.sp_l[idim]
                     if rows is not None:
-                        data[2, rows] += symmetry[idim] # only changes on the main diagonal
+                        data[md, rows] += symmetry[idim] # only changes on the main diagonal
 
-            elif self.stencil == 5:
+            elif self.stencil == 5:  # also changes off the main diagonal
                 # TODO: test this!
                 N = 1
                 for idim in range(3):
                     rows = self.mesh.sp_l[idim]
                     if rows is not None:
-                        data[2,                            rows] += symmetry[idim] * 16
-                        data[2+idim, offsets[2+idim] +     rows] -= symmetry[idim]
-                        data[2-idim, offsets[2-idim] + N + rows] -= symmetry[idim]
+                        data[md,                            rows] += symmetry[idim] * 16
+                        data[md+idim, offsets[2+idim] +     rows] -= symmetry[idim]
+                        data[md-idim, offsets[2-idim] + N + rows] -= symmetry[idim]
                     N *= self.mesh.N[idim]
 
         else: # mesh.dim == 1
@@ -334,7 +340,7 @@ class GeneralizedPoissonSolver:
 
     def __str__(self):
         """Readable presentation of the linear system to be solved.
-        For debugging purposes mainnly."""
+        For debugging purposes mainly."""
         Lfull = self.L.toarray()
         f = self.f.data[:,0]
         n = Lfull.shape[0]

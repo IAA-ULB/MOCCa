@@ -39,6 +39,7 @@ def title_line(text='', width=80, char='*', start=4, above=False, below=False, c
         line = line+line0
     return line
 
+
 def dbg_assert(d):
     """Call dbg_assert() for all objects in `d` which have this attribute. Typically called
     as:
