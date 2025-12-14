@@ -415,39 +415,48 @@ class LagrangeMesh(Mesh):
             self.sp_ijk: grid indices of  the boundary points, shape (n, self.dim) 
            ? self.sp_xyz: coordinates of the boundary points, shape (n, self.dim) 
         """
-        if any(self.reduced):
-            N0 = self.N[0]
-            N1 = self.N[1]
+        reduced = self.reduced
+        if any(reduced):
             if self.dim == 3:
+                i0 = 0 if reduced[0] else 1
+                j0 = 0 if reduced[1] else 1
+                k0 = 0 if reduced[2] else 1
+                N0 = self.N[0]
+                N1 = self.N[1]
                 N2 = self.N[2]
                 N0N1 = N0 * N1
-                ijk = [
-                    np.array([[0,j,k] for j in range(N1-1) for k in range(N2-1)], order='F') if self.reduced[0] else None,
-                    np.array([[i,0,k] for i in range(N0-1) for k in range(N2-1)], order='F') if self.reduced[1] else None,
-                    np.array([[i,j,0] for i in range(N0-1) for j in range(N1-1)], order='F') if self.reduced[2] else None,
+                sp_ijk = [
+                    np.array([[0,j,k] for j in range(j0, N1-1) for k in range(k0, N2-1)], order='F') if reduced[0] else None,
+                    np.array([[i,0,k] for i in range(i0, N0-1) for k in range(k0, N2-1)], order='F') if reduced[1] else None,
+                    np.array([[i,j,0] for i in range(i0, N0-1) for j in range(j0, N1-1)], order='F') if reduced[2] else None,
                 ]
                 self.sp_l = [
-                    None if (self.sp_ijk[0] is None) else self.sp_ijk[0][:, 0] + self.sp_ijk[0][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
-                    None if (self.sp_ijk[1] is None) else self.sp_ijk[1][:, 0] + self.sp_ijk[1][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
-                    None if (self.sp_ijk[2] is None) else self.sp_ijk[2][:, 0] + self.sp_ijk[2][:, 1] * N0 + self.sp_ijk[:,2] * N0N1,
+                    None if (sp_ijk[0] is None) else sp_ijk[0][:, 0] + sp_ijk[0][:, 1] * N0 + sp_ijk[0][:,2] * N0N1,
+                    None if (sp_ijk[1] is None) else sp_ijk[1][:, 0] + sp_ijk[1][:, 1] * N0 + sp_ijk[1][:,2] * N0N1,
+                    None if (sp_ijk[2] is None) else sp_ijk[2][:, 0] + sp_ijk[2][:, 1] * N0 + sp_ijk[2][:,2] * N0N1,
                 ]
 
             elif self.dim == 2:
-                self.sp_ijk = [
-                    np.array([[0,j] for j in range(N1-1)], order='F') if self.reduced[0] else None,
-                    np.array([[i,0] for i in range(N0-1)], order='F') if self.reduced[1] else None,
+                i0 = 0 if reduced[0] else 1
+                j0 = 0 if reduced[1] else 1
+                N0 = self.N[0]
+                N1 = self.N[1]
+                sp_ijk = [
+                    np.array([[0,j] for j in range(j0, N1-1)], order='F') if reduced[0] else None,
+                    np.array([[i,0] for i in range(i0, N0-1)], order='F') if reduced[1] else None,
                     None
                 ]
                 self.sp_l = [
-                    None if (self.sp_ijk[0] is None) else self.sp_ijk[0][:, 0] + self.sp_ijk[0][:, 1] * N0,
-                    None if (self.sp_ijk[1] is None) else self.sp_ijk[1][:, 0] + self.sp_ijk[1][:, 1] * N0,
+                    None if (sp_ijk[0] is None) else sp_ijk[0][:, 0] + sp_ijk[0][:, 1] * N0,
+                    None if (sp_ijk[1] is None) else sp_ijk[1][:, 0] + sp_ijk[1][:, 1] * N0,
                     None
                 ]
 
             else: # self.dim == 1:
                 self.sp_l = [np.array([0]), None, None]
-                self.sp_ijk = self.sp_l
-            pass
+                sp_ijk = self.sp_l
+
+            self.sp_ijk = sp_ijk # probably no need to keep
 
     def __repr__(self):
         reduced = ''.join(['T' if r else 'F' for r in self.reduced])
@@ -1178,6 +1187,46 @@ class LagrangeMesh(Mesh):
                 fx =   lagrange_function(x,  x_i, self.d[0], self.M[0])
 
             return fx
+
+    def point_info(self, l):
+        """Returns info about a point with linear index `l`.
+        For debugging purposes mainnly
+        
+        Args: l linear index of a mesh point
+        Returns:
+            "b" if l is a boundary point,
+            "s_w" if l is a symmetry point, w=x|y|z
+            "i" if i is an interior point.
+            appended with the grid coordinates
+        """
+        if np.count_nonzero(self.bp_l ==l) > 0:
+            s = "b "
+        else:
+            for idim in range(self.dim):
+                xyz = "xyz"
+                if self.reduced[0]:
+                    if np.count_nonzero(self.sp_l[0] == l):
+                        s = f"s{xyz[idim]}"
+                        break
+            else:
+                s = "i "
+
+        if self.dim == 3:
+            k = l // (self.N[0]*self.N[1])
+            l = l  % (self.N[0]*self.N[1])
+            j = l //  self.N[0]
+            i = l  %  self.N[0]
+            ijk = f"[{i},{j},{k}]"
+
+        elif self.dim == 2:
+            j = l // self.N[0]
+            i = l  % self.N[0]
+            ijk = f"[{i},{j}][{self.g1D[0][i]},{self.g1D[1][j]}]"
+
+        else:
+            ijk = f"[{i}]"
+
+        return f"{s}{ijk}"
 
 @guvectorize([(float64[:], float64, float64, float64, float64[:])], '(n),(),(),()->(n)')
 def lif(ui, u, pi_over_Delta, inv2N, out):

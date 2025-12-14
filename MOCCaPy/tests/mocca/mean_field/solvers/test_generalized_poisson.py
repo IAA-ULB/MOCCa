@@ -131,11 +131,11 @@ def test_2D_not_reduced():
                    (mesh.bp_xyz[i,1] in lx)
 
         ue = MeshQuantity(mesh, name='u', n_components=1)
-        ue.data[:,0] = ue_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
+        ue.data[:,0] = ue_lambda(mesh.grid[:,0], mesh.grid[:,1])
 
         f  = MeshQuantity(mesh, name='f', n_components=1)
         for bc_scale in [None, 1e20]:
-            f .data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
+            f .data[:,0] = fe_lambda(mesh.grid[:,0], mesh.grid[:,1])
             pSolver = GeneralizedPoissonSolver(mesh,bc_scale=bc_scale)
             pSolver.assemble(f, ue_lambda)
 
@@ -400,10 +400,9 @@ def test_2D_reduced():
         mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
         f  = MeshQuantity(mesh, name='f', n_components=1, symmetry=1)
         ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=1)
-        ue.data[:, 0] = ue_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
-
+        ue.data[:, 0] = ue_lambda(mesh.grid[:,0], mesh.grid[:,1])
         for bc_scale in [None, 1e20]:
-            f.data[:,0] = fe_lambda(mesh.gridx.ravel(), mesh.gridy.ravel())
+            f.data[:,0] = fe_lambda(mesh.grid[:,0], mesh.grid[:,1])
             pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
             pSolver.assemble(f, ue_lambda, symmetry=1)
 
@@ -438,4 +437,45 @@ def test_2D_reduced():
 
     print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
 
+
+@started_finished
+def test_2D_reduced_TF():
+    tbl = []
+
+    reduced = (True,False)
+    dim = 2
+    sigma = 2
+    ue_lambda, fe_lambda = gauss(dim=dim, sigma=sigma)
+
+    M = 4
+    h = 2
+    for iter in range(5):
+        M *= 2
+        h *= .5
+        mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced, collect_boundary_points=True)
+        f  = MeshQuantity(mesh, name='f', n_components=1, symmetry=1)
+        ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=1)
+        ue.data[:, 0] = ue_lambda(mesh.grid[:,0], mesh.grid[:,1])
+        i = 0
+        for j in range(mesh.N[1]):
+            print(j, ue.data[i:i+4,0])
+            i += 4
+
+        for bc_scale in [None, 1e20]:
+            f.data[:,0] = fe_lambda(mesh.grid[:,0], mesh.grid[:,1])
+            pSolver = GeneralizedPoissonSolver(mesh, bc_scale=bc_scale)
+            pSolver.assemble(f, ue_lambda, symmetry=1)
+            # print(pSolver)
+
+            u = pSolver.solve()
+            diff = np.abs(ue.data[:,0] - u)
+
+
+            rmse = np.sqrt(np.sum(np.square(diff)) / M)
+            mean_diff = float(np.mean(diff))
+            max_diff = float(np.max(diff))
+            print(f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} ")
+            tbl.append([bc_scale, M, rmse, mean_diff, max_diff])
+
+    print(tabulate(tbl,  tablefmt="simple", headers=["bc_scale", "M", "RMSE", "Mean diff", "Max diff"]))
 

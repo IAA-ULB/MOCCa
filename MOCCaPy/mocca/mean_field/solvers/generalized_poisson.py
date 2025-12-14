@@ -11,8 +11,7 @@ using the Finite Difference Method.
 
 import numpy as np
 import scipy.sparse as sparse
-
-from src_heph.heph_symmetries import symmetry
+from tabulate import tabulate
 
 
 def Laplacian1D(n, stencil=3, h=None):
@@ -332,4 +331,23 @@ class GeneralizedPoissonSolver:
                 self.L.data[1,1] += 16-s_x # diagonal  1
                 self.L.data[2,0] += 16-s_x # diagonal -1
         pass
+
+    def __str__(self):
+        """Readable presentation of the linear system to be solved.
+        For debugging purposes mainnly."""
+        Lfull = self.L.toarray()
+        f = self.f.data[:,0]
+        n = Lfull.shape[0]
+        tbl = []
+        for i in range(n):
+            line = [i]
+            line.append(self.mesh.point_info(i))
+            line.extend([Lfull[i,j] for j in range(n)])
+            line.append(f[i])
+            tbl.append(line)
+
+        headers = ["i\j", "point"]
+        headers.extend([str(j) for j in range(n)])
+        headers.append("f")
+        return tabulate(tbl, tablefmt="simple", headers=headers)
 
