@@ -87,16 +87,18 @@ class MeshQuantity:
                 for iq in range(self.n_components):
                     self.symmetry[iq,:] = symmetry[:]
 
-            elif isinstance(symmetry, np.ndarray):
-                if symmetry.shape == self.symmetry.shape:
-                    self.symmetry = symmetry
+            else:
+                if not isinstance(symmetry, np.ndarray):
+                    symmetry = np.array(symmetry)
 
+                if symmetry.shape == self.symmetry.shape:
+                    self.symmetry[:,:] = symmetry
                 else:
                     raise ValueError(f"Symmetry {symmetry} not understood. Either specify:\n"
                                      f"  - a single value (+1|-1) -> same symmetry for all {n_components} components\n"
                                      f"  - a tuple or list of length {mesh.dim=} -> all components have the same symmetry\n"
                                      f"    behavior on the same axis, but axes may have different symmetry behavior.\n"
-                                     f"  - a numpy.ndarray of shape ({n_components=},{mesh.dim=}) -> each component and\n"
+                                     f"  - a list of n_component lists of length {mesh.dim=} -> each component and\n"
                                      f"    each axis is explicitly specified.")
 
             assert len(self.symmetry.shape) == 2

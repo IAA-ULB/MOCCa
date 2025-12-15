@@ -435,7 +435,7 @@ def test_LagrangeMesh_interpolate1D(no_plot, debug=False):
             lcpw_rgp = mesh.basis_function(i,r  )
             lcpw_rip = mesh.basis_function(i,rip)
 
-            Q = MeshQuantity( mesh, data=lcpw_rgp, symmetry=[1,-1]) # real/imag component is symmetric/skew-symmetric
+            Q = MeshQuantity( mesh, data=lcpw_rgp, symmetry=[[1],[-1]]) # real/imag component is symmetric/skew-symmetric
 
             Qrip = mesh.interpolate(Q, rip)
 
@@ -489,7 +489,7 @@ def test_LagrangeMesh_interpolate1D(no_plot, debug=False):
                 lcpw_rip += coeff[2*i  ] * mesh.basis_function(i,rip) + \
                             coeff[2*i+1] * mesh.basis_function(i,rip, ijk_sign=-1)
 
-        Q = MeshQuantity(mesh, data=lcpw_rgp, symmetry=[1,-1])
+        Q = MeshQuantity(mesh, data=lcpw_rgp, symmetry=[[1],[-1]])
         Qrip = mesh.interpolate(Q, rip)
 
         if no_plot:
