@@ -129,7 +129,7 @@ def test_differentiate_1D_x_non_reduced(no_plot, debug=False):
         ax.plot(r, pw[:,1], label='imag')
 
     mbf = mesh.basis_function(ijk=0, r=mesh.g1D[0])
-    Q = MeshQuantity(mesh, data=mbf, symmetry=[1,-1])
+    Q = MeshQuantity(mesh, data=mbf, symmetry=[[1],[-1]])
     # check Q against bf() above
     Q_expected = bf(mesh, i=0, r=mesh.g1D[0])
 
