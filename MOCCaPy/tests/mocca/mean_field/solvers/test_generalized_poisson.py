@@ -20,7 +20,7 @@ output = open(Path(__file__).parent / "test_generalized_poisson.py.txt", mode="w
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
     path2MOCCaPy = path2MOCCaPy.parent
-    print(path2MOCCaPy)
+    # print(path2MOCCaPy)
 sys.path.insert(0, str(path2MOCCaPy))
 
 from tests.util import started_finished, started, finished
@@ -414,27 +414,31 @@ def test_2D():
             (False, True),
         ]:
             for bc_scale in [None, 1e20]:
-                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                M = 6
-                h = 1.6
-                for iter in range(6):
-                    M *= 2
-                    h *= .5
-                    verbosity = 2 if (iter == 0) else 1
+                for h in [1.6, (1.6, 1.61)]:
+                    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                    M = 6
+                    for iter in range(5):
+                        M *= 2
+                        if isinstance(h, tuple):
+                            h = tuple([hi*0.5 for hi in h])
+                        else:
+                            h *= .5
 
-                    rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
-                        analytical_solution=analytical_solution, sigma=sigma,
-                        dim=dim, M=M, h=h, reduced=reduced,
-                        bc_scale=bc_scale, stencil=stencil,
-                        verbosity=verbosity,
-                    )
+                        verbosity = 2 if (iter == 0) else 1
 
-                    tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
-                    assert rmse < rmse0
-                    assert mean_diff < mean_diff0
-                    assert max_diff < max_diff0
+                        rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                            analytical_solution=analytical_solution, sigma=sigma,
+                            dim=dim, M=M, h=h, reduced=reduced,
+                            bc_scale=bc_scale, stencil=stencil,
+                            verbosity=verbosity,
+                        )
 
-                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                        tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                        assert rmse < rmse0
+                        assert mean_diff < mean_diff0
+                        assert max_diff < max_diff0
+
+                        rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl

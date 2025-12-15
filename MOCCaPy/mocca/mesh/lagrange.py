@@ -161,7 +161,7 @@ class Mesh:
             if isinstance(d, (int,float)):
                 d = self.dim * (float(d),)
             else:
-                raise ValueError("d parameter must be an int, float or a tuple of int/floats (got {d=}).")
+                raise ValueError(f"d parameter must be an int, float or a tuple of int/floats (got {d=}).")
 
         for di in d:
             if not(di > 0):

@@ -15,7 +15,7 @@ import sys
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
     path2MOCCaPy = path2MOCCaPy.parent
-    print(path2MOCCaPy)
+    # print(path2MOCCaPy)
 sys.path.insert(0, str(path2MOCCaPy))
 
 from tests.util import started_finished, started, finished

@@ -169,11 +169,14 @@ class GeneralizedPoissonSolver:
         h = self.mesh.d
         for hi in h[1:dim]:
             if h[0] != hi:
+                self.uniform_h = False
                 break
         else:
             # Lattice spacing is same in each direction, $h^2$ scaling will be applied to the rhs
-            self.h = h[0]
-            h = None
+            self.uniform_h = h[0]
+            h = None # Tells the Laplacian that the h**2 scaling is applied to the rhs
+
+        assert hasattr(self,'uniform_h')
 
         Laplacian = Laplacian3D if dim==3 else \
                     Laplacian2D if dim==2 else \
@@ -211,8 +214,8 @@ class GeneralizedPoissonSolver:
 
             self.apply_symmetry_to_matrix(symmetry)
 
-        if self.h is not None:
-            f.data[:,0] *= self.h**2
+        if self.uniform_h:
+            f.data[:,0] *= self.uniform_h**2
 
         self.f = f
         self.apply_Dbc_to_rhs(boundary_value)
@@ -306,7 +309,13 @@ class GeneralizedPoissonSolver:
                 if s not in  [1,-1]:
                     raise ValueError(f"The symmetry components of the solution must be 1 or -1, not {s}.")
 
+
         if self.mesh.dim > 1:
+            # If h is uniform h**2 scaling is applied on the rhs, otherwise it is applied to the
+            # matrix and the symmetry action on the matrix must be scaled as well
+            sh = symmetry if self.uniform_h else \
+                 [si/(hi**2) for si, hi in zip(symmetry, self.mesh.d) ]
+
             offsets = self.L.offsets.tolist()
             md = len(offsets) // 2
             data = self.L.data
@@ -314,7 +323,7 @@ class GeneralizedPoissonSolver:
                 for idim in range(3):
                     rows = self.mesh.sp_l[idim]
                     if rows is not None:
-                        data[md, rows] += symmetry[idim] # only changes on the main diagonal
+                        data[md, rows] += sh[idim] # only changes on the main diagonal
 
             elif self.stencil == 5:  # also changes off the main diagonal
                 # TODO: test this!
@@ -322,20 +331,25 @@ class GeneralizedPoissonSolver:
                 for idim in range(3):
                     rows = self.mesh.sp_l[idim]
                     if rows is not None:
-                        data[md,                            rows] += symmetry[idim] * 16
-                        data[md+idim, offsets[2+idim] +     rows] -= symmetry[idim]
-                        data[md-idim, offsets[2-idim] + N + rows] -= symmetry[idim]
+                        data[md,                            rows] += sh[idim] * 16
+                        data[md+idim, offsets[2+idim] +     rows] -= sh[idim]
+                        data[md-idim, offsets[2-idim] + N + rows] -= sh[idim]
                     N *= self.mesh.N[idim]
 
         else: # mesh.dim == 1
-            # L[0,0] += symmetry[0]
-            s_x = symmetry[0]
-            if self.stencil == 3:
-                self.L.data[0,0] += s_x
-            elif self.stencil == 5:
-                self.L.data[0,0] += 16*s_x
-                self.L.data[1,1] += 16-s_x # diagonal  1
-                self.L.data[2,0] += 16-s_x # diagonal -1
+            # h**2 scaling always applied to rhs.
+            assert self.uniform_h
+
+            if self.stencil == 3:  # only changes on the main diagonal
+                s_x = symmetry[0]
+                if self.stencil == 3:
+                    self.L.data[0,0] += s_x
+                elif self.stencil == 5:
+                    self.L.data[0,0] += 16*s_x
+                    self.L.data[1,1] += 16-s_x # diagonal  1
+                    self.L.data[2,0] += 16-s_x # diagonal -1
+            else:
+                raise NotImplementedError()
         pass
 
     def __str__(self):
