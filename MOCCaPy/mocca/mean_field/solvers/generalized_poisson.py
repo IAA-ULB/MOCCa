@@ -79,13 +79,13 @@ def Laplacian3D(n, stencil=3, h=None):
         a sparse matrix.
     """
     if h is None:
-        d = sparse.kron( sparse.eye(n[2])          , sparse.kron( sparse.eye(n[1])         , Laplacian1D(n[0], stencil) ), format='dia') \
-          + sparse.kron( sparse.eye(n[2])          , sparse.kron(Laplacian1D(n[1], stencil),  sparse.eye(n[0])          ), format='dia') \
-          + sparse.kron(Laplacian1D(n[2] , stencil), sparse.kron( sparse.eye(n[1])         ,  sparse.eye(n[0])          ), format='dia')
+        d = sparse.kron( sparse.eye(n[2])          , sparse.kron( sparse.eye(n[1])         , Laplacian1D(n[0], stencil), format='dia'), format='dia') \
+          + sparse.kron( sparse.eye(n[2])          , sparse.kron(Laplacian1D(n[1], stencil),  sparse.eye(n[0])         , format='dia'), format='dia') \
+          + sparse.kron(Laplacian1D(n[2] , stencil), sparse.kron( sparse.eye(n[1])         ,  sparse.eye(n[0])         , format='dia'), format='dia')
     else:
-        d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil, h[0]) )) \
-          + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil, h[1]),  sparse.eye(n[0])                )) \
-          + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])                ))
+        d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil, h[0]) , format='dia'), format='dia') \
+          + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil, h[1]),  sparse.eye(n[0])                , format='dia'), format='dia') \
+          + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])                , format='dia'), format='dia')
     return d
 
 # TODO: dia_entry_set and dia_entry_add are no longer used. discard or improve.
@@ -184,6 +184,7 @@ class GeneralizedPoissonSolver:
                     None
 
         self.L = Laplacian(N, stencil=stencil, h=h)
+        assert self.L.format == 'dia', f"Unexpected format of Laplacian: '{self.L.format}, expected 'dia'."
 
         self.bc_scale = bc_scale
 

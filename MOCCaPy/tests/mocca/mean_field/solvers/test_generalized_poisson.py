@@ -473,29 +473,29 @@ def test_3D():
             (False, True, True),
         ]:
             for bc_scale in [None, 1e20]:
-                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                M = 4
-                h = 4
-                w = M*h
-                for iter in range(7):
-                    # Doubling M increases the linear system's size way too fast in 3D.
-                    M += 4
-                    h = w/M
-                    verbosity = 2 if (iter == 0) else 1
+                for h in [4., (4, 4.01, 4.01)]:
+                    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                    M = 4
+                    w = M*h if isinstance(h, float) else [M*hi for hi in h]
+                    for iter in range(7):
+                        # Doubling M increases the linear system's size way too fast in 3D.
+                        M += 4
+                        h = w/M if isinstance(w, float) else tuple([wi/M for wi in w])
+                        verbosity = 2 if (iter == 0) else 1
 
-                    rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
-                        analytical_solution=analytical_solution, sigma=sigma,
-                        dim=dim, M=M, h=h, reduced=reduced,
-                        bc_scale=bc_scale, stencil=stencil,
-                        verbosity=verbosity,
-                    )
+                        rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                            analytical_solution=analytical_solution, sigma=sigma,
+                            dim=dim, M=M, h=h, reduced=reduced,
+                            bc_scale=bc_scale, stencil=stencil,
+                            verbosity=verbosity,
+                        )
 
-                    tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
-                    assert rmse < rmse0
-                    assert mean_diff < mean_diff0
-                    assert max_diff < max_diff0
+                        tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                        assert rmse < rmse0
+                        assert mean_diff < mean_diff0
+                        assert max_diff < max_diff0
 
-                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                        rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
