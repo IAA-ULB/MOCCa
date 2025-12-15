@@ -210,7 +210,8 @@ class LagrangeMesh(Mesh):
             highest_derivative_order: allow for differentiation up to this order. D-matrices are pre-constructed
                 up to this order.
             name: optional name for the mesh.
-
+            collect_boundary_points: False or stencil for which to collect boundary points. Ignored if there are
+                no reduced axss.
         Raises:
             ValueError: in case of invalid choices.
 
@@ -250,7 +251,7 @@ class LagrangeMesh(Mesh):
         self._setup_D_matrices(highest_derivative_order)
 
         if collect_boundary_points:
-            self.collect_boundary_points()
+            self.collect_boundary_points(stencil=collect_boundary_points)
 
     def _initalize_gridpoints(self) -> None:
         # initialize grid points:
@@ -301,13 +302,17 @@ class LagrangeMesh(Mesh):
         self.mesh_shape   = self.gridx.shape
         self.linear_size = int(np.prod(self.mesh_shape))
 
-    def collect_boundary_points(self):
+    def collect_boundary_points(self, stencil):
         """The boundary points are needed by the GeneralizedPoissonSolver. This method collects
         and stores the boundary points of this mesh. Reduced axes have only boundary points
         on the right side. Points are ordered in the Fortran way, i.e. left-most indices
         vary faster. The method needs to be called only once and can be automatically called
         during `LagrangeMesh.__init__` by passing `collect_boundary_methods=True`.
         If there are any reduced axes `collect_symmetry_points()` is also called.
+
+        Args:
+            stencil: stencil for which to collect boundary points. `stencil=3` collects points
+                in a boundary of width 1, for `stencil=5` the boundary width is 2 points.
 
         Sets the following attributes:
             self.bp_l  : linear index of the boundary points, shape (n,). The linear index
@@ -318,6 +323,9 @@ class LagrangeMesh(Mesh):
         if hasattr(self, 'bpl'):
             # already called
             return
+
+        boundary_width = 1 if (stencil == 3) else \
+                         2  # (stencil == 5)
 
         if self.dim == 3:
             # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
@@ -331,6 +339,14 @@ class LagrangeMesh(Mesh):
             boundary.extend(x_boundary)
             boundary.extend(y_boundary)
             boundary.extend(z_boundary)
+            if boundary_width ==2:
+                x_boundary = [[lx-1, iy, iz] for iz in range(lz + 1 - 1) for iy in range(ly + 1 - 1)]
+                y_boundary = [[ix, ly-1, iz] for iz in range(lz + 1 - 1) for ix in range(lx     - 1)]
+                z_boundary = [[ix, iy, lz-1] for iy in range(ly     - 1) for ix in range(lx     - 1)]
+                boundary.extend(x_boundary)
+                boundary.extend(y_boundary)
+                boundary.extend(z_boundary)
+
             if not self.reduced[0]:
                 M = self.M[0]
                 halfM = M // 2
@@ -366,11 +382,17 @@ class LagrangeMesh(Mesh):
             # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
             lx = self.M[0] // 2 - 1
             ly = self.M[1] // 2 - 1
-            x_boundary = [[lx,iy] for iy in range(ly)]   # [lx, ly] not included
-            y_boundary = [[ix,ly] for ix in range(lx+1)] # [lx, ly]     included
+            x_boundary = [[lx,iy] for iy in range(ly)]   # corner not included
+            y_boundary = [[ix,ly] for ix in range(lx+1)] # corner     included
             boundary = []
             boundary.extend(x_boundary)
             boundary.extend(y_boundary)
+            if boundary_width ==2:
+                x_boundary = [[lx-1,iy] for iy in range(ly  -1)] # corner not included
+                y_boundary = [[ix,ly-1] for ix in range(lx+1-1)] # corner     included
+                boundary.extend(x_boundary)
+                boundary.extend(y_boundary)
+
             if not self.reduced[0]:
                 M = self.M[0]
                 halfM = M // 2
@@ -383,8 +405,16 @@ class LagrangeMesh(Mesh):
                 M = self.M[1]
                 halfM = M // 2
                 boundary = [ [bp[0], bp[1] + halfM] for bp in boundary ]
-                # mirror x
+                # mirror y
                 mirror   = [ [bp[0], M - bp[1] - 1] for bp in boundary]
+                boundary.extend(mirror)
+
+            if not self.reduced[2]:
+                M = self.M[2]
+                halfM = M // 2
+                boundary = [[bp[0], bp[1], bp[2] + halfM] for bp in boundary]
+                # mirror z
+                mirror = [[bp[0], bp[1], M - bp[2] - 1] for bp in boundary]
                 boundary.extend(mirror)
 
             self.bp_ijk = np.array(boundary, order='F')
@@ -394,8 +424,16 @@ class LagrangeMesh(Mesh):
 
         else: # self.dim == 1
             last = self.N[0] - 1
-            self.bp_l   = np.array([   last,]) if self.reduced[0] else \
-                          np.array([0, last,])
+            if boundary_width == 1:
+                self.bp_l = np.array(
+                    [   last,] if self.reduced[0] else \
+                    [0, last,])
+            elif boundary_width == 2:
+                self.bp_l = np.array(
+                    [      last-1, last,] if self.reduced[0] else \
+                    [0, 1, last-1, last,]
+                )
+
             self.bp_ijk = self.bp_l
             self.bp_xyz = self.g1D[0][self.bp_l]
 
@@ -1200,8 +1238,9 @@ class LagrangeMesh(Mesh):
             appended with the grid coordinates
         """
         if np.count_nonzero(self.bp_l ==l) > 0:
-            s = "b "
-        else:
+            s = "b"
+
+        elif any(self.reduced):
             s = ['x', 'y', 'z'] if self.dim == 3 else \
                 ['x', 'y']      if self.dim == 2 else \
                 ['x']
@@ -1212,6 +1251,8 @@ class LagrangeMesh(Mesh):
             s = 's' + ''.join(s)
             if s == "s":
                 s = "i"
+        else:
+            s = 'i'
 
         if self.dim == 3:
             k = l // (self.N[0]*self.N[1])
@@ -1223,10 +1264,10 @@ class LagrangeMesh(Mesh):
         elif self.dim == 2:
             j = l // self.N[0]
             i = l  % self.N[0]
-            ijk = f"[{i},{j}][{self.g1D[0][i]},{self.g1D[1][j]}]"
+            ijk = f"[{i},{j}][{self.g1D[0][i]:.5f},{self.g1D[1][j]:.5f}]"
 
         else:
-            ijk = f"[{l}][{self.gridx[l]}]"
+            ijk = f"[{l}][{self.gridx[l]:.5f}]"
 
         return f"{s}{ijk}"
 

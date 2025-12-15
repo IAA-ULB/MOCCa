@@ -262,17 +262,17 @@ $$
 \left. \Delta f(x) \right|_{x = \frac{1}{2} dx} 
 = \frac{
 - f(-\frac{3}{2}dx) + 16f(-\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{dx^2} 
+}{12dx^2} 
 $$
 $$
 = \frac{
 - s_xf(\frac{3}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{1}{2}dx) + 16f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{dx^2}
+}{12dx^2}
 $$
 $$
 = \frac{
 (16s_x-30)f(\frac{1}{2}dx) + (16-s_x)f(\frac{3}{2}dx) - f(\frac{5}{2}dx)
-}{dx^2} 
+}{12dx^2} 
 $$
 that is the main diagonal gets an extra $16s_x$ and the +1 diagonal an extra $-s_x$.
 Also the second point is influenced:
@@ -280,16 +280,69 @@ $$
 \left. \Delta f(x) \right|_{x = \frac{3}{2} dx} 
 = \frac{
 - f(-\frac{1}{2}dx) + 16f(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{dx^2} 
+}{12dx^2} 
 $$
 $$
 = \frac{
 - s_xf(\frac{1}{2}dx) + 16s_xf(\frac{1}{2}dx) - 30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{dx^2}
+}{12dx^2}
 $$
 $$
 = \frac{
 (16-s_x)f(\frac{1}{2}dx) -30f(\frac{3}{2}dx) + 16f(\frac{5}{2}dx) - f(\frac{7}{2}dx)
-}{dx^2} 
+}{12dx^2} 
 $$
 and, consequently, $L$ remains a symmetric matrix, since the -1 diagonal get an extra $-s_x$.
+### issues
+The 3-point stencil in 1D leads to the linear system:
+```
+solution: u(r)=gauss, sigma=2, symmetry=1
+mesh    : dim=1, M=12, h=0.8, reduced=False
+solver  : bc_scale=None, stencil=3, method='direct'
+linear system : 12x12
+  i\j  point             0    1    2    3    4    5    6    7    8    9    10    11           f
+-----  --------------  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ----  ----  ----------
+    0  b[0][-4.40000]    1    0    0    0    0    0    0    0    0    0     0     0   0.0889216
+    1  i[1][-3.60000]    1   -2    1    0    0    0    0    0    0    0     0     0   0.0709269
+    2  i[2][-2.80000]    0    1   -2    1    0    0    0    0    0    0     0     0   0.0576478
+    3  i[3][-2.00000]    0    0    1   -2    1    0    0    0    0    0     0     0   0
+    4  i[4][-1.20000]    0    0    0    1   -2    1    0    0    0    0     0     0  -0.0855317
+    5  i[5][-0.40000]    0    0    0    0    1   -2    1    0    0    0     0     0  -0.150559
+    6  i[6][0.40000]     0    0    0    0    0    1   -2    1    0    0     0     0  -0.150559
+    7  i[7][1.20000]     0    0    0    0    0    0    1   -2    1    0     0     0  -0.0855317
+    8  i[8][2.00000]     0    0    0    0    0    0    0    1   -2    1     0     0   0
+    9  i[9][2.80000]     0    0    0    0    0    0    0    0    1   -2     1     0   0.0576478
+   10  i[10][3.60000]    0    0    0    0    0    0    0    0    0    1    -2     1   0.0709269
+   11  b[11][4.40000]    0    0    0    0    0    0    0    0    0    0     0     1   0.0889216
+bc_scale=None M=12 : rmse=np.float64(0.008798406090593368) mean_diff=0.005923604338136682 max_diff=0.01741974052755879 0.00058s 0.02354s
+```
+the 5-point stencil gives
+```
+solution: u(r)=gauss, sigma=2, symmetry=1
+mesh    : dim=1, M=12, h=0.8, reduced=False
+solver  : bc_scale=None, stencil=5, method='direct'
+linear system : 12x12
+  i\j  point             0    1    2    3    4    5    6    7    8    9    10    11           f
+-----  --------------  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ----  ----  ----------
+    0  b[0][-4.40000]    1    0    0    0    0    0    0    0    0    0     0     0   0.0889216
+    1  i[1][-3.60000]   16  -30   16   -1    0    0    0    0    0    0     0     0   0.851123
+    2  i[2][-2.80000]   -1   16  -30   16   -1    0    0    0    0    0     0     0   0.691773
+    3  i[3][-2.00000]    0   -1   16  -30   16   -1    0    0    0    0     0     0   0
+    4  i[4][-1.20000]    0    0   -1   16  -30   16   -1    0    0    0     0     0  -1.02638
+    5  i[5][-0.40000]    0    0    0   -1   16  -30   16   -1    0    0     0     0  -1.8067
+    6  i[6][0.40000]     0    0    0    0   -1   16  -30   16   -1    0     0     0  -1.8067
+    7  i[7][1.20000]     0    0    0    0    0   -1   16  -30   16   -1     0     0  -1.02638
+    8  i[8][2.00000]     0    0    0    0    0    0   -1   16  -30   16    -1     0   0
+    9  i[9][2.80000]     0    0    0    0    0    0    0   -1   16  -30    16    -1   0.691773
+   10  i[10][3.60000]    0    0    0    0    0    0    0    0   -1   16   -30    16   0.851123
+   11  b[11][4.40000]    0    0    0    0    0    0    0    0    0    0     0     1   0.0889216
+bc_scale=None M=12 : rmse=np.float64(0.0024529569767277833) mean_diff=0.0022026120883708055 max_diff=0.0034458770525791493 0.00065s 0.01756s
+```
+We noted above that the 5-point stencil does not converge. The problem is that for point 1 and 23, the boundary points first neighbors, the stencil lacks the $-1$ contribution from the virtual points -1 and 24. Either we should adapt the stencil for these point to account for this symmetry. Or we could provide the extra points, in which we get two extra points, and thus two extra unknowns and two extra equations. This can be accounted for by two extra Dirichlet boundary conditions. This is mathematically sound as their values are obtained from the fact that we know the long range behavior of the solution. Instead of providing extra points we can apply Dirichlet boundary conditions for points 0, 1, 10 and 11 and solve for the unknowns 2-9.
+This is simpler (especially in 2D and 3D) than embedding the grid in a larger grid.
+
+This means that for the 5-point stencil we need to collect boundary points and next-to-boundary points. 
+
+The MOCCa solution was to embed the Lagrange grid into a grid with 1 (3-point stencil) or 2 (5-point stencil) points extra in every direction and computing L for the interior points only (that I am not sure of but it seems plausible) and only solve for the unknowns corresponding to the interior nodes (i.e. the LagrangeMesh nodes). This approach replaces the `LagrangeMesh.collect_boundary_nodes(stencil)` by a `LagrangeMesh.add_boundary_nodes(stencil)`
+
+Embedding the `LagrangeMesh` in a larger mesh for solving the Poisson can be done by creating an extra mesh or with a restricted view on the larger mesh. E.g in 1D the Poisson mesh with 20 points for a 5-point stencil would be a numpy array `poisson_mesh` with shape `(20,)` and the corresponding LagrangeMesh would have the points `poisson_mesh[2:-2]`. The   is that the linear system matrix $A^{16 \times 16}$  is no longer the Laplacian matrix $L^{20\times 20}$ over the Poisson mesh.   

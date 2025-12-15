@@ -29,13 +29,14 @@ def Laplacian1D(n, stencil=3, h=None):
     if stencil == 3:
         c = [-2,1]
     elif stencil == 5:
-        c = [30,16,-1]
+        c = [-30,16,-1]
     else:
         raise NotImplementedError(f'{stencil}-point 1D stencil not implemented.')
 
-
     if h is not None:
-        inv_h2 = 1. / h**2
+        # scale the coefficients
+        inv_h2 = 1./h**2 if (stencil == 3) else \
+                 1./(12 * h**2) # stencil == 5
         c = [ ci*inv_h2  for ci in c ]
     else:
         c = [ np.int8(ci) for ci in c]
@@ -45,8 +46,8 @@ def Laplacian1D(n, stencil=3, h=None):
             offsets = [0]
             diagonals = [ci*np.ones(n, dtype=np.int8)]
         else:
-            offsets.extend([1,-1])
-            di = ci*np.ones(n-i, dtype=np.int8)
+            offsets.extend([i,-i])
+            di = ci*np.ones(n, dtype=np.int8)
             diagonals.extend([di,di])
 
     d = sparse.diags_array(diagonals, offsets=offsets)
@@ -140,12 +141,12 @@ class GeneralizedPoissonSolver:
     """
     This class solves the generalized Poisson equation
     """
-    # TODO: test non-uniform spacing           2D 3D
     # TODO=done: implement reduced axes
-    # TODO: test 5 point stencil
-    # TODO: implement generalized poisson
     # TODO=done: test symmetric solutions      1D 2D 3D
     # TODO=done: test skew-symmetric solutions 1D 2D 3D
+    # TODO=done: test non-uniform spacing         2D 3D
+    # TODO: test 5 point stencil
+    # TODO: implement generalized poisson
 
     def __init__(self, mesh, stencil=3, bc_scale=None):
         """
@@ -216,7 +217,8 @@ class GeneralizedPoissonSolver:
             self.apply_symmetry_to_matrix(symmetry)
 
         if self.uniform_h:
-            f.data[:,0] *= self.uniform_h**2
+            f.data[:,0] *= (self.uniform_h**2) if (self.stencil == 3) else \
+                           (self.uniform_h**2 * 12) # self.stencil == 5
 
         self.f = f
         self.apply_Dbc_to_rhs(boundary_value)
@@ -284,9 +286,6 @@ class GeneralizedPoissonSolver:
         else:
             g = boundary_value(bp_xyz)
 
-        # TODO: Fix this
-        # assert isinstance(f, np.ndarray) and len(f.shape) == 1
-
         self.f.data[rows,0] = g if (self.bc_scale is None) else \
                               g * self.bc_scale
 
@@ -341,14 +340,15 @@ class GeneralizedPoissonSolver:
             # h**2 scaling always applied to rhs.
             assert self.uniform_h
 
-            if self.stencil == 3:  # only changes on the main diagonal
-                s_x = symmetry[0]
-                if self.stencil == 3:
-                    self.L.data[0,0] += s_x
-                elif self.stencil == 5:
-                    self.L.data[0,0] += 16*s_x
-                    self.L.data[1,1] += 16-s_x # diagonal  1
-                    self.L.data[2,0] += 16-s_x # diagonal -1
+            s_x = symmetry[0]
+            if self.stencil == 3:   # only changes on the main diagonal
+                self.L.data[0,0] += s_x
+
+            elif self.stencil == 5:
+                self.L.data[0,0] += 16*s_x
+                self.L.data[1,1] += -s_x # diagonal  1
+                self.L.data[2,0] += -s_x # diagonal -1
+
             else:
                 raise NotImplementedError()
         pass
