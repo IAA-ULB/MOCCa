@@ -76,30 +76,46 @@ class MeshQuantity:
                                   )
 
         else:
-            self.symmetry = np.zeros((self.n_components, mesh.dim), dtype=np.int32, order='F')
+            self.symmetry = np.empty((self.n_components, mesh.dim), dtype=np.int32, order='F')
             if isinstance(symmetry, int):
                 self.symmetry[:,:] = symmetry
 
-            elif isinstance(symmetry, (tuple,list)) and \
-                 len(symmetry) == self.mesh.dim:
-                # Assume same symmetry for all components
-                symmetry = np.array(symmetry, dtype=np.int32)
-                for iq in range(self.n_components):
-                    self.symmetry[iq,:] = symmetry[:]
+            elif isinstance(symmetry, (tuple, list)):
+                symmetry = np.array(symmetry)
+                # symmetry.shape must be
+                # (1) either (self.mesh.dim,)               -> all components identical
+                # (2) or (self.n_components,1)              -> all dimensions identical, per component
+                # (3) or (self.n_components, self.mesh.dim) -> all components and dimensions specified separately
+                if symmetry.shape == (mesh.dim,):                       # (1)
+                    for iq in range(self.n_components):
+                        self.symmetry[iq,:] = symmetry[:]
 
-            else:
-                if not isinstance(symmetry, np.ndarray):
-                    symmetry = np.array(symmetry)
+                elif symmetry.shape == (self.n_components, 1):          # (2)
+                    for idim in range(self.mesh.dim):
+                        self.symmetry[:,idim] = symmetry[:,0]
 
-                if symmetry.shape == self.symmetry.shape:
+                elif symmetry.shape == (self.n_components, mesh.dim):   # (3)
+                    # may raise "ValueError: could not broadcast input array ..."
                     self.symmetry[:,:] = symmetry
+
                 else:
                     raise ValueError(f"Symmetry {symmetry} not understood. Either specify:\n"
-                                     f"  - a single value (+1|-1) -> same symmetry for all {n_components} components\n"
-                                     f"  - a tuple or list of length {mesh.dim=} -> all components have the same symmetry\n"
-                                     f"    behavior on the same axis, but axes may have different symmetry behavior.\n"
-                                     f"  - a list of n_component lists of length {mesh.dim=} -> each component and\n"
-                                     f"    each axis is explicitly specified.")
+                                     f"  - s                use int s for all components and all dimensions \n"
+                                     f"  - [sx<,sy<,sz>>]   use this for all components\n"
+                                     f"  - [[s],            use this for component 0 (all dimensions)\n"
+                                     f"     [s],            use this for component 1 (all dimensions)\n"
+                                     f"     ...]" 
+                                     f"  - [[sx<,sy<,sz>>], use this for component 0\n"
+                                     f"     [sx<,sy<,sz>>], use this for component 1\n"
+                                     f"     ...           ]\n"
+                                     f"(Tuples may be used instead of lists).")
+
+            elif isinstance(symmetry, np.ndarray):
+                # may raise BroadcastError
+                self.symmetry[:,:] = symmetry
+
+            else:
+                raise TypeError(f"Symmetry specifications must be of type int|list|tuple|list[list]|tuple[tuple]|np.ndarray, not '{type(symmetry)}'.'")
 
             assert len(self.symmetry.shape) == 2
 

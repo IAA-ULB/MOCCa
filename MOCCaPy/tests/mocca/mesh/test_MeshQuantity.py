@@ -239,8 +239,8 @@ def test_differentiate_1D_x_reduced(debug=False):
             print(f"bf{i} imag: {bfnr[i,1]} =? {bfr[i-N,1]}")
             assert bfnr[i, 1] == pytest.approx(bfr[i-N, 1])
 
-    Q = MeshQuantity(mesh   , data=bfr , symmetry=[1,-1] )
-    R = MeshQuantity(mesh_nr, data=bfnr, symmetry=[1,-1]) # R for "R"eference.
+    Q = MeshQuantity(mesh   , data=bfr , symmetry=[[1],[-1]] )
+    R = MeshQuantity(mesh_nr, data=bfnr, symmetry=[[1],[-1]]) # R for "R"eference.
 
     dQdx = Q.differentiate(axes='x')
     dRdx = R.differentiate(axes='x')
@@ -275,7 +275,7 @@ def test_differentiate_1D_xx():
 
         if reduced == False:
             bfq = mesh.basis_function(ijk=0, r=mesh .g1D[0])
-            Q = MeshQuantity(mesh, data=bfq, symmetry=[1,-1])
+            Q = MeshQuantity(mesh, data=bfq, symmetry=[[1],[-1]])
             d2Qdx2 = Q.differentiate(axes='xx')
 
             # Re{d2Qdx2} is proportional to -Re{Q}
@@ -313,7 +313,7 @@ def test_differentiate_1D_xxx():
 
         if reduced == False:
             bfq = mesh.basis_function(ijk=0, r=mesh.g1D[0])
-            Q = MeshQuantity(mesh, data=bfq, symmetry=[1,-1])
+            Q = MeshQuantity(mesh, data=bfq, symmetry=[[1],[-1]])
             d3Qdx3 = Q.differentiate(axes='xxx')
 
             # Re{d3Qdx3} is proportional to Im{Q}
@@ -459,8 +459,8 @@ def test_differentiate_2D_Grad_reduced(debug=False, no_plot=False):
         # plt.show()
         plt.close(fig)
 
-    QN = MeshQuantity(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2grid(pw_points)[N:M, N:M, :]), symmetry=[1,-1], name='QN')
-    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pw_points)                                  , symmetry=[1,-1], name='Q2N')
+    QN  = MeshQuantity(mesh_N , data=mesh_N.cast2linear(mesh_2N.cast2grid(pw_points)[N:M, N:M, :]), symmetry=[[1],[-1]], name='QN')
+    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pw_points)                               , symmetry=[[1],[-1]], name='Q2N')
 
     QN.differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
@@ -494,8 +494,8 @@ def test_differentiate_2D_Grad_reduced(debug=False, no_plot=False):
             pw_y[i,j,:] = pw_points[j,i,:]
 
     print(f"Verifying {axes=}")
-    QN = MeshQuantity(mesh_N, data=mesh_N.cast2linear(pw_y[N:M, N:M, :]), symmetry=[1,-1], name='QN')
-    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pw_y)             , symmetry=[1,-1], name='Q2N')
+    QN  = MeshQuantity(mesh_N , data=mesh_N.cast2linear(pw_y[N:M, N:M, :]), symmetry=[[1],[-1]], name='QN')
+    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pw_y)            , symmetry=[[1],[-1]], name='Q2N')
 
     QN.differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
@@ -544,8 +544,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     print(pwGx[N:M,0,0,0])
     print(pwGx[N:M,0,0,1])
 
-    QN  = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGx[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGx)                  , symmetry=[1, -1], name='Q2N')
+    QN  = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGx[N:M, N:M, N:M, :]), symmetry=[[1], [-1]], name='QN')
+    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGx)                  , symmetry=[[1], [-1]], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
@@ -580,8 +580,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     assert pwGx[N:M, 0, 0, 1] == pytest.approx(pwGy[0,N:M,0,1])
 
     print(f"Verifying {axes=}")
-    QN = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGy[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N= MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGy)                  , symmetry=[1, -1], name='Q2N')
+    QN = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGy[N:M, N:M, N:M, :]), symmetry=[[1], [-1]], name='QN')
+    Q2N= MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGy)                  , symmetry=[[1], [-1]], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
@@ -614,8 +614,8 @@ def test_differentiate_3D_Grad_reduced(debug=False):
     assert pwGx[N:M, 0, 0, 1] == pytest.approx(pwGz[0,0,N:M,1])
 
     print(f"Verifying {axes=}")
-    QN  = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGz[N:M, N:M, N:M, :]), symmetry=[1, -1], name='QN')
-    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGz)                  , symmetry=[1, -1], name='Q2N')
+    QN  = MeshQuantity(mesh_N , data=mesh_N .cast2linear(pwGz[N:M, N:M, N:M, :]), symmetry=[[1], [-1]], name='QN')
+    Q2N = MeshQuantity(mesh_2N, data=mesh_2N.cast2linear(pwGz)                  , symmetry=[[1], [-1]], name='Q2N')
 
     QN .differentiate(axes=axes, debug=debug)
     Q2N.differentiate(axes=axes, debug=debug)
