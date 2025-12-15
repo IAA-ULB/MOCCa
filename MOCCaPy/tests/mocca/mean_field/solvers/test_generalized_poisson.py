@@ -385,7 +385,7 @@ def test_1D():
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
         , tablefmt="simple"
     )
     print(s)
@@ -404,44 +404,44 @@ def test_2D():
 
     sigma = 2
     for analytical_solution in [gauss, x_gauss, y_gauss, xy_gauss]:
+        for stencil in [3, 5]:
+            for reduced in [
+                False,
+                True,
+                (True, False),
+                (False, True),
+            ]:
+                for bc_scale in [None, 1e20]:
+                    for h in [1.6, (1.6, 1.61)]:
+                        rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                        M = 4
+                        for iter in range(5):
+                            M *= 2
+                            if isinstance(h, tuple):
+                                h = tuple([hi*0.5 for hi in h])
+                            else:
+                                h *= .5
 
-        stencil = 3
-        for reduced in [
-            True,
-            False,
-            (True, False),
-            (False, True),
-        ]:
-            for bc_scale in [None, 1e20]:
-                for h in [1.6, (1.6, 1.61)]:
-                    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                    M = 6
-                    for iter in range(5):
-                        M *= 2
-                        if isinstance(h, tuple):
-                            h = tuple([hi*0.5 for hi in h])
-                        else:
-                            h *= .5
+                            verbosity = 2 if (iter == 0) else 1
 
-                        verbosity = 2 if (iter == 0) else 1
+                            rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                                analytical_solution=analytical_solution, sigma=sigma,
+                                dim=dim, M=M, h=h, reduced=reduced,
+                                bc_scale=bc_scale, stencil=stencil,
+                                verbosity=verbosity,
+                            )
 
-                        rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
-                            analytical_solution=analytical_solution, sigma=sigma,
-                            dim=dim, M=M, h=h, reduced=reduced,
-                            bc_scale=bc_scale, stencil=stencil,
-                            verbosity=verbosity,
-                        )
+                            tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                            assert rmse < rmse0
+                            assert mean_diff < mean_diff0
+                            assert max_diff < max_diff0
 
-                        tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
-                        assert rmse < rmse0
-                        assert mean_diff < mean_diff0
-                        assert max_diff < max_diff0
-
-                        rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                            rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                        pass
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-        , headers=["u(r)", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
         , tablefmt="simple"
     )
     print(s)
@@ -489,7 +489,7 @@ def test_3D():
                             verbosity=verbosity,
                         )
 
-                        tbl.append([analytical_solution.__name__, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                        tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
                         assert rmse < rmse0
                         assert mean_diff < mean_diff0
                         assert max_diff < max_diff0
@@ -498,7 +498,7 @@ def test_3D():
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-                  , headers=["u(r)", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "asmlb", 'solve']
+                  , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
                   , tablefmt="simple"
                   )
     print(s)
@@ -557,7 +557,7 @@ def test_collect_boundary_points_1D():
     d = 1
     for reduced in [True, False]:
         mesh = LagrangeMesh(dim=dim, M=M, d=d, reduced=reduced)
-        mesh.collect_boundary_points()
+        mesh.collect_boundary_points(stencil=3)
         if reduced:
             assert len(mesh.bp_l) == 1
             assert mesh.bp_l[0] == 4
@@ -588,7 +588,7 @@ def test_collect_boundary_points_2D():
     ]:
         print(f"{reduced=}")
         mesh = LagrangeMesh(dim=dim, M=M, d=d, reduced=reduced)
-        mesh.collect_boundary_points()
+        mesh.collect_boundary_points(stencil=3)
         nbp = mesh.bp_l.size
         if reduced == (True, True):
             assert nbp == 4
@@ -624,7 +624,7 @@ def test_collect_boundary_points_3D():
     ]:
         print(f"{reduced=}")
         mesh = LagrangeMesh(dim=dim, M=M, d=d, reduced=reduced)
-        mesh.collect_boundary_points()
+        mesh.collect_boundary_points(stencil=3)
         nbp = mesh.bp_l.size
         nbp_expected = 18 # for all reduced
         for r in reduced:

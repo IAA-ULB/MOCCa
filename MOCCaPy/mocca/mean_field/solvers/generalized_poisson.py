@@ -313,8 +313,10 @@ class GeneralizedPoissonSolver:
         if self.mesh.dim > 1:
             # If h is uniform h**2 scaling is applied on the rhs, otherwise it is applied to the
             # matrix and the symmetry action on the matrix must be scaled as well
+
             sh = symmetry if self.uniform_h else \
-                 [si/(hi**2) for si, hi in zip(symmetry, self.mesh.d) ]
+                 [si / (     hi**2) for si, hi in zip(symmetry, self.mesh.d)] if (self.stencil == 3) else \
+                 [si / (12 * hi**2) for si, hi in zip(symmetry, self.mesh.d)]  # (self.stencil == 5)
 
             offsets = self.L.offsets.tolist()
             md = len(offsets) // 2
@@ -326,15 +328,15 @@ class GeneralizedPoissonSolver:
                         data[md, rows] += sh[idim] # only changes on the main diagonal
 
             elif self.stencil == 5:  # also changes off the main diagonal
-                # TODO: test this!
-                N = 1
                 for idim in range(3):
                     rows = self.mesh.sp_l[idim]
+                    n = 1                if (idim == 0) else \
+                        n*self.mesh.N[0] if (idim == 1) else \
+                        n*self.mesh.N[1]
                     if rows is not None:
-                        data[md,                            rows] += sh[idim] * 16
-                        data[md+idim, offsets[2+idim] +     rows] -= sh[idim]
-                        data[md-idim, offsets[2-idim] + N + rows] -= sh[idim]
-                    N *= self.mesh.N[idim]
+                        data[md           , rows                             ] += sh[idim] * 16
+                        data[md+(2*idim+1), rows + offsets[md+(2*idim+1)]    ] -= sh[idim]
+                        data[md-(2*idim+1), rows + offsets[md+(2*idim+1)] - n] -= sh[idim]
 
         else: # mesh.dim == 1
             # h**2 scaling always applied to rhs.

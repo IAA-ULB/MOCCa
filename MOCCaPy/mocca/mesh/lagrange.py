@@ -324,8 +324,8 @@ class LagrangeMesh(Mesh):
             # already called
             return
 
-        boundary_width = 1 if (stencil == 3) else \
-                         2  # (stencil == 5)
+        self.boundary_width = 1 if (stencil == 3) else \
+                              2  # (stencil == 5)
 
         if self.dim == 3:
             # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
@@ -339,7 +339,7 @@ class LagrangeMesh(Mesh):
             boundary.extend(x_boundary)
             boundary.extend(y_boundary)
             boundary.extend(z_boundary)
-            if boundary_width ==2:
+            if self.boundary_width ==2:
                 x_boundary = [[lx-1, iy, iz] for iz in range(lz + 1 - 1) for iy in range(ly + 1 - 1)]
                 y_boundary = [[ix, ly-1, iz] for iz in range(lz + 1 - 1) for ix in range(lx     - 1)]
                 z_boundary = [[ix, iy, lz-1] for iy in range(ly     - 1) for ix in range(lx     - 1)]
@@ -387,7 +387,7 @@ class LagrangeMesh(Mesh):
             boundary = []
             boundary.extend(x_boundary)
             boundary.extend(y_boundary)
-            if boundary_width ==2:
+            if self.boundary_width ==2:
                 x_boundary = [[lx-1,iy] for iy in range(ly  -1)] # corner not included
                 y_boundary = [[ix,ly-1] for ix in range(lx+1-1)] # corner     included
                 boundary.extend(x_boundary)
@@ -409,14 +409,6 @@ class LagrangeMesh(Mesh):
                 mirror   = [ [bp[0], M - bp[1] - 1] for bp in boundary]
                 boundary.extend(mirror)
 
-            if not self.reduced[2]:
-                M = self.M[2]
-                halfM = M // 2
-                boundary = [[bp[0], bp[1], bp[2] + halfM] for bp in boundary]
-                # mirror z
-                mirror = [[bp[0], bp[1], M - bp[2] - 1] for bp in boundary]
-                boundary.extend(mirror)
-
             self.bp_ijk = np.array(boundary, order='F')
             self.bp_l   = self.bp_ijk[:,0] \
                         + self.bp_ijk[:,1] * self.N[0]
@@ -424,11 +416,11 @@ class LagrangeMesh(Mesh):
 
         else: # self.dim == 1
             last = self.N[0] - 1
-            if boundary_width == 1:
+            if self.boundary_width == 1:
                 self.bp_l = np.array(
                     [   last,] if self.reduced[0] else \
                     [0, last,])
-            elif boundary_width == 2:
+            elif self.boundary_width == 2:
                 self.bp_l = np.array(
                     [      last-1, last,] if self.reduced[0] else \
                     [0, 1, last-1, last,]
@@ -464,9 +456,9 @@ class LagrangeMesh(Mesh):
                 N2 = self.N[2]
                 N0N1 = N0 * N1
                 sp_ijk = [
-                    np.array([[0,j,k] for j in range(j0, N1-1) for k in range(k0, N2-1)], order='F') if reduced[0] else None,
-                    np.array([[i,0,k] for i in range(i0, N0-1) for k in range(k0, N2-1)], order='F') if reduced[1] else None,
-                    np.array([[i,j,0] for i in range(i0, N0-1) for j in range(j0, N1-1)], order='F') if reduced[2] else None,
+                    np.array([[0,j,k] for j in range(j0, N1-self.boundary_width) for k in range(k0, N2-self.boundary_width)], order='F') if reduced[0] else None,
+                    np.array([[i,0,k] for i in range(i0, N0-self.boundary_width) for k in range(k0, N2-self.boundary_width)], order='F') if reduced[1] else None,
+                    np.array([[i,j,0] for i in range(i0, N0-self.boundary_width) for j in range(j0, N1-self.boundary_width)], order='F') if reduced[2] else None,
                 ]
                 self.sp_l = [
                     None if (sp_ijk[0] is None) else sp_ijk[0][:, 0] + sp_ijk[0][:, 1] * N0 + sp_ijk[0][:,2] * N0N1,
@@ -475,13 +467,13 @@ class LagrangeMesh(Mesh):
                 ]
 
             elif self.dim == 2:
-                i0 = 0 if reduced[0] else 1
-                j0 = 0 if reduced[1] else 1
+                i0 = 0 if reduced[0] else self.boundary_width
+                j0 = 0 if reduced[1] else self.boundary_width
                 N0 = self.N[0]
                 N1 = self.N[1]
                 sp_ijk = [
-                    np.array([[0,j] for j in range(j0, N1-1)], order='F') if reduced[0] else None,
-                    np.array([[i,0] for i in range(i0, N0-1)], order='F') if reduced[1] else None,
+                    np.array([[0,j] for j in range(j0, N1-self.boundary_width)], order='F') if reduced[0] else None,
+                    np.array([[i,0] for i in range(i0, N0-self.boundary_width)], order='F') if reduced[1] else None,
                     None
                 ]
                 self.sp_l = [
