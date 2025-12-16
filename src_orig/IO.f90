@@ -1923,9 +1923,9 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     if (present(O_ph)) then
       do h = 1, nwt
         do p = 1, nwt
-          if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
+          ! if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
             write(1, fmt=2) p, h, O_ph(p,h)%re, O_ph(p,h)%im, O_hp(p,h)%re, O_hp(p,h)%im
-          end if
+          ! end if
         enddo
       enddo
 
@@ -1934,9 +1934,9 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
       do h = 1, nwt
         do p = 1, nwt
-          if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
+          ! 1if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
             write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
-          end if
+          ! end if
         enddo
       enddo
     endif
