@@ -345,4 +345,15 @@ This means that for the 5-point stencil we need to collect boundary points and n
 
 The MOCCa solution was to embed the Lagrange grid into a grid with 1 (3-point stencil) or 2 (5-point stencil) points extra in every direction and computing L for the interior points only (that I am not sure of but it seems plausible) and only solve for the unknowns corresponding to the interior nodes (i.e. the LagrangeMesh nodes). This approach replaces the `LagrangeMesh.collect_boundary_nodes(stencil)` by a `LagrangeMesh.add_boundary_nodes(stencil)`
 
-Embedding the `LagrangeMesh` in a larger mesh for solving the Poisson can be done by creating an extra mesh or with a restricted view on the larger mesh. E.g in 1D the Poisson mesh with 20 points for a 5-point stencil would be a numpy array `poisson_mesh` with shape `(20,)` and the corresponding LagrangeMesh would have the points `poisson_mesh[2:-2]`. The   is that the linear system matrix $A^{16 \times 16}$  is no longer the Laplacian matrix $L^{20\times 20}$ over the Poisson mesh.   
+Embedding the `LagrangeMesh` in a larger mesh for solving the Poisson can be done by creating an extra mesh or with a restricted view on the larger mesh. E.g in 1D the Poisson mesh with 20 points for a 5-point stencil would be a numpy array `poisson_mesh` with shape `(20,)` and the corresponding LagrangeMesh would have the points `poisson_mesh[2:-2]`. The difficulty is that the linear system matrix $A^{16 \times 16}$  is no longer the Laplacian matrix $L^{20\times 20}$ over the Poisson mesh. Embedding, however, allows $L$ to be expressed as a linear operator which applies the stencil at every interior point, computing $Au$ (thus it is essentially a matrix-free approach), while reaching into the embedding region when necessary. The system can then be solved iteratively, for the interior points only.  That avoids special treatments of boundary and symmetry boundary conditions all together (except for copying the symmetry points at each iteration). To that end, SciPy provides `LinearOperator` class, whose constructor simply requires a method that computes $Au$ given $u$. The difficulty for this approach is that (except for 1D) is impossible to embed the grid and keep $u$ a contiguous vector. Either we deal with
+- a contiguous $u$ and store the boundary regions separately (non-contigously), 
+- or with an embedded grid and a non-contiguous u.
+This requires the following steps:
+0. set the boundary values on the boundary region of the embedded grid,
+1. put $u$ on the embedded grid (when using an embedded grid this is a non-contiguous copy operation),  
+2. copy the symmetry points in $u$ to the symmetry boundary regions with the correct sign (as $u$  is updated during iterations), 
+3. compute $Au$ (when using the embedded grid, this involves applying the stencil to the interior points, which is rather straightforward. If not, this involves applying the stencil on the interior points for which the stencil does not extend beyond the grid, and a whole series of corner cases where the stencil extends into the boundary and symmetry boundary regions) 
+4. update (inside iterative solver),
+5. back to 1. and repeat until convergence (inside iterative solver).
+Embedding the grid seems the less error-prone approach. 
+
