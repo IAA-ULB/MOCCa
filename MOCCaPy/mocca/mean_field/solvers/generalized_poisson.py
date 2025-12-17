@@ -80,13 +80,13 @@ def Laplacian3D(n, stencil=3, h=None):
         a sparse matrix.
     """
     if h is None:
-        d = sparse.kron( sparse.eye(n[2])          , sparse.kron( sparse.eye(n[1])         , Laplacian1D(n[0], stencil), format='dia'), format='dia') \
-          + sparse.kron( sparse.eye(n[2])          , sparse.kron(Laplacian1D(n[1], stencil),  sparse.eye(n[0])         , format='dia'), format='dia') \
-          + sparse.kron(Laplacian1D(n[2] , stencil), sparse.kron( sparse.eye(n[1])         ,  sparse.eye(n[0])         , format='dia'), format='dia')
+        d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil)      , format='dia'), format='dia') \
+          + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil)      ,  sparse.eye(n[0])               , format='dia'), format='dia') \
+          + sparse.kron(Laplacian1D(n[2] , stencil)     , sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])               , format='dia'), format='dia')
     else:
-        d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil, h[0]) , format='dia'), format='dia') \
-          + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil, h[1]),  sparse.eye(n[0])                , format='dia'), format='dia') \
-          + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])                , format='dia'), format='dia')
+        d = sparse.kron( sparse.eye(n[2])               , sparse.kron( sparse.eye(n[1])               , Laplacian1D(n[0], stencil, h[0]), format='dia'), format='dia') \
+          + sparse.kron( sparse.eye(n[2])               , sparse.kron(Laplacian1D(n[1], stencil, h[1]),  sparse.eye(n[0])               , format='dia'), format='dia') \
+          + sparse.kron(Laplacian1D(n[2], stencil, h[2]), sparse.kron( sparse.eye(n[1])               ,  sparse.eye(n[0])               , format='dia'), format='dia')
     return d
 
 # TODO: dia_entry_set and dia_entry_add are no longer used. discard or improve.
@@ -147,6 +147,8 @@ class GeneralizedPoissonSolver:
     # TODO=done: test non-uniform spacing         2D 3D
     # TODO: test 5 point stencil
     # TODO: implement generalized poisson
+    # TODO: add iterative solution methods
+    # TODO: time the methods
 
     def __init__(self, mesh, stencil=3, bc_scale=None):
         """
@@ -217,8 +219,8 @@ class GeneralizedPoissonSolver:
             self.apply_symmetry_to_matrix(symmetry)
 
         if self.uniform_h:
-            f.data[:,0] *= (self.uniform_h**2) if (self.stencil == 3) else \
-                           (self.uniform_h**2 * 12) # self.stencil == 5
+            f.data[:,0] *= (     self.uniform_h**2) if (self.stencil == 3) else \
+                           (12 * self.uniform_h**2)  # (self.stencil == 5)
 
         self.f = f
         self.apply_Dbc_to_rhs(boundary_value)

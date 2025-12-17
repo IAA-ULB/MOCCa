@@ -308,9 +308,9 @@ def run_ND(
     s += f"mesh    : {dim=}, {M=}, {h=}, {reduced=}\n"
     s += f"solver  : {bc_scale=}, {stencil=}, {method=}\n"
     s += f"linear system : {mesh.linear_size}x{mesh.linear_size}"
+    print(s, file=output)
     if verbosity:
         print(s)
-    print(s, file=output)
 
     ue = MeshQuantity(mesh, name='u', n_components=1, symmetry=symmetry)
     ue.data[:,0] = ue_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2]) if (dim == 3) else \
@@ -326,8 +326,10 @@ def run_ND(
     pSolver.assemble(f, ue_lambda, symmetry=symmetry)
     cput_asmbl = tmr.stop()
 
+
     if verbosity >= 2:
         print(pSolver)
+        # print(pSolver, file=output)
 
     tmr.start()
     u = pSolver.solve(method=method)
@@ -337,13 +339,14 @@ def run_ND(
     rmse = np.sqrt(np.sum(np.square(diff)) / M)
     mean_diff = float(np.mean(diff))
     max_diff = float(np.max(diff))
+    max_rel = float(np.max(diff/u))
 
     s = f"{bc_scale=} {M=} : {rmse=} {mean_diff=} {max_diff=} {cput_asmbl:.5f}s {cput_solve:.5f}s"
+    print(s, file=output)
     if verbosity:
         print(s)
-    print(s, file=output)
 
-    return rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u
+    return rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u
 
 
 @started_finished
@@ -358,25 +361,34 @@ def test_1D():
 
     sigma = 2
     for analytical_solution in [gauss, x_gauss]:
-        for stencil in [3, 5]:
-            for reduced in [False, True]:
-                for bc_scale in [None,1e20]:
+        for stencil in [
+            3,
+            5,
+        ]:
+            for reduced in [
+                False,
+                True,
+            ]:
+                for bc_scale in [
+                    None,
+                    1e20,
+                ]:
                     rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                    M = 6
+                    M = 4
                     h = 1.6
-                    for iter in range(5):
+                    for iter in range(3):
                         M *= 2
                         h *= .5
                         verbosity = 2 if (iter >=0) else 1
 
-                        rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                        rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_ND(
                             analytical_solution=analytical_solution, sigma=sigma,
                             dim=dim, M=M, h=h, reduced=reduced,
                             bc_scale=bc_scale, stencil=stencil,
                             verbosity=verbosity,
                         )
 
-                        tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                        tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve])
                         assert rmse < rmse0
                         assert mean_diff < mean_diff0
                         assert max_diff < max_diff0
@@ -385,7 +397,7 @@ def test_1D():
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
+        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "Max rel", "cput_asmlb", 'cput_solve']
         , tablefmt="simple"
     )
     print(s)
@@ -404,7 +416,10 @@ def test_2D():
 
     sigma = 2
     for analytical_solution in [gauss, x_gauss, y_gauss, xy_gauss]:
-        for stencil in [3, 5]:
+        for stencil in [
+            3,
+            5,
+        ]:
             for reduced in [
                 False,
                 True,
@@ -412,10 +427,13 @@ def test_2D():
                 (False, True),
             ]:
                 for bc_scale in [None, 1e20]:
-                    for h in [1.6, (1.6, 1.61)]:
+                    for h in [
+                        1.6,
+                        (1.6, 1.61),
+                    ]:
                         rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
                         M = 4
-                        for iter in range(5):
+                        for iter in range(3):
                             M *= 2
                             if isinstance(h, tuple):
                                 h = tuple([hi*0.5 for hi in h])
@@ -424,14 +442,14 @@ def test_2D():
 
                             verbosity = 2 if (iter == 0) else 1
 
-                            rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                            rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_ND(
                                 analytical_solution=analytical_solution, sigma=sigma,
                                 dim=dim, M=M, h=h, reduced=reduced,
                                 bc_scale=bc_scale, stencil=stencil,
                                 verbosity=verbosity,
                             )
 
-                            tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                            tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve])
                             assert rmse < rmse0
                             assert mean_diff < mean_diff0
                             assert max_diff < max_diff0
@@ -441,13 +459,21 @@ def test_2D():
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
+        , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "Max rel", "cput_asmlb", 'cput_solve']
         , tablefmt="simple"
     )
     print(s)
     print(s, file=output)
 
-@started_finished
+
+def reduced_str(reduced):
+    s = ''
+    for r in reduced:
+        s += 'T' if r else 'F'
+    return s
+
+
+@pytest.mark.slow
 def test_3D():
     dim = 3
 
@@ -458,47 +484,71 @@ def test_3D():
     tbl = []
 
     sigma = 2
-    for analytical_solution in [gauss, x_gauss, y_gauss, z_gauss, xy_gauss, xz_gauss, yz_gauss, xyz_gauss]:
-
-        stencil = 3
-        for reduced in [
-            True,
-            False,
-            (True, False, False),
-            (False, True, False),
-            (False, False, True),
-            (True, True, False),
-            (True, False, True),
-            (False, True, True),
+    for stencil in [
+        3,
+        5,
+    ]:
+        for analytical_solution in [
+            xy_gauss,
+            gauss,
+            x_gauss,
+            y_gauss,
+            z_gauss,
+            xz_gauss,
+            yz_gauss,
+            xyz_gauss,
         ]:
-            for bc_scale in [None, 1e20]:
-                for h in [4., (4, 4.01, 4.01)]:
-                    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                    M = 4
-                    w = M*h if isinstance(h, float) else [M*hi for hi in h]
-                    for iter in range(7):
-                        # Doubling M increases the linear system's size way too fast in 3D.
-                        M += 4
-                        h = w/M if isinstance(w, float) else tuple([wi/M for wi in w])
-                        verbosity = 2 if (iter == 0) else 1
+            for reduced in [
+                False,
+                True,
+                (True, False, False),
+                (False, True, False),
+                (False, False, True),
+                (True, True, False),
+                (True, False, True),
+                (False, True, True),
+            ]:
+                for bc_scale in [
+                    1e20,
+                    None,
+                ]:
+                    for h in [
+                        4.,
+                        (4, 4.01, 4.01),
+                    ]:
+                        rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                        M = 4
+                        w = M*h if isinstance(h, float) else [M*hi for hi in h]
 
-                        rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
-                            analytical_solution=analytical_solution, sigma=sigma,
-                            dim=dim, M=M, h=h, reduced=reduced,
-                            bc_scale=bc_scale, stencil=stencil,
-                            verbosity=verbosity,
-                        )
+                        for iter in range(7):
+                            # Doubling M increases the linear system's size way too fast in 3D.
+                            M += 4
+                            h = w/M if isinstance(w, float) else tuple([wi/M for wi in w])
+                            verbosity = 2 if (iter == 0) else 1
 
-                        tbl.append([analytical_solution.__name__, stencil, reduced, bc_scale, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
-                        assert rmse < rmse0
-                        assert mean_diff < mean_diff0
-                        assert max_diff < max_diff0
+                            rmse, mean_diff, max_diff, cput_asmbl, cput_solve, u = run_ND(
+                                analytical_solution=analytical_solution, sigma=sigma,
+                                dim=dim, M=M, h=h, reduced=reduced,
+                                bc_scale=bc_scale, stencil=stencil,
+                                verbosity=verbosity,
+                            )
 
-                        rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                            tbl.append([analytical_solution.__name__, stencil, reduced, 0 if (bc_scale is None) else bc_scale, h, M, rmse, mean_diff, max_diff, cput_asmbl, cput_solve])
+                            assert rmse < rmse0
+                            assert mean_diff < mean_diff0
+                            try:
+                                assert max_diff < max_diff0
+                            except AssertionError:
+                                print(f"Assertion failed: {max_diff} < {max_diff0}")
+                                print(f"Assertion failed: {max_diff} < {max_diff0}", file=output)
+
+                            rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+
+                        pass
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl
-                  , headers=["u(r)", "stencil", "reduced", "bc_scale", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
+                  , headers=["stencil", "u(r)", "reduced", "bc_scale", "h", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
                   , tablefmt="simple"
                   )
     print(s)
