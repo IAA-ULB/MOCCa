@@ -766,6 +766,99 @@ contains
 
   end function
 
+
+  subroutine test_bogo()
+    !---------------------------------------------------------------------------
+    ! test the new qp trafo routines
+    !---------------------------------------------------------------------------
+
+   
+    complex(KIND=dp), allocatable :: Fsp(:,:), identity(:,:)
+    complex(KIND=dp), allocatable :: Fqp(:,:,:),  Fph(:,:,:)
+    
+    real(KIND=dp), allocatable :: N20(:,:)
+    complex(KIND=dp), allocatable ::  N20new(:,:)
+
+    integer :: i, si, T
+      
+    allocate(Fsp(nwt,nwt))   ! contains the spme of a one-body operator F: f11_pq
+    allocate(Fqp(nwt,nwt,2)) ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+    allocate(Fph(nwt,nwt,2)) ! keeps only ph and hp subblocks of spme Fsp
+
+
+    ! do i=1,nwt
+    !   print *, i , rho_hf(i)
+    ! enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 1. some test for the particle number operator, comparing to existing routines
+
+
+    ! construct the spme of the particle-number operator = identity 
+    allocate(identity(nwt,nwt)) 
+    identity = 0.0
+
+    ! Set the diagonal elements to 1
+    do i = 1, nwt
+        identity(i, i) = 1.0
+    end do
+
+
+    ! transform to qpme N20
+    allocate(N20new(nwt,nwt)) 
+    call transform_O11_to_qpO20(Bogoliubov, identity, N20new(:,:))
+
+    print *, 'N20 (new routine) : BLOCK 1 & 2'
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(99f10.5)",  N20new(i, 1:T)
+    enddo
+
+    ! get qpme of N20 from existing routine, for the neutron channel
+    N20 = calcN20(Bogoliubov, HFblocks(1:4))
+
+    print *, 'N20 (existing routine) : BLOCK 1 & 2'
+    do i=1,T
+      print "(99f10.5)",  N20(i, 1:T)
+    enddo
+
+   
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 2. test qp trafo of monopole operator, when bogo trafo is trivial for protons
+
+    ! define Fsp as the spme of r^2
+    Fsp = Rsq_spme()
+
+    ! get qpme of F
+    call transform_O11_to_qpO20(Bogoliubov, Fsp, Fqp(:,:,1))
+    
+    print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
+
+    print *, 'F20_k1k2 : BLOCK 5 & 6'
+    si =  nwn+1 ! start index of block 5
+    T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
+
+    do i=si+1,si+T
+      print "(*( '(',g12.5,',',g12.5,')',:))",  Fqp(i,si+1:si+T,1)
+    enddo
+
+
+
+    ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
+    ! the existing particle hole getters. 
+    call get_ph_hp_blocks(Fsp, Fph(:,:,1), Fph(:,:,2))
+    print *, '||Fph (proton)||', sum(abs(Fph(nwn+1:nwt, nwn+1:nwt,1) * Fph(nwn+1:nwt, nwn+1:nwt,1)))
+    call print_spme_complex( Fph(:,:,1))
+    print *, 'Fph_ia : BLOCK 5 & 6'
+    do i=si+1,si+T
+      print "(*( '(',g12.5,',',g12.5,')',:))",  Fph(i,si+1:si+T,1)
+    enddo
+    
+    stop
+
+  end subroutine test_bogo
+
+
   subroutine test_linearity_T()
     ! Test a complete FAM iteration is an affine transformation by calling iterate_dH on 
     ! a chosen linear combination a * dHa + b*dHb. One expects that
