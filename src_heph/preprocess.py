@@ -29,7 +29,7 @@ vectors_potentials = ''
 memory_densities   = ''
 
 def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
-               fam_active, density_spwf_summation):
+               fam_active, density_spwf_summation, dry_run=False):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
@@ -48,6 +48,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                         prepared for complex densities - among other things.
       density_spwf_summation: Boolean. If .True., calculate the derivatives of
                               densities by summing 
+      dry_run: Boolean. If True, do not actually process anything, but do print output.
+                        If False, actually process the files but do not print output.
     """
     
     global vectors_densities
@@ -71,12 +73,13 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                               'evolution.f90', 'fam.f90' ]
 
     if(fname in no_process_files):
-        # Preprocessing = is a simple copy operation for these files 
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        # Preprocessing = is a simple copy operation for these files
+        if(not dry_run):
+            os.system('cp ' + src + fname + ' ' + target + fname)
         return
     elif(fname in generic_process_files):
         # A generic preprocessor that makes a few simple substitutions                        
-        ProcessGeneric(fname,src,target,so,fam_active)
+        ProcessGeneric(fname,src,target,so,fam_active, dry_run)
         return
     else: 
         # For these files, there is more work to do!
@@ -89,11 +92,11 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         if(fname=='parameterization.f90'):
             ProcessParameterization(fname, src, target)                    
         if(fname=='functional.f90'):
-            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
-                                                ph_pp_decoupl,fam_active, density_spwf_summation)
+            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation)
         if(fname=='vectors.f90'):
-            ProcessVectors(src,target,so,vectors_densities,vectors_potentials, \
-                                        memory_densities,fam_active) 
+            vectors_densities, memory_densities = ProcessDensities('densities.f90', src, target, so, fam_active,  density_spwf_summation)
+            vectors_potentials = ProcessFunctional('functional.f90', src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation)
+            ProcessVectors(src,target,so,vectors_densities,vectors_potentials, memory_densities,fam_active, dry_run) 
         if(fname=='moments.f90'):
             ProcessMoments(fname, src, target, so, fam_active)
         if(fname=='evolution.f90'):
@@ -166,7 +169,7 @@ def ProcessGeninfo(fname, src, target, so):
     #             generated.write(Template(line).substitute(dic))   
 
 
-def ProcessGeneric(fname, src, target, so, fam_active):
+def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     """
 
     """
@@ -199,14 +202,11 @@ def ProcessGeneric(fname, src, target, so, fam_active):
     else:
       dic['FAM'] = 0
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))
+    if(not dry_run):    
+        substitute(src+fname, target+fname, dic)
 
 
-def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active):
+def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active, dry_run=False):
   """
     Process the vectors.f90 template Fortran file to filled versions
 
@@ -242,8 +242,5 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam
     dic['COULOMB_REAL']           = ''
     dic['COULOMB_COMPLEX']        = '!'
 
-  substitute(src+'vectors.f90', target+'vectors.f90', dic)
-#   with open(src+'vectors.f90', 'r') as template:
-#     with open(target+'vectors.f90', 'w') as generated:
-#         for line in template:
-#             generated.write(Template(line).substitute(dic))
+  if(not dry_run):
+    substitute(src+'vectors.f90', target+'vectors.f90', dic)

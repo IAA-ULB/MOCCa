@@ -83,7 +83,6 @@
 #   inspired by the Makefile of the HFBTHO v4 code, see the repository of
 #   P. Marević et al., Computer Physics Communications 276, 108367 (2022).
 #-------------------------------------------------------------------------------
-
 INCLUDE=make.inc
 INCLUDEFILE=$(INCLUDE)
 ################################################################################
@@ -97,14 +96,24 @@ else
 endif
 endif
 include $(INCLUDEFILE)
+
+
+
+
 ################################################################################
 
 ################################################################################
 # Physics details (modify as you want)
 ################################################################################
 CONFIG  := default
+CONFIG_FILE := configs/$(CONFIG).py
 EXENAME := Tantalus.$(CONFIG).exe
 FAMNAME := fam.$(CONFIG).exe
+
+# Obtaining the name of the functional from the config file in order to get 
+#  the dependencies right
+$(eval FUNC=$(shell grep "FUNC" $(CONFIG_FILE) | cut -f2 -d= | cut -f2 -d\' | cut -f1 -d\'))
+FUNC_FILE=functionals/$(FUNC)
 
 # Build directories for the MF code 
 #
@@ -117,8 +126,6 @@ MF_MOD_DIR:=build/$(CONFIG)/mod_mf
 FAM_SRC_DIR:=build/$(CONFIG)/src_fam
 FAM_OBJ_DIR:=build/$(CONFIG)/obj_fam
 FAM_MOD_DIR:=build/$(CONFIG)/mod_fam
-
-$(warning  $(MF_OBJ_DIR) $(CONFIG))
 
 ################################################################################
 # Compilation details (this section should be modified as you see fit)
@@ -183,7 +190,7 @@ ifeq (, $(shell which $(PYTHON_CMD)))
 endif
 
 ################################################################################
-# Files to be compiled (This section should NOT be modified in principle)
+# Files to be compiled (This section should NOT be modified without good reason)
 ################################################################################
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -231,6 +238,23 @@ NIL_SRC += wavefunctions.f90 gennilsson.f90
 MF_OBJ  :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(MF_SRC))
 FAM_OBJ :=  $(patsubst %.f90,$(FAM_OBJ_DIR)/%.o,$(FAM_SRC))
 NIL_OBJ :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(NIL_SRC))
+# Create a list of all Hephaestos generated code 
+MF_SRC_ALL   :=  $(patsubst %.f90,$(MF_SRC_DIR)/%.f90 ,$(MF_SRC))
+FAM_SRC_ALL  :=  $(patsubst %.f90,$(MF_SRC_DIR)/%.f90 ,$(MF_SRC))
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#  The list of all Hephaestos source code - including Fortran templates
+HEPH_SRC := fortran_templates/Densities_templates.py      fortran_templates/GenerateAction_templates.py  
+HEPH_SRC += fortran_templates/GenerateFields_templates.py fortran_templates/GenTermExpression_templates.py  
+HEPH_SRC += fortran_templates/GenVecProd.py               fortran_templates/ProcessParameterization_templates.py
+
+HEPH_SRC += heph_coulomb.py heph_cranking.py heph_densities.py heph_derivatives.py 
+HEPH_SRC += heph_fields.py  heph_functional.py heph_IO.py heph_linechecker.py
+HEPH_SRC += heph_multipoles.py heph_pairing.py heph_substitute.py heph_symmetries.py
+HEPH_SRC += heph_transform.py heph_wavefunctions.py __init__.py preprocess.py 
+HEPH_SRC :=  $(patsubst %.py, src_heph/%.py ,$(HEPH_SRC))
+HEPH_SRC += Hephaestos.py 
+
 
 ################################################################################
 # Explicit precompilation steps:
@@ -245,9 +269,7 @@ NIL_OBJ :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(NIL_SRC))
 # is being built.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRE_MF  :=  build/ build/$(CONFIG) $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/ $(EXEC_DIR)/
-PRE_MF  +=  run_heph_mf  getgitinfo getcompilerinfo setversioninfo_mf
 PRE_FAM :=  build/ build/$(CONFIG)  $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/
-PRE_FAM +=  run_heph_fam getgitinfo getcompilerinfo setversioninfo_fam
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
 #    -cpp      => explicitly enable preprocessing
@@ -263,8 +285,6 @@ PREPROCESSOR :=  $(PREPFLAG) $(DIRECTIVES)
 # Recipes (This section should NOT be modified in principle)
 ################################################################################
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-all: mf fam
-
 mf: $(PRE_MF) $(MF_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(MF_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv mf exec/$(EXENAME)
@@ -272,6 +292,11 @@ mf: $(PRE_MF) $(MF_OBJ)
 fam: $(PRE_FAM) $(FAM_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv fam exec/$(FAMNAME)
+
+# The following is an unused recipe which ensures that make does not treat the processed 
+# source code files as intermediates
+all_src: $(MF_SRC_ALL) $(FAM_SRC_ALL) 
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Creation of required directories
 build/:
@@ -304,28 +329,36 @@ $(FAM_SRC_DIR)/:
 	mkdir -p $(FAM_SRC_DIR)/
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Hephaestos runs
-run_heph_mf:
-# Run Hephaestos with the correct configuration file and information from
-# the Makefile for the mean-field source code
-	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR)
+# gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
+# 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
+# 	mv gen_nilsson exec/gen_nilsson.exe
 
-run_heph_fam:
-# Run Hephaestos with the correct configuration file and information from
-# the Makefile for the FAM source code
-	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR)
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
-	mv gen_nilsson exec/gen_nilsson.exe
-
-$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 | $(MF_MOD_DIR)/ $(MF_MOD_DIR)/ exec/
+$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 | $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ exec/
+$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
+# Override the standard recipes for version information, to ensure that the relevant information
+#  from git and the compiler is included in the source code.
+$(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_mf 
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+
+$(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_fam
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Generation of source code 
+# These make recipes should trigger when 
+#  a) the generated source code file does not exist, or
+#  b) the original source code file changes, or	
+#  c) the configuration file changes, or 
+#  d) Hephaestos changes
+$(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $<
+$(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $<
+	
 setversioninfo_mf:
 # Copy the git information into the main code, so it can be printed
 	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(MF_SRC_DIR)/version.f90
@@ -372,9 +405,7 @@ cp_fam:
 	cp src_orig/fam.f90 $(SRCDIR)/fam.f90
 
 clean:
-	rm  -f $(MF_OBJ_DIR)/*.o
-	rm  -f $(MF_MOD_DIR)/*.mod
-	rm  -f $(FAM_OBJ_DIR)/*.o
-	rm  -f $(FAM_MOD_DIR)/*.mod
+	rm  -f build/*/*/*.o
+	rm  -f build/*/*/*.mod
 ################################################################################
 
