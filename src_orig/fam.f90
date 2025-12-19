@@ -793,20 +793,26 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! TODO: write a general transformation routine from the mesh to any 
       !       single-particle basis
 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    if (pairingtype==0) then
       ! Define the external field F by selecting the particle-hole and 
       ! hole-particle subblocks of f_LK by multiplying by their 
       ! occupation, i.e. diagonal elements of rho in the canonical basis
-
-   
-    if (pairingtype==0) then
       call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
     else
-      call transform_O11_to_O20_O02(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
+      ! Define the external field F as the qpme obtained by performing a bogolibov 
+      ! transformation and storing the F^20 anf F^02 comnpnents
+      call transform_O11_to_qpO20(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1))
 
+      ! Assuming that F is Hermitian, F20 = F02^dagger = - F02^* (antisym)
+      f_LK_qpme(:,:,2) = - conjg(f_LK_qpme(:,:,1))
 
-      call print_spme_complex( f_LK_qpme(:,:,1))
-      call print_spme_complex( f_LK_qpme(:,:,2))
+      if(fam_verbose > 2) then
+        print *, ' f_LK_qpme(:,:,1)'
+        call print_spme_complex( f_LK_qpme(:,:,1))
+        print *, ' f_LK_qpme(:,:,2)'
+        call print_spme_complex( f_LK_qpme(:,:,2))
+      endif
 
     endif
 
@@ -945,7 +951,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
   end subroutine get_ph_hp_blocks_real
 
 
-  subroutine transform_O11_to_O20_O02(Bogo, O11_sp, O20, O02)
+  subroutine transform_O11_to_qpO20(Bogo, O11_sp, O20)
     !---------------------------------------------------------------------------
     ! Performing quasi-particle transformation of a particle-number conserving 
     ! Hermitian 1-body operator O11_sp. The function returns the 20 and 02 
@@ -960,49 +966,137 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! and 
     !          O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
     !          O02b = - Vb^T        o11b Ub   + Ub^T        o11b^T Vb = - O20b^{dagger}
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
     !---------------------------------------------------------------------------
 
     implicit none
     real(KIND=dp), intent(in)     :: Bogo(:,:)
     complex(KIND=dp), intent(in)  :: O11_sp(:,:)
-    complex(KIND=dp), intent(out) :: O20(:,:), O02(:,:)
+    complex(KIND=dp), intent(out) :: O20(:,:)
 
-    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:)
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
     complex(KIND=dp), allocatable :: Ob(:,:)
-    integer                       :: B, N, N2, si, sb, T
+    complex(KIND=dp), allocatable :: hV(:,:),  hU(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
 
-     if (fam_verbose > 2) print *, "transform_O11_to_O20_O02"
+     if (fam_verbose > 2) print *, "transform_O11_to_qpO20"
 
-    ! si = O index, sb = bogo index (increases twice as fast)
-    si = 0 ; sb = 0
+    ! ! si = O index, sb = bogo index (increases twice as fast)
+    ! si = 0 ; sb = 0
     
-    do B = 1, 8, 2 ! run over TP blocks without resolving Sz
-      ! size of block is sum of two Sz subblocks
+    ! do B = 1, 8, 2 ! run over TP blocks without resolving Sz
+    !   ! size of block is sum of two Sz subblocks
+    !   N  = HFblocks(B)    ; if(N.eq.0) cycle 
+    !   N2 = HFblocks(B+1)
+    !   T = N + N2
+    !   print *, 'Blocks: ', B, B+1, 'with size', T
+
+    !   ! Getting the U, V and o11 out for this block. 
+    !   Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+    !   Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+    !   Ob = O11_sp(si+1:si+T,si+1:si+T)
+
+
+    !   O20(si+1:si+T,si+1:si+T) =   matmul(transpose(Ub), matmul(Ob, Vb)) &
+    !                            & - matmul(transpose(Vb), matmul(Ob, Ub))
+    !   ! O02(si+1:si+T,si+1:si+T) = - matmul(transpose(Vb), matmul(Ob, Ub)) &
+    !                            ! & + matmul(transpose(Ub), matmul(Ob, Vb))
+    !   O02(si+1:si+T,si+1:si+T) = - transpose(O20(si+1:si+T,si+1:si+T))
+
+
+    !   si = si + T
+    !   sb = sb + 2*T
+ 
+    ! enddo
+
+    si = 0 ; sb = 0
+    do B=1,8,2
       N  = HFblocks(B)    ; if(N.eq.0) cycle 
       N2 = HFblocks(B+1)
       T = N + N2
-      print *, 'Blocks: ', B, B+1, 'with size', T
-
+  
       ! Getting the U and V out to make the formulas explicit
       ! and the matrix multiplications memory-local
       Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
       Ob = O11_sp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+      ! print *, 'O11'
+
+      ! do i=si+1,si+T
+      !   print "(*( '(',f12.5,',',f12.5,')',:))", O11_sp(i,si+1:si+T)
+      ! enddo
+      
+      ! print *, 'U'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  Ub(i, 1:T)
+      ! enddo
+
+      ! print *, 'V'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  Vb(i, 1:T)
+      ! enddo
+
+      ! rho = matmul(Vb, transpose(Vb))
+      ! kappa = matmul(Ub, transpose(Vb))
+
+      ! print *, 'rho'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  rho(i, 1:T)
+      ! enddo
+
+      ! print *, 'kappa'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  kappa(i, 1:T)
+      ! enddo
 
 
-      O20(si+1:si+T,si+1:si+T) =   matmul(transpose(Ub), matmul(Ob, Vb)) &
-                               & - matmul(transpose(Vb), matmul(Ob, Ub))
-      ! O02(si+1:si+T,si+1:si+T) = - matmul(transpose(Vb), matmul(Ob, Ub)) &
-                               ! & + matmul(transpose(Ub), matmul(Ob, Vb))
-      O02(si+1:si+T,si+1:si+T) = - transpose(O20(si+1:si+T,si+1:si+T))
+
+      ! !  h V^* and h^t U^*
+      ! hV = matmul(  Ob, Vb) ! - 2*lambda2*matmul(chi, V)
+      ! hU = matmul(  Ob, Ub) !- 2*lambda2*matmul(chi, U)
 
 
-      si = si + T
-      sb = sb + 2*T
- 
+      ! print *, 'hV'
+      ! do i=1,T
+      !   print "(*( '(',g12.5,',',g12.5,')',:))",  hV(i,1:T)
+      ! enddo
+
+      ! We reuse the defined symbols to save a matrix multiplication here
+      ! Ub = transpose(Ub) ; Vb = transpose(Vb)
+
+      ! We can save some effort here in the future, H20 is antisymmetric     
+$NTR     O20(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$NTR                                & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
+      ! Note the extra minus sign for time-reversal 
+$TR      O20(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) 
+$TR                                 & - matmul(transpose(Ub),  matmul(  Ob, Vb)) 
+
+
+      ! print *, 'O20'
+      ! do i=si+1,si+T
+      !   print "(*( '(',g12.5,',',g12.5,')',:))",  O20(i,si+1:si+T)
+      ! enddo
+
+      si = si +  T
+      sb = sb +2*T
+
     enddo
     
-  end subroutine transform_O11_to_O20_O02
+  end subroutine transform_O11_to_qpO20
 
 
   function Rsq_spme() result (Rsq)

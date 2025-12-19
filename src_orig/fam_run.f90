@@ -8,6 +8,7 @@ program run_FAM
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
   use fam_testing, only : test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
+  use fam_testing, only : test_bogo
   use gmres 
   use timing
 
@@ -21,6 +22,7 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
+  real(kind=dp) :: strength_free
 
   complex(KIND=dp) :: S_complex_decomp(8) = 0
   real(KIND=dp) :: S_decomp(8) = 0
@@ -132,7 +134,11 @@ program run_FAM
   if(.not. allocated(dH_flat_next)) then
     allocate(dH_flat_next(nwt*nwt))
   endif
-  !call run_FAM_tests(X,Y)
+  
+  ! call run_FAM_tests(X,Y)
+
+  ! run some tests on the new qp trafo routines => to be removed when validated
+  call test_bogo()
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
