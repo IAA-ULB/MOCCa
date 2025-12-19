@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - master
+      - compilation_speed
   pull_request:
     branches:
       - master

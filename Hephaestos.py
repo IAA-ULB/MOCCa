@@ -35,19 +35,21 @@ print (heph_name)
 # b) importing a configuration file
 # c) specifying density summation option
 #-------------------------------------------------------------------------------
-if(len(sys.argv) != 4):
+if(len(sys.argv) != 5):
   print ("Running Hephaestos requires specifying two arguments.")
   print (' a) specifying a configuration file')
   print (' b) indicate whether compiling a mean-field or FAM executable')
   print (' c) specifying the chosen option regarding density summation')
+  print (' d) specifying the location of the generated source file')
   print (' Example:')
-  print ('    python Hephaestos.py NLO mf 1')
+  print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf')
 
   sys.exit(1)
 
 config                 = sys.argv[1]
 EXETYPE                = sys.argv[2]
 DENSITY_SPWF_SUMMATION = int(sys.argv[3])
+source_location        = sys.argv[4]
 
 assert(EXETYPE == 'mf' or EXETYPE == 'fam')
 if(EXETYPE == 'mf'):  
@@ -57,6 +59,10 @@ else:
 
 if( not os.path.isfile('configs/' + config + '.py')):
   print ("Config file '%s' does not exist."%config)
+  sys.exit(1)
+
+if( not os.path.isdir(source_location)):
+  print ("The directory you specified for the generated code does not exist.")
   sys.exit(1)
 
 configmod = importlib.import_module('configs.' + config)
@@ -124,11 +130,9 @@ print (line)
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
 SRCPATH = 'src_orig/'
-# Path to put the generated source for compilation
-if(EXETYPE == 'mf'):
-  GENPATH = 'src/'
-else:
-  GENPATH = 'src_fam/'
+GENPATH = source_location 
+if(not GENPATH.endswith('/')):
+    GENPATH += '/'
 
 #List of FORTRAN files needed for a functional code.
 FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90',

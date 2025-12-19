@@ -105,6 +105,21 @@ include $(INCLUDEFILE)
 CONFIG  := default
 EXENAME := Tantalus.$(CONFIG).exe
 FAMNAME := fam.$(CONFIG).exe
+
+# Build directories for the MF code 
+#
+# Caveat: make sure there are no 'hidden' spaces at the end of these lines, as
+#         your make process will fail for weird reasons!
+MF_SRC_DIR:=build/$(CONFIG)/src_mf
+MF_OBJ_DIR:=build/$(CONFIG)/obj_mf
+MF_MOD_DIR:=build/$(CONFIG)/mod_mf
+
+FAM_SRC_DIR:=build/$(CONFIG)/src_fam
+FAM_OBJ_DIR:=build/$(CONFIG)/obj_fam
+FAM_MOD_DIR:=build/$(CONFIG)/mod_fam
+
+$(warning  $(MF_OBJ_DIR) $(CONFIG))
+
 ################################################################################
 # Compilation details (this section should be modified as you see fit)
 ################################################################################
@@ -229,9 +244,9 @@ NIL_OBJ :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(NIL_SRC))
 # Note that these steps depend somewhat on whether the mf or fam executable
 # is being built.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-PRE_MF  :=  $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/ $(EXEC_DIR)/
+PRE_MF  :=  build/ build/$(CONFIG) $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/ $(EXEC_DIR)/
 PRE_MF  +=  run_heph_mf  getgitinfo getcompilerinfo setversioninfo_mf
-PRE_FAM :=  $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/
+PRE_FAM :=  build/ build/$(CONFIG)  $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/
 PRE_FAM +=  run_heph_fam getgitinfo getcompilerinfo setversioninfo_fam
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
@@ -259,6 +274,12 @@ fam: $(PRE_FAM) $(FAM_OBJ)
 	mv fam exec/$(FAMNAME)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Creation of required directories
+build/:
+	mkdir -p build/
+
+build/$(CONFIG):
+	mkdir -p build/$(CONFIG)
+
 $(EXEC_DIR)/:
 	mkdir -p $(EXEC_DIR)/
 
@@ -287,12 +308,12 @@ $(FAM_SRC_DIR)/:
 run_heph_mf:
 # Run Hephaestos with the correct configuration file and information from
 # the Makefile for the mean-field source code
-	python3 Hephaestos.py $(CONFIG) mf $(DENSUM)
+	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR)
 
 run_heph_fam:
 # Run Hephaestos with the correct configuration file and information from
 # the Makefile for the FAM source code
-	python3 Hephaestos.py $(CONFIG) fam $(DENSUM)
+	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
