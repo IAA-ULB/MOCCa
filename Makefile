@@ -268,8 +268,8 @@ HEPH_SRC += Hephaestos.py
 # Note that these steps depend somewhat on whether the mf or fam executable
 # is being built.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-PRE_MF  :=  build/ build/$(CONFIG) $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/ $(EXEC_DIR)/
-PRE_FAM :=  build/ build/$(CONFIG)  $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/
+PRE_MF  :=  build/ build/$(CONFIG) $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/  $(EXEC_DIR)/ heph_dry_run_mf
+PRE_FAM :=  build/ build/$(CONFIG) $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/ heph_dry_run_fam
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
 #    -cpp      => explicitly enable preprocessing
@@ -329,9 +329,10 @@ $(FAM_SRC_DIR)/:
 	mkdir -p $(FAM_SRC_DIR)/
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
-# 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
-# 	mv gen_nilsson exec/gen_nilsson.exe
+# TODO: re-enable this recipe if needed
+gen_nilsson: $(PRE_MF) cp_nil $(NIL_OBJ)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
+	mv gen_nilsson exec/gen_nilsson.exe
 
 $(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
@@ -349,6 +350,12 @@ $(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Generation of source code 
+# A dry-run of Hephaestos to print STDOUT
+heph_dry_run_mf:
+	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) dry-run
+heph_dry_run_fam:
+	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) dry-run
+
 # These make recipes should trigger when 
 #  a) the generated source code file does not exist, or
 #  b) the original source code file changes, or	
@@ -399,10 +406,7 @@ getcompilerinfo:
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
 
 cp_nil:
-	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
-
-cp_fam:	
-	cp src_orig/fam.f90 $(SRCDIR)/fam.f90
+	cp src_orig/gennilsson.f90 $(MF_SRC_DIR)/gennilsson.f90
 
 clean:
 	rm  -f build/*/*/*.o

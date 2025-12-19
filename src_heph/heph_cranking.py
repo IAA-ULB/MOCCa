@@ -11,7 +11,7 @@
 from string          import Template
 from src_heph.heph_functional import Densities_needed
 #===============================================================================
-def ProcessCranking(fname, src, target, so):
+def ProcessCranking(fname, src, target, so, dry_run=False):
   """
     Process the cranking.f90 file. 
 
@@ -42,8 +42,5 @@ def ProcessCranking(fname, src, target, so):
   else:
     dic['TAUPRESENT'] = 1
 
-  substitute(src+fname, target+fname, dic)
-  # with open(src+fname, 'r') as template:
-  #   with open(target+fname, 'w') as generated:
-  #       for line in template:
-  #           generated.write(Template(line).substitute(dic))
+  if(not dry_run):
+    substitute(src+fname, target+fname, dic)

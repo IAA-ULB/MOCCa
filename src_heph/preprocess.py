@@ -84,53 +84,56 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     else: 
         # For these files, there is more work to do!
         if(fname=='geninfo.f90'):
-            ProcessGeninfo(fname, src, target, so)
+            ProcessGeninfo(fname, src, target, so, dry_run)
         if(fname=='derivatives.f90'):
-            ProcessDerivatives(fname, src, target, so)
+            ProcessDerivatives(fname, src, target, so, dry_run)
         if(fname=='wavefunctions.f90'):
-            ProcessWavefunctions(fname, src, target, so)             
+            ProcessWavefunctions(fname, src, target, so, dry_run)             
         if(fname=='parameterization.f90'):
-            ProcessParameterization(fname, src, target)                    
+            ProcessParameterization(fname, src, target, dry_run)                    
         if(fname=='functional.f90'):
-            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation)
+            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
         if(fname=='vectors.f90'):
-            vectors_densities, memory_densities = ProcessDensities('densities.f90', src, target, so, fam_active,  density_spwf_summation)
-            vectors_potentials = ProcessFunctional('functional.f90', src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation)
+            # Temporary workaround : run both processings in dry_run mode to get the strings
+            #  TODO: fix this mess!
+            vectors_densities, memory_densities = ProcessDensities('densities.f90', src, target, so, fam_active,  density_spwf_summation, dry_run=True, verbose=False)
+            vectors_potentials                  = ProcessFunctional('functional.f90', src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run=True)
+            # Actual preprocessing
             ProcessVectors(src,target,so,vectors_densities,vectors_potentials, memory_densities,fam_active, dry_run) 
         if(fname=='moments.f90'):
-            ProcessMoments(fname, src, target, so, fam_active)
+            ProcessMoments(fname, src, target, so, fam_active, dry_run)
         if(fname=='evolution.f90'):
-            ProcessGeneric(fname, src, target, so, fam_active)
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
         if(fname=='IO.f90'):
-            ProcessIO(fname, src, target, so, oldso, fam_active)  
+            ProcessIO(fname, src, target, so, oldso, fam_active, dry_run)  
         if(fname=='coulomb.f90'):
-            ProcessCoulomb(fname, src, target, so, fam_active)             
+            ProcessCoulomb(fname, src, target, so, fam_active, dry_run)             
         if(fname=='pairing.f90'):
-            ProcessPairing(fname, src, target, so)                        
+            ProcessPairing(fname, src, target, so, dry_run)                        
         if(fname=='HFB.f90' or fname == 'BCS.f90'): 
             # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
             # preprocessing by Hephaestos
-            ProcessHFB(fname, src, target, so)
+            ProcessHFB(fname, src, target, so, dry_run)
         if(fname=='hartree-fock.f90'):
-            ProcessHartreeFock(fname, src, target, so)
+            ProcessHartreeFock(fname, src, target, so, dry_run)
         if(fname=='momentsofinertia.f90'):
-            ProcessGeneric(fname, src, target, so, fam_active)
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
         if(fname=='fission_MOI.f90'):
-            ProcessFission_MOI(fname, src, target, so)
+            ProcessFission_MOI(fname, src, target, so, dry_run)
         if(fname=='transform.f90'):
-            ProcessTransform(fname, src, target, so, oldso) 
+            ProcessTransform(fname, src, target, so, oldso, dry_run) 
         if(fname=='densities.f90'): 
-            vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation)
+            vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation, dry_run, verbose=dry_run)
         if(fname=='cranking.f90'):
-            ProcessCranking(fname, src, target, so)
+            ProcessCranking(fname, src, target, so, dry_run)
         if(fname=='convergence.f90'):
-            ProcessCranking(fname, src, target, so)
+            ProcessCranking(fname, src, target, so, dry_run)
         if(fname=='IO_wf.f90'):
-            ProcessIO_wf(fname, src, target, so, oldso, fam_active) 
+            ProcessIO_wf(fname, src, target, so, oldso, fam_active, dry_run) 
         if(fname=='fam.f90'):
-            ProcessGeneric(fname, src, target, so, fam_active)
+            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
 
-def ProcessGeninfo(fname, src, target, so):
+def ProcessGeninfo(fname, src, target, so, dry_run=False):
     """
      This one is already more complicated. 
     """
@@ -162,12 +165,8 @@ def ProcessGeninfo(fname, src, target, so):
     else:
        dic['LINESIZEZ']    = 'nz'
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))   
-
+    if(not dry_run):
+        substitute(src+fname, target+fname, dic)
 
 def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     """

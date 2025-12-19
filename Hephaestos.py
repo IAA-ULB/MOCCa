@@ -72,7 +72,6 @@ DENSITY_SPWF_SUMMATION = int(sys.argv[3])
 source_location        = sys.argv[4]
 filename               = sys.argv[5]
 
-
 if(filename != 'dry-run' and not filename.endswith('.f90')):
   print ("The specified filename must end with .f90 or be 'dry-run'.")
   sys.exit(1)
@@ -179,13 +178,9 @@ if(filename == 'dry-run'):
 heph_densities.initdensities()
 #-------------------------------------------------------------------------------
 # Next, we read all the functional information
-description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active)
-## ... and initialize the fields module
-#heph_fields.initfields(so)
+description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active, print_stdout=(filename == 'dry-run'))
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.
-#for fname in FORTRANFILES:
-
 if( filename == 'dry-run'):
   # This is a dry-run: we will simulate tackling ALL files and print output 
   #    but we will NOT generate any final source code files.
