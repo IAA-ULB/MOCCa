@@ -1747,7 +1747,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
 
 
-    open(1,file=fname, status='new', iostat=io)
+    open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'filename = ', fname
       call stp('')
@@ -1794,7 +1794,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &  'S_tot') 
 
 
-    open(1,file=fname, status='new', iostat=io)
+    open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'filename = ', fname
       call stp('')
@@ -1934,7 +1934,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
       do h = 1, nwt
         do p = 1, nwt
-          ! 1if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
+          ! if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
             write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
           ! end if
         enddo
