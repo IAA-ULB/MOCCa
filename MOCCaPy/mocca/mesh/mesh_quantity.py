@@ -72,58 +72,12 @@ class MeshQuantity:
             self.symmetry = None
             if any(self.mesh.reduced):
                 raise UserWarning(f"MeshQuantity {self.name}: {symmetry=} was specified.\n"
-                                  f"\tThis will yield ValueErrors when taking derivatives or interpolating."
+                                  f"\tThis will yield ValueErrors when taking derivatives, interpolating, solving "
+                                  f"generalized Poisson equations."
                                   )
 
         else:
-            self.symmetry = np.empty((self.n_components, mesh.dim), dtype=np.int32, order='F')
-            if isinstance(symmetry, int):
-                self.symmetry[:,:] = symmetry
-
-            elif isinstance(symmetry, (tuple, list)):
-                symmetry = np.array(symmetry)
-                # symmetry.shape must be
-                # (1) either (self.mesh.dim,)               -> all components identical
-                # (2) or (self.n_components,1)              -> all dimensions identical, per component
-                # (3) or (self.n_components, self.mesh.dim) -> all components and dimensions specified separately
-                if symmetry.shape == (mesh.dim,):                       # (1)
-                    for iq in range(self.n_components):
-                        self.symmetry[iq,:] = symmetry[:]
-
-                elif symmetry.shape == (self.n_components, 1):          # (2)
-                    for idim in range(self.mesh.dim):
-                        self.symmetry[:,idim] = symmetry[:,0]
-
-                elif symmetry.shape == (self.n_components, mesh.dim):   # (3)
-                    # may raise "ValueError: could not broadcast input array ..."
-                    self.symmetry[:,:] = symmetry
-
-                else:
-                    raise ValueError(f"Symmetry {symmetry} not understood. Either specify:\n"
-                                     f"  - s                use int s for all components and all dimensions \n"
-                                     f"  - [sx<,sy<,sz>>]   use this for all components\n"
-                                     f"  - [[s],            use this for component 0 (all dimensions)\n"
-                                     f"     [s],            use this for component 1 (all dimensions)\n"
-                                     f"     ...]" 
-                                     f"  - [[sx<,sy<,sz>>], use this for component 0\n"
-                                     f"     [sx<,sy<,sz>>], use this for component 1\n"
-                                     f"     ...           ]\n"
-                                     f"(Tuples may be used instead of lists).")
-
-            elif isinstance(symmetry, np.ndarray):
-                # may raise BroadcastError
-                self.symmetry[:,:] = symmetry
-
-            else:
-                raise TypeError(f"Symmetry specifications must be of type int|list|tuple|list[list]|tuple[tuple]|np.ndarray, not '{type(symmetry)}'.'")
-
-            assert len(self.symmetry.shape) == 2
-
-            for s in self.symmetry.ravel():
-               if not s in [1,0,-1]:
-                   raise ValueError(
-                       f"Symmetry values must be +1, -1 or 0  (got {s})."
-                   )
+            self.set_symmetry(symmetry)
 
 
             # Verify that symmetry is specified for reduced axes.
@@ -145,7 +99,58 @@ class MeshQuantity:
         self.derivatives = {}
         self.derivativesG = {} # A dictionary where derivatives will be stored. Keys are `str` combining the characters
         self._derivative_is_uptodate = {}
-        
+
+    def set_symmetry(self, symmetry):
+        """"""
+        self.symmetry = np.empty((self.n_components, self.mesh.dim), dtype=np.int32, order='F')
+        if isinstance(symmetry, int):
+            self.symmetry[:, :] = symmetry
+
+        elif isinstance(symmetry, (tuple, list)):
+            symmetry = np.array(symmetry)
+            # symmetry.shape must be
+            # (1) either (self.mesh.dim,)               -> all components identical
+            # (2) or (self.n_components,1)              -> all dimensions identical, per component
+            # (3) or (self.n_components, self.mesh.dim) -> all components and dimensions specified separately
+            if symmetry.shape == (self.mesh.dim,):  # (1)
+                for iq in range(self.n_components):
+                    self.symmetry[iq, :] = symmetry[:]
+
+            elif symmetry.shape == (self.n_components, 1):  # (2)
+                for idim in range(self.mesh.dim):
+                    self.symmetry[:, idim] = symmetry[:, 0]
+
+            elif symmetry.shape == (self.n_components, self.mesh.dim):  # (3)
+                # may raise "ValueError: could not broadcast input array ..."
+                self.symmetry[:, :] = symmetry
+
+            else:
+                raise ValueError(f"Symmetry {symmetry} not understood. Either specify:\n"
+                                 f"  - s                use int s for all components and all dimensions \n"
+                                 f"  - [sx<,sy<,sz>>]   use this for all components\n"
+                                 f"  - [[s],            use this for component 0 (all dimensions)\n"
+                                 f"     [s],            use this for component 1 (all dimensions)\n"
+                                 f"     ...]"
+                                 f"  - [[sx<,sy<,sz>>], use this for component 0\n"
+                                 f"     [sx<,sy<,sz>>], use this for component 1\n"
+                                 f"     ...           ]\n"
+                                 f"(Tuples may be used instead of lists).")
+
+        elif isinstance(symmetry, np.ndarray):
+            # may raise BroadcastError
+            self.symmetry[:, :] = symmetry
+
+        else:
+            raise TypeError(
+                f"Symmetry specifications must be of type int|list|tuple|list[list]|tuple[tuple]|np.ndarray, not '{type(symmetry)}'.'")
+
+        assert len(self.symmetry.shape) == 2
+
+        for s in self.symmetry.ravel():
+            if not s in [1, 0, -1]:
+                raise ValueError(
+                    f"Symmetry values must be +1, -1 or 0  (got {s})."
+                )
 
     def __repr__(self):
         return f"{self.name}:{self.data.shape}"

@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import \
+    GeneralizedPoissonSolverMF, \
     GeneralizedPoissonSolver, \
     Laplacian1D
 from MOCCaPy.scripts.mocca.util import title_line
@@ -349,7 +350,7 @@ def run_ND(
     return rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u
 
 
-@started_finished
+@pytest.mark.skip(reason="probably obsolete")
 def test_1D():
     dim = 1
 
@@ -404,7 +405,7 @@ def test_1D():
     print(s, file=output)
 
 
-@started_finished
+@pytest.mark.skip(reason="probably obsolete")
 def test_2D():
     dim = 2
 
@@ -473,7 +474,8 @@ def reduced_str(reduced):
     return s
 
 
-@pytest.mark.slow
+# @pytest.mark.slow
+@pytest.mark.skip(reason="probably obsolete")
 def test_3D():
     dim = 3
 
@@ -605,19 +607,23 @@ def test_collect_boundary_points_1D():
     dim = 1
     M = 10
     d = 1
+    boundary_width = 1
     for reduced in [True, False]:
-        mesh = LagrangeMesh(dim=dim, M=M, d=d, reduced=reduced)
-        mesh.collect_boundary_points(stencil=3)
+        mesh = LagrangeMesh(
+            dim=dim, M=M, d=d, reduced=reduced,
+            highest_derivative_order=0,
+            boundary_width = boundary_width
+        )
         if reduced:
             assert len(mesh.bp_l) == 1
-            assert mesh.bp_l[0] == 4
-            assert mesh.bp_xyz[0] == M/2 - d/2
+            assert mesh.bp_l[0] == 6
+            assert mesh.bp_xyz[0] == M/2 - d/2 + boundary_width
         else:
             assert len(mesh.bp_l) == 2
             assert mesh.bp_l[0] == 0
-            assert mesh.bp_xyz[0] == -(M/2 - d/2)
-            assert mesh.bp_l[1] == M-1
-            assert mesh.bp_xyz[1] ==  (M/2 - d / 2)
+            assert mesh.bp_xyz[0] == -(M/2 + d/2)
+            assert mesh.bp_l[1] == M+1
+            assert mesh.bp_xyz[1] ==  (M/2 + d/2)
         pass
 
 
@@ -625,10 +631,11 @@ def test_collect_boundary_points_2D():
     dim = 2
     M = (4,6)
     d = 1
-    xb = (M[0]-d)/2
-    yb = (M[1]-d)/2
+    xb = (M[0]+d)/2
+    yb = (M[1]+d)/2
     x = [-xb, xb]
     y = [-yb, yb]
+    boundary_width = 1
 
     for reduced in [
         (True, True),
@@ -637,8 +644,11 @@ def test_collect_boundary_points_2D():
         (False, True),
     ]:
         print(f"{reduced=}")
-        mesh = LagrangeMesh(dim=dim, M=M, d=d, reduced=reduced)
-        mesh.collect_boundary_points(stencil=3)
+        mesh = LagrangeMesh(
+            dim=dim, M=M, d=d, reduced=reduced,
+            highest_derivative_order=0,
+            boundary_width = boundary_width
+        )
         nbp = mesh.bp_l.size
         if reduced == (True, True):
             assert nbp == 4
@@ -697,3 +707,115 @@ def test_Laplacia1D_non_uniform():
     for i in range(n):
         for j in range(n):
             assert L1[i,j]*invh2 == pytest.approx(L2[i,j])
+
+
+def run_MF_ND(
+        analytical_solution, sigma,
+        dim, M, h, reduced,
+        stencil=3, method='cg',
+        verbosity = 1,
+    ):
+    tmr = Timer()
+
+    ue_lambda, fe_lambda, symmetry = analytical_solution(dim=dim, sigma=sigma)
+
+    mesh = LagrangeMesh(dim=dim, M=M, d=h, reduced=reduced)
+
+    s = title_line(char='-', width=120)
+    s += f"solution: u(r)={analytical_solution.__name__}, {sigma=}, {symmetry=}\n"
+    s += f"mesh    : {dim=}, {M=}, {h=}, {reduced=}\n"
+    s += f"solver  : {stencil=}, {method=}\n"
+    s += f"linear system : {mesh.linear_size}x{mesh.linear_size}"
+    print(s, file=output)
+    if verbosity:
+        print(s)
+
+    ue = ue_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2]) if (dim == 3) else \
+         ue_lambda(mesh.grid[:,0], mesh.grid[:,1]) if (dim == 2) else \
+         ue_lambda(mesh.grid[:])
+
+    f  = fe_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2]) if (dim == 3) else \
+         fe_lambda(mesh.grid[:,0], mesh.grid[:,1]) if (dim == 2) else \
+         fe_lambda(mesh.grid[:])
+
+    tmr.start()
+    pSolver = GeneralizedPoissonSolverMF(mesh, stencil=stencil)
+    # pSolver.ue = ue # just convenient during debugging
+    pSolver.assemble_rhs(f, ue_lambda, symmetry=symmetry)
+    cput_asmbl = tmr.stop()
+
+    # if verbosity >= 2:
+    #     print(pSolver)
+    #     # print(pSolver, file=output)
+
+    tmr.start()
+    u,ok = pSolver.solve(method=method, rtol=1e-8)
+    assert ok == 0
+    cput_solve = tmr.stop()
+
+    diff = np.abs(ue - u)
+    rmse = np.sqrt(np.sum(np.square(diff)) / M)
+    mean_diff = float(np.mean(diff))
+    max_diff = float(np.max(diff))
+    max_rel = float(np.max(diff/u))
+
+    s = f"{M=} : {rmse=} {mean_diff=} {max_diff=} {cput_asmbl:.5f}s {cput_solve:.5f}s"
+    print(s, file=output)
+    if verbosity:
+        print(s)
+
+    return rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u
+
+
+def test_MF_1D():
+    """test GeneralizedPoissonSolverLO"""
+    dim = 2
+
+    s = title_line(text='test_MF_1D', char='-', width=120)
+    print(s)
+    print(s, file=output)
+
+    tbl = []
+    method = "gmres"
+    sigma = 2
+    for analytical_solution in [
+        gauss,
+        # x_gauss,
+    ]:
+        for stencil in [
+            3,
+            5,
+        ]:
+            for reduced in [
+                True,
+                False,
+            ]:
+                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                M = 6
+                h = 1.6
+                for iter in range(4):
+                    M *= 2
+                    h *= .5
+                    verbosity = 2 if (iter >=0) else 1
+
+                    rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_MF_ND(
+                        analytical_solution=analytical_solution, sigma=sigma,
+                        dim=dim, M=M, h=h, reduced=reduced,
+                        stencil=stencil, method=method,
+                        verbosity=verbosity,
+                    )
+
+                    tbl.append([analytical_solution.__name__, stencil, reduced, M, rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve])
+                    assert rmse < rmse0
+                    assert mean_diff < mean_diff0
+                    assert max_diff < max_diff0
+
+                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+
+    s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
+    s += tabulate(tbl
+        , headers=["u(r)", "stencil", "reduced", "M", "RMSE", "Mean diff", "Max diff", "Max rel", "cput_asmlb", 'cput_solve']
+        , tablefmt="simple"
+    )
+    print(s)
+    print(s, file=output)

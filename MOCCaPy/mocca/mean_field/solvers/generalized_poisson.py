@@ -12,6 +12,8 @@ using the Finite Difference Method.
 import numpy as np
 import scipy.sparse as sparse
 from tabulate import tabulate
+import pytest
+from mocca.mesh import LagrangeMesh, MeshQuantity
 
 
 def Laplacian1D(n, stencil=3, h=None):
@@ -375,4 +377,438 @@ class GeneralizedPoissonSolver:
         headers.extend([str(j) for j in range(n)])
         headers.append("f")
         return tabulate(tbl, tablefmt="simple", headers=headers)
+
+class GeneralizedPoissonSolverMF1D:
+    """Generalized Poisson Solver using a matrix-free Finite Differences approach on an
+    embedded grid. Since it is matrix-free, it must use iterative solvers for solviing
+    the linear system. The embedded grid allows for a simple implementation of the symmetry
+    boundary conditions, as it suffices to copy the current approximation of the solution
+    to the embedding grid acros the symmetry boundaries.
+    """
+    iterative_linear_solvers = {
+        'cg'    : sparse.linalg.cg,
+        'cgs'   : sparse.linalg.cgs,
+        'gmres' : sparse.linalg.gmres,
+        'lgmres': sparse.linalg.lgmres,
+        'minres': sparse.linalg.minres,
+    }
+    def __init__(self, mesh, stencil=3):
+        """
+        Args:
+            mesh (LagrangeMesh): Lagrange mesh providing the grid on which the Generalized
+                Poisson equation will be solved, using Finite Differences.
+            stencil: stencil to be used for discretization. Currently, 3-point or 5-point in
+                each dimension.
+        """
+        self.mesh = mesh
+        self.stencil = stencil
+
+        dim = mesh.dim
+        self.boundary_width = \
+            1 if (stencil == 3) else\
+            2  # (stencil == 5)
+
+        if dim == 3:
+            raise NotImplementedError()
+
+        elif dim == 2:
+            raise NotImplementedError()
+
+        elif dim == 1:
+            # Set up embedding grid:
+
+            self.grid = np.empty(mesh.N[0] + 2*self.boundary_width, dtype=np.float64)
+            self.i0 = self.boundary_width
+            self.i1 = self.boundary_width + mesh.N[0]
+            self.grid[self.i0:self.i1] = self.mesh.grid
+            self.h = self.mesh.d[0]
+            for i in range(self.boundary_width):
+                self.grid[ self.boundary_width-i-1] = self.grid[ self.boundary_width  ] - (i+1)*self.h
+                self.grid[-self.boundary_width+i  ] = self.grid[-self.boundary_width-1] + (i+1)*self.h
+
+            # array for embedding the solution u
+            self.v = np.empty(mesh.N[0] + 2*self.boundary_width, dtype=np.float64)
+
+            # Create LinearOperator instance.  Apparently, its ctor below calls matvec once
+            # and thus any references it uses (c..q. s_x and Au) must be defined beforehand.
+            # (It does that to detect the dtype of the result.)
+            if self.mesh.reduced[0]:
+                self.s_x = 1
+            self.Au = np.empty(self.mesh.N[0], dtype=np.float64)
+            self.LO = sparse.linalg.LinearOperator(
+                (mesh.N[0], mesh.N[0]),
+                matvec=self.matvec_3pt_1D if (self.stencil == 3) else \
+                       self.matvec_5pt_1D,
+            )
+
+    def assemble(self, f, boundary_value, symmetry=None):
+        """Assemble the equations:
+          - applying the Dirichlet boundary conditions to the rhs.
+
+        Args:
+            f (ndarray): right hand side of the generalized Poisson equation. Modified during
+                `assemble` and `solve` methosds
+            boundary_value (Callable): function that yields the Dirichlet boundary value when
+                applied to the boundary points of the mesh.
+        """
+        assert f.shape == (self.mesh.N[0],)
+        self.f = f
+
+        # scale rhs
+        if self.stencil == 3:
+            self.f *= self.h**2
+        else:
+            self.f *= 12 * self.h**2
+
+        dim = self.mesh.dim
+        if dim == 3:
+            raise NotImplementedError()
+        elif dim == 2:
+            raise NotImplementedError()
+        elif dim == 1:
+            self.v = boundary_value(self.grid)
+            # set all interior nodes to 0
+            if self.mesh.reduced[0]:
+                i0 = 0
+                self.s_x = symmetry[0] if isinstance(symmetry, (tuple, list)) else symmetry
+            else:
+                i0 = self.i0
+            self.v[i0:self.i1] = 0
+            if self.stencil == 3:
+                b = -2 * self.v[self.i0  :self.i1  ] \
+                       + self.v[self.i0-1:self.i1-1] \
+                       + self.v[self.i0+1:self.i1+1]
+            elif self.stencil == 5:
+                b =  -30 *  self.v[self.i0:self.i1    ] \
+                    + 16 * (self.v[self.i0+1:self.i1+1] \
+                           +self.v[self.i0-1:self.i1-1])\
+                         - (self.v[self.i0+2:self.i1+2] \
+                           +self.v[self.i0-2:self.i1-2])
+            self.f -= b
+            self.v[:] = 0 # required by matvec
+
+
+
+    def matvec_3pt_1D(self, u):
+        # Embed u with boundary region
+        self.v[self.i0:self.i1] = u
+
+        if self.mesh.reduced[0]:
+            self.v[0] = self.s_x*u[0]
+
+        self.Au[:] = -2 * self.v[self.i0  :self.i1  ] \
+                      +   self.v[self.i0-1:self.i1-1] \
+                      +   self.v[self.i0+1:self.i1+1]
+
+        return self.Au
+
+    def matvec_5pt_1D(self, u):
+        # Embed u with boundary region
+        self.v[self.i0:self.i1] = u
+
+        if self.mesh.reduced[0]:
+            self.v[0] = self.s_x*u[1]
+            self.v[1] = self.s_x*u[0]
+
+        self.Au[:] = -30 * self.v[self.i0  :self.i1  ] \
+                     +16 *(self.v[self.i0+1:self.i1+1] \
+                          +self.v[self.i0-1:self.i1-1])\
+                     -    (self.v[self.i0+2:self.i1+2] \
+                          +self.v[self.i0-2:self.i1-2])
+
+        return self.Au
+
+    def solve(self, method='cg'):
+        """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs` using
+        an the iterative solvers.
+        Args:
+            method: one of the methods in `self.iterative_linear_solvers`
+        """
+        ils = self.iterative_linear_solvers[method]
+        u = ils(self.LO, self.f, rtol=1e-7)
+        return u
+
+
+class GeneralizedPoissonSolverMF:
+    """Generalized Poisson Solver using a matrix-free Finite Differences approach on an
+    embedded grid. Since it is matrix-free, it must use iterative solvers for solviing
+    the linear system. The embedded grid allows for a simple implementation of the symmetry
+    boundary conditions, as it suffices to copy the current approximation of the solution
+    to the embedding grid across the symmetry boundaries.
+    Most of the actual work is done by the Stencil classes.
+    """
+    def __init__(self, mesh, stencil=3):
+        """
+        Args:
+            mesh (LagrangeMesh): Lagrange mesh providing the grid on which the Generalized
+                Poisson equation will be solved, using Finite Differences.
+            stencil: stencil to be used for discretization. Currently, 3-point or 5-point in
+                each dimension.
+        """
+        # TODO: create an embedding grid in mesh.dim dimensions, in 'Fortran' order.
+        # TODO: define indexing arrays for
+        #       - interior points,
+        #       - boundary points and
+        #       - symmetry points for each reduced axis
+        self.stencil = L3p(mesh) if (stencil == 3) else \
+                       L5p(mesh)
+
+    def assemble_rhs(self, f, boundary_value, symmetry=None):
+        """Assemble the equations:
+          - apply scaling to rhs in case of uniform grid spacing
+          - applying the Dirichlet boundary conditions to the rhs.
+
+        Args:
+            f (ndarray): right hand side of the generalized Poisson equation. Modified during
+                `assemble` and `solve` methods
+            boundary_value (Callable): function that yields the Dirichlet boundary value when
+                applied to the boundary points of the mesh.
+        """
+        self.stencil.assemble_rhs(f, boundary_value)
+
+    def solve(self, method='cg', **kwargs):
+        """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs` using
+        an the iterative solvers.
+        Args:
+            method: one of the methods in `self.iterative_linear_solvers`
+        """
+
+        return self.stencil.solve(method=method, **kwargs)
+
+
+class Stencil:
+    """Base class for system of linear equations resulting from a particular stencil"""
+    iterative_linear_solvers = {
+        'cg'    : sparse.linalg.cg,
+        'cgs'   : sparse.linalg.cgs,
+        'gmres' : sparse.linalg.gmres,
+        'lgmres': sparse.linalg.lgmres,
+        'minres': sparse.linalg.minres,
+    }
+
+    def __init__(self, mesh, boundary_width):
+        """
+        Args:
+            mesh: LagrangeMesh instance of grid that must be embedded
+        """
+        self.mesh = mesh # this is the embedded mesh, not the embedding mesh
+        self.boundary_width = boundary_width
+
+        self.h_uniform = mesh.d[0]
+        for idim in range(1, mesh.dim):
+            if self.h_uniform != mesh.d[idim]:
+                self.h_uniform = 0
+                break
+
+        # Create an embedding grid for mesh
+        bmesh = LagrangeMesh(
+            dim=mesh.dim,
+            M=mesh.M, d=mesh.d, reduced=mesh.reduced,
+            highest_derivative_order=0,
+            boundary_width=self.boundary_width,
+        )
+
+        # Collect boundary points and symmetry points
+        def remove_corners(condition, idim):
+            """Remove corners from symmetry points"""
+            for jdim in range(self.mesh.dim):
+                if jdim != idim:
+                    L, R = bmesh.g1D[jdim][ self.boundary_width-1], \
+                           bmesh.g1D[jdim][-self.boundary_width  ]
+                    np.logical_and(condition, bmesh.grid[:,jdim] > L, out=condition)
+                    np.logical_and(condition, bmesh.grid[:,jdim] < R, out=condition)
+            return condition
+
+        bp = []
+        self.sp_l = [[None]*bmesh.dim] * self.boundary_width
+        for ib in range(self.boundary_width):
+            for idim in range(bmesh.dim):
+                l, r = bmesh.g1D[idim][0+ib], bmesh.g1D[idim][-1-ib]
+                if not bmesh.reduced[idim]:
+                    # There are only boundary points on the left side if the axis is not reduced.
+                    bp.append(np.nonzero(bmesh.grid[:, idim] == l)[0])
+                else:
+                    # Otherwise they are symmetry points,
+                    # - which we must keep separate for each boundary layer and each axis.
+                    # - and we must avoid corners because they have no counterpart in the original mesh
+                    # we remove the corners afterwards
+                    self.sp_l[ib][idim] = np.nonzero(remove_corners(bmesh.grid[:, idim] == l, idim))[0]
+
+                bp.append(np.nonzero(bmesh.grid[:, idim] == r)[0])
+        self.bp_l = np.sort(np.unique(np.concat(bp))) # ndarray with linear indices of the boundary points
+        self.bp_xyz = bmesh.grid[self.bp_l]           # ndarray with coordinates    of the boundary points
+
+        # determine the linear indices of the points in u corresponding to the symmetry points.
+        self.sp_lu = [[None]*bmesh.dim] * self.boundary_width
+        for ib in range(self.boundary_width):
+            for idim in range(bmesh.dim):
+                iu = self.boundary_width - ib -1
+                l = self.mesh.g1D[idim][iu]
+                self.sp_lu[ib][idim] = np.nonzero(mesh.grid[:, idim] == l)[0]
+
+        # MeshQuantity for embedding the solution u
+        self.v = MeshQuantity(bmesh, n_components=1, symmetry=1)
+        self.v_ = self.v.data[:,0]
+
+        # Create LinearOperator instance.
+        self.LO = sparse.linalg.LinearOperator((mesh.linear_size, mesh.linear_size), matvec=self.matvec, dtype=np.float64)
+
+
+
+    def set_symmetry(self, symmetry):
+        """set the symmetry that the solution must obey."""
+        self.v.set_symmetry(symmetry)
+
+    def denominator(self, idim=0):
+        """to be overridden by derived class"""
+        raise NotImplementedError()
+
+    def Astar_v(self):
+        """to be overridden by derived class"""
+        raise NotImplementedError()
+
+    def matvec(self, u):
+        """to be overridden by derived class"""
+        raise NotImplementedError()
+
+    def assemble_rhs(self, f, boundary_value):
+        """Assemble the right hand side of the linear system:
+          - apply scaling to rhs in case of uniform grid spacing
+          - applying the Dirichlet boundary conditions to the rhs.
+
+        Args:
+            f (ndarray): right hand side of the generalized Poisson equation. Modified during
+                `assemble` and `solve` methods
+            boundary_value (Callable): function that yields the Dirichlet boundary value when
+                applied to the boundary points of the mesh.
+        """
+        assert f.shape == (self.mesh.linear_size,)
+        self.f = f
+
+        # scale rhs f
+        if self.h_uniform != 0:
+            self.f *= self.denominator()
+
+        # set all interior nodes to 0 (but it is more efficient to set all nodes to 0)
+        self.v_[:] = 0.
+        # set boundary values on boundary nodes
+        if self.mesh.dim == 3:
+            self.v_[self.bp_l] = boundary_value(self.bp_xyz[:,0], self.bp_xyz[:,1], self.bp_xyz[:,2])
+        elif self.mesh.dim == 2:
+            self.v_[self.bp_l] = boundary_value(self.bp_xyz[:,0], self.bp_xyz[:,1])
+        else:
+            self.v_[self.bp_l] = boundary_value(self.bp_xyz)
+
+        # this is probably not the most efficient way to do this, but it is only called once,
+        # and it has the tremendous advantage of being generic and avoiding corner cases.
+        b = self.Astar_v()
+        self.f -= b
+
+        self.v_[self.bp_l] = 0.  # required by the iterative solvers when calling matvec
+
+    def solve(self, method='cg', **kwargs):
+        """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs` using
+        an the iterative solvers.
+        Args:
+            method: one of the methods in `self.iterative_linear_solvers`
+        """
+        ils = self.iterative_linear_solvers[method]
+        u = ils(self.LO, self.f, **kwargs)
+        return u
+
+
+class L3p(Stencil):
+    """Classical 3 point stencil for the Laplacian with coefficients[1,-2,1]/h**2"""
+    def __init__(self, mesh):
+        """
+        Args:
+            v MeshQuantity on embedding mesh
+        """
+        super().__init__(mesh, boundary_width=1)
+
+    def denominator(self, idim=0):
+        h = self.h_uniform if (self.h_uniform != 0) else self.v.mesh.d[idim]
+        h = h**2
+        return h
+
+    def Astar_v(self):
+        if self.mesh.dim == 3:
+            pass
+        elif self.mesh.dim == 2:
+            bw = self.boundary_width
+            # if not hasattr(self, 'u'):
+            #     self.uG = np.zeros(self.mesh.N, order='F')
+            #     self.u  = self.uG.reshape(self.mesh.linear_size, order='F')
+            if self.h_uniform:
+                # np.multiply(-4.0, self.v.dataG[bw  :-bw  , bw  :-bw  ], out=self.uG)
+                asv  = -4 * self.v.dataG[bw  :-bw  , bw  :-bw  ] \
+                          + self.v.dataG[bw-1:-bw-1, bw  :-bw  ] \
+                          + self.v.dataG[bw+1:     , bw  :-bw  ] \
+                          +(self.v.dataG[bw  :-bw  , bw-1:-bw-1] \
+                           +self.v.dataG[bw  :-bw  , bw+1:     ])
+                return asv.reshape(self.mesh.linear_size, order='F')
+            else:
+                raise NotImplementedError()
+
+        elif self.mesh.dim == 1:
+            return -2 * self.v_[1:-1] \
+                    +   self.v_[0:-2] \
+                    +   self.v_[2:  ]
+
+    def matvec(self, u):
+        """Embed u with boundary region and copy symmetry points for reduced axes. Then apply Astar_v."""
+
+        if self.mesh.dim >= 2:
+            self.v.dataG[1:-1,1:-1,0] = u.reshape(self.mesh.N, order='F')
+            for ib in range(self.boundary_width):
+                for idim in range(self.mesh.dim):
+                    if self.mesh.reduced[idim]:
+                        self.v_[self.sp_l[ib][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[ib][idim]]
+
+        elif self.mesh.dim == 1:
+            self.v_[1:-1] = u
+            if self.mesh.reduced[0]:
+                self.v_[0] = self.v.symmetry[0]*self.v_[1]
+
+        return self.Astar_v()
+
+class L5p(Stencil):
+    """Classical 5 point stencil for the Laplacian with coefficients[-1, 16, -30, 16, -1]/12*h**2"""
+    def __init__(self, mesh):
+        """
+        Args:
+            v MeshQuantity on embedding mesh
+        """
+        super().__init__(mesh, boundary_width=2)
+
+    def denominator(self, idim=0):
+        h = self.h_uniform if (self.h_uniform != 0) else self.v.mesh.d[idim]
+        h = 12 * h**2
+        return h
+
+    def Astar_v(self):
+        if self.mesh.dim == 3:
+            pass
+        elif self.mesh.dim == 2:
+            pass
+        elif self.mesh.dim == 1:
+            return  -30 *  self.v_[2:-2] \
+                   + 16 * (self.v_[3:-1] \
+                          +self.v_[1:-3]) \
+                        - (self.v_[0:-4] \
+                          +self.v_[4:  ])
+
+    def matvec(self, u):
+        """Embed u with boundary region and copy symmetry points for reduced axes. Then apply Astar_v."""
+        if self.mesh.dim == 3:
+            pass
+        elif self.mesh.dim == 2:
+            pass
+        elif self.mesh.dim == 1:
+            self.v_[2:-2] = u
+            if self.mesh.reduced[0]:
+                self.v_[0] = self.v.symmetry[0] * self.v_[3]
+                self.v_[1] = self.v.symmetry[0] * self.v_[2]
+
+        return self.Astar_v()
 

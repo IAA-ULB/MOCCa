@@ -345,7 +345,7 @@ This means that for the 5-point stencil we need to collect boundary points and n
 
 The MOCCa solution was to embed the Lagrange grid into a grid with 1 (3-point stencil) or 2 (5-point stencil) points extra in every direction and computing L for the interior points only (that I am not sure of but it seems plausible) and only solve for the unknowns corresponding to the interior nodes (i.e. the LagrangeMesh nodes). This approach replaces the `LagrangeMesh.collect_boundary_nodes(stencil)` by a `LagrangeMesh.add_boundary_nodes(stencil)`
 
-Embedding the `LagrangeMesh` in a larger mesh for solving the Poisson can be done by creating an extra mesh or with a restricted view on the larger mesh. E.g in 1D the Poisson mesh with 20 points for a 5-point stencil would be a numpy array `poisson_mesh` with shape `(20,)` and the corresponding LagrangeMesh would have the points `poisson_mesh[2:-2]`. The difficulty is that the linear system matrix $A^{16 \times 16}$  is no longer the Laplacian matrix $L^{20\times 20}$ over the Poisson mesh. Embedding, however, allows $L$ to be expressed as a linear operator which applies the stencil at every interior point, computing $Au$ (thus it is essentially a matrix-free approach), while reaching into the embedding region when necessary. The system can then be solved iteratively, for the interior points only.  That avoids special treatments of boundary and symmetry boundary conditions all together (except for copying the symmetry points at each iteration). To that end, SciPy provides `LinearOperator` class, whose constructor simply requires a method that computes $Au$ given $u$. The difficulty for this approach is that (except for 1D) is impossible to embed the grid and keep $u$ a contiguous vector. Either we deal with
+Embedding the `LagrangeMesh` in a larger mesh for solving the Poisson can be done by creating an extra mesh or with a restricted view on the larger mesh. E.g in 1D the Poisson mesh with 20 points for a 5-point stencil would be a numpy array `poisson_mesh` with shape `(20,)` and the corresponding LagrangeMesh would have the points `poisson_mesh[2:-2]`. The difficulty is that the linear system matrix $A^{16 \times 16}$  is no longer the Laplacian matrix $L^{20\times 20}$ over the Poisson mesh. Embedding, however, allows $L$ to be expressed as a linear operator which applies the stencil at every interior point, computing $Au$ (thus it is essentially a matrix-free approach), while reaching into the embedding region when necessary. The system can then be solved iteratively, for the interior points only.  That avoids special treatments of boundary and symmetry boundary conditions all together (except for copying the symmetry points at each iteration). To that end, SciPy provides `LinearOperator` class, whose constructor simply requires a method that computes $Au$ given $u$. An important advantage is that this approach solves for the interior points only. Boundary points do not appear in the equations. The difficulty for this approach is that (except for 1D) is impossible to embed the grid and keep $u$ a contiguous vector. Either we deal with
 - a contiguous $u$ and store the boundary regions separately (non-contigously), 
 - or with an embedded grid and a non-contiguous u.
 This requires the following steps:
@@ -356,4 +356,117 @@ This requires the following steps:
 4. update (inside iterative solver),
 5. back to 1. and repeat until convergence (inside iterative solver).
 Embedding the grid seems the less error-prone approach. 
+We found that we can treat symmetry boundary conditions using embedding, but not boundary conditions. In 1D, not reduced the system to solve is
 
+$$
+Ax=
+\begin{bmatrix}
+-2 &  1 & 0  \\
+ 1 & -2 & \ddots & \ddots \\
+ 0 & \ddots & \ddots  & \ddots & 0  \\
+   & \ddots & \ddots & -2 & 1 & 0 \\
+   &  & 0 & 1 & -2 & 1 \\
+   & & & 0 & 1 & -2
+\end{bmatrix}x
+= h^2b - 
+\begin{bmatrix}
+x_{L}\\
+0\\
+\vdots\\
+0\\
+x_{R}
+\end{bmatrix}
+$$
+with $x_{L,R}$ the Dirichlet boundary conditions left and right, on the extra points left and right of the grid, and $h$ the grid spacing.
+This sytem is equivalent to:
+$$
+\begin{bmatrix}
+\textcolor{red}{1} & -2 &  1 & 0  \\
+\textcolor{red}{0} &  1 & -2 & \ddots & \ddots \\
+\textcolor{red}{0} & 0 & \ddots & \ddots  & \ddots & 0  \\
+&   & \ddots & \ddots & -2 & 1 & 0 & \textcolor{red}{0}\\
+&   &  & 0 & 1 & -2 & 1 &\textcolor{red}{0}\\
+&   & & & 0 & 1 & -2&\textcolor{red}{1}
+\end{bmatrix}
+\begin{bmatrix}
+\textcolor{red}{x_{L}}\\
+x\\
+\textcolor{red}{x_{R}}
+\end{bmatrix}
+= h^2 b
+$$
+but when using this product in `matvec` of a `scipy.sparse.linalg.LinearOperator` it does not converge using iterative methods. The reason is that it does ***NOT*** represent a matrix-vector product, but rather $Ax+ \begin{bmatrix}x_{L} & 0 & \dots & 0 & x_{R}\end{bmatrix}^T$ . So we **must** take care of the boundary conditions on the right side. The symmetry boundary conditions, however can be taken care of perfectly with this approach because they are adding up to the interior terms.
+For the 5-point stencil the system above becomes
+$$
+\begin{bmatrix}
+\textcolor{red}{-1} & \textcolor{red}{16} & -30 & 16 & -1  \\
+\textcolor{red}{0} & \textcolor{red}{-1} & 16 & -30 & \ddots & \ddots \\
+\textcolor{red}{0} & \textcolor{red}{0} & -1 & \ddots & \ddots & \ddots & \ddots \\
+&   & \ddots & \ddots &16& -30 & 16 & -1 & \textcolor{red}{0} & \textcolor{red}{0}\\
+&   &  &0& -1 & 16 & -30 & 16 & \textcolor{red}{0}  & \textcolor{red}{0}\\
+&   & & &  0 &-1 & 16 & -30 & \textcolor{red}{16} & \textcolor{red}{-1}
+\end{bmatrix}
+\begin{bmatrix}
+\textcolor{red}{x_{LL}}\\
+\textcolor{red}{x_{L}}\\
+x\\
+\textcolor{red}{x_{R}}\\
+\textcolor{red}{x_{RR}}
+\end{bmatrix}
+= 12h^2 b
+$$
+ or
+$$
+A^*
+\begin{bmatrix}
+\textcolor{red}{x_{LL}}\\
+\textcolor{red}{x_{L}}\\
+x\\
+\textcolor{red}{x_{R}}\\
+\textcolor{red}{x_{RR}}
+\end{bmatrix}
+= 12h^2 b
+
+$$
+This can be written as:
+$$
+A^*
+\begin{bmatrix}
+\textcolor{red}{0}\\
+\textcolor{red}{0}\\
+x\\
+\textcolor{red}{0}\\
+\textcolor{red}{0}
+\end{bmatrix}
++
+A^*
+\begin{bmatrix}
+\textcolor{red}{x_{LL}}\\
+\textcolor{red}{x_{L}}\\
+0\\
+\textcolor{red}{x_{R}}\\
+\textcolor{red}{x_{RR}}
+\end{bmatrix}
+= 12h^2 b
+$$
+or
+$$
+A^*
+\begin{bmatrix}
+\textcolor{red}{0}\\
+\textcolor{red}{0}\\
+x\\
+\textcolor{red}{0}\\
+\textcolor{red}{0}
+\end{bmatrix}
+= 12h^2 b -
+A^*
+\begin{bmatrix}
+\textcolor{red}{x_{LL}}\\
+\textcolor{red}{x_{L}}\\
+0\\
+\textcolor{red}{x_{R}}\\
+\textcolor{red}{x_{RR}}
+\end{bmatrix}
+$$
+This constitutes a general way of setting the correct boundary conditions. The matrix-vector product on the left hand side involves only the interior nodes, while that on the right hand side involves only the exterior nodes.

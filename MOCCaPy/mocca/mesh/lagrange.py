@@ -98,7 +98,15 @@ def _split_axes(axes, Q):
             return 1, ny, Q.derivativesG[reused_axes]
 
 class Mesh:
-    """Base class for LagrangeMesh and Poisson mesh"""
+    """Base class for LagrangeMesh and Poisson mesh.
+
+    Attributes:
+        grid: ndarray of shape (linear_size, dim) with coordinates of the grid points, linear indexing
+            (in Fortran order).
+        gridx: ndarray of shape (N[0],<N[1]<,N[2]>>) with x-coordinates of the grid points
+        gridy: ndarray of shape (N[0], N[1]<,N[2]> ) with y-coordinates of the grid points
+        gridz: ndarray of shape (N[0], N[1], N[2]  ) with z-coordinates of the grid points
+    """
     def __init__(self, M:int|tuple, d:int|float|tuple, dim:int=0, reduced:tuple|bool=True):
         """Construct a Mesh in 1, 2 or 3 dimensions.
 
@@ -198,7 +206,7 @@ class LagrangeMesh(Mesh):
                        shift:tuple|float=.0,
                        bc:str='antiperiodic',
                        highest_derivative_order:int=2,
-                       collect_boundary_points:bool=False,
+                       boundary_width:int=0,
                  ) -> None:
         """Construct a Lagrange mesh in 1, 2 or 3 dimensions.
 
@@ -210,8 +218,8 @@ class LagrangeMesh(Mesh):
             highest_derivative_order: allow for differentiation up to this order. D-matrices are pre-constructed
                 up to this order.
             name: optional name for the mesh.
-            collect_boundary_points: False or stencil for which to collect boundary points. Ignored if there are
-                no reduced axss.
+            boundary_width: If > 0, creates an embedding mesh for solving Poisson equqtions on a LagrangeMesh.
+                The mesh is surrounded by a boundary mesh of width `boundary_width`.
         Raises:
             ValueError: in case of invalid choices.
 
@@ -246,12 +254,15 @@ class LagrangeMesh(Mesh):
         self.antiperiodic = bc == 'antiperiodic'
         self.periodic = not self.antiperiodic # since there are only 2 options.
 
+        self.boundary_width = boundary_width
+
         self._initalize_gridpoints()
 
-        self._setup_D_matrices(highest_derivative_order)
+        if highest_derivative_order:
+            self._setup_D_matrices(highest_derivative_order)
 
-        if collect_boundary_points:
-            self.collect_boundary_points(stencil=collect_boundary_points)
+        # if boundary_width:
+        #     self.collect_boundary_points()
 
     def _initalize_gridpoints(self) -> None:
         # initialize grid points:
@@ -261,10 +272,11 @@ class LagrangeMesh(Mesh):
         for idim, (M_i, shift_i, reduced_i, d_i) in enumerate(zip(self.M, self.shift, self.reduced, self.d)):
             if reduced_i:
                 n_reduced[idim] = M_i // 2
-                start[idim] = 0.5
+                start[idim] = 0.5 - self.boundary_width
             else:
                 n_reduced[idim] = M_i
-                start[idim] = -(M_i - 1) * 0.5 - shift_i / d_i
+                start[idim] = -(M_i - 1 + 2*self.boundary_width) * 0.5 - shift_i / d_i
+            n_reduced[idim] += 2 * self.boundary_width
 
             g1D[idim] = np.linspace(start[idim], start[idim] + n_reduced[idim] - 1, n_reduced[idim])
             g1D[idim] *= d_i
@@ -302,7 +314,7 @@ class LagrangeMesh(Mesh):
         self.mesh_shape   = self.gridx.shape
         self.linear_size = int(np.prod(self.mesh_shape))
 
-    def collect_boundary_points(self, stencil):
+    def collect_boundary_points(self):
         """The boundary points are needed by the GeneralizedPoissonSolver. This method collects
         and stores the boundary points of this mesh. Reduced axes have only boundary points
         on the right side. Points are ordered in the Fortran way, i.e. left-most indices
@@ -311,8 +323,6 @@ class LagrangeMesh(Mesh):
         If there are any reduced axes `collect_symmetry_points()` is also called.
 
         Args:
-            stencil: stencil for which to collect boundary points. `stencil=3` collects points
-                in a boundary of width 1, for `stencil=5` the boundary width is 2 points.
 
         Sets the following attributes:
             self.bp_l  : linear index of the boundary points, shape (n,). The linear index
@@ -324,14 +334,11 @@ class LagrangeMesh(Mesh):
             # already called
             return
 
-        self.boundary_width = 1 if (stencil == 3) else \
-                              2  # (stencil == 5)
-
         if self.dim == 3:
             # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
-            lx = self.M[0] // 2 - 1
-            ly = self.M[1] // 2 - 1
-            lz = self.M[2] // 2 - 1
+            lx = self.M[0] // 2 - 1 + 2 * self.boundary_width
+            ly = self.M[1] // 2 - 1 + 2 * self.boundary_width
+            lz = self.M[2] // 2 - 1 + 2 * self.boundary_width
             x_boundary = [[lx,iy,iz] for iz in range(lz+1) for iy in range(ly+1)]
             y_boundary = [[ix,ly,iz] for iz in range(lz+1) for ix in range(lx)  ]
             z_boundary = [[ix,iy,lz] for iy in range(ly)   for ix in range(lx)  ]
@@ -348,7 +355,7 @@ class LagrangeMesh(Mesh):
                 boundary.extend(z_boundary)
 
             if not self.reduced[0]:
-                M = self.M[0]
+                M = self.M[0] + 2 * self.boundary_width
                 halfM = M // 2
                 boundary = [ [bp[0] + halfM, bp[1], bp[2]] for bp in boundary ]
                 # mirror x
@@ -356,7 +363,7 @@ class LagrangeMesh(Mesh):
                 boundary.extend(mirror)
 
             if not self.reduced[1]:
-                M = self.M[1]
+                M = self.M[1] + 2 * self.boundary_width
                 halfM = M // 2
                 boundary = [ [bp[0], bp[1] + halfM, bp[2]] for bp in boundary ]
                 # mirror x
@@ -364,7 +371,7 @@ class LagrangeMesh(Mesh):
                 boundary.extend(mirror)
 
             if not self.reduced[2]:
-                M = self.M[2]
+                M = self.M[2] + 2 * self.boundary_width
                 halfM = M // 2
                 boundary = [ [bp[0], bp[1], bp[2] + halfM] for bp in boundary ]
                 # mirror x
@@ -379,43 +386,24 @@ class LagrangeMesh(Mesh):
             self.bp_xyz = self.grid[self.bp_l, :]
 
         elif self.dim == 2:
-            # Collect boundary points (as [i,j] indices) on reduced axes, then mirror if not reduced
-            lx = self.M[0] // 2 - 1
-            ly = self.M[1] // 2 - 1
-            x_boundary = [[lx,iy] for iy in range(ly)]   # corner not included
-            y_boundary = [[ix,ly] for ix in range(lx+1)] # corner     included
-            boundary = []
-            boundary.extend(x_boundary)
-            boundary.extend(y_boundary)
-            if self.boundary_width ==2:
-                x_boundary = [[lx-1,iy] for iy in range(ly  -1)] # corner not included
-                y_boundary = [[ix,ly-1] for ix in range(lx+1-1)] # corner     included
-                boundary.extend(x_boundary)
-                boundary.extend(y_boundary)
-
-            if not self.reduced[0]:
-                M = self.M[0]
-                halfM = M // 2
-                boundary = [ [bp[0] + halfM, bp[1]] for bp in boundary ]
-                # mirror x
-                mirror   = [ [M - bp[0] - 1, bp[1]] for bp in boundary]
-                boundary.extend(mirror)
-
-            if not self.reduced[1]:
-                M = self.M[1]
-                halfM = M // 2
-                boundary = [ [bp[0], bp[1] + halfM] for bp in boundary ]
-                # mirror y
-                mirror   = [ [bp[0], M - bp[1] - 1] for bp in boundary]
-                boundary.extend(mirror)
+            bp_l = [None] * self.boundary_width
+            for i in range(self.boundary_width):
+                bp = []
+                for idim in range(self.dim):
+                    l,r = self.g1D[idim][0], self.g1D[idim][-1]
+                    if not self.reduced[idim]:
+                        bp.append(np.nonzero(self.grid[:,idim] == l)[0])
+                    bp.append(    np.nonzero(self.grid[:,idim] == r)[0])
+                bp_l[i] = np.sort(np.unique(np.concat(bp)))
+            self.bp_l = np.array(bp_l, order='F')
 
             self.bp_ijk = np.array(boundary, order='F')
-            self.bp_l   = self.bp_ijk[:,0] \
-                        + self.bp_ijk[:,1] * self.N[0]
+            self.bp_l   = self.bp_ijk[:,0]  + self.boundary_width \
+                        + self.bp_ijk[:,1] * (self.N[0] + self.boundary_width)
             self.bp_xyz = self.grid[self.bp_l, :]
 
         else: # self.dim == 1
-            last = self.N[0] - 1
+            last = self.N[0] - 1  + 2 * self.boundary_width
             if self.boundary_width == 1:
                 self.bp_l = np.array(
                     [   last,] if self.reduced[0] else \
