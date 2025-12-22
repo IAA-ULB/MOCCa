@@ -8,7 +8,7 @@
 #
 #===============================================================================
 
-def substitute(src, target, dic):
+def substitute(src, target, dic, make_notes=True):
   """
     Substitute strings in a template file and write the result to a target file, 
     taking care to place annotations that indicate where substitutions have been made.
@@ -30,7 +30,10 @@ def substitute(src, target, dic):
             newline = Template(line).substitute(dic)
             if( newline != line):
                 # Some string substitution happened
-                generated.write(annotate(newline))
+                if make_notes:
+                    generated.write(annotate(newline))
+                else:
+                    generated.write(newline)
             else:
                 # No substitution happened, just copy the line
                 generated.write(line)

@@ -3,6 +3,11 @@ make.inc
 build/ 
 build*
 
+MOCCaPy_fortran/*.f90
+MOCCaPy_fortran/*.so
+
+
+
 *exe
 *i
 # Do not track the make.inc currently in use

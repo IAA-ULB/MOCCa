@@ -213,7 +213,7 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation, dry_run=False, verbose=True):
+def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation, dry_run=False, verbose=True, novector=False):
     """
     Master routine calling the other routines based on a list of densities.
     Also prints output.
@@ -232,6 +232,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation,
                                 wavefunctions.
         dry_run               : if True, do not write any files (default: False)
         verbose               : if True, print detailed output (default: True)
+        novector              : if True, do not use templates that rely on 
+                                density vectors being present
 
     Output:
         Declaration           : string that declares the density in FORTRAN
@@ -302,7 +304,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation,
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Diagonal" summation of densities in the canonical basis
-      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei)  = \
+      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei, dendic)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so, fam_active,                     \
@@ -407,7 +409,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation,
         silent_call = False 
         if(not verbose):
             silent_call = True
-        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei)  = \
+        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei, dendic)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],    \
                                           intermediate_status[i],                  \
                                          'si+wave2' , 'si+wave'  ,                 \
@@ -689,7 +691,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                          left_der_wave, right_der_wave, so,
                          fam_active, density_spwf_summation,  
                          complex_component=0, weight = 'weight',
-                         silent=False, symmetrize=0):
+                         silent=False, symmetrize=0, novector=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
       template Densities.f90.
@@ -726,6 +728,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                                              reflection symmetries of the 
                                              generated density
       * symmetrize             : TODO document
+      * novector               : If True, do not use templates that rely on
+                                    density vectors being present
       - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       Output :
       
@@ -743,6 +747,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                           for this density
         Cleaning       :  string deallocating the density
         Write          :  string writing the density to the HDF5 file
+        dendic         :  dictionary used to do replacements in the FORTRAN code
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
     """
@@ -1075,7 +1080,10 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
             else:
                 dic['IND_nocomma'] = ""
 
-            Expression = Expression + ta.Den_1_spwf.substitute(dic)
+            if(novector):
+                Expression = Expression + ta.Den_1_spwf_novector.substitute(dic)
+            else:
+                Expression = Expression + ta.Den_1_spwf.substitute(dic)
 
             #-----------------------------------------------------------------------
             # Now loop over the uncontracted indices
@@ -1176,7 +1184,10 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                     elif complex_component == -1:
                         Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
                     elif complex_component == +0:
-                        Expression = Expression + ta.Den_sum_real.substitute(dic) + '\n\n'
+                        if(novector):
+                            Expression = Expression + ta.Den_sum_real_novector.substitute(dic) + '\n\n'
+                        else:
+                            Expression = Expression + ta.Den_sum_real.substitute(dic) + '\n\n'
                 else:
                     if symmetrize == -1 and ('C' in denin):  # dirty hack!
                         mult = '(-0.5d0) *'
@@ -1436,7 +1447,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply,\
-                                   Write)
+                                   Write, dic)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------
