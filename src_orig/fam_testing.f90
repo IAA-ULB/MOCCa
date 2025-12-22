@@ -776,8 +776,8 @@ contains
     complex(KIND=dp), allocatable :: Fsp(:,:), identity(:,:)
     complex(KIND=dp), allocatable :: Fqp(:,:,:),  Fph(:,:,:)
     
-    real(KIND=dp), allocatable :: N20(:,:)
-    complex(KIND=dp), allocatable ::  N20new(:,:)
+    real(KIND=dp), allocatable :: N20(:,:), N11(:,:)
+    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
 
     integer :: i, si, T
       
@@ -793,6 +793,8 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 1. some test for the particle number operator, comparing to existing routines
 
+    print * , 'TEST 1 : comparing to exising routines for the particle number operator'
+
 
     ! construct the spme of the particle-number operator = identity 
     allocate(identity(nwt,nwt)) 
@@ -806,7 +808,14 @@ contains
 
     ! transform to qpme N20
     allocate(N20new(nwt,nwt)) 
-    call transform_O11_to_qpO20(Bogoliubov, identity, N20new(:,:))
+    allocate(N11new(nwt,nwt)) 
+    call transform_O11sp_to_O20O11qp(Bogoliubov, identity, N20new(:,:), N11new(:,:))
+
+    ! get qpme of N20 from existing routine, for the neutron channel
+    N20 = calcN20(Bogoliubov, HFblocks(1:4))
+
+    ! get qpme of N11 from existing routine, for the neutron channel
+    N11 = calcN11(Bogoliubov, HFblocks(1:4))
 
     print *, 'N20 (new routine) : BLOCK 1 & 2'
     T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
@@ -814,8 +823,6 @@ contains
       print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
     enddo
 
-    ! get qpme of N20 from existing routine, for the neutron channel
-    N20 = calcN20(Bogoliubov, HFblocks(1:4))
 
     print *, 'N20 (existing routine) : BLOCK 1 & 2'
     do i=1,T
@@ -826,6 +833,24 @@ contains
     print *, ' ||N20(existing routine) - N20(new)|| = ', &
     & sum(abs(N20(:,:) - N20new(1:nwn,1:nwn)))
 
+
+
+    print *, 'N11 (new routine) : BLOCK 1 & 2'
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
+    enddo
+
+
+    print *, 'N11 (existing routine) : BLOCK 1 & 2'
+    do i=1,T
+      print "(99f10.5)",  N11(i, 1:T)
+    enddo
+
+    
+    print *, ' ||N11(existing routine) - N11(new)|| = ', &
+    & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 2. test qp trafo of monopole operator, when bogo trafo is trivial for protons
 
@@ -833,7 +858,7 @@ contains
     Fsp = Rsq_spme()
 
     ! get qpme of F
-    call transform_O11_to_qpO20(Bogoliubov, Fsp, Fqp(:,:,1))
+    call transform_O11sp_to_O20qp(Bogoliubov, Fsp, Fqp(:,:,1))
     
     print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
 

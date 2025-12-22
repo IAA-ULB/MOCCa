@@ -802,7 +802,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     else
       ! Define the external field F as the qpme obtained by performing a bogolibov 
       ! transformation and storing the F^20 anf F^02 comnpnents
-      call transform_O11_to_qpO20(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1))
+      call transform_O11sp_to_O20qp(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1))
 
       ! Assuming that F is Hermitian, F20 = F02^dagger = - F02^* (antisym)
       f_LK_qpme(:,:,2) = - conjg(f_LK_qpme(:,:,1))
@@ -951,10 +951,10 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
   end subroutine get_ph_hp_blocks_real
 
 
-  subroutine transform_O11_to_qpO20(Bogo, O11_sp, O20)
+  subroutine transform_O11sp_to_O20qp(Bogo, O11sp, O20qp)
     !---------------------------------------------------------------------------
     ! Performing quasi-particle transformation of a particle-number conserving 
-    ! Hermitian 1-body operator O11_sp. The function returns the 20 and 02 
+    ! Hermitian 1-body operator O11sp. The function returns the 20 and 02 
     ! components of the operator in the QP-basis.
     !  
     ! Bogo contains the bogoliubov transformation W organised in block matrices
@@ -976,17 +976,17 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     implicit none
     real(KIND=dp), intent(in)     :: Bogo(:,:)
-    complex(KIND=dp), intent(in)  :: O11_sp(:,:)
-    complex(KIND=dp), intent(out) :: O20(:,:)
+    complex(KIND=dp), intent(in)  :: O11sp(:,:)
+    complex(KIND=dp), intent(out) :: O20qp(:,:)
 
     real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
     complex(KIND=dp), allocatable :: Ob(:,:)
     complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
     integer                       :: B, N, N2, si, sb, T, i
 
-    O20 = 0._dp
+    O20qp = 0._dp
 
-    if (fam_verbose > 2) print *, "transform_O11_to_qpO20"
+    if (fam_verbose > 2) print *, "transform_O11sp_to_O20qp"
 
 
     ! si = O start index for O , sb = start index for bogo (increases twice as fast)
@@ -1001,7 +1001,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       ! and the matrix multiplications memory-local
       Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
-      Ob = O11_sp(si+1:si+T,si+1:si+T)
+      Ob = O11sp(si+1:si+T,si+1:si+T)
   
       if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
       if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
@@ -1010,7 +1010,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       ! print *, 'O11'
 
       ! do i=si+1,si+T
-      !   print "(*( '(',f12.5,',',f12.5,')',:))", O11_sp(i,si+1:si+T)
+      !   print "(*( '(',f12.5,',',f12.5,')',:))", O11sp(i,si+1:si+T)
       ! enddo
       
       ! print *, 'U'
@@ -1042,10 +1042,10 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
 
 
-$NTR     O20(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$NTR     O20qp(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Vb)) &
 $NTR                                & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
       ! Note the extra minus sign for time-reversal 
-$TR      O20(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$TR      O20qp(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) &
 $TR                                 & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
 
 
@@ -1057,15 +1057,15 @@ $TR                                 & - matmul( transpose(Vb),  matmul(  Ob, Ub)
 !       Ub = transpose(Ub) ; Vb = transpose(Vb)
 
 !       ! We can save some effort here in the future, H20 is antisymmetric     
-! $NTR     O20(si+1:si+T, si+1:si+T)  = matmul(Ub,  OV) - matmul( Vb, OU) 
+! $NTR     O20qp(si+1:si+T, si+1:si+T)  = matmul(Ub,  OV) - matmul( Vb, OU) 
 !       ! Note the extra minus sign for time-reversal 
-! $TR      O20(si+1:si+T, si+1:si+T)  = - matmul(Ub,  OV) - matmul( Vb,  OU) 
+! $TR      O20qp(si+1:si+T, si+1:si+T)  = - matmul(Ub,  OV) - matmul( Vb,  OU) 
 
 
 
-      ! print *, 'O20'
+      ! print *, 'O20qp'
       ! do i=si+1,si+T
-      !   print "(*( '(',g12.5,',',g12.5,')',:))",  O20(i,si+1:si+T)
+      !   print "(*( '(',g12.5,',',g12.5,')',:))",  O20qp(i,si+1:si+T)
       ! enddo
 
       si = si +  T
@@ -1073,7 +1073,136 @@ $TR                                 & - matmul( transpose(Vb),  matmul(  Ob, Ub)
 
     enddo
     
-  end subroutine transform_O11_to_qpO20
+  end subroutine transform_O11sp_to_O20qp
+
+
+  subroutine transform_O11sp_to_O20O11qp(Bogo, O11sp, O20qp, O11qp)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle transformation of a particle-number conserving 
+    ! Hermitian 1-body operator O11sp. The function returns the 20 and 02 
+    ! components of the operator in the QP-basis.
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! and 
+    !          O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
+    !          O02b = - Vb^T        o11b Ub   + Ub^T        o11b^T Vb = - O20b^{dagger}
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in)     :: Bogo(:,:)
+    complex(KIND=dp), intent(in)  :: O11sp(:,:)
+    complex(KIND=dp), intent(out) :: O20qp(:,:), O11qp(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
+    complex(KIND=dp), allocatable :: Ob(:,:)
+    complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
+
+    O20qp = 0._dp
+    O11qp = 0._dp
+
+    if (fam_verbose > 2) print *, "transform_O11sp_to_O20O11qp"
+
+
+    ! si = O start index for O , sb = start index for bogo (increases twice as fast)
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+      Ob = O11sp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+      ! print *, 'O11'
+
+      ! do i=si+1,si+T
+      !   print "(*( '(',f12.5,',',f12.5,')',:))", O11sp(i,si+1:si+T)
+      ! enddo
+      
+      ! print *, 'U'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  Ub(i, 1:T)
+      ! enddo
+
+      ! print *, 'V'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  Vb(i, 1:T)
+      ! enddo
+
+      ! rho = matmul(Vb, transpose(Vb))
+      ! kappa = matmul(Ub, transpose(Vb))
+
+      ! print *, 'rho'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  rho(i, 1:T)
+      ! enddo
+
+      ! print *, 'kappa'
+
+      ! do i=1,T
+      !   print "(99f10.5)",  kappa(i, 1:T)
+      ! enddo
+
+
+
+$NTR     O20qp(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$NTR                                & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
+      ! Note the extra minus sign for time-reversal 
+$TR      O20qp(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$TR                                 & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
+
+
+$NTR     O11qp(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Ub)) &
+$NTR                                & - matmul( transpose(Vb),  matmul(  Ob, Vb)) 
+
+!       !  O V^* and O^T U^*
+!       OV = matmul(  Ob, Vb) 
+!       OU = matmul(  Ob, Ub) 
+
+!       ! We reuse the defined symbols to save a matrix multiplication here
+!       Ub = transpose(Ub) ; Vb = transpose(Vb)
+
+!       ! We can save some effort here in the future, H20 is antisymmetric     
+! $NTR     O20qp(si+1:si+T, si+1:si+T)  = matmul(Ub,  OV) - matmul( Vb, OU) 
+!       ! Note the extra minus sign for time-reversal 
+! $TR      O20qp(si+1:si+T, si+1:si+T)  = - matmul(Ub,  OV) - matmul( Vb,  OU) 
+
+
+
+      ! print *, 'O20qp'
+      ! do i=si+1,si+T
+      !   print "(*( '(',g12.5,',',g12.5,')',:))",  O20qp(i,si+1:si+T)
+      ! enddo
+
+      si = si +  T
+      sb = sb +2*T
+
+    enddo
+    
+  end subroutine transform_O11sp_to_O20O11qp
 
 
   function Rsq_spme() result (Rsq)
