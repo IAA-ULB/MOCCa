@@ -981,38 +981,15 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
     complex(KIND=dp), allocatable :: Ob(:,:)
-    complex(KIND=dp), allocatable :: hV(:,:),  hU(:,:)
+    complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
     integer                       :: B, N, N2, si, sb, T, i
 
-     if (fam_verbose > 2) print *, "transform_O11_to_qpO20"
+    O20 = 0._dp
 
-    ! ! si = O index, sb = bogo index (increases twice as fast)
-    ! si = 0 ; sb = 0
-    
-    ! do B = 1, 8, 2 ! run over TP blocks without resolving Sz
-    !   ! size of block is sum of two Sz subblocks
-    !   N  = HFblocks(B)    ; if(N.eq.0) cycle 
-    !   N2 = HFblocks(B+1)
-    !   T = N + N2
-    !   print *, 'Blocks: ', B, B+1, 'with size', T
-
-    !   ! Getting the U, V and o11 out for this block. 
-    !   Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
-    !   Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
-    !   Ob = O11_sp(si+1:si+T,si+1:si+T)
+    if (fam_verbose > 2) print *, "transform_O11_to_qpO20"
 
 
-    !   O20(si+1:si+T,si+1:si+T) =   matmul(transpose(Ub), matmul(Ob, Vb)) &
-    !                            & - matmul(transpose(Vb), matmul(Ob, Ub))
-    !   ! O02(si+1:si+T,si+1:si+T) = - matmul(transpose(Vb), matmul(Ob, Ub)) &
-    !                            ! & + matmul(transpose(Ub), matmul(Ob, Vb))
-    !   O02(si+1:si+T,si+1:si+T) = - transpose(O20(si+1:si+T,si+1:si+T))
-
-
-    !   si = si + T
-    !   sb = sb + 2*T
- 
-    ! enddo
+    ! si = O start index for O , sb = start index for bogo (increases twice as fast)
 
     si = 0 ; sb = 0
     do B=1,8,2
@@ -1065,25 +1042,25 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
 
 
-      ! !  h V^* and h^t U^*
-      ! hV = matmul(  Ob, Vb) ! - 2*lambda2*matmul(chi, V)
-      ! hU = matmul(  Ob, Ub) !- 2*lambda2*matmul(chi, U)
-
-
-      ! print *, 'hV'
-      ! do i=1,T
-      !   print "(*( '(',g12.5,',',g12.5,')',:))",  hV(i,1:T)
-      ! enddo
-
-      ! We reuse the defined symbols to save a matrix multiplication here
-      ! Ub = transpose(Ub) ; Vb = transpose(Vb)
-
-      ! We can save some effort here in the future, H20 is antisymmetric     
 $NTR     O20(si+1:si+T, si+1:si+T)  = matmul(transpose(Ub),  matmul(  Ob, Vb)) &
 $NTR                                & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
       ! Note the extra minus sign for time-reversal 
-$TR      O20(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) 
-$TR                                 & - matmul(transpose(Ub),  matmul(  Ob, Vb)) 
+$TR      O20(si+1:si+T, si+1:si+T)  = - matmul(transpose(Ub),  matmul(  Ob, Vb)) &
+$TR                                 & - matmul( transpose(Vb),  matmul(  Ob, Ub)) 
+
+
+!       !  O V^* and O^T U^*
+!       OV = matmul(  Ob, Vb) 
+!       OU = matmul(  Ob, Ub) 
+
+!       ! We reuse the defined symbols to save a matrix multiplication here
+!       Ub = transpose(Ub) ; Vb = transpose(Vb)
+
+!       ! We can save some effort here in the future, H20 is antisymmetric     
+! $NTR     O20(si+1:si+T, si+1:si+T)  = matmul(Ub,  OV) - matmul( Vb, OU) 
+!       ! Note the extra minus sign for time-reversal 
+! $TR      O20(si+1:si+T, si+1:si+T)  = - matmul(Ub,  OV) - matmul( Vb,  OU) 
+
 
 
       ! print *, 'O20'
