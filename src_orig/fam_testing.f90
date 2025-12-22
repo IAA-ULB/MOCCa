@@ -800,7 +800,7 @@ contains
 
     ! Set the diagonal elements to 1
     do i = 1, nwt
-        identity(i, i) = 1.0
+      identity(i, i) = 1.0
     end do
 
 
@@ -811,7 +811,7 @@ contains
     print *, 'N20 (new routine) : BLOCK 1 & 2'
     T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
     do  i=1,T
-      print "(99f10.5)",  N20new(i, 1:T)
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
     enddo
 
     ! get qpme of N20 from existing routine, for the neutron channel
@@ -822,7 +822,10 @@ contains
       print "(99f10.5)",  N20(i, 1:T)
     enddo
 
-   
+    
+    print *, ' ||N20(existing routine) - N20(new)|| = ', &
+    & sum(abs(N20(:,:) - N20new(1:nwn,1:nwn)))
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 2. test qp trafo of monopole operator, when bogo trafo is trivial for protons
 
