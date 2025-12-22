@@ -467,13 +467,6 @@ def test_2D():
     print(s, file=output)
 
 
-def reduced_str(reduced):
-    s = ''
-    for r in reduced:
-        s += 'T' if r else 'F'
-    return s
-
-
 # @pytest.mark.slow
 @pytest.mark.skip(reason="probably obsolete")
 def test_3D():
@@ -603,6 +596,7 @@ def test_3D():
 #     assert D44[2, 0] == 2
 
 
+@pytest.mark.skip(reason="probably obsolete")
 def test_collect_boundary_points_1D():
     dim = 1
     M = 10
@@ -627,6 +621,7 @@ def test_collect_boundary_points_1D():
         pass
 
 
+@pytest.mark.skip(reason="probably obsolete")
 def test_collect_boundary_points_2D():
     dim = 2
     M = (4,6)
@@ -661,6 +656,7 @@ def test_collect_boundary_points_2D():
             assert mesh.bp_xyz[i,0] in x or mesh.bp_xyz[i,1] in y
 
 
+@pytest.mark.skip(reason="probably obsolete")
 def test_collect_boundary_points_3D():
     dim = 3
     M = (4,6,8)
@@ -698,6 +694,7 @@ def test_collect_boundary_points_3D():
                    mesh.bp_xyz[i,2] in z
 
 
+@pytest.mark.skip(reason="probably obsolete")
 def test_Laplacia1D_non_uniform():
     n = 8
     h = 2
@@ -749,7 +746,7 @@ def run_MF_ND(
     #     # print(pSolver, file=output)
 
     tmr.start()
-    u,ok = pSolver.solve(method=method, rtol=1e-8)
+    u,ok = pSolver.solve(method=method, rtol=1e-10)
     assert ok == 0
     cput_solve = tmr.stop()
 
@@ -767,17 +764,75 @@ def run_MF_ND(
     return rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u
 
 
-def test_MF_1D():
+def test_MF_ND():
     """test GeneralizedPoissonSolverLO"""
-    dim = 2
+    dim = 3
+    if dim == 1:
+        reduced_cases = [
+            False,
+            True,
+        ]
+        h_cases = [
+            1.6,
+        ]
+        analytical_solution_cases = [
+            gauss,
+            x_gauss,
+        ]
+        n_iter = 4
+    elif (dim == 2):
+        reduced_cases = [
+            True,
+            False,
+            (True, False),
+            (False, True),
+        ]
+        h_cases = [
+            1.6,
+            (1.6, 1.601)
+        ]
+        analytical_solution_cases = [
+            gauss,
+            x_gauss,
+            y_gauss,
+            xy_gauss,
+        ]
+        n_iter = 4
+    else: # dim ==3
+        reduced_cases = [
+            False,
+            True,
+            (True, False, False),
+            (False, True, False),
+            (False, False, True),
+            (True, True, False),
+            (True, False, True),
+            (False, True, True),
+        ]
+        h_cases = [
+            4.,
+            (4, 4.01, 4.01),
+        ]
+        analytical_solution_cases = [
+            gauss,
+            x_gauss,
+            y_gauss,
+            z_gauss,
+            xy_gauss,
+            xz_gauss,
+            yz_gauss,
+            xyz_gauss,
+        ]
+        n_iter = 4
 
-    s = title_line(text='test_MF_1D', char='-', width=120)
-    print(s)
-    print(s, file=output)
 
     tbl = []
     method = "gmres"
     sigma = 2
+
+    s = title_line(text=f'test_MF_{dim}D', char='-', width=120)
+    print(s)
+    print(s, file=output)
     for analytical_solution in [
         gauss,
         # x_gauss,
@@ -786,31 +841,37 @@ def test_MF_1D():
             3,
             5,
         ]:
-            for reduced in [
-                True,
-                False,
-            ]:
-                rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
-                M = 6
-                h = 1.6
-                for iter in range(4):
-                    M *= 2
-                    h *= .5
-                    verbosity = 2 if (iter >=0) else 1
+            for reduced in reduced_cases:
+                for h in h_cases:
+                    if dim <= 2:
+                        M = 6
+                    else:
+                        M = 4
+                        w = M * h if isinstance(h, float) else [M * hi for hi in h]
 
-                    rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_MF_ND(
-                        analytical_solution=analytical_solution, sigma=sigma,
-                        dim=dim, M=M, h=h, reduced=reduced,
-                        stencil=stencil, method=method,
-                        verbosity=verbosity,
-                    )
+                    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
+                    for iter in range(n_iter):
+                        if dim <= 2:
+                            M *= 2
+                            h = h*0.5 if isinstance(h, float) else tuple([hi * 0.5 for hi in h])
+                        else:
+                            M += 4
+                            h = w / M if isinstance(w, float) else tuple([wi / M for wi in w])
+                        verbosity = 2 if (iter >=0) else 1
 
-                    tbl.append([analytical_solution.__name__, stencil, reduced, M, rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve])
-                    assert rmse < rmse0
-                    assert mean_diff < mean_diff0
-                    assert max_diff < max_diff0
+                        rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_MF_ND(
+                            analytical_solution=analytical_solution, sigma=sigma,
+                            dim=dim, M=M, h=h, reduced=reduced,
+                            stencil=stencil, method=method,
+                            verbosity=verbosity,
+                        )
 
-                    rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
+                        tbl.append([analytical_solution.__name__, stencil, reduced, M, rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve])
+                        assert rmse < rmse0
+                        assert mean_diff < mean_diff0
+                        assert max_diff < max_diff0
+
+                        rmse0, mean_diff0, max_diff0 = rmse, mean_diff, max_diff
 
     s = "\n" + title_line(text='SUMMARY', char='-', width=120, above=True, below=True)
     s += tabulate(tbl

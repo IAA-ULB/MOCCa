@@ -620,9 +620,10 @@ class Stencil:
             return condition
 
         bp = []
-        self.sp_l = [[None]*bmesh.dim] * self.boundary_width
-        for ib in range(self.boundary_width):
-            for idim in range(bmesh.dim):
+        self.sp_l = [[None]*bmesh.dim for ib in range(self.boundary_width)]
+        # self.sp_l = [[None]*bmesh.dim] * self.boundary_width
+        for idim in range(bmesh.dim):
+            for ib in range(self.boundary_width):
                 l, r = bmesh.g1D[idim][0+ib], bmesh.g1D[idim][-1-ib]
                 if not bmesh.reduced[idim]:
                     # There are only boundary points on the left side if the axis is not reduced.
@@ -635,13 +636,14 @@ class Stencil:
                     self.sp_l[ib][idim] = np.nonzero(remove_corners(bmesh.grid[:, idim] == l, idim))[0]
 
                 bp.append(np.nonzero(bmesh.grid[:, idim] == r)[0])
+
         self.bp_l = np.sort(np.unique(np.concat(bp))) # ndarray with linear indices of the boundary points
         self.bp_xyz = bmesh.grid[self.bp_l]           # ndarray with coordinates    of the boundary points
 
         # determine the linear indices of the points in u corresponding to the symmetry points.
-        self.sp_lu = [[None]*bmesh.dim] * self.boundary_width
-        for ib in range(self.boundary_width):
-            for idim in range(bmesh.dim):
+        self.sp_lu = [[None]*bmesh.dim for ib in range(self.boundary_width)]
+        for idim in range(bmesh.dim):
+            for ib in range(self.boundary_width):
                 iu = self.boundary_width - ib -1
                 l = self.mesh.g1D[idim][iu]
                 self.sp_lu[ib][idim] = np.nonzero(mesh.grid[:, idim] == l)[0]
@@ -652,8 +654,6 @@ class Stencil:
 
         # Create LinearOperator instance.
         self.LO = sparse.linalg.LinearOperator((mesh.linear_size, mesh.linear_size), matvec=self.matvec, dtype=np.float64)
-
-
 
     def set_symmetry(self, symmetry):
         """set the symmetry that the solution must obey."""
@@ -733,22 +733,47 @@ class L3p(Stencil):
 
     def Astar_v(self):
         if self.mesh.dim == 3:
-            pass
+            if self.h_uniform:
+                asv  = -6 * self.v.dataG[1:-1, 1:-1, 1:-1] \
+                          +(self.v.dataG[ :-2, 1:-1, 1:-1] \
+                          + self.v.dataG[2:  , 1:-1, 1:-1])\
+                          +(self.v.dataG[1:-1,  :-2, 1:-1] \
+                           +self.v.dataG[1:-1, 2:  , 1:-1])\
+                          +(self.v.dataG[1:-1, 1:-1,  :-2] \
+                           +self.v.dataG[1:-1, 1:-1, 2:  ])
+
+            else:
+                invh2_0, invh2_1, invh2_2 = [1 / self.denominator(i) for i in range(3)]
+
+                asv = -2 * (invh2_0 + invh2_1 + invh2_2) *  self.v.dataG[1:-1, 1:-1, 1:-1] \
+                       +    invh2_0                      * (self.v.dataG[ :-2, 1:-1, 1:-1] \
+                                                           +self.v.dataG[2:  , 1:-1, 1:-1])\
+                       +              invh2_1            * (self.v.dataG[1:-1,  :-2, 1:-1] \
+                                                           +self.v.dataG[1:-1, 2:  , 1:-1])\
+                       +                        invh2_2  * (self.v.dataG[1:-1, 1:-1,  :-2] \
+                                                           +self.v.dataG[1:-1, 1:-1, 2:  ])
+
+            return asv.reshape(self.mesh.linear_size, order='F')
+
         elif self.mesh.dim == 2:
-            bw = self.boundary_width
-            # if not hasattr(self, 'u'):
-            #     self.uG = np.zeros(self.mesh.N, order='F')
-            #     self.u  = self.uG.reshape(self.mesh.linear_size, order='F')
             if self.h_uniform:
                 # np.multiply(-4.0, self.v.dataG[bw  :-bw  , bw  :-bw  ], out=self.uG)
-                asv  = -4 * self.v.dataG[bw  :-bw  , bw  :-bw  ] \
-                          + self.v.dataG[bw-1:-bw-1, bw  :-bw  ] \
-                          + self.v.dataG[bw+1:     , bw  :-bw  ] \
-                          +(self.v.dataG[bw  :-bw  , bw-1:-bw-1] \
-                           +self.v.dataG[bw  :-bw  , bw+1:     ])
-                return asv.reshape(self.mesh.linear_size, order='F')
+                asv  = -4 * self.v.dataG[1:-1, 1:-1] \
+                          +(self.v.dataG[ :-2, 1:-1] \
+                          + self.v.dataG[2:  , 1:-1])\
+                          +(self.v.dataG[1:-1,  :-2] \
+                           +self.v.dataG[1:-1, 2:  ])
+
             else:
-                raise NotImplementedError()
+                invh2_0, invh2_1 = [1 / self.denominator(i) for i in range(2)]
+
+                asv = -2 * (invh2_0 + invh2_1) *  self.v.dataG[1:-1, 1:-1] \
+                       +    invh2_0            * (self.v.dataG[ :-2, 1:-1] \
+                                                 +self.v.dataG[2:  , 1:-1])\
+                       +              invh2_1  * (self.v.dataG[1:-1,  :-2] \
+                                                 +self.v.dataG[1:-1, 2:  ])
+
+            return asv.reshape(self.mesh.linear_size, order='F')
 
         elif self.mesh.dim == 1:
             return -2 * self.v_[1:-1] \
@@ -759,11 +784,14 @@ class L3p(Stencil):
         """Embed u with boundary region and copy symmetry points for reduced axes. Then apply Astar_v."""
 
         if self.mesh.dim >= 2:
-            self.v.dataG[1:-1,1:-1,0] = u.reshape(self.mesh.N, order='F')
-            for ib in range(self.boundary_width):
-                for idim in range(self.mesh.dim):
-                    if self.mesh.reduced[idim]:
-                        self.v_[self.sp_l[ib][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[ib][idim]]
+            if self.mesh.dim == 3:
+                self.v.dataG[1:-1, 1:-1, 1:-1, 0] = u.reshape(self.mesh.N, order='F')
+            else: # self.mesh.dim == 2
+                self.v.dataG[1:-1, 1:-1, 0] = u.reshape(self.mesh.N, order='F')
+
+            for idim in range(self.mesh.dim):
+                if self.mesh.reduced[idim]:
+                    self.v_[self.sp_l[0][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[0][idim]]
 
         elif self.mesh.dim == 1:
             self.v_[1:-1] = u
@@ -771,6 +799,7 @@ class L3p(Stencil):
                 self.v_[0] = self.v.symmetry[0]*self.v_[1]
 
         return self.Astar_v()
+
 
 class L5p(Stencil):
     """Classical 5 point stencil for the Laplacian with coefficients[-1, 16, -30, 16, -1]/12*h**2"""
@@ -788,22 +817,91 @@ class L5p(Stencil):
 
     def Astar_v(self):
         if self.mesh.dim == 3:
-            pass
+            if self.h_uniform:
+                # np.multiply(-4.0, self.v.dataG[bw  :-bw  , bw  :-bw  ], out=self.uG)
+                asv  =  -90 *  self.v.dataG[2:-2, 2:-2, 2:-2] \
+                       + 16 * (self.v.dataG[3:-1, 2:-2, 2:-2] \
+                              +self.v.dataG[1:-3, 2:-2, 2:-2])\
+                            - (self.v.dataG[4:  , 2:-2, 2:-2] \
+                              +self.v.dataG[ :-4, 2:-2, 2:-2])\
+                       + 16 * (self.v.dataG[2:-2, 3:-1, 2:-2] \
+                              +self.v.dataG[2:-2, 1:-3, 2:-2])\
+                            - (self.v.dataG[2:-2, 4:  , 2:-2] \
+                              +self.v.dataG[2:-2,  :-4, 2:-2])\
+                       + 16 * (self.v.dataG[2:-2, 2:-2, 3:-1] \
+                              +self.v.dataG[2:-2, 2:-2, 1:-3])\
+                            - (self.v.dataG[2:-2, 2:-2, 4:  ] \
+                              +self.v.dataG[2:-2, 2:-2,  :-4])
+
+            else:
+                invh2_0, invh2_1, invh2_2 = [1 / self.denominator(i) for i in range(3)]
+
+                asv  =  -30 * (invh2_0 + invh2_1 + invh2_2) *  self.v.dataG[2:-2, 2:-2, 2:-2] \
+                       + 16 *  invh2_0                      * (self.v.dataG[3:-1, 2:-2, 2:-2] \
+                                                              +self.v.dataG[1:-3, 2:-2, 2:-2])\
+                       -       invh2_0                      * (self.v.dataG[4:  , 2:-2, 2:-2] \
+                                                              +self.v.dataG[ :-4, 2:-2, 2:-2])\
+                       + 16 *             invh2_1           * (self.v.dataG[2:-2, 3:-1, 2:-2] \
+                                                              +self.v.dataG[2:-2, 1:-3, 2:-2])\
+                       -                  invh2_1           * (self.v.dataG[2:-2, 4:  , 2:-2] \
+                                                              +self.v.dataG[2:-2,  :-4, 2:-2])\
+                       + 16 *                      invh2_2  * (self.v.dataG[2:-2, 2:-2, 3:-1] \
+                                                              +self.v.dataG[2:-2, 2:-2, 1:-3])\
+                       -                           invh2_2  * (self.v.dataG[2:-2, 2:-2, 4:  ] \
+                                                              +self.v.dataG[2:-2, 2:-2,  :-4])
+
+            return asv.reshape(self.mesh.linear_size, order='F')
+
         elif self.mesh.dim == 2:
-            pass
+            if self.h_uniform:
+                asv  =  -60 *  self.v.dataG[2:-2, 2:-2] \
+                       + 16 * (self.v.dataG[3:-1, 2:-2] \
+                              +self.v.dataG[1:-3, 2:-2])\
+                            - (self.v.dataG[4:  , 2:-2] \
+                              +self.v.dataG[ :-4, 2:-2])\
+                       + 16 * (self.v.dataG[2:-2, 3:-1] \
+                              +self.v.dataG[2:-2, 1:-3])\
+                            - (self.v.dataG[2:-2, 4:  ] \
+                              +self.v.dataG[2:-2,  :-4])
+
+            else:
+                invh2_0, invh2_1 = [1 / self.denominator(i) for i in range(2)]
+
+                asv  =  -30 * (invh2_0 + invh2_1) *  self.v.dataG[2:-2, 2:-2] \
+                       + 16 *  invh2_0            * (self.v.dataG[3:-1, 2:-2] \
+                                                    +self.v.dataG[1:-3, 2:-2])\
+                       -       invh2_0            * (self.v.dataG[4:  , 2:-2] \
+                                                    +self.v.dataG[ :-4, 2:-2])\
+                       + 16 *             invh2_1 * (self.v.dataG[2:-2, 3:-1] \
+                                                    +self.v.dataG[2:-2, 1:-3])\
+                       -                  invh2_1 * (self.v.dataG[2:-2, 4:  ] \
+                                                    +self.v.dataG[2:-2,  :-4])
+
+            return asv.reshape(self.mesh.linear_size, order='F')
+
         elif self.mesh.dim == 1:
             return  -30 *  self.v_[2:-2] \
                    + 16 * (self.v_[3:-1] \
-                          +self.v_[1:-3]) \
-                        - (self.v_[0:-4] \
-                          +self.v_[4:  ])
+                          +self.v_[1:-3])\
+                        - (self.v_[4:  ] \
+                          +self.v_[ :-4])
 
     def matvec(self, u):
         """Embed u with boundary region and copy symmetry points for reduced axes. Then apply Astar_v."""
         if self.mesh.dim == 3:
-            pass
+            self.v.dataG[2:-2, 2:-2, 2:-2, 0] = u.reshape(self.mesh.N, order='F')
+            for idim in range(self.mesh.dim):
+                if self.mesh.reduced[idim]:
+                    self.v_[self.sp_l[0][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[0][idim]]
+                    self.v_[self.sp_l[1][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[1][idim]]
+
         elif self.mesh.dim == 2:
-            pass
+            self.v.dataG[2:-2, 2:-2, 0] = u.reshape(self.mesh.N, order='F')
+            for idim in range(self.mesh.dim):
+                if self.mesh.reduced[idim]:
+                    self.v_[self.sp_l[0][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[0][idim]]
+                    self.v_[self.sp_l[1][idim]] = self.v.symmetry[0,idim] * u[self.sp_lu[1][idim]]
+
         elif self.mesh.dim == 1:
             self.v_[2:-2] = u
             if self.mesh.reduced[0]:
