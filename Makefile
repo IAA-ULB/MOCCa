@@ -240,7 +240,7 @@ FAM_OBJ :=  $(patsubst %.f90,$(FAM_OBJ_DIR)/%.o,$(FAM_SRC))
 NIL_OBJ :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(NIL_SRC))
 # Create a list of all Hephaestos generated code 
 MF_SRC_ALL   :=  $(patsubst %.f90,$(MF_SRC_DIR)/%.f90 ,$(MF_SRC))
-FAM_SRC_ALL  :=  $(patsubst %.f90,$(MF_SRC_DIR)/%.f90 ,$(MF_SRC))
+FAM_SRC_ALL  :=  $(patsubst %.f90,$(FAM_SRC_DIR)/%.f90 ,$(FAM_SRC))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #  The list of all Hephaestos source code - including Fortran templates
