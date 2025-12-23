@@ -1,0 +1,45 @@
+!-------------------------------------------------- 
+! BSk5 parameterization 
+! 
+! As obtained from 
+!  S. Goriely, M. Samyn, M. Bender and J.M. Pearson 
+!  Phys. Rev. C 67, 054325 (2003) 
+!  
+!  ATTENTION: work in progress, not to be trusted yet!
+!-------------------------------------------------- 
+&skf
+  name = 'BSk5' 
+  func_file = 'NLO.func' 
+  t0 = -1778.8934
+  t1 = 312.727
+  t2 = -102.883
+  t3 = 12318.37
+  x0 = 0.44451
+  x1 = -0.488716
+  x2 = 0.58459
+  x3 = 0.569304
+  wso = 130.7
+  sigma = 0.3333333333
+  wsoq     =      130.7 
+  x3b      =      0.0 
+  t3b      =      0.0 
+  sigma_b  =      0.0 
+! Pairing parameters set to zero; the original pairing is not reproducible 
+  Vn = 0.0 
+  Vp = 0.0 
+  alpha  = 1.0 
+  sigmap = 1.0 
+  COM1Body = 2 
+  COM2Body = 1 
+  CSDS0    = 0 
+  CSDS1    = 0 
+  CT0      = -52.59800768775 
+  CT1      = -25.975624999999997 
+ hbm(1)   = 20.72126890,20.74983164 
+ e2       = 1.43996446 
+ Protonsize    = 0.895, 0.0   
+ Neutronsize   = 0.387, 0.467 
+ HOcomform     = .true. 
+ nucleonsize_selfconsistent=.false. 
+ CoulTreatment = 2 
+/
