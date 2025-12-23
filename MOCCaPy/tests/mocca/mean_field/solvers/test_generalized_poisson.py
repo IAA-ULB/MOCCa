@@ -7,9 +7,7 @@ from pathlib import Path
 import sys
 
 from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import \
-    GeneralizedPoissonSolverMF, \
-    GeneralizedPoissonSolver, \
-    Laplacian1D
+    GeneralizedPoissonSolverMF
 from MOCCaPy.scripts.mocca.util import title_line
 # dia_entry_set, dia_entry_add
 
