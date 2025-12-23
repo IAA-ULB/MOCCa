@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - master
+      - index_juggling_refactoring
   pull_request:
     branches:
       - master

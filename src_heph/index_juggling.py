@@ -1,8 +1,71 @@
 import itertools
 
+def build_index_combinations(ndim, nfree, coupling, cross):
+  """
+  Build all possible combinations of indices for a tensor contraction involving both standard 
+  couplings and vector products.
+
+  Examples:
+
+    1. If you try to get the indices for the following calculation of a density:
+        D^N(N,N)N_mn =  sum_k D^NN,NN_mkkn
+      You can call this routine with
+          - ndim = 4, i.e. the TOTAL number of indices of the lhs tensor
+          - nfree = 2, i.e. the number of free indices (m,n)
+          - coupling = [(1,2)], i.e. a coupling between the second and third index of the lhs tensor
+      And it should result in
+        {
+          (0,0): [(0,0,0,0),(0,1,1,0),(0,2,2,0)],
+          (0,1): [(0,0,0,1),(0,1,1,1),(0,2,2,1)],
+          (0,2): [(0,0,0,2),(0,1,1,2),(0,2,2,2)],
+          (1,0): [(1,0,0,0),(1,1,1,0),(1,2,2,0)],
+          (1,1): [(1,0,0,1),(1,1,1,1),(1,2,2,1)],
+          (1,2): [(1,0,0,2),(1,1,1,2),(1,2,2,2)],
+          (2,0): [(2,0,0,0),(2,1,1,0),(2,2,2,0)],
+          (2,1): [(2,0,0,1),(2,1,1,1),(2,2,2,1)],
+          (2,2): [(2,0,0,2),(2,1,1,2),(2,2,2,2)]
+        }
+      Each entry in the dictionary corresponds to one equation that involves multiple terms. 
+      For example,  Key (0,0) with value [(0,0,0,0),(0,1,1,0),(0,2,2,0)] stands for 
+        D^N(N,N)N_00 = D^NN,NN_0000 + D^NN,NN_0110 + D^NN,NN_0220  
+      
+  Input:
+    ndim   : int
+      total number of dimensions of the lhs tensor (i.e. including contracted indices).
+    nfree  : int
+      number of free (i.e. uncontracted) indices of the lhs tensor.
+    coupling: list of tuples
+      a list of two-index or three-index couplings, i.e. which indices of the lhs tensor are coupled/contracted.
+    cross   : list of tuples
+      a list of two-index cross-couplings, i.e. which indices of the lhs tensor are coupled via a vector product.
+
+  Output:
+    dict_args: dict
+      a dictionary where keys are tuples of free indices and values are lists of tuples
+      representing all possible combinations of indices for the rhs tensor, given the couplings.
+
+  """
+
+  # All possible combinations for the free indices, i.e. the uncontracted ones
+  args = itertools.product(range(3), repeat=nfree)
+
+  # Transform the problem to a simpler one with only 2-index couplings
+  new_ndim, new_coupling, N_levicivita = reduce_vector_coupling(ndim, coupling, cross)
+
+  dict_args = {}
+  for arg in args:  
+    # All possible combinations for the indices of the extended problem 
+    extended_args = enumerate_index_combinations(new_ndim, arg, new_coupling)
+    # Recombine the Levi-Civita indices to get actual indices and signs
+    actual_args = recombine_levicivita(extended_args, N_levicivita)
+    dict_args[arg] = actual_args 
+
+  return dict_args
+
+
 def enumerate_index_combinations(ndim, arg, coupling):
   """
-  Enumerate all possible combinations of indices for a tensor contraction. 
+  Enumerate all possible combinations of indices for a tensor contraction with 2-index couplings.
 
   Examples:
 
@@ -21,10 +84,10 @@ def enumerate_index_combinations(ndim, arg, coupling):
         
       i.e. the relevant indices to explicitly code for the sum in the rhs.
 
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Input: 
     ndim   : int
       total number of dimensions of the lhs tensor (i.e. including contracted indices).
+
     arg    : tuple
       indices of the left-hand side tensor, i.e. concrete values for the uncontracted indices. 
       assumed to be in the ordering of the indices of the lhs tensor.
@@ -33,9 +96,11 @@ def enumerate_index_combinations(ndim, arg, coupling):
       a list of two-index couplings, i.e. which indices of the lhs tensor are coupled/contracted.
       
   Output:
-    sum_args: list of tuples
+    sum_args: list of lists
       a list of all possible combinations of indices for the rhs tensor, given the couplings.
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    ATTENTION: the output is a list of lists, NOT a list of tuples! This is to allow mutability
+               when including signs from Levi-Civita contractions later on.
   """
 
   Nc = len(coupling)
@@ -43,7 +108,7 @@ def enumerate_index_combinations(ndim, arg, coupling):
   sum_args = []
   if Nc == 0:
     # Nothing to do if no couplings needed
-    uncontracted = [arg]
+    sum_args = [list(arg)] # Ensure that we return a list of lists!
   else:
     # These are all possible combinations for the couplings
     cont = itertools.product(range(3), repeat=Nc)
@@ -51,7 +116,7 @@ def enumerate_index_combinations(ndim, arg, coupling):
     # For each possible value of the couplings, build the full argument tuple full_arg
     for c in cont:                          
       ii = 0
-      full_arg = ()
+      full_arg = []
 
       # For each index, check if it is coupled or not
       for index in range(ndim):              
@@ -63,11 +128,11 @@ def enumerate_index_combinations(ndim, arg, coupling):
         
         if(not coupled):
           # Not coupled -> use the value of a free index from arg
-          full_arg += (arg[ii],)
+          full_arg += [arg[ii]]
           ii += 1
         else:
           # Coupled -> put the corresponding value from c
-          full_arg += (c[ic],)
+          full_arg += [c[ic]]
       sum_args.append(full_arg)
   return sum_args
 
@@ -95,26 +160,30 @@ def reduce_vector_coupling(ndim, coupling, cross):
           Derm_D_I_I D_I_NiSj E_mij 
       where E_mij is the Levi-Civita symbol.
 
-    - - - - - - - - - - - - - - - - - - - - - - -
     Input:
-    ndim   : int
-      total number of indices of the uncontracted tensor 
-    coupling: list of tuples
-      a list of couplings, each being either a 2-index coupling 
-      or a 3-index coupling (vector product summed over)
-    cross   : list of tuples
-      a list of cross-couplings, each being a 2-index coupling 
-      representing a vector product with a free index.
-    - - - - - - - - - - - - - - - - - - - - - - -
+
+      ndim   : int
+        total number of indices of the uncontracted tensor 
+
+      coupling: list of tuples
+        a list of couplings, each being either a 2-index coupling 
+        or a 3-index coupling (vector product summed over)
+
+      cross   : list of tuples
+        a list of cross-couplings, each being a 2-index coupling 
+        representing a vector product with a free index.
+
     Output: 
-    new_ndim   : int
-      total number of indices of the uncontracted tensor after 
-      possible addition of Levi-Civita indices.
-    new_coupling: list of tuples
-      a list of couplings, each being a 2-index coupling only.
-    N_levicivita: int
-      number of Levi-Civita indices added to the problem.
-    - - - - - - - - - - - - - - - - - - - - - - -
+
+      new_ndim   : int
+        total number of indices of the uncontracted tensor after 
+        possible addition of Levi-Civita indices.
+
+      new_coupling: list of tuples
+        a list of couplings, each being a 2-index coupling only.
+
+      N_levicivita: int
+        number of Levi-Civita indices added to the problem.
   """
 
   new_ndim = ndim
@@ -158,20 +227,19 @@ def recombine_levicivita(args, N_levicivita):
   Output:    
     actual_args : list of tuples
       The list of argument tuples after contracting the Levi-Civita indices.
-    signs : list of int
-      The list of signs resulting from the contraction of the Levi-Civita symbols.
+      Signs are included by multiplying the first index by a sign.
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   """
   actual_args = []
-  signs       = []
   for arg in args:
     actual_arg, sign = contract_levi_civita_indices(arg, N_levicivita)
     
     if(sign != 0):
-      actual_args.append(actual_arg)
-      signs.append(sign)
+      if (len(actual_arg) > 0):
+        actual_arg[0] *= sign
+      actual_args.append(tuple(actual_arg))
 
-  return actual_args, signs
+  return actual_args
 
 def contract_levi_civita_indices(arg, N_levicivita):
   """
@@ -194,16 +262,19 @@ def contract_levi_civita_indices(arg, N_levicivita):
       and - when summed - result in 
           Derm_D_I_NxmSxm
 
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    Input: 
+
     arg: tuple
       The argument tuple containing indices including Levi-Civita indices.
+
     N_levicivita: int
       The number of virtual Levi-Civita symbols that were added.
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
    Output:
+
     actual_arg: tuple
       The argument tuple after contracting the Levi-Civita indices.
+
     sign: int
       The sign resulting from the contraction of the Levi-Civita symbols.
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
@@ -245,7 +316,19 @@ if( __name__ == "__main__" ):
   print ("Number of terms to sum over:", len(args))
   print ("Args", args)
 
-  actual_args, signs = recombine_levicivita(args, 1)
+  actual_args = recombine_levicivita(args, 1)
   print ("Number of actual terms to sum over:", len(actual_args))
   for i, actual_arg in enumerate(actual_args):
-    print ("  Actual arg:", actual_arg, " with sign ", signs[i])
+     print ("  Actual arg:", actual_arg)
+
+
+  d = build_index_combinations(3, 0, coupling, cross)
+  print (d)
+
+  print ()
+  d = build_index_combinations(4, 2, [(1,2)], [])
+  print (d)
+
+  print ("Testing D_I_I")
+  d = build_index_combinations(0, 0, [], [])
+  print (d)
