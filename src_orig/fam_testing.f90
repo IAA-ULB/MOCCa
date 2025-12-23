@@ -777,7 +777,7 @@ contains
     complex(KIND=dp), allocatable :: Fqp(:,:,:),  Fph(:,:,:)
     
     real(KIND=dp), allocatable :: N20(:,:), N11(:,:)
-    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
+    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:), N20_back(:,:), N11_back(:,:)
 
     integer :: i, si, T
       
@@ -809,7 +809,7 @@ contains
     ! transform to qpme N20
     allocate(N20new(nwt,nwt)) 
     allocate(N11new(nwt,nwt)) 
-    call transform_O11sp_to_O20O11qp(Bogoliubov, identity, N20new(:,:), N11new(:,:))
+    call transform_O11sp_to_O20O11qp(Bogoliubov, identity, N20new, N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
     N20 = calcN20(Bogoliubov, HFblocks(1:4))
@@ -827,6 +827,12 @@ contains
     print *, 'N20 (existing routine) : BLOCK 1 & 2'
     do i=1,T
       print "(99f10.5)",  N20(i, 1:T)
+    enddo
+
+    print *, 'diff '
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
     enddo
 
     
@@ -847,18 +853,51 @@ contains
       print "(99f10.5)",  N11(i, 1:T)
     enddo
 
+    print *, 'diff '
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
+    enddo
+
+
     
     print *, ' ||N11(existing routine) - N11(new)|| = ', &
     & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
 
+
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 2. test qp trafo of monopole operator, when bogo trafo is trivial for protons
+    ! 2. test unitarity by going from forth and back Bogo trafo: sp -> qp -> sp
+    ! for the operator Rsq 
 
     ! define Fsp as the spme of r^2
     Fsp = Rsq_spme()
 
+    allocate(N20_back(nwt,nwt)) 
+    allocate(N11_back(nwt,nwt)) 
+
     ! get qpme of F
-    call transform_O11sp_to_O20qp(Bogoliubov, Fsp, Fqp(:,:,1))
+    call transform_O20O11qp_to_O20O11sp(Bogoliubov, N20new, N11new, N20_back, N11_back)
+   
+    print *, 'N20 (sp->qp->sp) : BLOCK 1 & 2'
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N20_back(i, 1:T)
+    enddo
+    print *, ' ||N20 (sp->qp->sp)|| = ',  sum(abs(N20_back(1:nwn,1:nwn)))
+
+
+    print *, 'N11 (sp->qp->sp) : BLOCK 1 & 2'
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    do  i=1,T
+      print "(*( '(',f10.5,',',f10.5,')',:))",  N11_back(i, 1:T)
+    enddo
+    print *, ' ||N11 (sp->qp->sp)|| = ',  sum(abs(N11_back(1:nwn,1:nwn)))
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 3. test whether F20 is trivial in the proton channel
     
     print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
 
