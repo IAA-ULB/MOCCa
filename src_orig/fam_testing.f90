@@ -773,18 +773,14 @@ contains
     !---------------------------------------------------------------------------
 
    
-    complex(KIND=dp), allocatable :: Fsp(:,:), identity(:,:)
-    complex(KIND=dp), allocatable :: Fqp(:,:,:),  Fph(:,:,:)
-    
+    complex(KIND=dp), allocatable :: identity(:,:)
+    complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Fph(:,:,:)
+
     real(KIND=dp), allocatable :: N20(:,:), N11(:,:)
-    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:), N20_back(:,:), N11_back(:,:)
+    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
 
     integer :: i, si, T
       
-    allocate(Fsp(nwt,nwt))   ! contains the spme of a one-body operator F: f11_pq
-    allocate(Fqp(nwt,nwt,2)) ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-    allocate(Fph(nwt,nwt,2)) ! keeps only ph and hp subblocks of spme Fsp
-
 
     ! do i=1,nwt
     !   print *, i , rho_hf(i)
@@ -817,23 +813,23 @@ contains
     ! get qpme of N11 from existing routine, for the neutron channel
     N11 = calcN11(Bogoliubov, HFblocks(1:4))
 
-    print *, 'N20 (new routine) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
-    enddo
+    ! print *, 'N20 (new routine) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
+    ! enddo
 
 
-    print *, 'N20 (existing routine) : BLOCK 1 & 2'
-    do i=1,T
-      print "(99f10.5)",  N20(i, 1:T)
-    enddo
+    ! print *, 'N20 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99f10.5)",  N20(i, 1:T)
+    ! enddo
 
-    print *, 'diff '
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
-    enddo
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
+    ! enddo
 
     
     print *, ' ||N20(existing routine) - N20(new)|| = ', &
@@ -841,23 +837,23 @@ contains
 
 
 
-    print *, 'N11 (new routine) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
-    enddo
+    ! print *, 'N11 (new routine) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
+    ! enddo
 
 
-    print *, 'N11 (existing routine) : BLOCK 1 & 2'
-    do i=1,T
-      print "(99f10.5)",  N11(i, 1:T)
-    enddo
+    ! print *, 'N11 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99f10.5)",  N11(i, 1:T)
+    ! enddo
 
-    print *, 'diff '
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
-    enddo
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
+    ! enddo
 
 
     
@@ -870,56 +866,88 @@ contains
     ! 2. test unitarity by going from forth and back Bogo trafo: sp -> qp -> sp
     ! for the operator Rsq 
 
-    ! define Fsp as the spme of r^2
-    Fsp = Rsq_spme()
+    print * , 'TEST 2 : perform forth and back Bogo trafo for Rsq: spme -> qpme -> spme'
 
-    allocate(N20_back(nwt,nwt)) 
-    allocate(N11_back(nwt,nwt)) 
+
+    allocate(Rsp(nwt,nwt,2))     ! contains the spme of a one-body operator F: f20_pq, f11_pq
+    allocate(Rqp(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+    allocate(Rspback(nwt,nwt,2)) ! contains the spme of a one-body operator F: f20_pq, f11_pq
+
+    ! define Rsp as the spme of r^2
+    Rsp(:,:,1) = 0
+    Rsp(:,:,2) = Rsq_spme()
+
+    call transform_O11sp_to_O20O11qp(Bogoliubov,  Rsp(:,:,2), Rqp(:,:,1),  Rqp(:,:,2))
 
     ! get qpme of F
-    call transform_O20O11qp_to_O20O11sp(Bogoliubov, N20new, N11new, N20_back, N11_back)
+    call transform_O20O11qp_to_O20O11sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2), Rspback(:,:,1), Rspback(:,:,2))
+
+
+    ! print *, 'F20 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
+    ! enddo
    
-    print *, 'N20 (sp->qp->sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N20_back(i, 1:T)
-    enddo
-    print *, ' ||N20 (sp->qp->sp)|| = ',  sum(abs(N20_back(1:nwn,1:nwn)))
+    ! print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
+    ! enddo
+    ! print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
 
 
-    print *, 'N11 (sp->qp->sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N11_back(i, 1:T)
-    enddo
-    print *, ' ||N11 (sp->qp->sp)|| = ',  sum(abs(N11_back(1:nwn,1:nwn)))
-
+    ! print *, 'F11 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
+    ! enddo
+   
+    ! print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
+    ! enddo
+    print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 3. test whether F20 is trivial in the proton channel
+    ! 3. test symmetry properties of the qpme
+
+    print * , 'TEST 3 : perform symmetry checks on Rsq qpme'
     
-    print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
-
-    print *, 'F20_k1k2 : BLOCK 5 & 6'
-    si =  nwn+1 ! start index of block 5
-    T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
-
-    do i=si+1,si+T
-      print "(*( '(',g12.5,',',g12.5,')',:))",  Fqp(i,si+1:si+T,1)
-    enddo
+    print *, '  F20_ab = -F20_ba   : satisfied up to',  sum(abs(Rqp(:,:,1) + transpose(Rqp(:,:,1))))
+    print *, '  F11_ab =  F11_ba^* : satisfied up to',  sum(abs(Rqp(:,:,2) - conjg(transpose(Rqp(:,:,2)))))
 
 
 
-    ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
-    ! the existing particle hole getters. 
-    call get_ph_hp_blocks(Fsp, Fph(:,:,1), Fph(:,:,2))
-    print *, '||Fph (proton)||', sum(abs(Fph(nwn+1:nwt, nwn+1:nwt,1) * Fph(nwn+1:nwt, nwn+1:nwt,1)))
-    call print_spme_complex( Fph(:,:,1))
-    print *, 'Fph_ia : BLOCK 5 & 6'
-    do i=si+1,si+T
-      print "(*( '(',g12.5,',',g12.5,')',:))",  Fph(i,si+1:si+T,1)
-    enddo
+    ! ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
+    ! ! Note that this is a bit tricky since the previous routines used in absence of pairing 
+    ! ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
+    ! ! true here since even in a trivial Bogo, indexing of the stated can be altered
+    
+    ! print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
+
+    ! print *, 'F20_k1k2 : BLOCK 5 & 6'
+    ! si =  nwn+1 ! start index of block 5
+    ! T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
+
+    ! do i=si+1,si+T
+    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Fqp(i,si+1:si+T,1)
+    ! enddo
+
+
+
+    ! ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
+    ! ! the existing particle hole getters. 
+    ! call get_ph_hp_blocks(Rsp, Fph(:,:,1), Fph(:,:,2))
+    ! print *, '||Fph (proton)||', sum(abs(Fph(nwn+1:nwt, nwn+1:nwt,1) * Fph(nwn+1:nwt, nwn+1:nwt,1)))
+    ! call print_spme_complex( Fph(:,:,1))
+    ! print *, 'Fph_ia : BLOCK 5 & 6'
+    ! do i=si+1,si+T
+    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Fph(i,si+1:si+T,1)
+    ! enddo
     
     stop
 
