@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 from MOCCaPy.mocca.mean_field.solvers.generalized_poisson import \
-    GeneralizedPoissonSolverMF, L3p, L5p, LLagrange
+    GeneralizedPoissonSolverMF, L3p, L5p, LLg
 from MOCCaPy.scripts.mocca.util import title_line
 # dia_entry_set, dia_entry_add
 
@@ -24,19 +24,23 @@ sys.path.insert(0, str(path2MOCCaPy))
 
 from tests.util import started_finished, started, finished
 
+
 def gauss(dim, sigma, a=1, b=0):
-    """A Gaussian function $g$ centered around the origin in `dim` dimensions with standard deviation `sigma`,
-    and its Laplacian $f = \Delta g$
+    """A Gaussian function $g$ centered around the origin in `dim` dimensions with standard
+    deviation `sigma`, and the corresponding rhs in the Generalized Poisson equation $f= (a\Delta +b)g$.
 
     Args:
          dim: number of spatial dimensions.
          sigma: standard deviation.
-         a, b: parameters of generalized poisson equation.
+         a, b: parameters of generalized poisson equation. Default parameters correspond to ordinary
+            Poisson equation.
     Returns:
         ue_lambda, fe_lambda, symmetry
-        ue_lambda : function of position in dim-D space which is the analytical solution of the Poisson equation.
-            Used for validating the numerical solution, and for the Dirichlet boundary conditions.
-        fe_lambda : function of position in dim-D space which is the analytical solution of the Poisson equation
+        ue_lambda : function of position in dim-D space which gives the analytical solution of the
+            (Generalized) Poisson equation. Used for validating the numerical solution, and for
+            the Dirichlet boundary conditions.
+        fe_lambda : function of position in dim-D space which gives the rhs of the (Generalized)
+            Poisson equation
         symmetry: symmetry components of ue and fe:
     """
     sigma2 = sigma**2
@@ -292,7 +296,7 @@ def xyz_gauss(dim, sigma, a=1, b=0):
     return ue_lambda, fe_lambda, symmetry
 
 
-def run_MF_ND(
+def run_ps(
         analytical_solution, sigma,
         dim, M, h, reduced,
         stencil, method='cg',
@@ -350,8 +354,8 @@ def run_MF_ND(
     return rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u
 
 
-def test_MF_ND():
-    """test GeneralizedPoissonSolverLO"""
+def test_ps():
+    """test poisson solver (FDStencils)"""
     dim = 3
     if dim == 1:
         reduced_cases = [
@@ -445,7 +449,7 @@ def test_MF_ND():
                             h = w / M if isinstance(w, float) else tuple([wi / M for wi in w])
                         verbosity = 2 if (iter >=0) else 1
 
-                        rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_MF_ND(
+                        rmse, mean_diff, max_diff, max_rel, cput_asmbl, cput_solve, u = run_ps(
                             analytical_solution=analytical_solution, sigma=sigma,
                             dim=dim, M=M, h=h, reduced=reduced,
                             stencil=stencil, method=method,
@@ -468,18 +472,43 @@ def test_MF_ND():
     print(s, file=output)
 
 
-def run_gp_1D(
+def run_gps(
+        stencil,
         analytical_solution, sigma, a, b,
-        dim, M, reduced, domain,
+        dim, M, reduced, domain, uniform,
         n_iter=4,
         verbosity=1,
-):
-    ue_lambda, fe_lambda, symmetry = analytical_solution(dim=dim, sigma=sigma, a=a, b=b)
+        do_assert=True,
+        of=None
+    ):
+    if verbosity:
+        s = f"run_gps: {dim=}, {analytical_solution.__name__}, {reduced=}, {uniform=}, stencil={stencil.__name__}"
+        print(s)
+        print(s, file=of)
 
+    if stencil is LLg:
+        # Generalized Poisson problem
+        ue_lambda, fe_lambda, symmetry = analytical_solution(dim=dim, sigma=sigma, a=a, b=b)
+    else:
+        # Ordinary Poisson problem: ignore a and b
+        ue_lambda, fe_lambda, symmetry = analytical_solution(dim=dim, sigma=sigma)
+
+    rmse0, mean_diff0, max_diff0 = 1e9, 1e9, 1e9
     tbl = []
     tmr = Timer()
+    M0 = M
     for iter in range(n_iter):
-        mesh = LagrangeMesh(dim=dim, M=M, reduced=reduced, d=2*domain/M)
+        if dim > 1 and not uniform:
+            M = [M0]*dim
+            M[ 0] = M0+2
+            M[-1] = M0-2
+            M = tuple(M)
+            d = tuple([2*domain/m for m in M])
+        else:
+            M = M0
+            d = 2*domain/M
+
+        mesh = LagrangeMesh(dim=dim, M=M, reduced=reduced, d=d)
 
         ue = ue_lambda(mesh.grid) if (dim == 1) else \
              ue_lambda(mesh.grid[:,0], mesh.grid[:,1]) if (dim == 2) else \
@@ -489,64 +518,88 @@ def run_gp_1D(
             fe_lambda(mesh.grid[:,0], mesh.grid[:,1], mesh.grid[:,2])
 
         tmr.start()
-        gps = GeneralizedPoissonSolverMF(mesh=mesh, stencil=LLagrange, a=a, b=b)
-        gps.assemble_rhs(f)
+        if stencil is LLg:
+            # Generalized Poisson problem
+            gps = GeneralizedPoissonSolverMF(mesh=mesh, stencil=stencil, a=a, b=b)
+            gps.assemble_rhs(f, symmetry=symmetry)
+        else:
+            # Ordinary Poisson problem: ignore a and b
+            gps = GeneralizedPoissonSolverMF(mesh=mesh, stencil=stencil)
+            gps.assemble_rhs(f, symmetry=symmetry, boundary_value=ue_lambda)
         cput_asmbl = tmr.stop()
 
         # substitute the analytical solution ue for u and compute the difference with the rhs
-        # that serves as the accuracy the solver has to reach:
+        # to estimate the possible accuracy of the numerical solution
         Lue = gps.stencil.matvec(ue)
         diff = np.abs(Lue-f)
-        rmse0 = np.sqrt(np.sum(np.square(diff)) / M)
-        mean_diff0 = float(np.mean(diff))
-        max_diff0 = float(np.max(diff))
+        rmse_ue      = np.sqrt(np.sum(np.square(diff)) / diff.size)
+        mean_diff_ue = np.mean(diff)
+        max_diff_ue  = np.max(diff)
 
         tmr.start()
         u, ok = gps.solve()
         cput_solve = tmr.stop()
         assert ok == 0
+
         diff = np.abs(ue - u)
-        rmse = np.sqrt(np.sum(np.square(diff)) / M)
+        rmse = np.sqrt(np.sum(np.square(diff)) / diff.size)
         mean_diff = float(np.mean(diff))
         max_diff = float(np.max(diff))
-        tol = 2
-        assert rmse      < tol*rmse0
-        assert mean_diff < tol*mean_diff0
-        assert max_diff  < tol*max_diff0
+
+        st = f"LLg({a=},{b=})" if (stencil is LLg) else stencil.__name__
         tbl.append([
-            analytical_solution.__name__, a, b,
-            'LLagrange',
-            dim, reduced, M,
+            dim, analytical_solution.__name__, st,
+            reduced, uniform, M,
             rmse, mean_diff, max_diff,
             cput_asmbl, cput_solve
         ])
-        s = f"{M=} : {rmse=} {mean_diff=} {max_diff=} {cput_asmbl:.5f}s {cput_solve:.5f}s"
-        if verbosity:
-            print(s)
+        tbl.append([
+            None, None, None,
+            None, None, None,
+            rmse_ue, mean_diff_ue, max_diff_ue,
+        ])
+
+        if do_assert:
+            if stencil is LLg:
+                tol = 2
+                assert rmse      < max(tol*rmse_ue     , 1e-6)
+                assert mean_diff < max(tol*mean_diff_ue, 1e-6)
+                assert max_diff  < max(tol*max_diff_ue , 1e-6)
+            else:
+                assert rmse < rmse0
+                assert mean_diff < mean_diff0
+                assert max_diff < max_diff0
 
         if dim == 3:
-            M += 4
+            M0 += 4
         else:
-            M *= 2
+            M0 *= 2
 
-    print()
-    s = tabulate(tbl
-        , headers=["u(r)", "a", "b", "stencil", "dim", "reduced", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
+    print(file=of)
+    print(tabulate(tbl
+        , headers=["dim", "u(r)", "stencil", "reduced", "uniform", "M", "RMSE", "Mean diff", "Max diff", "cput_asmlb", 'cput_solve']
         , tablefmt="simple"
-    )
-    print(s,'\n')
+    ), file=of)
+    print(file=of)
 
-def test_gp_ND():
+
+def test_gps(print_to_file=False):
     M = 8
     sigma = 0.5
     domain = 2
     a, b = -1, 1
+    p = Path(__file__).parent / "test_gps.txt"
+    of = p.open(mode="w") if print_to_file else None
 
     for dim in [
         1,
         2,
         3,
     ]:
+        n_iter = 8 if dim == 1 else 6
+
+        stencils = [L3p,L5p,LLg]
+
         analytical_solutions = [
             gauss,
             x_gauss,
@@ -565,7 +618,7 @@ def test_gp_ND():
             yz_gauss,
             xyz_gauss,
         ]
-        reduceds = [
+        reduced_cases = [
             False,
             True,
         ] if dim == 1 else [
@@ -583,9 +636,18 @@ def test_gp_ND():
             (False, True, False),
             (False, False, True),
         ]
-        for analytical_solution in analytical_solutions:
-            for reduced in reduceds:
-                run_gp_1D(
-                    analytical_solution=analytical_solution, sigma=sigma, a=a, b=b,
-                    dim=dim, M=M, reduced=reduced, domain=domain,
-                )
+        for stencil in stencils:
+            for analytical_solution in analytical_solutions:
+                for reduced in reduced_cases:
+                    uniform_cases = [True] if dim == 1 else [
+                                True,
+                                False,
+                               ]
+                    for uniform in uniform_cases:
+                        run_gps(
+                            stencil=stencil,
+                            analytical_solution=analytical_solution, sigma=sigma, a=a, b=b,
+                            dim=dim, M=M, reduced=reduced, domain=domain, uniform=uniform,
+                            n_iter=n_iter,
+                            of=of,
+                        )

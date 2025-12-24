@@ -20,16 +20,17 @@ from mocca.mesh import LagrangeMesh, MeshQuantity
 # TODO: time the methods
 # TODO: use out= for matvec ?
 
-class Stencil:
-    """Base class for system of linear equations resulting from a particular 1D-stencil."""
-    iterative_linear_solvers = {
-        'cg'    : sparse.linalg.cg,
-        'cgs'   : sparse.linalg.cgs,
-        'gmres' : sparse.linalg.gmres,
-        'lgmres': sparse.linalg.lgmres,
-        'minres': sparse.linalg.minres,
-    }
+iterative_linear_solvers = {
+    'cg'    : sparse.linalg.cg,
+    'cgs'   : sparse.linalg.cgs,
+    'gmres' : sparse.linalg.gmres,
+    'lgmres': sparse.linalg.lgmres,
+    'minres': sparse.linalg.minres,
+}
 
+class FDStencil:
+    """Base class for system of linear equations resulting from a particular 1D Finite Difference stencil.
+    """
     def __init__(self, mesh, boundary_width):
         """
         Args:
@@ -54,49 +55,77 @@ class Stencil:
             boundary_width=self.boundary_width,
         )
 
-        # Collect boundary points and symmetry points
+        if mesh.dim > 1:
+            # Collect boundary points and symmetry points
+            def remove_corners(condition, idim):
+                """Remove corners from symmetry points.
+                Remark:
+                    This should not be called for ND stencils with diagonal points.
+                """
+                for jdim in range(self.mesh.dim):
+                    if jdim != idim:
+                        L, R = bmesh.g1D[jdim][ self.boundary_width-1], \
+                               bmesh.g1D[jdim][-self.boundary_width  ]
+                        np.logical_and(condition, bmesh.grid[:,jdim] > L, out=condition)
+                        np.logical_and(condition, bmesh.grid[:,jdim] < R, out=condition)
+                return condition
 
-        def remove_corners(condition, idim):
-            """Remove corners from symmetry points.
-            Remark:
-                This should not be called for ND stencils with diagonal points.
-            """
-            for jdim in range(self.mesh.dim):
-                if jdim != idim:
-                    L, R = bmesh.g1D[jdim][ self.boundary_width-1], \
-                           bmesh.g1D[jdim][-self.boundary_width  ]
-                    np.logical_and(condition, bmesh.grid[:,jdim] > L, out=condition)
-                    np.logical_and(condition, bmesh.grid[:,jdim] < R, out=condition)
-            return condition
+            bp = []
+            self.sp_l = [[None]*bmesh.dim for ib in range(self.boundary_width)]
+            for idim in range(bmesh.dim):
+                for ib in range(self.boundary_width):
+                    l, r = bmesh.g1D[idim][0+ib], bmesh.g1D[idim][-1-ib]
+                    if not bmesh.reduced[idim]:
+                        # There are only boundary points on the left side if the axis is not reduced.
+                        bp.append(np.nonzero(bmesh.grid[:, idim] == l)[0])
+                    else:
+                        # Otherwise they are symmetry points,
+                        # - which we must keep separate for each boundary layer and each axis.
+                        # - and we must avoid corners because they have no counterpart in the original mesh
+                        # we remove the corners afterwards
+                        self.sp_l[ib][idim] = np.nonzero(remove_corners(bmesh.grid[:, idim] == l, idim))[0]
 
-        bp = []
-        self.sp_l = [[None]*bmesh.dim for ib in range(self.boundary_width)]
-        # self.sp_l = [[None]*bmesh.dim] * self.boundary_width
-        for idim in range(bmesh.dim):
+                    bp.append(np.nonzero(bmesh.grid[:, idim] == r)[0])
+
+            self.bp_l = np.sort(np.unique(np.concat(bp))) # ndarray with linear indices of the boundary points
+            self.bp_xyz = bmesh.grid[self.bp_l]           # ndarray with coordinates    of the boundary points
+
+            # determine the linear indices of the points in u corresponding to the symmetry points.
+            self.sp_lu = [[None]*bmesh.dim for ib in range(self.boundary_width)]
+            for idim in range(bmesh.dim):
+                if bmesh.reduced[idim]:
+                    for ib in range(self.boundary_width):
+                        iu = self.boundary_width - ib -1
+                        l = self.mesh.g1D[idim][iu]
+                        self.sp_lu[ib][idim] = np.nonzero(mesh.grid[:, idim] == l)[0]
+
+        else:
+            bp = []
+            self.sp_l = [[None] * bmesh.dim for ib in range(self.boundary_width)]
             for ib in range(self.boundary_width):
-                l, r = bmesh.g1D[idim][0+ib], bmesh.g1D[idim][-1-ib]
-                if not bmesh.reduced[idim]:
+                l, r = bmesh.g1D[0][0 + ib], bmesh.g1D[0][-1 - ib]
+                if not bmesh.reduced[0]:
                     # There are only boundary points on the left side if the axis is not reduced.
-                    bp.append(np.nonzero(bmesh.grid[:, idim] == l)[0])
+                    bp.append(np.nonzero(bmesh.grid == l)[0])
                 else:
                     # Otherwise they are symmetry points,
-                    # - which we must keep separate for each boundary layer and each axis.
+                    # - which we mut keep separate for each boundary layer and each axis.
                     # - and we must avoid corners because they have no counterpart in the original mesh
                     # we remove the corners afterwards
-                    self.sp_l[ib][idim] = np.nonzero(remove_corners(bmesh.grid[:, idim] == l, idim))[0]
+                    self.sp_l[ib][0] = np.nonzero(bmesh.grid == l)[0]
 
-                bp.append(np.nonzero(bmesh.grid[:, idim] == r)[0])
+                bp.append(np.nonzero(bmesh.grid == r)[0])
 
-        self.bp_l = np.sort(np.unique(np.concat(bp))) # ndarray with linear indices of the boundary points
-        self.bp_xyz = bmesh.grid[self.bp_l]           # ndarray with coordinates    of the boundary points
+            self.bp_l = np.sort(np.unique(np.concat(bp)))  # ndarray with linear indices of the boundary points
+            self.bp_xyz = bmesh.grid[self.bp_l]  # ndarray with coordinates    of the boundary points
 
-        # determine the linear indices of the points in u corresponding to the symmetry points.
-        self.sp_lu = [[None]*bmesh.dim for ib in range(self.boundary_width)]
-        for idim in range(bmesh.dim):
-            for ib in range(self.boundary_width):
-                iu = self.boundary_width - ib -1
-                l = self.mesh.g1D[idim][iu]
-                self.sp_lu[ib][idim] = np.nonzero(mesh.grid[:, idim] == l)[0]
+            # determine the linear indices of the points in u corresponding to the symmetry points.
+            self.sp_lu = [[None]*bmesh.dim for ib in range(self.boundary_width)]
+            if bmesh.reduced[0]:
+                for ib in range(self.boundary_width):
+                    iu = self.boundary_width - ib -1
+                    l = self.mesh.g1D[0][iu]
+                    self.sp_lu[ib][0] = np.nonzero(mesh.grid == l)[0]
 
         # MeshQuantity for embedding the solution u
         self.v = MeshQuantity(bmesh, n_components=1, symmetry=1)
@@ -171,15 +200,14 @@ class Stencil:
     def solve(self, method='cg', **kwargs):
         """Solve the generalized Poisson equation an iterative solver.
         Args:
-            method: one of the methods in `self.iterative_linear_solvers`
+            method: one of the methods in `iterative_linear_solvers`
             **kwargs: keyword arguments to be passed to the iterative solver.
         """
-        iterative_linear_solver = self.iterative_linear_solvers[method]
+        iterative_linear_solver = iterative_linear_solvers[method]
         u = iterative_linear_solver(self.LO, self.f, **kwargs)
         return u
 
-
-class L3p(Stencil):
+class L3p(FDStencil):
     """Classical 3 point 1D stencil for the Laplacian with coefficients [1,-2,1]/h**2."""
     def __init__(self, mesh):
         """
@@ -272,7 +300,7 @@ class L3p(Stencil):
         return self.Astar_v()
 
 
-class L5p(Stencil):
+class L5p(FDStencil):
     """Classical 5 point 1D stencil for the Laplacian with coefficients [-1, 16, -30, 16, -1]/12*h**2."""
     def __init__(self, mesh):
         """
@@ -391,9 +419,10 @@ class L5p(Stencil):
 
         return self.Astar_v()
 
-class LLagrange(Stencil):
+class LLg:
     """
-    Solve $(a\Delta + b)u = f$
+    Lagrange stencil, using the LagrangeMesh for computing the Laplacian and solving
+    $(a\Delta + b)u = f$
     """
     def __init__(self, mesh, a, b, symmetry=1, initial_guess=0):
         """
@@ -419,15 +448,21 @@ class LLagrange(Stencil):
             dtype=np.float64
         )
 
+    def set_symmetry(self, symmetry):
+        """set the symmetry that the solution must obey."""
+        self.u.set_symmetry(symmetry)
 
-    def assemble_rhs(self, f, boundary_value=0):
+    def assemble_rhs(self, f, symmetry=None, boundary_value=0):
         """
         Args:
             f: MeshQuantity containing the right hand side of the equation
-            boundary_value: ignored for LLagrange stencil
+            boundary_value: ignored for LLg stencil
         """
+        if symmetry is not None:
+            self.set_symmetry(symmetry)
+
         if not boundary_value == 0:
-            raise ValueError(f"LLagrange stencil is for solving the generalized Poisson equation."
+            raise ValueError(f"LLg stencil is for solving the generalized Poisson equation."
                              f"Boundary conditions are Dirichlet and always 0. ")
         assert f.shape == (self.u.mesh.linear_size,)
         self.f = f
@@ -435,6 +470,16 @@ class LLagrange(Stencil):
 
         if self.initial_guess == 'rhs':
             self.u.data[:,0] = self.f
+
+    def solve(self, method='cg', **kwargs):
+        """Solve the generalized Poisson equation an iterative solver.
+        Args:
+            method: one of the methods in `iterative_linear_solvers`
+            **kwargs: keyword arguments to be passed to the iterative solver.
+        """
+        iterative_linear_solver = iterative_linear_solvers[method]
+        u = iterative_linear_solver(self.LO, self.f, **kwargs)
+        return u
 
     def matvec(self, u):
         self.u.data[:,0] = u
@@ -457,12 +502,12 @@ class GeneralizedPoissonSolverMF:
             mesh (LagrangeMesh): Lagrange mesh providing the grid on which the Generalized
                 Poisson equation will be solved, using Finite Differences.
             stencil: A Stencil class,  Currently, `L3p` or `L5p`, with resp 3-point and 5-point discretization
-                in each dimension. For the generalized Poisson equation, the stencil class must be `LLagrange`.
+                in each dimension. For the generalized Poisson equation, the stencil class must be `LLg`.
         """
-        if a != 1 and b != 0 and stencil is not LLagrange:
+        if a != 1 and b != 0 and stencil is not LLg:
             raise ValueError(f"The generalized Poisson problem require stencil to be Lagrange, not {stencil}.")
 
-        if stencil is LLagrange:
+        if stencil is LLg:
             self.stencil = stencil(mesh, a, b)
         else:
             self.stencil = stencil(mesh)
@@ -476,17 +521,19 @@ class GeneralizedPoissonSolverMF:
             f (ndarray): right hand side of the generalized Poisson equation. Modified during
                 `assemble` and `solve` methods
             boundary_value (Callable): function that yields the Dirichlet boundary value when
-                applied to the boundary points of the mesh. Ignored for LLagrange stencil.
+                applied to the boundary points of the mesh. Ignored for LLg stencil.
         """
+        if symmetry is not None:
+            self.stencil.set_symmetry(symmetry)
+
         self.stencil.assemble_rhs(f, boundary_value)
 
     def solve(self, method='cg', **kwargs):
         """Solve the generalized Poisson equation with Dirichlet boundary conditions `bcs` using
         an the iterative solvers.
         Args:
-            method: one of the methods in `self.iterative_linear_solvers`
+            method: one of the methods in `iterative_linear_solvers`
         """
-
         return self.stencil.solve(method=method, **kwargs)
 
 
