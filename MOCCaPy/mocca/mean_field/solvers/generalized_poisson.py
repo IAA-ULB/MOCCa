@@ -2,7 +2,7 @@
 Solve the generalized Poisson equation
 
 $$
-( a \Delta + b ) F(r) = f(r)
+( a \Delta + b ) u(r) = f(r)
 $$
 
 using the Finite Difference Method.
@@ -117,7 +117,7 @@ class Stencil:
         raise NotImplementedError()
 
     def Astar_v(self):
-        """To be overridden by derived class.
+        """To be overridden by derived class (FD only)
         Used by matvec and assemble_rhs.
 
         Returns:
@@ -391,6 +391,57 @@ class L5p(Stencil):
 
         return self.Astar_v()
 
+class LLagrange(Stencil):
+    """
+    Solve $(a\Delta + b)u = f$
+    """
+    def __init__(self, mesh, a, b, symmetry=1, initial_guess=0):
+        """
+        Args:
+            mesh: LagrangeMesh on which to solve the generalized Poisson equation
+            a,b: coefficients of the generalized Poisson equation
+            symmetry: symmetry of the solution for reduced axes.
+            initial_guess: initial guess for the solution, 0 implies u0 is zero everywhere.
+                Alternatively, `'rhs'` can be specified which initializes u to the right hand
+                side f (during assemble_rhs).
+        """
+        self.b = b
+        self.a = a
+        self.u = MeshQuantity(mesh, n_components=1, symmetry=symmetry)
+        self.initial_guess = initial_guess
+        if initial_guess == 0:
+            self.u.data.fill(0)
+
+        # Create LinearOperator instance.
+        self.LO = sparse.linalg.LinearOperator(
+            (self.u.mesh.linear_size, self.u.mesh.linear_size),
+            matvec=self.matvec,
+            dtype=np.float64
+        )
+
+
+    def assemble_rhs(self, f, boundary_value=0):
+        """
+        Args:
+            f: MeshQuantity containing the right hand side of the equation
+            boundary_value: ignored for LLagrange stencil
+        """
+        if not boundary_value == 0:
+            raise ValueError(f"LLagrange stencil is for solving the generalized Poisson equation."
+                             f"Boundary conditions are Dirichlet and always 0. ")
+        assert f.shape == (self.u.mesh.linear_size,)
+        self.f = f
+        self.f *= (1/self.a)
+
+        if self.initial_guess == 'rhs':
+            self.u.data[:,0] = self.f
+
+    def matvec(self, u):
+        self.u.data[:,0] = u
+        Lu = self.u.differentiate(axes='xx', recompute=True)
+        Lu += (self.b/self.a) * self.u.data
+        return Lu[:,0]
+
 
 class GeneralizedPoissonSolverMF:
     """Generalized Poisson Solver using a matrix-free Finite Differences approach on an
@@ -400,17 +451,23 @@ class GeneralizedPoissonSolverMF:
     to the embedding grid across the symmetry boundaries.
     Most of the actual work is done by the Stencil classes.
     """
-    def __init__(self, mesh, stencil=L5p):
+    def __init__(self, mesh, stencil=L5p, a=1, b=0):
         """
         Args:
             mesh (LagrangeMesh): Lagrange mesh providing the grid on which the Generalized
                 Poisson equation will be solved, using Finite Differences.
             stencil: A Stencil class,  Currently, `L3p` or `L5p`, with resp 3-point and 5-point discretization
-                in each dimension.
+                in each dimension. For the generalized Poisson equation, the stencil class must be `LLagrange`.
         """
-        self.stencil = stencil(mesh)
+        if a != 1 and b != 0 and stencil is not LLagrange:
+            raise ValueError(f"The generalized Poisson problem require stencil to be Lagrange, not {stencil}.")
 
-    def assemble_rhs(self, f, boundary_value, symmetry=None):
+        if stencil is LLagrange:
+            self.stencil = stencil(mesh, a, b)
+        else:
+            self.stencil = stencil(mesh)
+
+    def assemble_rhs(self, f, boundary_value=0, symmetry=None):
         """Assemble the equations:
           - apply scaling to rhs in case of uniform grid spacing
           - applying the Dirichlet boundary conditions to the rhs.
@@ -419,7 +476,7 @@ class GeneralizedPoissonSolverMF:
             f (ndarray): right hand side of the generalized Poisson equation. Modified during
                 `assemble` and `solve` methods
             boundary_value (Callable): function that yields the Dirichlet boundary value when
-                applied to the boundary points of the mesh.
+                applied to the boundary points of the mesh. Ignored for LLagrange stencil.
         """
         self.stencil.assemble_rhs(f, boundary_value)
 
