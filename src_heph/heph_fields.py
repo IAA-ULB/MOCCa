@@ -1201,12 +1201,12 @@ def GenerateAction(field, symmetrize, so):
   fieldind_passed = []
   
   for c in coupling: 
-      if(c[0] < ldim and c[1] < ldim ):
-          lcoupl.append(c)
-      elif(c[0] >= ldim and c[1] >= ldim ):
-          rcoupl.append(c)
-      else:
-          ccoupl.append(c)
+    if(c[0] < ldim and c[1] < ldim ):
+      lcoupl.append(c)
+    elif(c[0] >= ldim and c[1] >= ldim ):
+      rcoupl.append(c)
+    else:
+      ccoupl.append(c)
 
 
   rdim  = RightOperator.dimension - len(ccoupl) - 2*len(rcoupl)
@@ -1240,127 +1240,137 @@ def GenerateAction(field, symmetrize, so):
     # reset temp  (= the array gathering intermediate results) in the Fortran code to 0
     expression = expression + ts.temp_ini
   
-    dic['LMULT'] = ''
-        
+    dic['LMULT'] = ''       
     if(symmetrize == 1 or symmetrize== -1):
         dic['LMULT'] = dic['LMULT'] + ' 0.5d0 * '
     
     leftind  = LeftOperator(true_larg, start)
-
     rargs    = list(itertools.product(range(3), repeat=rdim-len(cross)))
     dic['RMULT'] = ''
     
-    for rarg in rargs:
+    expression = expression + ts.position_loop # Refactoring: can I move this without issue?
+    for complete_arg in args_dict[true_larg]: # <----- replaces two loops over right arguments
+    # for rarg in rargs:
 
-        rarg_uncontracted = []
-        if(RightOperator.dimension == 0):  
-            rarg_uncontracted=[rarg]
-        else:  
-          rarg_uncontracted = []
-          cont = itertools.product(range(3), repeat=len(rcoupl))
+    #     rarg_uncontracted = []
+    #     if(RightOperator.dimension == 0):  
+    #         rarg_uncontracted=[rarg]
+    #     else:  
+    #       rarg_uncontracted = []
+    #       cont = itertools.product(range(3), repeat=len(rcoupl))
           
-          crossind = []
-          for i in range(len(cross)):
-            crossind = crossind  + (Rot_ind(rarg[len(coupling) + i]))   
+    #       crossind = []
+    #       for i in range(len(cross)):
+    #         crossind = crossind  + (Rot_ind(rarg[len(coupling) + i]))   
     
-          if(len(cross) == 0):
-            full_cont = cont
-          else:
-            full_cont = []                
-            for c in cont:
-                for x in crossind:
-                    full_cont.append(c + x)
+    #       if(len(cross) == 0):
+    #         full_cont = cont
+    #       else:
+    #         full_cont = []                
+    #         for c in cont:
+    #             for x in crossind:
+    #                 full_cont.append(c + x)
 
-          for c in full_cont:
-            p  = ()   
-            ii = 0
-            for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
-                found = False                    
-                for combination in rcoupl:
-                    if(i in combination): 
-                        p = p + (c[rcoupl.index(combination)],)
-                        found = True
-                for combination in ccoupl:
-                    if(i == combination[0]):
-                        p = p + (true_larg[combination[1]],)
-                        found = True
-                    if(i == combination[1]):
-                        p = p + (true_larg[combination[0]],)
-                        found = True
-                for combination in cross:
-                    if (i==combination[0]):
-                            p = p + (c[cross.index(combination) + len(coupling)],)
-                            found = True
-                    if(i==combination[1]): 
-                            p = p + (c[cross.index(combination) + len(coupling) + 1 ],)
-                            found = True
-                if(not found): 
-                    p = p + (rarg[ii],)
-                    ii = ii +1
-            rarg_uncontracted.append(p)
+    #       for c in full_cont:
+    #         p  = ()   
+    #         ii = 0
+    #         for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
+    #             found = False                    
+    #             for combination in rcoupl:
+    #                 if(i in combination): 
+    #                     p = p + (c[rcoupl.index(combination)],)
+    #                     found = True
+    #             for combination in ccoupl:
+    #                 if(i == combination[0]):
+    #                     p = p + (true_larg[combination[1]],)
+    #                     found = True
+    #                 if(i == combination[1]):
+    #                     p = p + (true_larg[combination[0]],)
+    #                     found = True
+    #             for combination in cross:
+    #                 if (i==combination[0]):
+    #                         p = p + (c[cross.index(combination) + len(coupling)],)
+    #                         found = True
+    #                 if(i==combination[1]): 
+    #                         p = p + (c[cross.index(combination) + len(coupling) + 1 ],)
+    #                         found = True
+    #             if(not found): 
+    #                 p = p + (rarg[ii],)
+    #                 ii = ii +1
+    #         rarg_uncontracted.append(p)
         #-------------------------------------------------------------------
         # Loop over right-arguments
-        expression = expression + ts.position_loop # Refactoring: can I move this without issue?
-        for true_rarg in rarg_uncontracted:
+        # for true_rarg in rarg_uncontracted:
 
-            # Check if the complete argument is also in the newly built 
-            found =  False 
-            full_arg = true_larg + true_rarg
-            for key in args_dict.keys():
-              for new_arg in args_dict[key]:
-                if (full_arg == new_arg):
-                  found = True
-            if (not found):
-              print ("Issue with args in field ", field, coupling, cross)
-              print ("LEFT ", true_larg)
-              print ("RIGHT ", true_rarg)
-              print (args_dict)
-              exit()
+            # # Check if the complete argument is also in the newly built 
+            # found =  False 
+            # full_arg = true_larg + true_rarg
+            # for key in args_dict.keys():
+            #   for new_arg in args_dict[key]:
+            #     if (full_arg == new_arg):
+            #       found = True
+            # if (not found):
+            #   print ("Issue with args in field ", field, coupling, cross)
+            #   print ("LEFT ", true_larg)
+            #   print ("RIGHT ", true_rarg)
+            #   print (args_dict)
+            # exit()
             # else:
             #   print (field, true_larg, true_rarg, "OKAY")
 
+            true_rarg = complete_arg[LeftOperator.dimension:] # ---> complete set of arguments of the right operator
+            # TODO: sometimes the right-indexing is thrown off by the fact that there 
+            #       not all indices get stored explicitly in the FORTRAN code
+
             # Action of the right operator for these indices
             rightind = RightOperator(true_rarg, start)
+            if( field == 'F_Nm_Nm'):
+              print (complete_arg, true_rarg)
             
             #---------------------------------------------------------------
             # Indices of the field in the multiplication
             dic['FIELDIND'] = ''
+            for c in complete_arg:
+              dic['FIELDIND'] += ',%d'%(int(abs(c)+1))
+             
 
-            if(symmetrize != -1):
-                # Original ordering of indices
-                for l in range(LeftOperator.dimension):
-                    Found = False
-                    for c in coupling:
-                        if(l in c):
-                            Found = True
-                    if(not Found):
-                        dic['FIELDIND']= dic['FIELDIND']  \
-                                            + ',%d'%int(abs(true_larg[l])+1)
-                for r in range(len(rarg)):
-                    dic['FIELDIND']= dic['FIELDIND']      \
-                                            + ',%d'%int(abs(rarg[r])+1)
-            else:
-                # Switching (L<->R) of all derivative indices, except for 
-                # the spin operator, which we always take to the right
-                if('S' in field):
-                    offset = 1
-                else:
-                    offset = 0
-                for r in range(len(rarg)-offset):
-                    dic['FIELDIND']= dic['FIELDIND']      \
-                                            + ',%d'%int(abs(rarg[r])+1)
-                for l in range(LeftOperator.dimension):
-                    Found = False
-                    for c in coupling:
-                        if(l in c):
-                            Found = True
-                    if(not Found):
-                        dic['FIELDIND']= dic['FIELDIND']  \
-                                            + ',%d'%int(abs(true_larg[l])+1)
-                # Reinsert the spin index
-                if(offset == 1):
-                    dic['FIELDIND']= dic['FIELDIND']      \
-                                            + ',%d'%int(abs(rarg[-1])+1)
+            # TODO: make sure indices get switched if symmetrize = -1
+            #         ------ but is this really necessary? 
+            # if(symmetrize != -1):
+            #     # Original ordering of indices
+            #     for l in range(LeftOperator.dimension):
+            #         Found = False
+            #         for c in coupling:
+            #             if(l in c):
+            #                 Found = True
+            #         if(not Found):
+            #             dic['FIELDIND']= dic['FIELDIND']  \
+            #                                 + ',%d'%int(abs(true_larg[l])+1)
+            #     for r in range(len(rarg)):
+            #         dic['FIELDIND']= dic['FIELDIND']      \
+            #                                 + ',%d'%int(abs(rarg[r])+1)
+            # else:
+            #     # Switching (L<->R) of all derivative indices, except for 
+            #     # the spin operator, which we always take to the right
+            #     if('S' in field):
+            #         offset = 1
+            #     else:
+            #         offset = 0
+            #     for r in range(len(rarg)-offset):
+            #         dic['FIELDIND']= dic['FIELDIND']      \
+            #                                 + ',%d'%int(abs(rarg[r])+1)
+            #     for l in range(LeftOperator.dimension):
+            #         Found = False
+            #         for c in coupling:
+            #             if(l in c):
+            #                 Found = True
+            #         if(not Found):
+            #             dic['FIELDIND']= dic['FIELDIND']  \
+            #                                 + ',%d'%int(abs(true_larg[l])+1)
+            #     # Reinsert the spin index
+            #     if(offset == 1):
+            #         dic['FIELDIND']= dic['FIELDIND']      \
+            #                                 + ',%d'%int(abs(rarg[-1])+1)
             #---------------------------------------------------------------                     
             # Get the packed storage-scheme index
             rarg_stor = Storage_Mapping(true_rarg[:RightOperator.derorder])
@@ -1390,7 +1400,7 @@ def GenerateAction(field, symmetrize, so):
                 else :
                     dic['SIGN']= '-'
                 expression = expression + ts.action.substitute(dic)
-        expression = expression + ts.position_end
+    expression = expression + ts.position_end
         #---------------------------------------------------------------
         # End of true_rarg loop
     #-------------------------------------------------------------------
