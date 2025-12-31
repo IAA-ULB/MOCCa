@@ -70,12 +70,20 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExc
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Potentials associated with constraints
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! a) Augmented Lagrangian potentials
+    !
     !  Electric multipole => Constraint_I_I => F_I_I
     real(kind=dp), allocatable :: Constraint_I_I(:,:)
     !  Cranking constraints: a current-like (jpot) and a spin-like (spot)
     real(kind=dp), allocatable :: jpot(:,:,:), spot(:,:,:)
     !  Cutoff function to make the constraint problem smoother
     real(KIND=dp), allocatable :: constraint_cutoff(:,:)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! b) Feasible projection potentials
+    real(kind=dp), allocatable :: F_Qlm(:,:)
+    real(KIND=dp)              :: F_J(3)
+
  end type PotentialVector
 
  !---------------------------------------------------------------------------

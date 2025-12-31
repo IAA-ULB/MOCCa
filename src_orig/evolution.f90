@@ -451,6 +451,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         !-----------------------------------------------------------------------
 
         use wavefunctions
+        use moments
 
         ! Explicit declaration of linear algebra routines
         external :: DSYEV
@@ -458,14 +459,14 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         type(PotentialVector), intent(in) :: F
         integer, intent(in)               :: iteration
         
-        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail, k
         integer               :: wg, wg2, der_index
         logical               :: on_the_fly
 #if(USE_MPI>0)
         integer               :: mpi_err
 #endif
         real(KIND=dp), allocatable :: work(:)
-        real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
+        real(KIND=dp)              :: hpsi(nx*ny*nz,4), constraint_update(mv,4)
 
         call start_timer(T_evolution)
 
@@ -488,6 +489,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         spenergies   = 0.0d0
         dispersions  = 0.0d0
         sphamil  = 0.0d0
+
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
@@ -580,7 +582,20 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
-            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
+
+            ! calculate the enforcing of the constraints - spwf by spwf - to
+            ! not require too much additional memory!
+            constraint_update = apply_feasible_projection(                   &
+            &                    hfpsi(:,:,wave)        ,                    &
+            &                    hfdpsi(:,:,:,der_index),                    &
+            &                    sx(:,wave), sy(:,wave), sz(:,wave),         &
+            &                    iso,on_the_fly,F)
+
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) &
+            ! heavy-ball evolution 
+            &                                 + momentum_updates(:,:,wave)   &
+            ! extra pushes for the constraints
+            &                                 + constraint_update
           enddo
           si = si + N
         enddo                     !<---- end of the loop over local spwf indices
@@ -1612,142 +1627,79 @@ $N3       &                                         dddmax,                    &
 !#endif ! TO renable!
 !===============================================================================
 ! Projection on the feasible subspace routine
-!===============================================================================  
-  subroutine FeasibleProject(Rin)
-  !-----------------------------------------------------------------------------
-  ! Subroutine performing one (or more) alternate step for the alternating
-  ! constraints. The idea is a a simple gradient step in the direction of a
-  ! satisfied constraint, meaning that the objective function being minimized is
-  !
-  !  ( < O > - O_target )^2
-  ! 
-  ! and we update the single-particle wavefunctions according to 
-  !
-  ! psi = ( 1 - epsilon \hat{O} ) psi
-  !  
-  ! with
-  !
-  ! epsilon = 1/2 * ( <C> - C )/( < C^2 >)
-  !
-  ! where < C >^2 is the one-body part of the two-body operator C.
-  !-----------------------------------------------------------------------------
+!===============================================================================
+  function apply_feasible_projection( psi, dpsi, sx, sy, sz, iso, &
+  &                                   onthefly, F) result(Ppsi)
+    !--------------------------------------------------------------------------
+    ! TODO: DOCUMENTATION
+    ! call signature is similar to apply_sphamil
+    !
+    ! TODO: DERIVATIVE_STORAGE = .FALSE. does not correctly work YET!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !         psi : real array of dimension (mv,4)
+    !        dpsi : real array of dimension (mv,3,4)
+    !          sx : integer  
+    !          sy : integer 
+    !          sz : integer 
+    !         iso : integer 
+    !    onthefly : logical
+    !               
+    ! multipole   : real array of dimension (mv,2)
+    !               precalculated values for the constraints on multipole moments
+    !
+    ! crankfactor : real array of dimension (3)
+    !               precalculated values for the constraints on angular momentum
+    !               
+    ! cutoff      : real array of dimension (mv,2)
+    !               precalculated value of the cutoff function for constraints
+    !
+    ! Output:
+    !   Ppsi: real array of dimension (mv,4)
+    !         
+    !           Ppsi       = - \sum_i [ \epsilon_i O_i ] \psi
+    !           \epsilon_i = 1/2 C ( < O_i > - O^target_i )/( < O_i^2 >_1b)
+    !
+    !         Explanation:
+    !           - the index i ranges over all constraints with associated
+    !             one-body operator O_i and targetted value O^target_i. 
+    !           - < O_i^2 >_1b is the expectation value of the one-body part of 
+    !              the two-body operator O^2_i.
+    !           - C is the cutoff function for constraints
+    !         
+    !--------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: psi(mv,4), dpsi(mv,3,4)
+    type(PotentialVector), intent(in) :: F
+    integer, intent(in)          :: sx(4), sy(4), sz(4), iso 
+    logical, intent(in)          :: onthefly 
 
-   use wavefunctions
-   use moments
+    real(KIND=dp)                :: Ppsi(mv,4)
 
-   type(DensityVector), intent(in) :: Rin
-   type(Moment),pointer  :: Current
-   real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
-   real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
-   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3), J
-   real(KIND=dp)         :: cutoff(mv,2)
-   integer               :: wave, k, B, si, N, it, i
-
-   call start_timer(T_feasible)
-
-   !----------------------------------------------------------------------------
-   ! (i) The contribution of the multipole moments to the update
-   Current    => Root
-   multipole = 0.0_dp
-   cutoff = compcutoff(Rin)
-   
-   do while(associated(Current%Next))
-    Current => Current%next
-   
-    if(Current%ConstraintType.lt.2) cycle
-
-    select case(Current%isoswitch)
-    case(0)
-      Value = sum(Current%Value)                    ! Total value
-      O2    = sum(Current%Squared)                  ! < C^2 >
-    case(1,2)
-      it    = Current%isoswitch
-      Value = Current%Value(it)                     
-      O2    = Current%Squared(it)                  ! < C^2 >
-    end select
-    Des   = Current%Constraint                      ! Desired final value
-    scale = Current%Scalefactor                     ! Scale factor
+    integer                      :: k, it, i
     
-    update = 0.0
-    select case(Current%isoswitch)
-    case(0)
-      do it=1,2
-        Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
-      enddo
-    case(1,2)
-      ! only one nucleon species feels the constraint
-      it = Current%isoswitch
-      Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
-    end select
-    multipole = multipole + Update
-   enddo
-   
-   !----------------------------------------------------------------------------
-   ! (ii) The contribution of the cranking constraints to the update
-   do i=1,3
-     if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
-     
-     if(crank_smooth) then
-      J = TotalAngMom_dens(i)
-     else
-      J = TotalAngMom(i)
-     endif
-     CrankFactor(i)= 0.5*( J -CrankValues(i))/J2_sp(i)
-     ! Rescale with a factor
-     Crankfactor(i) = Crankfactor(i)*CrankScaleFactor(i)
-   enddo
-   
-   !----------------------------------------------------------------------------
-   ! We evolve the spwfs
-   si = 0   
-   do B=1,8
-    N = HFBlocks(B) ; if(N.eq.0) cycle
-    it = 1 ;  if(B.gt.4) it = 2
-
-    do wave=1,N
-      do k=1,4
-        mpsi(:,k) = multipole(:,it) * HFPsi(:,k,si+wave)
-      enddo
-      
-      jpsi = 0.0d0
-      do i=1,3
-        if(cranktype(i) .ne. 1) cycle
-        ! Add J_i | psi >
-        jpsi = jpsi + crankfactor(i) &
-        &          * AngMomOperator(HFpsi(:,:,si+wave), HFdpsi(:,:,:,si+wave),i)
-      enddo
-      do k=1,4
-        jpsi(:,k) = cutoff(:,it) * jpsi(:,k)      
-      enddo
-      
-      ! Substituting the correction
-      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - mpsi - jpsi
- 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      !HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - 2 * mpsi
-      ! The factor two is a historical accident, and could be of course 
-      ! accomodated by a redefinition of the Update above, but I prefer to 
-      ! include it here and leave a trace of this happy (?) mistake.
-      
-      ! 22/07/21: turns out the factor two was not a happy mistake. For 
-      ! quadrupole constraints in EV8/CR8-mode, the code worked fine. For 
-      ! EV4-like calculations, this turned out to be too aggressive.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+    it = (iso + 3)/2
+    ! Multipole moment constraints -> multiplication local in space
+    do k=1,4
+      Ppsi(:,k) = F%F_Qlm(:,it) * psi(:,k)
     enddo
-    si = si + N
-   enddo
-   !---------------------------------------------------------------------------
-   ! Finally, orthonormalisation
-   call orthonormalize
 
-   call stop_timer(T_feasible)
+    ! Cranking constraint -> application of angular momentum operators
+    do i=1,3
+      if(F%F_J(i) .ne. 0.0d0) cycle
+      Ppsi = Ppsi + F%F_J(i) * AngMomOperator(psi, dpsi ,i)
+    enddo
 
-  end subroutine feasibleproject
+    ! Multiplication with the cutoff factor and global sign
+    do k=1,4
+      Ppsi(:,k) = - F%constraint_cutoff(:,it) * Ppsi(:,k)      
+    enddo
 
-    subroutine clean_evolution()
+  end function apply_feasible_projection
+
+  subroutine clean_evolution()
       if(allocated(preconx)) deallocate(preconx)
       if(allocated(precony)) deallocate(precony)
       if(allocated(preconz)) deallocate(preconz)
       if(allocated(momentum_updates)) deallocate(momentum_updates)
-    end subroutine clean_evolution
+  end subroutine clean_evolution
 end module evolution

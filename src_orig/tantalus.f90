@@ -306,7 +306,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! TODO: include feasibleproject in the evolve_subspace code
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if(projectpresent) call feasibleproject(Density)
+        !if(projectpresent) then 
+        !  call feasible_projection_potentials(F_Qlm, F_J) 
+        !  call feasibleproject(Density, F_Qlm, F_J)
+        !endif
         call Evolve_subspace(potentials, iter)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
