@@ -192,8 +192,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer :: iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
-    ! Logical to see if any moments with feasible set projection are necessary
-    logical :: projectpresent = .false.
 
 #if(USE_MPI > 0)
     integer :: mpi_err
@@ -298,18 +296,9 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         FermiHistory   = FermiEnergy
         ! (2) check if some constraints should not be turned off
         call TurnOffConstraints(iter)
-        ! (3) and decide whether we are constraining stuff or not
-        projectpresent   = checkconstraints() .or. check_cranking()
-
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Then, we update the reduced subspace spanned by our spwfs
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! TODO: include feasibleproject in the evolve_subspace code
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        !if(projectpresent) then 
-        !  call feasible_projection_potentials(F_Qlm, F_J) 
-        !  call feasibleproject(Density, F_Qlm, F_J)
-        !endif
         call Evolve_subspace(potentials, iter)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -351,6 +340,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Do a double take when constraints are present: use the updated
         ! Lagrange multipliers to correct our many-body state
+        !
+        ! TODO: revise this to work with the rework of the constraints!
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         !if(projectpresent) then
         !    ! Update the single-particle hamiltonian

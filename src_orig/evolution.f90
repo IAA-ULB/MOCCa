@@ -1631,29 +1631,22 @@ $N3       &                                         dddmax,                    &
   function apply_feasible_projection( psi, dpsi, sx, sy, sz, iso, &
   &                                   onthefly, F) result(Ppsi)
     !--------------------------------------------------------------------------
-    ! TODO: DOCUMENTATION
-    ! call signature is similar to apply_sphamil
     !
-    ! TODO: DERIVATIVE_STORAGE = .FALSE. does not correctly work YET!
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !         psi : real array of dimension (mv,4)
+    !               the spwf to be acted on 
     !        dpsi : real array of dimension (mv,3,4)
-    !          sx : integer  
-    !          sy : integer 
-    !          sz : integer 
+    !               the gradient of psi
+    !       sx/y/z: integer
+    !               symmetry signs of psi  
     !         iso : integer 
+    !               isopin of the spwf
     !    onthefly : logical
-    !               
-    ! multipole   : real array of dimension (mv,2)
-    !               precalculated values for the constraints on multipole moments
-    !
-    ! crankfactor : real array of dimension (3)
-    !               precalculated values for the constraints on angular momentum
-    !               
-    ! cutoff      : real array of dimension (mv,2)
-    !               precalculated value of the cutoff function for constraints
-    !
+    !               if True, calculate the derivative of psi in this routine
+    !           F : PotentialVector
+    !               the F_Qlm, F_J and constraint_cutoff values of this 
+    !               potentialvector should have been precalculated. 
     ! Output:
     !   Ppsi: real array of dimension (mv,4)
     !         
@@ -1668,14 +1661,14 @@ $N3       &                                         dddmax,                    &
     !           - C is the cutoff function for constraints
     !         
     !--------------------------------------------------------------------------
-    real(KIND=dp), intent(in)         :: psi(mv,4), dpsi(mv,3,4)
+    real(KIND=dp), intent(in)         :: psi(mv,4)
+    real(KIND=dp), intent(inout)      :: dpsi(mv,3,4)
     type(PotentialVector), intent(in) :: F
-    integer, intent(in)          :: sx(4), sy(4), sz(4), iso 
-    logical, intent(in)          :: onthefly 
+    integer, intent(in)               :: sx(4), sy(4), sz(4), iso 
+    logical, intent(in)               :: onthefly 
 
-    real(KIND=dp)                :: Ppsi(mv,4)
-
-    integer                      :: k, it, i
+    real(KIND=dp)                     :: Ppsi(mv,4)
+    integer                           :: k, it, i
     
     it = (iso + 3)/2
     ! Multipole moment constraints -> multiplication local in space
@@ -1684,6 +1677,14 @@ $N3       &                                         dddmax,                    &
     enddo
 
     ! Cranking constraint -> application of angular momentum operators
+    if(onthefly) then 
+      if(any(F%F_J .ne. 0.0d0)) then 
+        call derive_X(psi, sx, dpsi(:,1,:))
+        call derive_Y(psi, sx, dpsi(:,2,:))
+        call derive_Z(psi, sx, dpsi(:,3,:))
+      endif
+    endif
+
     do i=1,3
       if(F%F_J(i) .ne. 0.0d0) cycle
       Ppsi = Ppsi + F%F_J(i) * AngMomOperator(psi, dpsi ,i)
@@ -1697,9 +1698,9 @@ $N3       &                                         dddmax,                    &
   end function apply_feasible_projection
 
   subroutine clean_evolution()
-      if(allocated(preconx)) deallocate(preconx)
-      if(allocated(precony)) deallocate(precony)
-      if(allocated(preconz)) deallocate(preconz)
-      if(allocated(momentum_updates)) deallocate(momentum_updates)
+    if(allocated(preconx)) deallocate(preconx)
+    if(allocated(precony)) deallocate(precony)
+    if(allocated(preconz)) deallocate(preconz)
+    if(allocated(momentum_updates)) deallocate(momentum_updates)
   end subroutine clean_evolution
 end module evolution

@@ -90,7 +90,7 @@ contains
     !   will be acted upon by just one single rank. 
     !---------------------------------------------------------------------------
     use geninfo,       only : ReadGenInfo
-    use evolution,     only : ReadEvolution
+    use evolution,     only : ReadEvolution, strategy
     use wavefunctions, only : ReadWFdata
     use scfiteration,  only : readscfiteration
     use moments,       only : readmomentdata
@@ -105,6 +105,7 @@ contains
     ! empty will have the code rely on STDIN for input.
     integer(dp), intent(in), optional   :: file_number   
     character(26), intent(in), optional :: input_file 
+    logical                             :: project_present
 
     logical :: exists
 #if(USE_MPI>0)
@@ -148,6 +149,16 @@ contains
   ! No MPI ranks can quit this routine before having received all information! 
   call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
 #endif
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Sanity checks on input involving multiple modules
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - -
+  project_present   = checkconstraints() .or. check_cranking()
+  if(project_present) then
+    if(strategy .ne. 'HEAVYBALL') then 
+      call stp('Constraints are currently only supported when setting STRATEGY=HEAVYBALL')
+    endif
+  endif 
 
   end subroutine ReadInput
 
