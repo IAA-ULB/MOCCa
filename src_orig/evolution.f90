@@ -1631,7 +1631,7 @@ $N3       &                                         dddmax,                    &
   function apply_feasible_projection( psi, dpsi, sx, sy, sz, iso, &
   &                                   onthefly, F) result(Ppsi)
     !--------------------------------------------------------------------------
-    !
+    ! TODO: describe this routine 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !         psi : real array of dimension (mv,4)
@@ -1686,7 +1686,7 @@ $N3       &                                         dddmax,                    &
     endif
 
     do i=1,3
-      if(F%F_J(i) .ne. 0.0d0) cycle
+      if(F%F_J(i) .eq. 0.0d0) cycle
       Ppsi = Ppsi + F%F_J(i) * AngMomOperator(psi, dpsi ,i)
     enddo
 

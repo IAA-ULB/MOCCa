@@ -2976,7 +2976,6 @@ $N1    enddo
   use vectors 
 
   type(PotentialVector), intent(inout) :: F
-  !real(KIND=dp), intent(out)      :: F_Qlm(mv,2), F_J(3)
   type(Moment), pointer           :: Current
   real(KIND=dp)                   :: O2, value, des, scale,  J, update(mv,2)
   integer                         :: i, it

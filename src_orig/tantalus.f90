@@ -307,8 +307,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         sphamil = Calc_Sphamil(potentials, .true.)
         ! ... optionally perform a subspace rotation...
         if(subspace_rotation) then
-            call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-            if(store_derivatives) call deriveHF() ! and update derivatives
+          call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+          if(store_derivatives) call deriveHF() ! and update derivatives
         endif
         ! ..... and then calculate the pairing gaps
         call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
