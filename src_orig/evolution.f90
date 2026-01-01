@@ -803,76 +803,76 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       call stop_timer(T_evolution)
     end subroutine Evolve_momentum_sane 
 
-    subroutine update_sphamil_constraints(sph)
-        !-----------------------------------------------------------------------
-        ! TODO: document & add cranking constraints
-        !
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Input:
-        !    sph : current matrix elements of the single-particle hamiltonian.
-        ! Output:
-        !    sph : updated matrix elements that now account for a change in 
-        !          the Lagrange multipliers of the constraints.
-        !-----------------------------------------------------------------------
-        use moments, only : constraints_sph_elmult
-        use wavefunctions
-
-        real(KIND=dp), intent(inout) :: sph(nwt,nwt)
-        real(KIND=dp)                :: update(nwt,nwt)
-        integer                      :: si, it, m, k, B, N, wave
-        real(KIND=dp), allocatable   :: hpsi(:,:,:)
-        real(KIND=dp)                :: pot_elmult(mv,2)
-#if(USE_MPI > 0)
-        integer                    :: mpi_err
-#endif
-        
-        call start_timer(T_update_sph)
-        
-        ! Obtain the difference in potential due to the multipole moments
-        pot_elmult = constraints_sph_elmult(.true.)
-
-        ! Work with this array to make the MPI-implementation easier
-        update = 0.0
-        
-        si = 0
-        do B=1,8
-            N  = HFBlocks(B) ; if(N.eq.0) cycle
-            it = +1          ; if(B.gt.4) it = 2
-            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
-
-            allocate(hpsi(mv,4,N))
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Obtain the action of the new s.p.h. on the spwfs
-            !
-            !  h'_ij = \epilson \delta_ij + 
-            !       <\psi_j | (Constraint_I_I_new - Constraint_I_I_old)| psi_i>
-            !
-            ! TODO: rewrite with BLAS calls
-            do m=1,N
-              do k=1,4
-                hpsi(:,k,m) = pot_elmult(:,it)*HFPsi(:,k,si+m)
-              enddo
-            enddo
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Calculate matrix elements by way of a BLAS call
-            call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
-            &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-            &                                     update(wave+1:wave+N,wave+1:wave+N),N)
-            deallocate(hpsi)
-            si = si + N
-        enddo
-
-#if(USE_MPI > 0)
-      call MPI_ALLREDUCE(MPI_IN_PLACE,update,nwt**2, MPI_REAL8, MPI_SUM, &
-      &                                                MPI_COMM_WORLD,mpi_err)
-#endif
-        ! Perform the update for ALL numbers; this is wasteful since we are
-        ! spending quite some effort adding zeros. TODO: update!
-        sph = sph + update
-
-        call stop_timer(T_update_sph)
-
-    end subroutine update_sphamil_constraints
+!    subroutine update_sphamil_constraints(sph)
+!        !-----------------------------------------------------------------------
+!        ! TODO: document & add cranking constraints
+!        !
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! Input:
+!        !    sph : current matrix elements of the single-particle hamiltonian.
+!        ! Output:
+!        !    sph : updated matrix elements that now account for a change in 
+!        !          the Lagrange multipliers of the constraints.
+!        !-----------------------------------------------------------------------
+!        use moments, only : constraints_sph_elmult
+!        use wavefunctions
+!
+!        real(KIND=dp), intent(inout) :: sph(nwt,nwt)
+!        real(KIND=dp)                :: update(nwt,nwt)
+!        integer                      :: si, it, m, k, B, N, wave
+!        real(KIND=dp), allocatable   :: hpsi(:,:,:)
+!        real(KIND=dp)                :: pot_elmult(mv,2)
+!#if(USE_MPI > 0)
+!        integer                    :: mpi_err
+!#endif
+!        
+!        call start_timer(T_update_sph)
+!        
+!        ! Obtain the difference in potential due to the multipole moments
+!        pot_elmult = constraints_sph_elmult(.true.)
+!
+!        ! Work with this array to make the MPI-implementation easier
+!        update = 0.0
+!        
+!        si = 0
+!        do B=1,8
+!            N  = HFBlocks(B) ; if(N.eq.0) cycle
+!            it = +1          ; if(B.gt.4) it = 2
+!            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
+!
+!            allocate(hpsi(mv,4,N))
+!            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!            ! Obtain the action of the new s.p.h. on the spwfs
+!            !
+!            !  h'_ij = \epilson \delta_ij + 
+!            !       <\psi_j | (Constraint_I_I_new - Constraint_I_I_old)| psi_i>
+!            !
+!            ! TODO: rewrite with BLAS calls
+!            do m=1,N
+!              do k=1,4
+!                hpsi(:,k,m) = pot_elmult(:,it)*HFPsi(:,k,si+m)
+!              enddo
+!            enddo
+!            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!            ! Calculate matrix elements by way of a BLAS call
+!            call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
+!            &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
+!            &                                     update(wave+1:wave+N,wave+1:wave+N),N)
+!            deallocate(hpsi)
+!            si = si + N
+!        enddo
+!
+!#if(USE_MPI > 0)
+!      call MPI_ALLREDUCE(MPI_IN_PLACE,update,nwt**2, MPI_REAL8, MPI_SUM, &
+!      &                                                MPI_COMM_WORLD,mpi_err)
+!#endif
+!        ! Perform the update for ALL numbers; this is wasteful since we are
+!        ! spending quite some effort adding zeros. TODO: update!
+!        sph = sph + update
+!
+!        call stop_timer(T_update_sph)
+!
+!    end subroutine update_sphamil_constraints
 !===============================================================================
 ! Utility routines 
 !===============================================================================
@@ -1640,6 +1640,7 @@ $N3       &                                         dddmax,                    &
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
    real(KIND=dp)         :: O2, value, des, scale, crankfactor(3), J
+   real(KIND=dp)         :: cutoff(mv,2)
    integer               :: wave, k, B, si, N, it, i
 
    call start_timer(T_feasible)
@@ -1648,7 +1649,7 @@ $N3       &                                         dddmax,                    &
    ! (i) The contribution of the multipole moments to the update
    Current    => Root
    multipole = 0.0_dp
-   call compcutoff(Rin)
+   cutoff = compcutoff(Rin)
    
    do while(associated(Current%Next))
     Current => Current%next

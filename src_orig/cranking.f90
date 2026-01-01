@@ -223,15 +223,18 @@ $NTR        enddo
     ! save_history : whether or not to save the history of the
     !                 angular momentum values
     !---------------------------------------------------------------------------
-$NTR    use Moments, only : cutoff
     ! We only import this if time-reversal is not conserved, otherwise
     ! the compiler complains
-
+    use moments, only : CompCutoff
     type(DensityVector), intent(in) :: R
+
     logical, INTENT(IN) :: save_history
+    real(KIND=dp)                   :: cutoff(mv,2)
 $NTR    integer   :: B, N, wave, si, i, c, it
 $TR real(KIND=dp) :: trash
 
+    ! Calculate the cutoff function for the "constrained" angular momentum
+    cutoff = compcutoff(R)
 
     ! Saving all of the history for convergence analysis ...
     if(save_history) then
@@ -420,7 +423,7 @@ $NTR    enddo
 $NTR    print 5
   end subroutine PrintCranking
 
-  function crank_spin_potential() result(spot)
+  function crank_spin_potential(cutoff) result(spot)
     !---------------------------------------------------------------------------
     ! The cranking constraint contributes to the potential F_I_S, associated 
     ! with the spin density D_I_S:
@@ -431,12 +434,14 @@ $NTR    print 5
     ! constraints. The factor 1/2 is present because the J_spin = 1/2 Pauli
     ! sigma matrix.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     cutoff : cutoff function to regularize the constraint  
     ! Output:
-    !     spot : the contribution to the spin potential due to cranking
+    !     spot   : the contribution to the spin potential due to cranking
     !---------------------------------------------------------------------------
-$NTR    use Moments, only : cutoff
-
+    real(KIND=dp), intent(in)  :: cutoff(mv,2)
     real(KIND=dp), allocatable :: spot(:,:,:)
+
 $NTR    integer :: i, it, c
 
     allocate(spot(nx*ny*nz,3,4)) ; spot = 0.0d0
@@ -454,18 +459,19 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
     return
   end function crank_spin_potential
 
-  function crank_current_potential() result(jpot)
+  function crank_current_potential(cutoff) result(jpot)
     !---------------------------------------------------------------------------
     ! The cranking constraint contributes to the potential G_I_N, associated
     ! with the current density D_I_N:
     !
     !       G_I_N => G_I_N - f_cut(r) \vec{\omega} x \vec{r}
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     cutoff : cutoff function to regularize the constraint  
     ! Output:
     !     jpot : the contribution to the current potential due to cranking
     !---------------------------------------------------------------------------
-    use Moments, only : cutoff
-
+    real(KIND=dp), intent(in)  :: cutoff(mv,2)
     real(KIND=dp), allocatable :: jpot(:,:,:)
     integer                    :: it, mu, indices(2) , nu, ka
 

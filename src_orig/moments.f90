@@ -280,10 +280,6 @@ module moments
   !-----------------------------------------------------------------------------
   real(KIND=dp) :: radd = 4._dp,acut=0.4_dp, cutfac = 10.0d0
   !-----------------------------------------------------------------------------
-  !Cutoff function
-  ! For 1) Neutrons, 2) Protons
-  real(KIND=dp), allocatable, target :: Cutoff(:,:)
-  !-----------------------------------------------------------------------------
   ! Slowdown of the readjustment of the Lagrange multipliers
   !-----------------------------------------------------------------------------
   real(KIND=dp)  :: ReadjustSlowDown=0.1_dp
@@ -291,10 +287,11 @@ module moments
   ! Pointer to the cutoff procedure chosen.
   !-----------------------------------------------------------------------------
   abstract interface
-        subroutine comp_cutoff(R)
-          use Densities
-          type(DensityVector), intent(in), target :: R
-        end Subroutine
+    function comp_cutoff(R) result(cutoff)
+      use Densities
+      type(DensityVector), intent(in), target :: R
+      real(KIND=dp), target                   :: cutoff(nx*ny*nz,2)
+    end function
   end interface
   procedure(comp_cutoff), pointer :: CompCutoff
   !-----------------------------------------------------------------------------
@@ -1017,11 +1014,6 @@ $NTR    enddo
     logical,INTENT(IN)              :: save_history
     
     call start_timer(T_moments)
-    !---------------------------------------------------------------------------
-    ! First, we need to calculate the cutoff function
-    call start_timer(T_moment_cutoff)
-    call CompCutoff(R)
-    call stop_timer(T_moment_cutoff)
 
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
@@ -1612,7 +1604,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
 ! Treatment of constraints, readjustment and contribution to sphamil. 
 !===============================================================================
   
-  function constraints_sph_elmult(diff) result(pot)
+  function constraints_sph_elmult(cutoff, diff) result(pot)
     !---------------------------------------------------------------------------
     ! Calculate the contribution to the single-particle potentials associated 
     ! with the constraints on the multipole moments.
@@ -1634,12 +1626,15 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !     - diff: logical
+    !     - cutoff : real array of dimension (nx*ny*nz,2)
+    !             cutoff function to use for the constraints  
+    !     - diff   : logical
     !             if .true., calculate the change of this quantity w.r.t. to the
     !             previous iteration instead of the CURRENT value.
     ! Ouput:
     !     - pot : the contribution to the single-particle potentials
     !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: cutoff(mv,2)
     logical, intent(in)   :: diff
     integer               :: it
     real(KIND=dp)         :: pot(mv,2), fac
@@ -2615,7 +2610,7 @@ $NTR endif
 ! Cutoff business
 !===============================================================================
 
-  subroutine RutzCutOff(R)
+  function RutzCutOff(R) result(cutoff)
     !---------------------------------------------------------------------------
     ! This function computes the density cut-off function for the computation of
     ! the multipole moments. Multipole constraints should be computed using a
@@ -2651,6 +2646,7 @@ $NTR endif
     !
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target :: R
+    real(KIND=dp), target                   :: Cutoff(nx*ny*nz,2)
 
     real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
     real(KIND=dp)  :: InterX,InterY,InterZ, Distance
@@ -2659,7 +2655,6 @@ $NTR endif
     real(KIND=dp), allocatable, target :: real_rho(:,:)
     real(KIND=dp), pointer             :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
 
-    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
 #if(PASTA >= 1)
     ! This fails when the density is not a nicely isolated nuclear cluster, i.e. when
     ! doing pasta calculations!
@@ -2780,9 +2775,9 @@ $NTR endif
       Cut_3D(:,:,:,it) = 1.0d0/(1.0d0 + exp( (DeltaR - radd)/acut)  )
     enddo
     return
-  end subroutine RutzCutOff
+  end function RutzCutOff
 
-  subroutine StandardCutoff(R)
+  function StandardCutoff(R) result(cutoff)
     !---------------------------------------------------------------------------
     ! This subroutine calculates a cutoff function in a density independent way.
     !        exp(-d)/(1+exp(-d))  if d > 0
@@ -2792,6 +2787,7 @@ $NTR endif
     !
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target :: R
+    real(KIND=dp), target                   :: cutoff(nx*ny*nz,2)
     real(kind=dp)                           :: X,Y,Z,d, trash
     integer                                 :: i,j,k
     real(KIND=dp), pointer                  :: cut_3D(:,:,:,:)
@@ -2799,7 +2795,6 @@ $NTR endif
     ! Trash statement to make the compiler not complain about unused variables
     trash = R%D_I_I(1,1)
 
-    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
     cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
     
     do k=1,nz
@@ -2818,20 +2813,21 @@ $NTR endif
       enddo
     enddo
 
-  end subroutine StandardCutoff
+  end function StandardCutoff
 
-  subroutine NoCutoff(R)
+  function NoCutoff(R) result(cutoff)
     !---------------------------------------------------------------------------
     ! This subroutine sets the cutoff function to 1 everywhere.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target  :: R
+    real(KIND=dp)                            :: cutoff(nx*ny*nz,2)
     real(KIND=dp)                            :: trash
-    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
+
     Cutoff = 1.0d0
 
     trash = R%D_I_I(1,1) ! statement to stop the compiler complaining about 
                          ! unused variables.
-  end subroutine NoCutoff
+  end function NoCutoff
 !===============================================================================
 ! Read/write moments from file
 !===============================================================================
@@ -3134,7 +3130,6 @@ $NTR endif
 
   subroutine clean_moments
 
-    if(allocated(Cutoff))         deallocate(Cutoff)
     nullify(Root)
 
   end subroutine clean_moments

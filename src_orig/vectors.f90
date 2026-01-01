@@ -74,7 +74,8 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExc
     real(kind=dp), allocatable :: Constraint_I_I(:,:)
     !  Cranking constraints: a current-like (jpot) and a spin-like (spot)
     real(kind=dp), allocatable :: jpot(:,:,:), spot(:,:,:)
-
+    !  Cutoff function to make the constraint problem smoother
+    real(KIND=dp), allocatable :: constraint_cutoff(:,:)
  end type PotentialVector
 
  !---------------------------------------------------------------------------

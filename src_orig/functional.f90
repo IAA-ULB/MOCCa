@@ -564,9 +564,20 @@ $ADD_POTENTIALS
     F%ExchangePotential = F1%ExchangePotential + F2%ExchangePotential
   
     if(allocated(F1%Foldedcoul)) then
-        F%Foldedcoul      = F1%Foldedcoul     + F2%Foldedcoul
-        F%Foldedexchange  = F1%Foldedexchange + F2%Foldedexchange
+      F%Foldedcoul      = F1%Foldedcoul     + F2%Foldedcoul
+      F%Foldedexchange  = F1%Foldedexchange + F2%Foldedexchange
     endif
+
+    ! Additions for constraining potentials 
+    F%Constraint_I_I = F1%Constraint_I_I + F2%Constraint_I_I
+    F%spot           = F1%spot           + F2%spot
+    F%jpot           = F1%jpot           + F2%jpot
+
+    ! The one thing that is not well-defined when adding two potentialvectors
+    ! is what should happen to the cutoff function; without a better idea, I
+    ! simply take the average
+    F%constraint_cutoff = 0.5d0 * (F1%constraint_cutoff + F2%constraint_cutoff)
+
 end function Add_potentialvector
 
 function multiply_potentialvector(a, F1) result(F)
@@ -594,6 +605,15 @@ $MULTIPLY_POTENTIALS
       F%Foldedcoul      = a*F1%Foldedcoul     
       F%Foldedexchange  = a*F1%Foldedexchange 
     endif
+
+    ! Multiplication for constraining potentials 
+    F%Constraint_I_I = a*F1%Constraint_I_I 
+    F%spot           = a*F1%spot           
+    F%jpot           = a*F1%jpot           
+
+    ! The constraint cutoff is NOT multiplied!
+    F%constraint_cutoff = 0.5d0 * F1%constraint_cutoff
+    
 end function multiply_potentialvector
 
 !  function calcRouth_onthefly(Rin, Fin) result(routh)
@@ -1512,9 +1532,15 @@ $CALCPOTENTIALS
 
     !--------------------------------------------------------------------------
     ! Calculate the constraining potentials
-    F%Constraint_I_I = constraints_sph_elmult(.false.)
-    F%jpot           = crank_current_potential()
-    F%spot           = crank_spin_potential()
+    !---------------------------------------------------------------------------
+    ! First, we need to calculate the cutoff function
+    call start_timer(T_moment_cutoff)
+    F%constraint_cutoff = CompCutoff(R)
+    call stop_timer(T_moment_cutoff)
+
+    F%Constraint_I_I = constraints_sph_elmult(F%constraint_cutoff,.false.)
+    F%jpot           = crank_current_potential(F%constraint_cutoff)
+    F%spot           = crank_spin_potential(F%constraint_cutoff)
     call stop_timer(T_potentials)
 
   end function calcPotentials
@@ -1556,33 +1582,8 @@ $CALCPOTENTIALS
     dFs  = calc_perturbed_potentials_oneoff(R,dRs)
     dFa  = calc_perturbed_potentials_oneoff(R,dRa)
 
-    !print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
     call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
-    !print *, 'SOLVING ANTISYMMETRIC PART'
     call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
-
-    !call print_maxval('F_I_I', dFs%F_I_I, dFa%F_I_I)
-    !call print_maxval('F_Nm_Nm', dFs%F_Nm_Nm, dFa%F_Nm_Nm)
-
-    !call print_maxval('F_I_Sx', dFs%F_I_S(:,1,:), dFa%F_I_S(:,1,:))
-    !call print_maxval('F_I_Sy', dFs%F_I_S(:,2,:), dFa%F_I_S(:,2,:))
-    !call print_maxval('F_I_Sz', dFs%F_I_S(:,3,:), dFa%F_I_S(:,3,:))
-
-    !call print_maxval('G_I_Nx', dFs%G_I_N(:,1,:), dFa%G_I_N(:,1,:))
-    !call print_maxval('G_I_Ny', dFs%G_I_N(:,2,:), dFa%G_I_N(:,2,:))
-    !call print_maxval('G_I_Nz', dFs%G_I_N(:,3,:), dFa%G_I_N(:,3,:))
-
-    !call print_maxval('G_I_NS', dFs%G_I_NS, dFa%G_I_NS)
-    
-    !print *, 'MAXVAL dRs Re', maxval(ABS(DBLE(dRs%chargedensity)))
-    !print *, 'MAXVAL dRs Im', maxval(ABS(AIMAG(dRs%chargedensity)))
-    !print *, 'MAXVAL dRa Re', maxval(ABS(DBLE(dRa%chargedensity)))
-    !print *, 'MAXVAL dRa Im', maxval(ABS(AIMAG(dRa%chargedensity)))
-    
-    !print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fc Im', maxval(ABS(AIMAG(dFs%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fa Im', maxval(ABS(AIMAG(dFa%CoulombPotential(:,:,:))))
 
   end subroutine calc_perturbed_potentials
 
@@ -1599,12 +1600,21 @@ $CALCPOTENTIALS
     !      potentials/
     !---------------------------------------------------------------------------
     use Coulombmod       , only : solve_coulomb
+    use moments          , only : compcutoff
     
     type (DensityVector), intent(in) :: R, R_pert
     type (PotentialVector)           :: F
     
 $CALCPOTENTIALS_PERTURBED
-    
+
+    ! Allocate the constraint potentials - but keep them zero for now    
+    F%constraint_cutoff = CompCutoff(R)
+
+    allocate(F%Constraint_I_I(mv,2), F%jpot(mv,3,4), F%spot(mv,3,4)) 
+    F%Constraint_I_I = 0.0d0 !constraints_sph_elmult(F%constraint_cutoff,.false.)
+    F%jpot           = 0.0d0 !crank_current_potential(F%constraint_cutoff)
+    F%spot           = 0.0d0 !crank_spin_potential(F%constraint_cutoff)
+
   end function calc_perturbed_potentials_oneoff
 #endif 
   subroutine combine_potentials(F)
