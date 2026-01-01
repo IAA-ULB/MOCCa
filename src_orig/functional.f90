@@ -181,15 +181,6 @@ module functional
     type(PotentialVector), allocatable :: potential_iterates(:)
     type(PotentialVector), allocatable :: potential_updates(:)
     !===========================================================================
-    ! SINGLE-PARTICLE POTENTIALS associated with other parts of the code
-    ! W.R. 28/01/2023: moved here for consistency reasons.
-    !===========================================================================
-    !-----------------------------------------------------------------------------
-    ! Contribution to the single-particle Hamiltonian by the constraints
-    !  a) Electric multipole => Constraint_I_I => F_I_I
-    !-----------------------------------------------------------------------------
-    real(kind=dp), allocatable, target :: Constraint_I_I(:,:)
-    !===========================================================================
     ! AUTOMATICALLY GENERATED DECLARATIONS
     !===========================================================================
     !---------------------------------------------------------------------------
@@ -806,7 +797,7 @@ end function multiply_potentialvector
     TotalE = TotalE + sum(Rotcorrection) + Vibcorrection + sum(COMCorrection)
 
     ! Total energy from single-particle energies
-    SpwfEnergy = calcspwfenergy()
+    SpwfEnergy = calcspwfenergy(Fin)
 
     ! The free energy
     FreeEner = TotalE
@@ -819,7 +810,7 @@ end function multiply_potentialvector
     &                         - sum(crankenergy_cut)/2.0_dp &
     !                              multipole contribution
     !                               -  lambda_ml < Q_ml > 
-    &                 + sum(Constraint_I_I(:,1:2) * Rin%D_I_I(:,1:2))*dv/2.0_dp
+    &                 + sum(Fin%Constraint_I_I(:,1:2) * Rin%D_I_I(:,1:2))*dv/2.0_dp
 
     call stop_timer(T_energy)
 
@@ -1519,6 +1510,11 @@ $CALCPOTENTIALS
       enddo
     endif
 
+    !--------------------------------------------------------------------------
+    ! Calculate the constraining potentials
+    F%Constraint_I_I = constraints_sph_elmult(.false.)
+    F%jpot           = crank_current_potential()
+    F%spot           = crank_spin_potential()
     call stop_timer(T_potentials)
 
   end function calcPotentials
@@ -1654,9 +1650,7 @@ $CALCPOTENTIALS_PERTURBED
     type(PotentialVector), intent(inout) :: F
 
     ! Add the contribution from the constraints on the multipole moments
-    ! This line also sets Constraint_I_I globally!
-    Constraint_I_I = constraints_sph_elmult(.false.)
-    F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+    F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + F%Constraint_I_I(:,1:2)
 
     ! We added stuff to the proton and neutron potentials, we should be
     ! consistent with the isospin 0 and 1 potentials
@@ -1699,11 +1693,11 @@ $CALCPOTENTIALS_PERTURBED
 $TR real(KIND=dp)                        :: trash
 $TR trash = F%F_I_I(1,1) ! to stop compiler complaints when time-reversal is conserved
 !
-$TAUSCALAR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
-$TAUSCALAR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
+$TAUSCALAR $NTR F%F_I_S = F%F_I_S + F%spot 
+$TAUSCALAR $NTR F%G_I_N = F%G_I_N + F%jpot
 
-$TAUTENSOR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
-$TAUTENSOR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
+$TAUTENSOR $NTR F%F_I_S = F%F_I_S + F%spot
+$TAUTENSOR $NTR F%G_I_N = F%G_I_N + F%jpot
 
   end subroutine add_cranking_potentials
 
@@ -2106,7 +2100,6 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     !              Below however, we only act with F_I_I; for the purpose of this
     !              routine we add these potentials together.
     !---------------------------------------------------------------------------
-    ! TODO: add in constraint_I_I to the definition of a potentialvector
     F = Fin
     call combine_potentials(F)
     !---------------------------------------------------------------------------
@@ -2229,15 +2222,19 @@ $PAIRINGACTION
 
   end function delta_action
 
-  function calcspwfenergy() result(spwfenergy)
+  function calcspwfenergy(F) result(spwfenergy)
     !---------------------------------------------------------------------------
     ! Calculates the total energy from the single-particle energies.
-    ! TODO: define inputs!
+    ! 
+    !
+    ! Input:
+    !   FF : potentialvector
     !---------------------------------------------------------------------------
-
     use wavefunctions
     use moments
+    use vectors 
 
+    type(PotentialVector), INTENT(IN) :: F
     integer       :: wave
     real(KIND=dp) :: spwfenergy, e_rear
 
@@ -2278,9 +2275,8 @@ $EREAR
     endif
 
     ! Subtract contribution by multipole constraints
-    Constraint_I_I = constraints_sph_elmult(.false.)
     SpwfEnergy = SpwfEnergy - &
-    &          sum(Constraint_I_I(:,1:2) * DBLE(Density%D_I_I(:,1:2)))*dv/2.0_dp
+    &          sum(F%Constraint_I_I(:,1:2) * DBLE(Density%D_I_I(:,1:2)))*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints
     SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp

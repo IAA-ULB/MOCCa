@@ -57,7 +57,9 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: chargedensity(:,:,:)
     !
     !   \mathcal{F} = (F_I_I, F_N_N, ....)
     !-------------------------------------------------------------------------
+    ! Skyrme potentials
 $DECLARATION_POTENTIALS
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Coulomb potentials; both unfolded and folded.
 $COULOMB_REAL    real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
 $COULOMB_REAL    real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
@@ -65,6 +67,14 @@ $COULOMB_REAL    real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchan
 $COULOMB_COMPLEX complex(KIND=dp), allocatable :: CoulombPotential(:,:,:)
 $COULOMB_COMPLEX complex(KIND=dp), allocatable :: ExchangePotential(:,:,:)
 $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Potentials associated with constraints
+    !  Electric multipole => Constraint_I_I => F_I_I
+    real(kind=dp), allocatable :: Constraint_I_I(:,:)
+    !  Cranking constraints: a current-like (jpot) and a spin-like (spot)
+    real(kind=dp), allocatable :: jpot(:,:,:), spot(:,:,:)
+
  end type PotentialVector
 
  !---------------------------------------------------------------------------
