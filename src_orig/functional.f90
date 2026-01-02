@@ -1486,7 +1486,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
-    real(KIND=dp)                               :: radius
+    real(KIND=dp)                               :: radius, J
     integer                                     :: i
 
     call start_timer(T_potentials)
@@ -1542,13 +1542,25 @@ $CALCPOTENTIALS
     F%constraint_cutoff = CompCutoff(R)
     call stop_timer(T_moment_cutoff)
 
-    ! ... then we calculate the Augmented Lagrangian potentials
-    F%Constraint_I_I = constraints_sph_elmult(F%constraint_cutoff,.false.)
+    ! Then we calculate the potentials due to the constrainst
+    ! First, those used directly in the single-particle hamiltonian
+    F%Constraint_I_I = constraints_sph_elmult(F%constraint_cutoff,.false.,.false.)
     F%jpot           = crank_current_potential(F%constraint_cutoff)
     F%spot           = crank_spin_potential(F%constraint_cutoff)
 
-    ! ... and finally those for the feasible projection
-    call feasible_projection_potentials(F) 
+    ! Then, those used in the correction step
+    F%F_Qlm          = constraints_sph_elmult(F%constraint_cutoff,.true. ,.false.)
+    F%F_J = 0.0d0
+    do i=1,3
+      if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
+     
+     if(crank_smooth) then
+      J = TotalAngMom_dens(i)
+     else
+      J = TotalAngMom(i)
+     endif
+     F%F_J(i)= 0.5d0*(J -CrankValues(i))/J2_sp(i)
+   enddo
 
     call stop_timer(T_potentials)
 
@@ -1623,6 +1635,8 @@ $CALCPOTENTIALS_PERTURBED
     F%Constraint_I_I = 0.0d0 !constraints_sph_elmult(F%constraint_cutoff,.false.)
     F%jpot           = 0.0d0 !crank_current_potential(F%constraint_cutoff)
     F%spot           = 0.0d0 !crank_spin_potential(F%constraint_cutoff)
+    F%F_Qlm          = 0.0d0
+    F%F_J            = 0.0d0
 
   end function calc_perturbed_potentials_oneoff
 #endif 
@@ -2954,82 +2968,5 @@ $N1    enddo
     ! Close channel after succesfull IO operations.
     close(chan)
   end function readpotentials_separate
-
-  subroutine feasible_projection_potentials(F) 
-  !-------------------------------------------------------------------------------
-  ! Calculate the potentials to use in the feasible projection for constraints on 
-  !  multipole moments and expectation values of angular momentum.
-  !
-  ! TODO: include formula in documentation!
-  !
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  !
-  ! Input:
-  !
-  ! Output:
-  !     F_Qlm: real array of dimension (mv,2)
-  !            Potential for the feasible projection for multipole moments
-  !     F_J  : real array of dimension (3)
-  !            Cranking multiplier for the feasible projection on angular momentum
-  !-------------------------------------------------------------------------------
-  use moments
-  use vectors 
-
-  type(PotentialVector), intent(inout) :: F
-  type(Moment), pointer           :: Current
-  real(KIND=dp)                   :: O2, value, des, scale,  J, update(mv,2)
-  integer                         :: i, it
-
-  if(.not. allocated(F%F_Qlm)) allocate(F%F_Qlm(mv,2)) 
-  !---------------------------------------------------------------------------
-  ! (a) the potential due to the multipole moments
-  Current  => Root
-  F%F_Qlm    = 0.0_dp
-   
-  do while(associated(Current%Next))
-    Current => Current%next
-   
-    if(Current%ConstraintType.lt.2) cycle
-
-    select case(Current%isoswitch)
-    case(0)
-      Value = sum(Current%Value)                    ! Total value
-      O2    = sum(Current%Squared)                  ! < O^2 >_1b
-    case(1,2)
-      it    = Current%isoswitch
-      Value = Current%Value(it)                     
-      O2    = Current%Squared(it)                   ! < O^2 >_1b
-    end select
-    Des   = Current%Constraint                      ! Desired final value
-    scale = Current%Scalefactor                     ! Scale factor
-    
-    update = 0.0
-    select case(Current%isoswitch)
-    case(0)
-      do it=1,2
-        Update(:,it) = 0.5*(Value-Des)/O2*Current%SpherHarm*scale
-      enddo
-    case(1,2)
-      ! only one nucleon species feels the constraint
-      it = Current%isoswitch
-      Update(:,it) = 0.5*(Value-Des)/O2*Current%SpherHarm*scale
-    end select
-    F%F_Qlm = F%F_Qlm + Update
-  enddo
-   
-   !----------------------------------------------------------------------------
-   ! (b) the potential (= constant in space) due to the cranking constraint
-   F%F_J = 0.0d0
-   do i=1,3
-     if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
-     
-     if(crank_smooth) then
-      J = TotalAngMom_dens(i)
-     else
-      J = TotalAngMom(i)
-     endif
-     F%F_J(i)= 0.5*(J -CrankValues(i))/J2_sp(i) *CrankScaleFactor(i) 
-   enddo
-  end subroutine feasible_projection_potentials
 
 end module functional

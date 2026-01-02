@@ -58,11 +58,6 @@ module cranking
  !------------------------------------------------------------------------------
  real(KIND=dp) :: CrankIntensity(3) = 0.0_dp
  !------------------------------------------------------------------------------
- ! CrankScalefactor: scaling factor for the projection on the feasible subspace
- !                   see subroutine FeasibleProject in evolution.f90
- !------------------------------------------------------------------------------
- real(KIND=dp) :: CrankScaleFactor(3) = 0.0_dp
- !------------------------------------------------------------------------------
  ! Crankenergy:
  !   Energy associated with the cranking constraint in each Cartesian direction,
  !   i.e. CE(i) = - omega_i * <J_i>.
@@ -121,14 +116,12 @@ module cranking
 contains
 
   function check_cranking() result(checked)
-    !---------------------------------------------------------------------------
-    ! Simple function that indicates whether there are active cranking
-    ! constraints requiring projection on the feasible subspace.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !------------------------------------------------------------------------------
+    ! Simple function that indicates whether there are active cranking constraints.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
     !    checked: .false. if no such constraints present, .true. else.
-    !
-    !---------------------------------------------------------------------------
+    !------------------------------------------------------------------------------
     logical :: checked
     integer :: i
 
@@ -186,7 +179,6 @@ $NTR  integer             :: j,c
       CrankValues      = (/ CrankX,CrankY,CrankZ/)
       Omega            = (/ OmegaX,OmegaY,OmegaZ/)
       CrankType        = (/ CrankTypeX, CrankTypeY, CrankTypeZ/)
-      CrankScaleFactor = (/ ScaleX, ScaleY, ScaleZ/)
       CrankIntensity   = (/ IntensityX, IntensityY, IntensityZ/)
     endif
 
@@ -194,7 +186,6 @@ $NTR  integer             :: j,c
     call MPI_Bcast(CrankValues       , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
     call MPI_Bcast(Omega             , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
     call MPI_Bcast(CrankType         , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
-    call MPI_Bcast(CrankScaleFactor  , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
     call MPI_Bcast(CrankIntensity    , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
 #endif
 
@@ -314,10 +305,6 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
     &          '    J_X     = ', f15.3, /,  &
     &          '    J_Y     = ', f15.3, /,  &
     &          '    J_Z     = ', f15.3)
-   31 format ( ' Cranking scale factors: ', /, &
-    &          '    J_X     = ', f15.3, /,  &
-    &          '    J_Y     = ', f15.3, /,  &
-    &          '    J_Z     = ', f15.3)
     4 format ( ' Cranking types: ', /, &
     &          '    J_X     = ', i15, /,  &
     &          '    J_Y     = ', i15, /,  &
@@ -333,7 +320,6 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
       print 21
     endif
     print 3, CrankValues
-    print 31, CrankScaleFactor
     print 4, Cranktype
     if(crank_smooth) then
       print 5

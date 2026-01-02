@@ -71,7 +71,7 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExc
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Potentials associated with constraints
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! a) Augmented Lagrangian potentials
+    ! a) Potentials for inclusion in the single-particle hamiltonian
     !
     !  Electric multipole => Constraint_I_I => F_I_I
     real(kind=dp), allocatable :: Constraint_I_I(:,:)
@@ -80,9 +80,9 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExc
     !  Cutoff function to make the constraint problem smoother
     real(KIND=dp), allocatable :: constraint_cutoff(:,:)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! b) Feasible projection potentials
-    real(kind=dp), allocatable :: F_Qlm(:,:)
-    real(KIND=dp)              :: F_J(3)
+    ! b) Potentials for the correction component of the constraints
+    real(kind=dp), allocatable :: F_Qlm(:,:) ! multipoles 
+    real(KIND=dp)              :: F_J(3)     ! cranking
 
  end type PotentialVector
 

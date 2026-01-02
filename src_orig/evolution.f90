@@ -514,6 +514,14 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
 $N3         &                   hfdddpsi(:,:,:,der_index),                          &
             &                      sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,F)
 
+            ! ... with a separate calculation of the action of the constraint potentials
+            !     associated with the mult_correction part. 
+            hpsi = hpsi - hbar/dt * constraint_correction(                      &
+            &                       hfpsi(:,:,wave)        ,                    &
+            &                       hfdpsi(:,:,:,der_index),                    &
+            &                       sx(:,wave), sy(:,wave), sz(:,wave),         &
+            &                       iso,on_the_fly,F)
+
             if(diagsphamil) then
               ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
               ! calculate
@@ -582,20 +590,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
-
-            ! calculate the enforcing of the constraints - spwf by spwf - to
-            ! not require too much additional memory!
-            constraint_update = apply_feasible_projection(                   &
-            &                    hfpsi(:,:,wave)        ,                    &
-            &                    hfdpsi(:,:,:,der_index),                    &
-            &                    sx(:,wave), sy(:,wave), sz(:,wave),         &
-            &                    iso,on_the_fly,F)
-
-            hfpsi(:,:,wave) = hfpsi(:,:,wave) &
-            ! heavy-ball evolution 
-            &                                 + momentum_updates(:,:,wave)   &
-            ! extra pushes for the constraints
-            &                                 + constraint_update
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)  
           enddo
           si = si + N
         enddo                     !<---- end of the loop over local spwf indices
@@ -1625,13 +1620,31 @@ $N3       &                                         dddmax,                    &
       endif  
   end subroutine IterativeEstimation
 !#endif ! TO renable!
-!===============================================================================
-! Projection on the feasible subspace routine
-!===============================================================================
-  function apply_feasible_projection( psi, dpsi, sx, sy, sz, iso, &
-  &                                   onthefly, F) result(Ppsi)
+
+  function constraint_correction( psi, dpsi, sx, sy, sz, iso,onthefly, F) &
+  &                              result(Ppsi)
     !--------------------------------------------------------------------------
-    ! TODO: describe this routine 
+    ! Calculate the action of a "constraint correction operator" P on a given
+    ! single-particle wavefunction.
+    !
+    !         Ppsi       = - \sum_i [ \epsilon_i O_i ] \psi
+    !           \epsilon_i = 1/2 C ( < O_i > - O^target_i )/( < O_i^2 >_1b)
+    !
+    ! where
+    !           - the index i ranges over all constraints with associated
+    !             one-body operator O_i and targetted value O^target_i. 
+    !           - the O_i can be either multipole moments or angular momentum
+    !             operators
+    !           - < O_i^2 >_1b is the expectation value of the one-body part of 
+    !              the two-body operator O^2_i.
+    !           - C is the cutoff function for constraints.
+    !
+    ! Notes:
+    !           - this routine follows (almost) the same call signature as 
+    !             apply_sphamil - as it is similar in spirit.
+    !           - the correcting potentials - i.e. the relevant part of the
+    !             [\epsilon_i O_i] should have been precalculated in the 
+    !             potential vector F. 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !         psi : real array of dimension (mv,4)
@@ -1648,18 +1661,8 @@ $N3       &                                         dddmax,                    &
     !               the F_Qlm, F_J and constraint_cutoff values of this 
     !               potentialvector should have been precalculated. 
     ! Output:
-    !   Ppsi: real array of dimension (mv,4)
-    !         
-    !           Ppsi       = - \sum_i [ \epsilon_i O_i ] \psi
-    !           \epsilon_i = 1/2 C ( < O_i > - O^target_i )/( < O_i^2 >_1b)
-    !
-    !         Explanation:
-    !           - the index i ranges over all constraints with associated
-    !             one-body operator O_i and targetted value O^target_i. 
-    !           - < O_i^2 >_1b is the expectation value of the one-body part of 
-    !              the two-body operator O^2_i.
-    !           - C is the cutoff function for constraints
-    !         
+    !         Ppsi: real array of dimension (mv,4)
+    !               the evolved single-particle wavefunction.
     !--------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: psi(mv,4)
     real(KIND=dp), intent(inout)      :: dpsi(mv,3,4)
@@ -1695,7 +1698,7 @@ $N3       &                                         dddmax,                    &
       Ppsi(:,k) = - F%constraint_cutoff(:,it) * Ppsi(:,k)      
     enddo
 
-  end function apply_feasible_projection
+  end function constraint_correction
 
   subroutine clean_evolution()
     if(allocated(preconx)) deallocate(preconx)

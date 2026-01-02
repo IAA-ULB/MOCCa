@@ -79,15 +79,12 @@ module moments
 !
 !  For constraints, two options exist for every moment independently
 !  - Augmented Lagrangian with fixed intensity
-!  - Constraints with projection on feasible set
+!  - Augmented Lagrangian with correction term
 !
 !  This is encoded for every multipole moment separately 
 !   (0) No constraint
 !   (1) Augmented Lagrangian
-!   (2) Projection on feasible set
-!
-!  For the moment only the total value of the electric multipole moments can be
-!  constrained. 
+!   (2) Augmented Lagrangian with correction term
 !
 !-------------------------------------------------------------------------------
 !
@@ -119,7 +116,7 @@ module moments
 !    (QuantisationAxis, SecondaryAxis,Permutation)
 !    (3,1, (x,y,z))
 !    (3,2, (y,x,z))
-!    (2,1, (x,z,y))
+!    (2,1, (x,z,y))s
 !    (2,2, (z,x,y))
 !    (1,1, (y,z,x))
 !    (1,2, (z,y,x))
@@ -153,7 +150,7 @@ module moments
       ! Integer controlling the type of constraint on the multipole moment.
       ! 0 - unconstrained
       ! 1 - Augmented Lagrangian
-      ! 2 - Projection on feasible set
+      ! 2 - Augmented Lagrangian with correction term (= default)
       !-------------------------------------------------------------------------
       integer       :: ConstraintType
       !-------------------------------------------------------------------------
@@ -196,17 +193,19 @@ module moments
       ! Value of the constraint on the multipole moment.
       real(KIND=dp) :: Constraint
       !-------------------------------------------------------------------------
-      ! Value of the current value of the Lagrange multiplier
+      ! Current value of the Lagrange multiplier
       real(KIND=dp) :: multiplier, mult_hist
+      ! Correction to the Lagrange multiplier for this constraint in the 
+      !  evolution of the spwfs
+      real(KIND=dp) :: mult_correction, mult_correction_hist
       !-------------------------------------------------------------------------
       ! Deviation of the constraint with respect to the asked for value.
       real(KIND=dp) :: deviation
       !-------------------------------------------------------------------------
       ! (1)  Intensity:   Intensity of the constraint
-      ! (2)  Scalefactor: Factor scaling the FeasibleProjection in evolution.f90
-      ! (3)  Intensityfactor:  Factor scaling the heuristic for the intensity
+      ! (2)  Intensityfactor:  Factor scaling the heuristic for the intensity
       !                        of the constraint
-      real(KIND=dp) :: Intensity, scalefactor, intensityfactor
+      real(KIND=dp) :: Intensity, intensityfactor
       !-------------------------------------------------------------------------
       ! Pointers to the previous and next item in the linked list.
       !-------------------------------------------------------------------------
@@ -806,8 +805,9 @@ $NTR    enddo
     NewMoment%SpherHarm       = 0.0_dp
     NewMoment%Squared         = 0.0_dp
     NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_correction = 0.0_dp
     NewMoment%mult_hist       = 0.0_dp
-    NewMoment%scalefactor     = 1.0_dp
+    NewMoment%mult_correction_hist  = 0.0_dp
     NewMoment%intensity       = 0.0_dp
     NewMoment%intensityfactor = 1.0_dp
     ! Zero these for safety
@@ -889,8 +889,8 @@ $NTR    enddo
     NewMoment%SpherHarm       = 0.0_dp
     NewMoment%Squared         = 0.0_dp
     NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_correction = 0.0_dp
     NewMoment%mult_hist       = 0.0_dp
-    NewMoment%scalefactor     = 1.0_dp
     NewMoment%intensity       = 0.0_dp
     NewMoment%intensityfactor = 1.0_dp
     ! Zero these for safety
@@ -979,13 +979,13 @@ $NTR    enddo
     NewMoment%SpherHarm       = 0.0_dp
     NewMoment%Squared         = 0.0_dp
     NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_correction = 0.0_dp
     NewMoment%mult_hist       = 0.0_dp
-    NewMoment%scalefactor     = 1.0_dp
+    NewMoment%mult_correction_hist  = 0.0_dp
     NewMoment%intensity       = 0.0_dp
     NewMoment%intensityfactor = 1.0_dp
     NewMoment%vectorvalue     = 0.0_dp
     NewMoment%physvectorvalue = 0.0_dp
-
 
     nullify(NewMoment%Calculate)
 
@@ -1604,7 +1604,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
 ! Treatment of constraints, readjustment and contribution to sphamil. 
 !===============================================================================
   
-  function constraints_sph_elmult(cutoff, diff) result(pot)
+  function constraints_sph_elmult(cutoff, correction, diff) result(pot)
     !---------------------------------------------------------------------------
     ! Calculate the contribution to the single-particle potentials associated 
     ! with the constraints on the multipole moments.
@@ -1621,8 +1621,8 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !
     !   sum_i (\lambda^j_i - \lambda^(j-1)_i)  * O_i(r)
     !
-    ! where lambda^j is the CURRENT Lagrange multiplier
-    ! and   lambda^j is the PREVIOUS one.
+    ! where lambda^j     is the CURRENT Lagrange multiplier
+    ! and   lambda^(j-1) is the PREVIOUS one.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -1635,13 +1635,13 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !     - pot : the contribution to the single-particle potentials
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: cutoff(mv,2)
+    logical, intent(in)   :: correction 
     logical, intent(in)   :: diff
     integer               :: it
     real(KIND=dp)         :: pot(mv,2), fac
     type(Moment), pointer :: Current
 
     Current => Root
-
     
     pot = 0.0_dp
     do while(associated(Current%Next))
@@ -1650,12 +1650,20 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       ! Go to the next moment if this moment is not constrained
       if(Current%constrainttype.eq.0) cycle
      
-      if(diff) then 
-        fac = Current%Multiplier - Current%mult_hist
-      else
-        fac = Current%Multiplier 
-      endif
-     
+      if(correction) then
+        if(diff) then 
+          call stp('constraints_sph_elmult does not work with correction = .true. and diff = .true.')
+        else
+          fac = Current%mult_correction
+        endif      
+      else 
+        if(diff) then 
+          fac = Current%Multiplier - Current%mult_hist
+        else
+          fac = Current%Multiplier
+        endif
+      endif 
+
       if(Current%isoswitch .eq. 0) then
         ! Apply the constraint to all species
         do it=1,2
@@ -1671,20 +1679,18 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
   end function constraints_sph_elmult
   
-  subroutine ReadjustAllMoments(ctype)
+  subroutine ReadjustAllMoments()
     !---------------------------------------------------------------------------
-    ! Readjust all the multipole constraints of type ctype
+    ! Adjust the Lagrange multipliers for all constrained multipole moment. 
     !---------------------------------------------------------------------------
-    
     type(Moment), pointer :: Current
-    integer, intent(in)   :: ctype
 
     nullify(Current)
     Current => Root
 
     do while(associated(Current%Next))
-        Current => Current%Next
-        if(Current%constrainttype .eq. ctype)  call Readjust(Current)
+      Current => Current%Next
+      if(Current%constrainttype .ne. 0)  call Readjust(Current)
     enddo
     nullify(Current)
     
@@ -1695,7 +1701,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     ! Subroutine that readjusts the constraint of a certain multipole moment.
     !---------------------------------------------------------------------------
     type(Moment), pointer    :: ToReadjust
-    real(KIND=dp) :: slow, dl
+    real(KIND=dp) :: slow, dl, target, value, weight, C
     integer       :: it
 
    11 format ( '------------------------------------')
@@ -1738,16 +1744,29 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     slow = ReadjustSlowdown
     if(Toreadjust%constrainttype.eq.2) slow = 2.0
 
-    ! Set the new multiplier        
-    ToReadjust%mult_hist = ToReadjust%multiplier
-    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Store the previous values of multipliers
+    ToReadjust%mult_hist            = ToReadjust%multiplier   
+    ToReadjust%mult_correction_hist = ToReadjust%mult_correction
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Set the new multiplier & multiplier correction term
+    target = ToReadjust%Constraint
+    C      = ToReadjust%intensity
     select case(ToReadjust%isoswitch)
     case(0)
-      dl = ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
+      value  =   sum(ToReadjust%Value)
+      weight = 2*sum(ToReadjust%Squared) 
     case(1,2)
       it = ToReadjust%isoswitch
+      value  =   ToReadjust%Value(it)
+      weight = 2*ToReadjust%Squared(it)
+
+      ToReadjust%mult_correction = 0.5d0*(ToReadjust%Constraint-ToReadjust%Value(it))/ToReadjust%Squared(it) 
       dl = ToReadjust%Intensity*(ToReadjust%Constraint -   ToReadjust%Value(it))
     end select
+    ToReadjust%mult_correction = (target - value)/weight
+    dl                         = C * (target - value) + (ToReadjust%mult_correction_hist - ToReadjust%mult_correction)
     ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *  dl 
 
     return
@@ -1769,8 +1788,8 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
   
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType, isoswitch
-    real(KIND=dp)       :: Constraint, iq1=-1000000d0, iq2=-1000000d0, Intensity
-    real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
+    real(KIND=dp)       :: Constraint, iq1=-1000000d0, iq2=-1000000d0
+    real(KIND=dp)       :: Intensity, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
     type(Moment),pointer      ::  Current
@@ -1791,7 +1810,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     &          l,m, Impart,                    & ! Defining the multipole moment 
     &          Constraint,Intensity, ConstraintType, & ! Defining the constraint 
     &          iq1, iq2, Iteration, multfromfile, continue,                    &
-    &          scalefactor, intensityfactor, isoswitch,                        &
+    &          intensityfactor, isoswitch,                                     &
     &          MoreConstraints        ! Signal that more constraints will follow
 
     nullify(Current)
@@ -1869,7 +1888,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       Constraint=0.0_dp         ; MoreConstraints=.false.   
       ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
       iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
-      scalefactor = 1.0d0       ; intensityfactor = 1.0d0
+      intensityfactor = 1.0d0
       isoswitch   = 0
       !-----------------------------------------------------------------------
       ! Actual reading (and checking) of info
@@ -1914,7 +1933,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       call MPI_Bcast(intensity      , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
       call MPI_Bcast(iq1            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
       call MPI_Bcast(iq2            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-      call MPI_Bcast(scalefactor    , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
       call MPI_Bcast(intensityfactor, 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
 
       call MPI_Bcast(constrainttype, 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
@@ -1964,7 +1982,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
           Min_iter_conv = iteration + 5
       endif
       Current%Intensity      = Intensity
-      Current%scalefactor    = scalefactor
       Current%intensityfactor= intensityfactor
       Current%Isoswitch      = isoswitch
 
@@ -2204,12 +2221,15 @@ $NTR endif
       5 format (A2, ' La_{',i2,i2,'}',   49x,  f15.4)
      51 format (A2, ' La_{',i2,i2,'}',    1x,  f15.4)
      52 format (A2, ' La_{',i2,i2,'}',   17x,  f15.4)
-      6 format (A2, ' De_{',i2,i2,'}',   49x,  e15.7) 
-     61 format (A2, ' De_{',i2,i2,'}',    1x,  e15.7) 
-     62 format (A2, ' De_{',i2,i2,'}',   17x,  e15.7) 
+      6 format (A2, ' Lc_{',i2,i2,'}',   49x,  f15.4)
+     61 format (A2, ' Lc_{',i2,i2,'}',    1x,  f15.4)
+     62 format (A2, ' Lc_{',i2,i2,'}',   17x,  f15.4)
+      7 format (A2, ' De_{',i2,i2,'}',   49x,  e15.7) 
+     71 format (A2, ' De_{',i2,i2,'}',    1x,  e15.7) 
+     72 format (A2, ' De_{',i2,i2,'}',   17x,  e15.7) 
      
-      7 format (' Neck (z)   ',  4(1x, f15.4) )
-     71 format ('    at z_0 =',  49x, f15.4)
+      8 format (' Neck (z)   ',  4(1x, f15.4) )
+     81 format ('    at z_0 =',  49x, f15.4)
    
     100 format ('Special values')
     select case(ToPrint%l)
@@ -2249,9 +2269,9 @@ $NTR endif
 
     case(-6)
       ! Printing expectation value of neck operator
-      print 7, Toprint%Value(1), Toprint%Value(2), &
+      print 8, Toprint%Value(1), Toprint%Value(2), &
       &        Toprint%ChargeValue, sum(Toprint%Value)
-      print 71, neck_location
+      print 81, neck_location
     !---------------------------------------------------------------------------
     case DEFAULT
       !All other "normal" multipole moments
@@ -2272,16 +2292,19 @@ $NTR endif
         select case(ToPrint%isoswitch)
         case(0)
           print 2,  ToPrint%Constraint
-          print 6, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 7, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
           print 5, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier
+          print 6, ReIm, ToPrint%l, Toprint%m, ToPrint%mult_correction
         case(1)
           print 21,  ToPrint%Constraint
-          print 61, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
-          print 51, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier        
+          print 71, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 51, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier     
+          print 61, ReIm, ToPrint%l, Toprint%m, ToPrint%mult_correction
         case(2)
           print 22,  ToPrint%Constraint
-          print 62, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
-          print 52, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier
+          print 72, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 52, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier !+ ToPrint%mult_correction
+          print 62, ReIm, ToPrint%l, Toprint%m, ToPrint%mult_correction
         end select
       endif
     end select
@@ -3175,69 +3198,50 @@ $NTR endif
     ! list of multipole moments and see whether these degrees of freedom 
     ! were initialized.
     !---------------------------------------------------------------------------
-      type(Moment), pointer :: Current => null()
+    type(Moment), pointer :: Current => null()
 
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Q_{ 1 0}
-      Current => FindMoment(1,0,.false.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Re Q_{ 1 1}
-      Current => FindMoment(1,1,.false.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Im Q_{ 1 1}
-      Current => FindMoment(1,1,.true.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Re Q_{ 2 1}
-      Current => FindMoment(2,1,.false.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Im Q_{ 2 1}
-      Current => FindMoment(2,1,.true.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Im Q_{ 2 2}
-      Current => FindMoment(2,2,.true.)
-      if(associated(Current)) then
-          Current%ConstraintType=2
-          Current%Intensity     =0.0_dp
-          Current%Constraint    =0.0_dp           
-          Current%Deviation     =0.0_dp
-          Current%Multiplier    =0.0_dp
-      endif
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Q_{ 1 0}
+    Current => FindMoment(1,0,.false.)
+    call set_default_constraint_values(Current)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Re Q_{ 1 1}
+    Current => FindMoment(1,1,.false.)
+    call set_default_constraint_values(Current)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Im Q_{ 1 1}
+    Current => FindMoment(1,1,.true.)
+    call set_default_constraint_values(Current)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Re Q_{ 2 1}
+    Current => FindMoment(2,1,.false.)
+    call set_default_constraint_values(Current)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Im Q_{ 2 1}
+    Current => FindMoment(2,1,.true.)
+    call set_default_constraint_values(Current)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Im Q_{ 2 2}
+    Current => FindMoment(2,2,.true.)
+    call set_default_constraint_values(Current)
   end subroutine ConstrainNonPhysicalMoments
 
+  subroutine set_default_constraint_values(C)
+    !--------------------------------------------------------------
+    ! Set default constraint values for a given multipole moment
+    !
+    !--------------------------------------------------------------
+    type(Moment), intent(inout), pointer :: C
+
+    if(associated(C)) then
+      C%ConstraintType=2
+      C%Intensity       = 0.0_dp
+      C%Constraint      = 0.0_dp           
+      C%Deviation       = 0.0_dp
+      C%Multiplier      = 0.0_dp
+      C%mult_correction = 0.0_dp  
+    endif
+
+  end subroutine set_default_constraint_values 
 !===============================================================================
 end module 

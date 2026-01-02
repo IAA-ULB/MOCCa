@@ -137,22 +137,21 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     !
     !   Until convergence do
     !   |  1. Calculate matrix elements of h and Delta
-    !   |  2. Evolve the HF-basis with the heavy-ball method
+    !   |  2. Evolve the HF-basis with the selected strategy
     !   |  3. Solve the pairing equations with matrix elements from 1.
     !   |     HF : fill the lowest levels
     !   |     BCS: solve the BCS equations to obtain the occupations
     !   |     HFB: a. solve the HFB equations in the HF-basis
     !   |          b. construct the canonical basis
-    !   |  4. Perform feasible projection if asked for
-    !   |  5. Construct the densities
-    !   |    5b. Update the Lagrange multipliers of the constraints
-    !   |  6. Construct the potentials
-    !   |     (including the contributions to F_I_I by Coulomb interaction 
-    !   |      and any multipole constraints)
-    !   |  7. Print iteration info
+    !   |  4. Construct the densities
+    !   |    4b. Update the Lagrange multipliers of the constraints
+    !   |  5. Construct the potentials
+    !   |     - Skyrme 
+    !   |     - Coulomb
+    !   |     - constraints
+    !   |  6. Print iteration info
     !   |_____________________________
     !
-    ! TODO: correct this documentation
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   None.
@@ -325,17 +324,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(follow_com) call adapt_com(Density)
         ! Calculate the value of all multipole moments
         call CalculateMoments(Density, .true.)
-        ! ...and readjust any constraints on them
-        call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
-        call ReadjustAllMoments(2)
         ! Update value of the average angular momentum
         if(check_cranking() .and. .not. crank_smooth) then 
-            call update_spwf_properties_HF()
-            if(PairingType.eq.2) call update_spwf_properties_CAN()
+          call update_spwf_properties_HF()
+          if(PairingType.eq.2) call update_spwf_properties_CAN()
         endif
-        call updateAM(Density, .true.) 
-        ! .... and readjust any constraints on it
         call ReadjustCranking
+
+        ! Adapt all Lagrange multipliers for constrained quantities
+        call adjust_lagrange_multipliers()
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Do a double take when constraints are present: use the updated
@@ -521,7 +518,7 @@ subroutine printsummary(iter, potentials_frozen)
     integer, intent(in)   :: iter
     logical, intent(in)   :: potentials_frozen
     type(Moment), pointer :: current, part
-    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
+    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ, dLc
     character(len=1)      :: t, spec
 
     1 format (86('-'))
@@ -536,7 +533,7 @@ subroutine printsummary(iter, potentials_frozen)
    43 format (' Epasta= ', f20.10,2x, 'DEpasta= ', e12.5)
 #endif
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
-    &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
+    &          'L = ',es12.5,2x,' dL = ', es8.1, 2x, 'Lc = ',es12.5,2x,' dLc = ', es8.1, 2x, 'dev = ', es8.1)
 
     6 format (' dmun  = ', es8.1, 4x, '  dmup= ', es8.1)
     7 format (' dN    = ', es8.1, 4x, '  dZ  = ', es8.1)
@@ -577,7 +574,8 @@ subroutine printsummary(iter, potentials_frozen)
       Current => Current%next
 
       if((Current%constrainttype .ne. 0) .or. (Current%l .eq. 2)) then
-        dL = Current%multiplier - Current%mult_hist
+        dL  = Current%multiplier - Current%mult_hist
+        dLc = Current%mult_correction - Current%mult_correction_hist
         if(Current%Impart) then
           t = 'I'
         else
@@ -613,7 +611,7 @@ subroutine printsummary(iter, potentials_frozen)
           end select
         end select
         print 5, t, Current%l, Current%m, spec, val, &
-          &         dQ, Current%multiplier, dL, dev
+          &         dQ, Current%multiplier, dL, Current%mult_correction, dLc, dev
       endif
     enddo
 
@@ -828,7 +826,6 @@ subroutine initialize_all_timers(fam)
    call add_timer('Pairing gaps '               , T_gaps)
    call add_timer('Multipole moments '          , T_moments)
    call add_timer('Multipole moments cutoff'    , T_moment_cutoff)
-   call add_timer('Feas. Proj. step '           , T_feasible)
    call add_timer('Spwf angular momentum '      , T_spwfangmom)
    call add_timer('Charge density folding'      , T_chargedensity)
    call add_timer('Collective MOIs'             , T_collective_moi)
@@ -857,9 +854,19 @@ subroutine initialize_all_timers(fam)
       call add_timer('Anti \delta h'            , T_spme_perturbed_asym)
    endif
 
-
-
 end subroutine initialize_all_timers
+
+subroutine adjust_lagrange_multipliers()
+  !----------------------------------------------------------------------------
+  ! Update all Lagrange multipliers for constrained quantities.
+  !----------------------------------------------------------------------------
+
+  use cranking, only: ReadjustCranking
+  use moments, only: ReadjustAllMoments
+
+  call ReadjustAllMoments()
+  call ReadjustCranking()
+end subroutine adjust_lagrange_multipliers
 
 subroutine cleanupthemess()
   !-----------------------------------------------------------------------------
