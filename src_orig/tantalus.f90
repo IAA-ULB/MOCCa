@@ -861,10 +861,11 @@ subroutine adjust_lagrange_multipliers()
   ! Update all Lagrange multipliers for constrained quantities.
   !----------------------------------------------------------------------------
 
+  use evolution, only : dt, hbar
   use cranking, only: ReadjustCranking
   use moments, only: ReadjustAllMoments
 
-  call ReadjustAllMoments()
+  call ReadjustAllMoments(dt/hbar)
   call ReadjustCranking()
 end subroutine adjust_lagrange_multipliers
 

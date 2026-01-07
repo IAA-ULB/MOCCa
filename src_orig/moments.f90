@@ -1679,28 +1679,30 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
   end function constraints_sph_elmult
   
-  subroutine ReadjustAllMoments()
+  subroutine ReadjustAllMoments(alpha)
     !---------------------------------------------------------------------------
     ! Adjust the Lagrange multipliers for all constrained multipole moment. 
     !---------------------------------------------------------------------------
     type(Moment), pointer :: Current
+    real(KIND=dp), intent(in) :: alpha
 
     nullify(Current)
     Current => Root
 
     do while(associated(Current%Next))
       Current => Current%Next
-      if(Current%constrainttype .ne. 0)  call Readjust(Current)
+      if(Current%constrainttype .ne. 0)  call Readjust(Current, alpha)
     enddo
     nullify(Current)
     
   end subroutine ReadjustAllMoments
   
-  subroutine Readjust(ToReadjust)
+  subroutine Readjust(ToReadjust, alpha)
     !---------------------------------------------------------------------------
     ! Subroutine that readjusts the constraint of a certain multipole moment.
     !---------------------------------------------------------------------------
     type(Moment), pointer    :: ToReadjust
+    real(KIND=dp), intent(in) :: alpha
     real(KIND=dp) :: slow, dl, target, value, weight, C
     integer       :: it
 
@@ -1742,7 +1744,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     endif
     
     slow = ReadjustSlowdown
-    if(Toreadjust%constrainttype.eq.2) slow = 2.0
+    if(Toreadjust%constrainttype.eq.2) slow = 1.0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Store the previous values of multipliers
@@ -1761,12 +1763,9 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       it = ToReadjust%isoswitch
       value  =   ToReadjust%Value(it)
       weight = 2*ToReadjust%Squared(it)
-
-      ToReadjust%mult_correction = 0.5d0*(ToReadjust%Constraint-ToReadjust%Value(it))/ToReadjust%Squared(it) 
-      dl = ToReadjust%Intensity*(ToReadjust%Constraint -   ToReadjust%Value(it))
     end select
     ToReadjust%mult_correction = (target - value)/weight
-    dl                         = C * (target - value) + (ToReadjust%mult_correction_hist - ToReadjust%mult_correction)
+    dl                         = 2 * C * (target - value) + (ToReadjust%mult_correction_hist - ToReadjust%mult_correction)/alpha
     ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *  dl 
 
     return
