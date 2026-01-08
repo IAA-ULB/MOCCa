@@ -1679,32 +1679,91 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
   end function constraints_sph_elmult
   
-  subroutine ReadjustAllMoments(alpha)
+  subroutine ReadjustAllMoments(R, alpha)
     !---------------------------------------------------------------------------
     ! Adjust the Lagrange multipliers for all constrained multipole moment. 
+    !
+    ! Input:
+    !    - R     : Density vector
+    !    - alpha : size of the gradient step
+    !
     !---------------------------------------------------------------------------
-    type(Moment), pointer :: Current
-    real(KIND=dp), intent(in) :: alpha
+    type(Moment), pointer      :: Qlm_i, Qlm_j
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp), intent(in)  :: alpha ! UNUSED AT THE MOMENT
+    real(KIND=dp), allocatable :: K(:,:)
+    real(KIND=dp)              :: target, value, weight, C
+    integer                    :: i,j, it
 
-    nullify(Current)
-    Current => Root
-
-    do while(associated(Current%Next))
-      Current => Current%Next
-      if(Current%constrainttype .ne. 0)  call Readjust(Current, alpha)
+    ! Initialize the intensity parameters for all constrained moments
+    Qlm_i => Root
+    do while(associated(Qlm_i%Next))
+      Qlm_i => Qlm_i%Next
+      if(Qlm_i%constrainttype .ne. 0) call initialize_intensity(Qlm_i)
     enddo
-    nullify(Current)
-    
+
+    ! Calculate the correlation matrix between constraints
+    K = calc_matrix_K(R) 
+
+    Qlm_i => Root
+    i = 0
+    do while(associated(Qlm_i%Next))
+      Qlm_i => Qlm_i%Next
+      if(Qlm_i%constrainttype .eq. 0) cycle 
+      i = i + 1
+
+      target = Qlm_i%Constraint
+      C      = Qlm_i%intensity
+      select case(Qlm_i%isoswitch)
+      case(0)
+        value  =   sum(Qlm_i%Value)
+      case(1,2)
+        it = Qlm_i%isoswitch
+        value  =   Qlm_i%Value(it)
+      end select
+
+      ! Adjust the Lagrange multiplier based on the moment itself
+      Qlm_i%Multiplier =  Qlm_i%Multiplier + 2 * C * (target - value) 
+
+      ! ... and now adjust the mult_correction value based on the values of
+      !     all of the other constrained multipole moments!
+      Qlm_i%mult_correction = 0.0d0
+
+      Qlm_j => Root
+      j     = 0
+      do while(ASSOCIATED(Qlm_j%next)) 
+        Qlm_j => Qlm_j%Next
+        if(Qlm_j%constrainttype .eq. 0) cycle 
+        j = j + 1
+
+        target = Qlm_j%Constraint
+        C      = Qlm_j%intensity
+        select case(Qlm_j%isoswitch)
+        case(0)
+          value  =   sum(Qlm_j%Value)
+          weight = 0.5d0*K(i,j) 
+        case(1,2)
+          call stp('ISOSWITCH != 0 is not yet implemented.')
+        end select
+          
+        print *, i,j, weight, target, value, weight*(target - value)      
+        Qlm_i%mult_correction = Qlm_i%mult_correction + weight*(target - value)       
+      enddo
+    enddo
+
   end subroutine ReadjustAllMoments
   
-  subroutine Readjust(ToReadjust, alpha)
+  subroutine initialize_intensity(Qlm)
     !---------------------------------------------------------------------------
-    ! Subroutine that readjusts the constraint of a certain multipole moment.
+    ! Subroutine that initializes the intensity parameter of a certain
+    ! multipole moment constraint.
+    ! 
+    ! Input:
+    !        Qlm : multipole moment to initialize
+    !
     !---------------------------------------------------------------------------
-    type(Moment), pointer    :: ToReadjust
-    real(KIND=dp), intent(in) :: alpha
-    real(KIND=dp) :: slow, dl, target, value, weight, C
-    integer       :: it
+    type(Moment) :: Qlm
+    integer      :: it
 
    11 format ( '------------------------------------')
    12 format ( ' Constraint on Q_{ ', 2i2, ' has no ')
@@ -1713,63 +1772,197 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
    15 format ( ' Scaling    :', 1es12.5)
    16 format ( ' Final value:', 1es12.5)
 
-    if(ToReadjust%ConstraintType.eq.0) then
-      call stp('Moment is not constrained, but still gets readjusted!')
-    endif
-
-    ! Augmented Lagrangian readjustment
-    if(ToReadjust%Intensity .eq. 0.0) then
+    if(Qlm%Intensity .eq. 0.0) then
       ! Find suitable intensity, if none was found before
-      select case(ToReadjust%isoswitch)
+      select case(Qlm%isoswitch)
       case(0)
-        ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
+        Qlm%Intensity = 1d0/sum(Qlm%Squared) 
       case(1,2)
-        it = ToReadjust%isoswitch
-        ToReadjust%Intensity = 1d0/ToReadjust%Squared(it) 
+        it = Qlm%isoswitch
+        Qlm%Intensity = 1d0/Qlm%Squared(it) 
       end select
       if(MPI_RANK.eq.0) then
         print 11
-        print 12, ToReadjust%l,ToReadjust%m
+        print 12, Qlm%l, Qlm%m
         print 13
-        print 14, ToReadjust%Intensity
-        print 15, ToReadjust%intensityfactor
+        print 14, Qlm%Intensity
+        print 15, Qlm%intensityfactor
       endif
       
-      ToReadjust%Intensity = ToReadjust%Intensity*ToReadjust%intensityfactor
-
+      Qlm%Intensity = Qlm%Intensity*Qlm%intensityfactor
       if(MPI_RANK.eq.0) then
-        print 16, ToReadjust%Intensity
+        print 16, Qlm%Intensity
         print 11
       endif
     endif
-    
-    slow = ReadjustSlowdown
-    if(Toreadjust%constrainttype.eq.2) slow = 1.0
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Store the previous values of multipliers
-    ToReadjust%mult_hist            = ToReadjust%multiplier   
-    ToReadjust%mult_correction_hist = ToReadjust%mult_correction
+  end subroutine initialize_intensity
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Set the new multiplier & multiplier correction term
-    target = ToReadjust%Constraint
-    C      = ToReadjust%intensity
-    select case(ToReadjust%isoswitch)
-    case(0)
-      value  =   sum(ToReadjust%Value)
-      weight = 2*sum(ToReadjust%Squared) 
-    case(1,2)
-      it = ToReadjust%isoswitch
-      value  =   ToReadjust%Value(it)
-      weight = 2*ToReadjust%Squared(it)
-    end select
-    ToReadjust%mult_correction = (target - value)/weight
-    dl                         = 2 * C * (target - value) + (ToReadjust%mult_correction_hist - ToReadjust%mult_correction)/alpha
-    ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *  dl 
+!  subroutine Readjust(ToReadjust, alpha)
+!    !---------------------------------------------------------------------------
+!    ! Subroutine that readjusts the constraint of a certain multipole moment.
+!    !---------------------------------------------------------------------------
+!    type(Moment), pointer    :: ToReadjust
+!    real(KIND=dp), intent(in) :: alpha
+!    real(KIND=dp) :: slow, dl, target, value, weight, C
+!    integer       :: it
+!
+!    if(ToReadjust%ConstraintType.eq.0) then
+!      call stp('Moment is not constrained, but still gets readjusted!')
+!    endif
+!
+!    call initialize_intensity(ToReadjust)
+!    
+!    slow = ReadjustSlowdown
+!    if(Toreadjust%constrainttype.eq.2) slow = 1.0
+!
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    ! Store the previous values of multipliers
+!    ToReadjust%mult_hist            = ToReadjust%multiplier   
+!    ToReadjust%mult_correction_hist = ToReadjust%mult_correction
+!
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    ! Set the new multiplier & multiplier correction term
+!    target = ToReadjust%Constraint
+!    C      = ToReadjust%intensity
+!    select case(ToReadjust%isoswitch)
+!    case(0)
+!      value  =   sum(ToReadjust%Value)
+!      weight = 2*sum(ToReadjust%Squared) 
+!    case(1,2)
+!      it = ToReadjust%isoswitch
+!      value  =   ToReadjust%Value(it)
+!      weight = 2*ToReadjust%Squared(it)
+!    end select
+!    ToReadjust%mult_correction = (target - value)/weight
+!    dl                         = 2 * C * (target - value) !+ (ToReadjust%mult_correction_hist - ToReadjust%mult_correction)/alpha
+!    ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *  dl 
+!
+  !  return
+  !end subroutine Readjust
 
-    return
-  end subroutine Readjust
+  function calc_matrix_K(R) result (K_matrix)
+    !---------------------------------------------------------------------------------
+    ! Calculate the matrix K that determines the correlation between constraints on
+    ! multipole moments. The matrix elements of the INVERSE OF K are the (1-body) parts 
+    ! of the expectation values of the products of the multipole operators associated 
+    ! with the constraints.
+    !      
+    !   K^{-1}_ij = < O_i O_j >_{1-body} = \int dr^3 O_i(r) O_j(r) rho(r)
+    !
+    ! where i,j are indices labelling the constrained multipole operators. 
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !    - R   : Density vector
+    ! 
+    ! Output:
+    !    - K_matrix : array of dimension (n_constraints, n_constraints, 2)
+    !                 K_matrix(:,:,1) : values for \rho_n
+    !                 K_matrix(:,:,2) : values for \rho_p
+    !                 n_constraints : number of constrained multipole moments
+    ! 
+    ! TODO: generalize this to isoswitch != 0 case
+    !
+    !---------------------------------------------------------------------------------
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp), allocatable :: K_matrix(:,:), work(:)
+    type(Moment), pointer :: current, M_i, M_j 
+    integer, allocatable  :: ipiv(:)
+    integer               :: n_constraints, current_i, current_j, i,j, lwork, info
+  
+    Current => Root; M_i => Root
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Count how many multipole constraints are active
+    n_constraints = 0
+    do while(ASSOCIATED(current%next))
+      Current => Current%Next
+      if(Current%constrainttype .ne. 0) n_constraints = n_constraints + 1
+    enddo
+    if(n_constraints .eq.0) return 
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the INVERSE of K
+    allocate(K_matrix(n_constraints,n_constraints))
+    K_matrix  = 0.0d0
+    current_i = 0
+    do while(ASSOCIATED(M_i%next))
+      M_i => M_i%Next
+      if(M_i%constrainttype .eq. 0) cycle
+      current_i = current_i + 1
+      
+      M_j => Root
+      current_j = 0
+      do while(ASSOCIATED(M_j%next))
+        M_j => M_j%Next
+        if(M_j%constrainttype .eq. 0) cycle
+        current_j = current_j + 1
+        K_matrix(current_i,current_j) = MultipoleOverlap(R, M_i, M_j)
+      enddo
+    enddo
+
+    print * , 'K matrix:'
+    do i=1,n_constraints
+      print *, 'K matrix row ', i, K_matrix(i,:)!, K_matrix(i,:,2)
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Ask for a workspace size
+    allocate(work(1), ipiv(N_constraints))
+    call dsytrf('U', N_constraints, K_matrix, N_constraints, ipiv, work,-1, info)
+    lwork = int(work(1))
+    deallocate(work)
+    allocate(work(lwork))
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Factorize the inverse of K
+    call dsytrf('U', N_constraints, K_matrix,N_constraints,ipiv,work,lwork,info)
+    ! Invert the inverse of K
+    call dsytri('U', N_constraints, K_matrix,N_constraints,ipiv,work, info)
+    if(info.ne.0) then
+      call stp('Problem for DSYTRI during the calculation of the K matrix.')
+    endif
+    deallocate(work, ipiv)
+
+    ! Note that after DSYTRI, only the top half of K_matrix is guaranteed to be right
+    ! Thus, we populate the other half here to avoid any surprises
+    do i=1,N_constraints
+      do j=i+1,N_constraints
+        K_matrix(j,i) = K_matrix(i,j)
+      enddo
+    enddo
+
+    print * , 'K matrix:'
+    do i=1,n_constraints
+      print *, 'K matrix row ', i, K_matrix(i,:)!, K_matrix(i,:,2)
+    enddo
+  end function calc_matrix_K
+
+  function MultipoleOverlap(R, M_i, M_j) result(overlap)
+    !---------------------------------------------------------------------------------
+    ! Calculate the 1-body expectation value of a product of two multipole operators.
+    !
+    !   < O_i O_j >_{1-body} = \int dr^3 O_i(r) O_j(r) rho(r)
+    !
+    ! Input:
+    !    - R   : Density vector
+    !    - M_i : first multipole moment
+    !    - M_j : second multipole moment
+    !
+    ! Output:
+    !    - overlap : final value 
+    ! 
+    !---------------------------------------------------------------------------------
+    type(DensityVector), intent(in) :: R
+    type(Moment),        intent(in) :: M_i, M_j
+    real(KIND=dp)                   :: overlap
+    integer                         :: it
+
+    overlap = 0.0d0
+    do it=1,2
+      overlap = overlap + sum( R%D_I_I(:,it) *  M_i%SpherHarm *  M_j%SpherHarm ) * dv
+    enddo
+  end function MultipoleOverlap
 
 !===============================================================================
 ! In/output

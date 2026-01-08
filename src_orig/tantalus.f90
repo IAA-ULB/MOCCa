@@ -332,7 +332,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call ReadjustCranking
 
         ! Adapt all Lagrange multipliers for constrained quantities
-        call adjust_lagrange_multipliers()
+        call adjust_lagrange_multipliers(density)
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Do a double take when constraints are present: use the updated
@@ -856,16 +856,17 @@ subroutine initialize_all_timers(fam)
 
 end subroutine initialize_all_timers
 
-subroutine adjust_lagrange_multipliers()
+subroutine adjust_lagrange_multipliers(R)
   !----------------------------------------------------------------------------
   ! Update all Lagrange multipliers for constrained quantities.
   !----------------------------------------------------------------------------
-
+  use vectors
   use evolution, only : dt, hbar
   use cranking, only: ReadjustCranking
   use moments, only: ReadjustAllMoments
+  type(DensityVector), intent(in) :: R
 
-  call ReadjustAllMoments(dt/hbar)
+  call ReadjustAllMoments(R, dt/hbar)
   call ReadjustCranking()
 end subroutine adjust_lagrange_multipliers
 

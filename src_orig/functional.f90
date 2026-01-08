@@ -1562,7 +1562,7 @@ $CALCPOTENTIALS
      F%F_J(i)= 0.5d0*(J -CrankValues(i))/J2_sp(i)
    enddo
 
-    call stop_timer(T_potentials)
+   call stop_timer(T_potentials)
 
   end function calcPotentials
 
