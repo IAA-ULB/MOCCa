@@ -1692,7 +1692,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     type(DensityVector), intent(in) :: R
     real(KIND=dp), intent(in)  :: alpha ! UNUSED AT THE MOMENT
     real(KIND=dp), allocatable :: K(:,:)
-    real(KIND=dp)              :: target, value, weight, C
+    real(KIND=dp)              :: target, value, weight, C, diff
     integer                    :: i,j, it
 
     ! Initialize the intensity parameters for all constrained moments
@@ -1711,6 +1711,10 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       Qlm_i => Qlm_i%Next
       if(Qlm_i%constrainttype .eq. 0) cycle 
       i = i + 1
+
+      diff = Qlm_i%multiplier - Qlm_i%mult_hist
+      Qlm_i%mult_hist            = Qlm_i%multiplier   
+      Qlm_i%mult_correction_hist = Qlm_i%mult_correction   
 
       target = Qlm_i%Constraint
       C      = Qlm_i%intensity
