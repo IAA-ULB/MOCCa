@@ -861,12 +861,12 @@ subroutine adjust_lagrange_multipliers(R)
   ! Update all Lagrange multipliers for constrained quantities.
   !----------------------------------------------------------------------------
   use vectors
-  use evolution, only : dt, hbar
+  use evolution, only : dt, hbar, d2h
   use cranking, only: ReadjustCranking
   use moments, only: ReadjustAllMoments
   type(DensityVector), intent(in) :: R
 
-  call ReadjustAllMoments(R, dt/hbar)
+  call ReadjustAllMoments(R, dt/hbar, d2h)
   call ReadjustCranking()
 end subroutine adjust_lagrange_multipliers
 

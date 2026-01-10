@@ -1679,7 +1679,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
   end function constraints_sph_elmult
   
-  subroutine ReadjustAllMoments(R, alpha)
+  subroutine ReadjustAllMoments(R, alpha, d2h)
     !---------------------------------------------------------------------------
     ! Adjust the Lagrange multipliers for all constrained multipole moment. 
     !
@@ -1690,7 +1690,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !---------------------------------------------------------------------------
     type(Moment), pointer      :: Qlm_i, Qlm_j
     type(DensityVector), intent(in) :: R
-    real(KIND=dp), intent(in)  :: alpha ! UNUSED AT THE MOMENT
+    real(KIND=dp), intent(in)  :: alpha, d2h ! UNUSED AT THE MOMENT
     real(KIND=dp), allocatable :: K(:,:)
     real(KIND=dp)              :: target, value, weight, C, diff
     integer                    :: i,j, it
@@ -1716,19 +1716,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
       Qlm_i%mult_hist            = Qlm_i%multiplier   
       Qlm_i%mult_correction_hist = Qlm_i%mult_correction   
 
-      target = Qlm_i%Constraint
-      C      = Qlm_i%intensity
-      select case(Qlm_i%isoswitch)
-      case(0)
-        value  =   sum(Qlm_i%Value)
-      case(1,2)
-        it = Qlm_i%isoswitch
-        value  =   Qlm_i%Value(it)
-      end select
-
-      ! Adjust the Lagrange multiplier based on the moment itself
-      Qlm_i%Multiplier =  Qlm_i%Multiplier + 2 * C * (target - value) 
-
       ! ... and now adjust the mult_correction value based on the values of
       !     all of the other constrained multipole moments!
       Qlm_i%mult_correction = 0.0d0
@@ -1753,6 +1740,19 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
         print *, i,j, weight, target, value, weight*(target - value)      
         Qlm_i%mult_correction = Qlm_i%mult_correction + weight*(target - value)       
       enddo
+
+      target = Qlm_i%Constraint
+      C      = Qlm_i%intensity
+      select case(Qlm_i%isoswitch)
+      case(0)
+        value  =   sum(Qlm_i%Value)
+      case(1,2)
+        it = Qlm_i%isoswitch
+        value  =   Qlm_i%Value(it)
+      end select
+
+      ! Adjust the Lagrange multiplier based on the moment itself
+      Qlm_i%Multiplier      =  Qlm_i%Multiplier + 2 * C * (target - value)     
     enddo
 
   end subroutine ReadjustAllMoments
