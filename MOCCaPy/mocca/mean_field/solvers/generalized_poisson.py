@@ -483,6 +483,7 @@ class LLg:
 
     def matvec(self, u):
         self.u.data[:,0] = u
+        axes = 'laplacian' if self.u.mesh.dim >= 1 else 'xx'
         Lu = self.u.differentiate(axes='xx', recompute=True)
         Lu += (self.b/self.a) * self.u.data
         return Lu[:,0]
