@@ -877,43 +877,12 @@ contains
     Rsp(:,:,2) = Rsq_spme()
     Rsp(:,:,3) = 0
 
-    call transform_sp_to_qp(Bogoliubov,  Rsp(:,:,1), Rsp(:,:,2), Rsp(:,:,3), Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3))
+    ! call transform_sp_to_qp(Bogoliubov, Rsp(:,:,1), Rsp(:,:,2), Rsp(:,:,3), Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3))
+    call transform_sp_to_qp(Bogoliubov, O11sp=Rsp(:,:,2), O20qp=Rqp(:,:,1), O11qp=Rqp(:,:,2), O02qp=Rqp(:,:,3))
 
-    ! ! get qpme of F
-    call transform_qp_to_sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3), Rspback(:,:,1), Rspback(:,:,2), Rspback(:,:,3))
-
-
-    ! print *, 'F20 (sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
-    ! enddo
-   
-    ! print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
-    ! enddo
-    ! print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
-
-
-    ! print *, 'F11 (sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
-    ! enddo
-   
-    ! print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
-    ! enddo
-    ! print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
-
-    ! call transform_O11sp_to_O20O11qp(Bogoliubov,  Rsp(:,:,2), Rqp(:,:,1),  Rqp(:,:,2))
-
-    ! get qpme of F
-    ! call transform_O20O11qp_to_O20O11sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2), Rspback(:,:,1), Rspback(:,:,2))
+    ! get qpme of F 
+    ! no need to name the optional arguments if all are used 
+    call transform_qp_to_sp(Bogoliubov, Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3), Rspback(:,:,1), Rspback(:,:,2), Rspback(:,:,3))
 
 
     ! print *, 'F20 (sp) : BLOCK 1 & 2'
