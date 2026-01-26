@@ -1167,6 +1167,97 @@ $TR                                 &   - matmul(transpose(Vb),  matmul(  conjg(
     
   end subroutine transform_O11sp_to_O20O11qp
 
+  subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle transformation of a particle-number conserving 
+    ! Hermitian 1-body operator O11sp. The function returns the 20 and 11 
+    ! components of the operator in the QP-basis.
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! and 
+    !        O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
+    !        O11b =   Ub^{dagger} o11b Ub^* - Vb^{dagger} o11b^T Vb^*
+    ! 
+    ! Note that for a hermitian operator O, the O02 component can be obtained
+    ! trivially form O02 by complex conjugation
+    !        O02b = - Vb^T  o11b Ub   + Ub^T  o11b^T Vb 
+    !             = - O20b^{dagger} = O20b^*
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
+    ! 
+    ! Since the operator O is complex and Hermitian, O11^T=O11^*
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in)     :: Bogo(:,:)
+    complex(KIND=dp), intent(in)  :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+    complex(KIND=dp), intent(out) :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
+    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:)
+    complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
+
+    O20qp = 0._dp
+    O11qp = 0._dp
+    O02qp = 0._dp
+
+    if (fam_verbose > 2) print *, "transform_sp_to_qp"
+
+
+    ! si = O start index for O , sb = start index for bogo (increases twice as fast)
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+      O20b = O20sp(si+1:si+T,si+1:si+T)
+      O11b = O11sp(si+1:si+T,si+1:si+T)
+      O02b = O02sp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+
+      O20qp(si+1:si+T, si+1:si+T)  =   matmul(transpose(Ub),  matmul(        O11b , Vb)) &
+                                &    - matmul(transpose(Vb),  matmul(  conjg(O11b), Ub)) &
+                                &    + matmul(transpose(Ub),  matmul(        O20b , Ub)) &
+                                &    - matmul(transpose(Vb),  matmul(        O02b , Vb)) 
+
+
+      O11qp(si+1:si+T, si+1:si+T)  =   matmul(transpose(Ub),  matmul(        O11b , Ub)) &
+                                &    - matmul(transpose(Vb),  matmul(  conjg(O11b), Vb)) &
+                                &    + matmul(transpose(Vb),  matmul(        O20b , Vb)) &
+                                &    + matmul(transpose(Ub),  matmul(        O02b , Ub)) 
+
+      O02qp(si+1:si+T, si+1:si+T)  = - matmul(transpose(Vb),  matmul(        O11b , Ub)) &
+                                &    + matmul(transpose(Ub),  matmul(  conjg(O11b), Vb)) &
+                                &    - matmul(transpose(Vb),  matmul(        O20b , Vb)) &
+                                &    + matmul(transpose(Ub),  matmul(        O02b , Ub)) 
+
+      si = si +  T
+      sb = sb +2*T
+
+    enddo
+    
+  end subroutine transform_sp_to_qp
+
   subroutine transform_O20O11qp_to_O20O11sp(Bogo, O20qp, O11qp, O20sp, O11sp)
     !---------------------------------------------------------------------------
     ! Performing the inverse quasi-particle transformation from qp basis back to 
@@ -1179,11 +1270,6 @@ $TR                                 &   - matmul(transpose(Vb),  matmul(  conjg(
     !              (  Wb         )                        (  Vb^*   Ub   )
     !    Bogo  =   (     Wb    : )                Wb  =   (              )
     !              (        ..Wb )                        (  Ub^*   Vb   )
-    ! and 
-    !        O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
-    !        O11b =   Ub^{dagger} o11b Ub^* - Vb^{dagger} o11b^T Vb^*
-    !        O02b = - Vb^T        o11b Ub   + Ub^T        o11b^T Vb 
-    !             = - O20b^{dagger}
     ! 
     ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
     ! Hence matrices U and V have block structure in Rz
@@ -1252,6 +1338,89 @@ $TR                             &  + matmul(Vb,  matmul(  conjg(Ob20qp), transpo
     enddo
     
   end subroutine transform_O20O11qp_to_O20O11sp
+
+  subroutine transform_qp_to_sp(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle transformation of a particle-number conserving 
+    ! Hermitian 1-body operator O11sp. The function returns the 20 and 11 
+    ! components of the operator in the QP-basis.
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
+    ! 
+    ! Since the operator O is complex and Hermitian, O11^T=O11^*
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in)     :: Bogo(:,:)
+    complex(KIND=dp), intent(in)  :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+    complex(KIND=dp), intent(out) :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
+    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:)
+    complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
+
+    O20sp = 0._dp
+    O11sp = 0._dp
+    O02sp = 0._dp
+
+    if (fam_verbose > 2) print *, "transform_qp_to_sp"
+
+
+    ! si = O start index for O , sb = start index for bogo (increases twice as fast)
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+      O20b = O20qp(si+1:si+T,si+1:si+T)
+      O11b = O11qp(si+1:si+T,si+1:si+T)
+      O02b = O02qp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+
+      O20sp(si+1:si+T, si+1:si+T)  =   matmul(Ub,  matmul(        O11b , transpose(Vb))) &
+                                &    - matmul(Vb,  matmul(  conjg(O11b), transpose(Ub))) &
+                                &    + matmul(Ub,  matmul(        O20b , transpose(Ub))) &
+                                &    - matmul(Vb,  matmul(        O02b , transpose(Vb))) 
+
+
+      O11sp(si+1:si+T, si+1:si+T)  =   matmul(Ub,  matmul(        O11b , transpose(Ub))) &
+                                &    - matmul(Vb,  matmul(  conjg(O11b), transpose(Vb))) &
+                                &    + matmul(Ub,  matmul(        O20b , transpose(Vb))) &
+                                &    - matmul(Vb,  matmul(        O02b , transpose(Ub))) 
+
+      O02sp(si+1:si+T, si+1:si+T)  = - matmul(Vb,  matmul(        O11b , transpose(Ub))) &
+                                &    + matmul(Ub,  matmul(  conjg(O11b), transpose(Vb))) &
+                                &    - matmul(Vb,  matmul(        O20b , transpose(Vb))) &
+                                &    + matmul(Ub,  matmul(        O02b , transpose(Ub))) 
+
+      si = si +  T
+      sb = sb +2*T
+
+    enddo
+    
+  end subroutine transform_qp_to_sp
 
 
   function Rsq_spme() result (Rsq)
@@ -1378,5 +1547,26 @@ $TR                             &  + matmul(Vb,  matmul(  conjg(Ob20qp), transpo
     print *
     
   end subroutine print_spme_complex
+
+  subroutine print_spme_complex_superblock(A)
+    implicit none
+    complex(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8,2
+
+      N  = HFblocks(B) + HFblocks(B+1) 
+
+      print *, 'BLOCKS ', B ,' & ', B+1
+      do i=si+1,si+N
+        print "(*( '(',g12.5,',',g12.5,')',:))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex_superblock
 
 end module fam

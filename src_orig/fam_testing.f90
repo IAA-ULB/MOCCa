@@ -774,7 +774,7 @@ contains
 
    
     complex(KIND=dp), allocatable :: identity(:,:)
-    complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Fph(:,:,:)
+    complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Rph(:,:,:)
 
     real(KIND=dp), allocatable :: N20(:,:), N11(:,:)
     complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
@@ -868,19 +868,19 @@ contains
 
     print * , 'TEST 2 : perform forth and back Bogo trafo for Rsq: spme -> qpme -> spme'
 
-
-    allocate(Rsp(nwt,nwt,2))     ! contains the spme of a one-body operator F: f20_pq, f11_pq
-    allocate(Rqp(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-    allocate(Rspback(nwt,nwt,2)) ! contains the spme of a one-body operator F: f20_pq, f11_pq
+    allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq
+    allocate(Rqp(nwt,nwt,3))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+    allocate(Rspback(nwt,nwt,3)) ! contains the spme of a one-body operator F: f20_pq, f11_pq
 
     ! define Rsp as the spme of r^2
     Rsp(:,:,1) = 0
     Rsp(:,:,2) = Rsq_spme()
+    Rsp(:,:,3) = 0
 
-    call transform_O11sp_to_O20O11qp(Bogoliubov,  Rsp(:,:,2), Rqp(:,:,1),  Rqp(:,:,2))
+    call transform_sp_to_qp(Bogoliubov,  Rsp(:,:,1), Rsp(:,:,2), Rsp(:,:,3), Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3))
 
-    ! get qpme of F
-    call transform_O20O11qp_to_O20O11sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2), Rspback(:,:,1), Rspback(:,:,2))
+    ! ! get qpme of F
+    call transform_qp_to_sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3), Rspback(:,:,1), Rspback(:,:,2), Rspback(:,:,3))
 
 
     ! print *, 'F20 (sp) : BLOCK 1 & 2'
@@ -908,6 +908,53 @@ contains
     ! do  i=1,T
     !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
     ! enddo
+    ! print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
+
+    ! call transform_O11sp_to_O20O11qp(Bogoliubov,  Rsp(:,:,2), Rqp(:,:,1),  Rqp(:,:,2))
+
+    ! get qpme of F
+    ! call transform_O20O11qp_to_O20O11sp(Bogoliubov,  Rqp(:,:,1),  Rqp(:,:,2), Rspback(:,:,1), Rspback(:,:,2))
+
+
+    ! print *, 'F20 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
+    ! enddo
+
+    ! print *, 'F20 (qp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 1)
+    ! enddo
+
+   
+    ! print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
+    ! enddo
+    print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
+
+
+    ! print *, 'F11 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
+    ! enddo
+
+    ! print *, 'F11 (qp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 2)
+    ! enddo
+
+   
+    ! print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
+    ! enddo
     print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
 
 
@@ -921,33 +968,36 @@ contains
 
 
 
-    ! ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
-    ! ! Note that this is a bit tricky since the previous routines used in absence of pairing 
-    ! ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
-    ! ! true here since even in a trivial Bogo, indexing of the stated can be altered
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
+    ! Note that this is a bit tricky since the previous routines used in absence of pairing 
+    ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
+    ! true here since even in a trivial Bogo, indexing of the states can be altered
     
-    ! print *, '||F20 (proton)||', sum(abs(Fqp(nwn+1:nwt, nwn+1:nwt,1) * Fqp(nwn+1:nwt, nwn+1:nwt,1)))
+    print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
 
-    ! print *, 'F20_k1k2 : BLOCK 5 & 6'
-    ! si =  nwn+1 ! start index of block 5
-    ! T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
+    print *, 'F20_k1k2 : BLOCK 5 & 6'
+    si =  nwn+1 ! start index of block 5
+    T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
 
-    ! do i=si+1,si+T
-    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Fqp(i,si+1:si+T,1)
-    ! enddo
+    do i=si+1,si+T
+      print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
+    enddo
 
 
+    allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+    Rph = 0
 
-    ! ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
-    ! ! the existing particle hole getters. 
-    ! call get_ph_hp_blocks(Rsp, Fph(:,:,1), Fph(:,:,2))
-    ! print *, '||Fph (proton)||', sum(abs(Fph(nwn+1:nwt, nwn+1:nwt,1) * Fph(nwn+1:nwt, nwn+1:nwt,1)))
-    ! call print_spme_complex( Fph(:,:,1))
-    ! print *, 'Fph_ia : BLOCK 5 & 6'
-    ! do i=si+1,si+T
-    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Fph(i,si+1:si+T,1)
-    ! enddo
+
+    ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
+    ! the existing particle hole getters. 
+    call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
+    print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+    ! call print_spme_complex( Rph(:,:,1))
+    print *, 'Fph_ia : BLOCK 5 & 6'
+    do i=si+1,si+T
+      print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
+    enddo
     
     stop
 
