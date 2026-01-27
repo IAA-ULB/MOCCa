@@ -1,0 +1,70 @@
+# 
+# Standard NLO Skyrme functional 
+# -> with time-odd terms
+# -> without tensor terms
+# -> Jmunu and sDs terms optional
+#
+! Particle-hole parameters
+R   t0 ;R x0 ;R t1   ;R  x1 ;R t2 ;R x2 ;R t3;R x3;R t3b;R x3b
+R  wso ;R wsoq ;R sigma;R sigma_b;R CT0 ;R CT1 ;R CSDS0 ;R CSDS1
+! Pairing parameters
+R Vn ;R Vp ;R alpha;R sigmap
+!TERMS
+!---------------------------------------------------------------------------------------------------------------
+! Central, LO terms   
+! Time-even  
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                                   ;   1      ; 0 ; 0
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,1)                                   ;   1     ; 1 ; 1
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,0)                          ; sigma   ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,1)                          ; sigma   ; 0 ; 1 ; 1
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3b,x3b,+1,0,0)                        ; sigma_b ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3b,x3b,+1,0,1)                        ; sigma_b ; 0 ; 1 ; 1
+! Time-odd  
+E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,0)                                   ;   1     ; 0 ; 0
+E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,1)                                   ;   1     ; 1 ; 1
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,0)                          ; sigma   ; 0 ; 0 ; 0
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,1)                          ; sigma   ; 0 ; 1 ; 1
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3b,x3b,+1,1,0)                        ; sigma_b ; 0 ; 0 ; 0
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3b,x3b,+1,1,1)                        ; sigma_b ; 0 ; 1 ; 1
+!---------------------------------------------------------------------------------------------------------------
+! Central, NLO terms
+! Time-even  
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_D_I_I_D_Nm_Nm                ; +1.0/2.0*Cc(t1,x1,+1,0,0)+1.0/2.0*Cc(t2,x2,-1,0,0) ;   1   ; 0 ; 0
+E_D_I_I_D_Nm_Nm                ; +1.0/2.0*Cc(t1,x1,+1,0,1)+1.0/2.0*Cc(t2,x2,-1,0,1) ;   1   ; 1 ; 1
+E_D_I_I_Lap_D_I_I              ; -3.0/8.0*Cc(t1,x1,+1,0,0)+1.0/8.0*Cc(t2,x2,-1,0,0) ;   1   ; 0 ; 0
+E_D_I_I_Lap_D_I_I              ; -3.0/8.0*Cc(t1,x1,+1,0,1)+1.0/8.0*Cc(t2,x2,-1,0,1) ;   1   ; 1 ; 1
+E_C_I_NmSk_C_I_NmSk            ; -CT0                                               ;   1   ; 0 ; 0
+E_C_I_NmSk_C_I_NmSk            ; -CT1                                               ;   1   ; 1 ; 1
+! Time-odd
+E_C_I_Nm_C_I_Nm                ; -1.0/2.0*Cc(t1,x1,+1,0,0)-1.0/2.0*Cc(t2,x2,-1,0,0) ;   1   ; 0 ; 0
+E_C_I_Nm_C_I_Nm                ; -1.0/2.0*Cc(t1,x1,+1,0,1)-1.0/2.0*Cc(t2,x2,-1,0,1) ;   1   ; 1 ; 1
+E_D_I_Sm_Lap_D_I_Sm            ; +CSDS0                                             ;   1   ; 0 ; 0
+E_D_I_Sm_Lap_D_I_Sm            ; +CSDS1                                             ;   1   ; 1 ; 1
+E_D_I_Sm_D_Nk_NkSm             ; +CT0                                               ;   1   ; 0 ; 0
+E_D_I_Sm_D_Nk_NkSm             ; +CT1                                               ;   1   ; 1 ; 1
+!---------------------------------------------------------------------------------------------------------------
+! Spin-orbit NLO
+! Time-even
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_D_I_I_Derm_C_I_NxmSxm        ; -wso/2.0-wsoq/4.0                                  ;   1   ; 0 ; 0
+E_D_I_I_Derm_C_I_NxmSxm        ; -wsoq/4.0                                          ;   1   ; 1 ; 1
+! Time-odd
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_C_I_Nm_Derxm_D_I_Sxm         ; -wso/2.0-wsoq/4.0                                  ;   1   ; 0 ; 0
+E_C_I_Nm_Derxm_D_I_Sxm         ; -wsoq/4.0                                          ;   1   ; 1 ; 1
+!---------------------------------------------------------------------------------------------------------------
+! Pairing interaction 
+! Time-even pairing density
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_DP_I_I_DP_I_I                ; +Vn/4                                              ;   1   ; n ; n
+E_DP_I_I_DP_I_I                ; +Vp/4                                              ;   1   ; p ; p
+E_D_I_I_DP_I_I_DP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
+E_D_I_I_DP_I_I_DP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
+! Time-odd pairing density                  
+! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
+E_CP_I_I_CP_I_I                ; +Vn/4                                              ;   1   ; n ; n
+E_CP_I_I_CP_I_I                ; +Vp/4                                              ;   1   ; p ; p
+E_D_I_I_CP_I_I_CP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
+E_D_I_I_CP_I_I_CP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
