@@ -628,10 +628,10 @@ $TR S = 2 * S ! Time-reversal factor 2
 
     do B = 1, 8
       N =  HFBlocks(B) ; if(N.eq.0) cycle
-      do h = si, si+N
+      do h = si+1, si+N
         occ_h = rho_can(h)
         if(occ_h < 1d-6) cycle
-        do p = si, si+N
+        do p = si+1, si+N
 $TR         occ_p = 2.0d0 - rho_can(p) 
 $NTR        occ_p = 1.0d0 - rho_can(p) 
           if(occ_p < 1d-6) cycle
