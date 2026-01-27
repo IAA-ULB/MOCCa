@@ -1,0 +1,364 @@
+"""
+  This module provides functionality to generate custom code that MOCCaPy
+  can rely on.
+"""
+
+import sys
+# def generate_fortran(heph_input, output_dir):
+#     """
+#       Generate fortran source code for several purposes.
+
+#       Args :
+
+#         heph_input : dictionary
+#           a dictionary containing all relevant input for a Hephaestos run
+
+#           It currently requires the following keys
+#          'func_file' : the file specifying the EDF being generated
+
+#         output_dir : string
+#           directory name where the various .f90 source code
+#           files will be written to.
+#     """
+
+#     return
+
+# def generate_EDF_class(heph_input, output_file):
+#     """
+#       Generate Python source code for several purposes.
+
+#       Args :
+
+#         heph_input : dictionary
+#           a dictionary containing all relevant input for a Hephaestos run
+
+#           It currently requires the following keys
+#          'func_file' : the file specifying the EDF being generated
+
+#         output_file : string
+#           the name to which the new EDF class file will be written
+#     """
+
+#     # Steps
+#     # 1. read the .func file, retaining
+# #     (a) what terms are in the EDF and
+# #     (b) the corresponding coupling constants
+
+#     # 2. gener
+
+#     # An implementation of a specific EDF implementation should have
+#     # - a way to read a parameterisation file
+#     # - a way to calculate coupling constants; results stored inside a param object
+#     # - some way to retain the information on what densities are relevant
+#     # - some way to retain the information on the corresponding potentials
+#     # - a way to calculate the action of sphamil on single-particle wavefunctions
+#     # - a way to calculate the energy of a given DensityVector
+
+#     # Open a template file
+
+#     return
+
+# def build(source_dir):
+#     """
+#       Construct Python interfaces for all fortran source code encountered in
+#       a given source directory.
+
+#       Args:
+#         source_dir : string
+#                     directory containing all relevant .f90 source code files.
+#     """
+
+#     return
+
+def read_functional_from_file(fname):
+    """
+     Read the details of the EDF terms, their structure and coupling constants,
+     from the file named fname.
+
+     Args:
+        fname : string
+            the name of the file containing the functional specification
+
+     Returns:
+        edf_specification : dictionary
+            this contains the following keys
+
+            description : string
+                a short description of the functional, useful for human
+                identification purposes
+            parameters  : list of strings
+                a list of the (names of) EDF parameters
+                e.g. [ 't0', 'x0', ... ]
+            parameter_types : list of strings
+                a list of the types of the parametrs in the parameters list
+                e.g. [ 'real', 'integer', ... ]
+            functional_terms : list of strings
+                a list of functional terms
+                e.g. [ 'E_D_I_I_D_I_I', ....]
+            coupling_constants: list of strings
+                a list of coupling constants
+                e.g. [ 'Cc(t0,x0,+1,0,0)', ... ]
+            isospin_indices : a list of lists of strings
+                a list of the isospin indices of the terms
+                each index can be '0', '1', 'n', or 'p'
+                e.g. [ ['0', '0'], .... ]
+            density_dependence: a list of strings
+                a list of the exponent to apply to the first density in a given term
+                e.g. [ '1', '1', ..., 'beta', ...]
+            extra_calls : a list of strings
+                a list of any extra function calls to be performed when evaluating
+                a coupling constant; mostly useful to accomodate the use of
+                microscopic pairing recipes
+                e.g. ['', '', ..., 'vmicro()', ...]
+
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     An EDF specification file should be composed of
+
+      Part 1: description of the functional (in words)
+      Part 2: enumeration of the parameters
+      Part 3: !TERMS => signalling the end of Part 2 and the start of Part 1
+      Part 4: term specification
+
+     All of these parts can be interspersed with lines starting with '!'; these
+     are comment lines and do not influence the code generation in any way.
+
+      Part 1: description of the type of functional, which will be included in
+              the Hephaestos output.
+              Lines need to start with '#'
+
+      Part 2: enumeration of all parameters that should be read from a .param
+              file. Entries should be separated by ';'.
+
+      Part 3: '!TERMS' (no modification, EVER)
+
+      Part 4: line-by-line specification of all the terms in the functional.
+              These should have the form
+
+              E_[D1]_[D2]_[D3]_[D4] ; C ; alpha ; iso_1 ; iso_2 ; iso_3 ; iso_4
+                 (1)                 (2)  (3)      (4)
+
+              (1)    enumeration of the densities in the term, including the way
+                     they are coupled. Example:
+
+                      E_D_I_Sm_D_I_Sm =  sum_{mu=x/y/z} s_mu(r) s_mu(r)
+
+                     this version of the code allows for
+                      (a) bilinear (two densities)
+                      (b) trilinear
+                      (c) quadrilinear terms
+
+               (2)   coupling constant of the term. Can be given in terms of the
+                     Cc function coded in the Fortran templates.
+
+               (3)   density dependence of the FIRST density, D1.
+                     If alpha != 1, the code will enforce iso_1 to be zero
+
+               (4)   isospin indices of the densities; 0, 1, 'p' or 'n'.
+                     normal densities should have isospin indices (0,1) and
+                     pairing densities should have p/n indices ('p', 'n')
+
+     Special exception: for pairing terms, the code can read ONE ADDITIONAL
+     entry into the row, useable to make the code call an additional extra
+     routine to calculate energies and fields.
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    """
+
+    edf_specification = {}
+    edf_specification['description']        = ''
+    edf_specification['parameters']         = []
+    edf_specification['parameter_types']    = []
+    edf_specification['functional_terms']   = []
+    edf_specification['coupling_constants'] = []
+    edf_specification['isospin_indices']    = []
+    edf_specification['density_dependence'] = []
+    edf_specification['extra_calls']        = []
+
+    termsstart       = 0
+    with open(fname, 'r') as f:
+        for line in f:
+            try:
+                if len(line.split()) == 0:
+                    # Forget about empty lines
+                    continue
+                if line[0] == '#':
+                    #-signs indicate PART 1, description of the EDF
+                    edf_specification['description'] = edf_specification['description'] + line
+                    continue
+                if line[0:6] == '!TERMS' :
+                    # Signal that the parameter specification, PART 2 is over.
+                    termsstart  = 1
+                    continue
+                if line[0] == '!' :
+                    # comment line, don't do anything with it
+                    continue
+
+                if termsstart == 0 :
+                    # Parse the parameters of the functional in PART 2
+                    split = line.split(';')
+                    for s in split:
+                        paramtype, param = identify_param(s)
+                        edf_specification['parameters'].append(param)
+                        edf_specification['parameter_types'].append(paramtype)
+                elif termsstart == 1 :
+                    #  Start the actual terms of the functional in PART 4
+                    split = line.split(';')
+                    edf_specification['functional_terms'].append  (clean(split[0]))
+                    edf_specification['coupling_constants'].append(clean(split[1]))
+                    edf_specification['density_dependence'].append(clean(split[2]))
+
+                    # check how many densities are in this particular term...
+                    densities,_ = parse_edf_term(clean(split[0]))
+                    # ... such that we know how many isospin indices to expect!
+                    iso_list = []
+                    for k in range(3,3+len(densities)):
+                        iso = clean(split[k])
+                    if iso not in ('0', '1', 'p', 'n'):
+                        raise IndexError
+                    iso_list.append(iso)
+                    edf_specification['isospin_indices'].append(iso_list)
+
+                    if len(split)>3+len(densities):
+                        extra = clean(split[-1])
+                        edf_specification['extra_calls'].append(extra)
+                    else:
+                        edf_specification['extra_calls'].append('')
+            except IndexError:
+                print ('Problem reading the following line in the func file.')
+                print (line)
+                sys.exit(1)
+
+    return edf_specification
+
+def identify_param(param_string):
+    """
+    Identify a parameter from a string read from a functional file.
+    More specifically, this function expects a string such as
+
+            R x0
+
+    which means that the code will depend on a REAL (R) parameter named x0.
+    The alternative is
+
+            I sigma
+
+    which indicates an integer parameter sigma.
+
+    Args:
+        param_string: string
+
+    Returns:
+        param_type  : string
+            type of the parameter (integer/real)
+        param       : string
+            name for the parameter
+    """
+    # First, strip sole "R" and "I"
+    if 'R ' == param_string[0:2]:
+        paramtype = 'real'
+    elif 'I ' == param_string[0:2]:
+        paramtype = 'integer'
+    else:
+        print ('Unrecognized parameter type.')
+        print ('Offending entry: ', param_string)
+        sys.exit(1)
+
+    # cleaning routine, strips spaces and newlines
+    param = clean(param_string[2:])
+    return paramtype, param
+
+def clean(a):
+    """
+        Quick'n'dirty string cleaning routine, strips spaces and newlines
+    """
+    return a.replace(' ', '').replace('\n', '')
+
+def parse_edf_term(term):
+    """
+      We deconstruct a term in the functional.
+
+      Args:
+        term : string
+            Specifies a term in the EDF
+
+      Returns:
+        densities: list of strings
+            a list of the densities participating in a term
+        coupling : list of tuples
+            a list of the 'linked' indices in a given term
+
+      Example:
+            E_D_I_Sm_Derxm_C_I_Nxm
+      leads to
+          densities : D_I_S, Der_C_I_N
+          coupling  : [(0,1,2)]
+
+    """
+    # TODO: what is the best way to propagate these 'hardcoded' things into
+    #       the Hephaestos module?
+    sumindices      = ['m', 'k', 'q', 'o', 'l']
+    crossindices    = ['x', 'y', 'z']
+    lapstring       = 'Lap'
+    derstring       = 'Der'
+
+    #  Split the input string along the underscores; extract the densities
+    densities = []
+    temp      = ''
+    split     = term.replace('_DD', '').split('_')
+    for i,_ in enumerate(split):
+        if split[i][0:3] == derstring or split[i] == lapstring:
+            temp  = temp + split[i] + '_'
+
+        if split[i] == 'D' or split[i] == 'C' \
+                           or split[i] == 'DP' or split[i] =='CP':
+            temp = temp + split[i] + '_' + split[i+1] + '_' + split[i+2]
+            densities.append(temp)
+            temp = ''
+    # Find all couplings by looping over all possible accepted summation letters
+    coupling  = []
+    foundx    = []
+    for l in sumindices:
+        c   = ()
+        ind = 0
+        foundx.append(0)
+        for i in range(len(term)):
+            if term[i] == l:
+                c = c+ (ind,)
+            if term[i] in sumindices:
+                ind = ind + 1
+        if len(c) > 0 :
+            coupling.append(c)
+
+    # Don't propagate couplings into the name that are not between
+    # left and right operators
+    for l in sumindices:
+        for i in range(len(densities)):
+            if derstring + l in densities[i] :
+                # Remove the coupling if it involves derivatives
+                densities[i] = densities[i].replace(l, '')
+                for j in range(len(densities)):
+                    densities[j] = densities[j].replace(l, '')
+            for j in range(len(densities)):
+                if i == j:
+                    pass
+                elif l in densities[i] and l in densities[j]:
+                    # Remove the coupling if it is between more densities
+                    densities[i] = densities[i].replace(l, '')
+                    densities[j] = densities[j].replace(l, '')
+                else:
+                    pass
+
+    for l in sumindices:
+        for x in crossindices:
+            for i in range(len(densities)):
+                if derstring + x + l in densities[i] :
+                    # Remove the coupling if it involves derivatives
+                    densities[i] = densities[i].replace(l, '')
+                    for j in range(len(densities)):
+                        densities[j] = densities[j].replace(l, '')
+
+    # Remove any vector coupling indices that might remain
+    for l in crossindices:
+        for i in range(len(densities)):
+            densities[i] = densities[i].replace(l, '')
+
+    return densities, coupling
