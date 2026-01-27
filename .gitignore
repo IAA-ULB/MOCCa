@@ -2,6 +2,7 @@ src/*
 obj/*
 mod/*
 
+build/*
 src_fam/*
 obj_fam/*
 mod_fam/*
