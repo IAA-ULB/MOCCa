@@ -327,7 +327,7 @@ module fam
     complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
 
     integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p
+    real(KIND=dp) :: occ_h, occ_p, strength
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
@@ -344,7 +344,8 @@ module fam
     if (fam_verbose>0) then
       print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
       print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
-      print 3, l,m, omega_fam,  calc_strength()
+      strength =  calc_strength()
+      print 3, l,m, omega_fam, strength
     endif
 
     ! Apply simple linear mixing of X and Y. 
