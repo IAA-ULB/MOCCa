@@ -5,7 +5,7 @@ class EDF:
     def __init__(self, param:Param):
         """
         Args:
-            param :a parameterization object
+            param: a parameterization object
             edf_name : name of the derived EDF class. if provided asserts that the param argument
                 is compatible with the derived EDF class. E.g. if `self.param.func_file == `BXL.func``
                 the derived EDF class must be `BXL`.

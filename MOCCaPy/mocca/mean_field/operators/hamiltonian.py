@@ -223,7 +223,7 @@ def V_WoodsSaxon2D(x, y, V0, ainv, R):
 def V_WoodsSaxon3D(x, y, z, V0, ainv, R):
     return V0 / (1. + np.exp(ainv * (np.sqrt(x * x + y * y + z * z) - R)))
 
-class HamiltonianWoodsSaxon(KineticEnergyOperator):
+class WoodsSaxonHamiltonian(KineticEnergyOperator):
     """A hamiltonian with a Woods-Saxon potential. <hfpsi|h|hfpsi>."""
 
     def __init__(self, mfs, hbm=20.73553000, V0=-50.0, r0=1.25, a=0.5):
@@ -249,7 +249,7 @@ class HamiltonianWoodsSaxon(KineticEnergyOperator):
         }
 
     def __repr__(self):
-        return f"<HamiltonianWoodsSaxon(KineticEnergyOperator)[{self.operand_data.mfs}]>"
+        return f"<WoodsSaxonHamiltonian(KineticEnergyOperator)[{self.operand_data.mfs}]>"
 
     def add_local_terms(self):
         """Create self.O_ket, fill it with the Woods-Saxon potential, and add the kinetic energy."""

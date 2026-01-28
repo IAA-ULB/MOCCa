@@ -25,7 +25,7 @@ from mocca.util import dbg_assert
 #                           (15,23),(23,23),
 #                           (23,30),(30,30)
 #                          ]
-#     h = operators.hamiltonian.HamiltonianWoodsSaxon(hfpsi)
+#     h = operators.hamiltonian.WoodsSaxonHamiltonian(hfpsi)
 #     dsp = DSP(h, alpha=.001)
 #     dsp.step()
 #     dsp.mu = 0.001
@@ -89,7 +89,7 @@ def test_evolve(check=False, debug=False):
         orthogonalize=True, normalize=True
     )
     mfs = SlaterDeterminant(hfpsi)
-    hamiltonian = operators.hamiltonian.HamiltonianWoodsSaxon(mfs)
+    hamiltonian = operators.hamiltonian.WoodsSaxonHamiltonian(mfs)
     dsp = DSP(hamiltonian, alpha=.002)
 
     if debug:
