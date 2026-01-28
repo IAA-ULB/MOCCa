@@ -1,7 +1,6 @@
 import numpy as np
 
 import fill_f90 as f90
-import mocca.util as util
 
 def test_fill():
     n = 10
