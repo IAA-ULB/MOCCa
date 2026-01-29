@@ -1,9 +1,12 @@
 """
-  This module provides functionality to generate custom code that MOCCaPy
-  can rely on.
+  This module provides functionality to generate custom code that MOCCaPy can rely on.
 """
 
 import sys
+
+# TODO: how to properly pass this around?
+spaces_per_indent = 4
+
 # def generate_fortran(heph_input, output_dir):
 #     """
 #       Generate fortran source code for several purposes.
@@ -23,40 +26,93 @@ import sys
 
 #     return
 
-# def generate_EDF_class(heph_input, output_file):
-#     """
-#       Generate Python source code for several purposes.
+def generate_EDF_class(edf_specification, output_file):
+    """
+      Generate Python source code for several purposes.
 
-#       Args :
+      Args :
 
-#         heph_input : dictionary
-#           a dictionary containing all relevant input for a Hephaestos run
+        edf_specification : dictionary
+          a dictionary containing all relevant input for a Hephaestos run
 
-#           It currently requires the following keys
-#          'func_file' : the file specifying the EDF being generated
+          It currently requires the following keys
+         'func_file' : the file specifying the EDF being generated
 
-#         output_file : string
-#           the name to which the new EDF class file will be written
-#     """
+        output_file : string
+          the name to which the new EDF class file will be written
+    """
 
-#     # Steps
-#     # 1. read the .func file, retaining
-# #     (a) what terms are in the EDF and
-# #     (b) the corresponding coupling constants
+    # Relevant keys currently
+    # $DESCRIPTION : a string to place in the comments
+    # $FUNC_NAME   : name of the functional model, i.e. 'BXL' for BXL.func
+    #
 
-#     # 2. gener
+    generated_code = {}
 
-#     # An implementation of a specific EDF implementation should have
-#     # - a way to read a parameterisation file
-#     # - a way to calculate coupling constants; results stored inside a param object
-#     # - some way to retain the information on what densities are relevant
-#     # - some way to retain the information on the corresponding potentials
-#     # - a way to calculate the action of sphamil on single-particle wavefunctions
-#     # - a way to calculate the energy of a given DensityVector
+    generated_code['FUNC_NAME']   = edf_specification['name']
+    generated_code['DESCRIPTION'] = edf_specification['description']
 
-#     # Open a template file
+    coupling_constants_calculation = ''
 
-#     return
+    # Hephaestos first writes some code to shorten the expressions that come after
+    for param in edf_specification['parameters']:
+        coupling_constants_calculation +=  2*spaces_per_indent*' ' \
+                                        +  '%-10s  = self.param.%s\n'%(param,param)
+
+    coupling_constants_calculation += '\n'
+    for cc_fortran, term, iso, den_dep in zip(edf_specification['coupling_constants'], \
+                                              edf_specification['functional_terms']  , \
+                                              edf_specification['isospin_indices']   , \
+                                              edf_specification['density_dependence']):
+        term_string = "'" + term + "'"
+        cc_python = parse_cc_expression(cc_fortran, edf_specification)
+        den_dep_str = "'" + den_dep + "'"
+
+        expression = 2*spaces_per_indent*' ' \
+                   + "self.coupling_constants[(%-40s,%-15s,%-10s)] = %s"%(term_string, tuple(iso), den_dep_str, cc_python)
+        coupling_constants_calculation +=  expression + '\n'
+    # Remove the final newline
+    coupling_constants_calculation   = coupling_constants_calculation[:-1]
+    generated_code['CC_CALCULATION'] = coupling_constants_calculation
+
+    substitute('mocca/hephaestos/templates/EDF_class.py', output_file, generated_code)
+
+    # An implementation of a specific EDF implementation should have
+    # - a way to read a parameterisation file
+    # - a way to calculate coupling constants; results stored inside a param object
+    # - some way to retain the information on what densities are relevant
+    # - some way to retain the information on the corresponding potentials
+    # - a way to calculate the action of sphamil on single-particle wavefunctions
+    # - a way to calculate the energy of a given DensityVector
+
+    return
+
+def parse_cc_expression(fortran_exp, edf_specification):
+    """
+        Args:
+            fortran_exp :
+                fortran-valid expression for the calculation of the
+                coupling constant
+            edf_specification: dictionary
+                complete specification of the entire EDF, required to
+                identify parameters
+        Returns:
+            python_exp:
+                a valid Python expression for the calculation of the
+                coupling constant
+    """
+
+    python_exp = fortran_exp
+    # replace all calls to the functions CC() and CT() with
+    #  CC ->  skyrme_cc
+    #  CT ->  skyrme_ct
+    python_exp = python_exp.replace('Cc(', 'skyrme_cc(')
+    python_exp = python_exp.replace('Ct(', 'skyrme_ct(')
+
+    # Remove all 'd0'
+    python_exp = python_exp.replace('d0', '')
+
+    return python_exp
 
 # def build(source_dir):
 #     """
@@ -164,6 +220,7 @@ def read_functional_from_file(fname):
     """
 
     edf_specification = {}
+    edf_specification['name']               = fname.split('/')[-1].replace('.func', '')
     edf_specification['description']        = ''
     edf_specification['parameters']         = []
     edf_specification['parameter_types']    = []
@@ -212,9 +269,9 @@ def read_functional_from_file(fname):
                     iso_list = []
                     for k in range(3,3+len(densities)):
                         iso = clean(split[k])
-                    if iso not in ('0', '1', 'p', 'n'):
-                        raise IndexError
-                    iso_list.append(iso)
+                        if iso not in ('0', '1', 'p', 'n'):
+                            raise IndexError
+                        iso_list.append(iso)
                     edf_specification['isospin_indices'].append(iso_list)
 
                     if len(split)>3+len(densities):
@@ -316,12 +373,12 @@ def parse_edf_term(term):
     # Find all couplings by looping over all possible accepted summation letters
     coupling  = []
     foundx    = []
-    for l in sumindices:
+    for contracted_index in sumindices:
         c   = ()
         ind = 0
         foundx.append(0)
         for i in range(len(term)):
-            if term[i] == l:
+            if term[i] == contracted_index:
                 c = c+ (ind,)
             if term[i] in sumindices:
                 ind = ind + 1
@@ -330,35 +387,91 @@ def parse_edf_term(term):
 
     # Don't propagate couplings into the name that are not between
     # left and right operators
-    for l in sumindices:
+    for contracted_index in sumindices:
         for i in range(len(densities)):
-            if derstring + l in densities[i] :
+            if derstring + contracted_index in densities[i] :
                 # Remove the coupling if it involves derivatives
-                densities[i] = densities[i].replace(l, '')
+                densities[i] = densities[i].replace(contracted_index, '')
                 for j in range(len(densities)):
-                    densities[j] = densities[j].replace(l, '')
+                    densities[j] = densities[j].replace(contracted_index, '')
             for j in range(len(densities)):
                 if i == j:
                     pass
-                elif l in densities[i] and l in densities[j]:
+                elif contracted_index in densities[i] and contracted_index in densities[j]:
                     # Remove the coupling if it is between more densities
-                    densities[i] = densities[i].replace(l, '')
-                    densities[j] = densities[j].replace(l, '')
+                    densities[i] = densities[i].replace(contracted_index, '')
+                    densities[j] = densities[j].replace(contracted_index, '')
                 else:
                     pass
 
-    for l in sumindices:
+    for contracted_index in sumindices:
         for x in crossindices:
             for i in range(len(densities)):
-                if derstring + x + l in densities[i] :
+                if derstring + x + contracted_index in densities[i] :
                     # Remove the coupling if it involves derivatives
-                    densities[i] = densities[i].replace(l, '')
+                    densities[i] = densities[i].replace(contracted_index, '')
                     for j in range(len(densities)):
-                        densities[j] = densities[j].replace(l, '')
+                        densities[j] = densities[j].replace(contracted_index, '')
 
     # Remove any vector coupling indices that might remain
-    for l in crossindices:
+    for x in crossindices:
         for i in range(len(densities)):
-            densities[i] = densities[i].replace(l, '')
+            densities[i] = densities[i].replace(x, '')
 
     return densities, coupling
+
+def substitute(src, target, dic):
+  """
+    Substitute strings in a template file and write the result to a target file,
+    taking care to place annotations that indicate where substitutions have been made.
+
+    Input:
+        src: Source file (template)
+        target: Target file (generated)
+        dic: Dictionary with substitutions
+
+    Output:
+        None (writes to target file)
+    """
+
+  from string import Template
+
+  with open(src, 'r') as template:
+    with open(target, 'w') as generated:
+        for line in template:
+            newline = Template(line).substitute(dic)
+            #if( newline != line):
+            #    # Some string substitution happened
+            #    generated.write(annotate(newline))
+            #else:
+            # No substitution happened, just copy the line
+            generated.write(newline)
+
+# def annotate(line):
+#     TODO: this function is not suited to Python YET
+#     """
+#     Annotate a line that has undergone substitution with comments indicating
+#     that a substitution has occurred. If the line contains multiple lines,
+#     each line except the first and last will be on its own line with a comment
+#     indicating the start and end of the substitution block.
+#
+#     Input:
+#         line: The line to annotate
+#     Output:
+#         newline: the annotated line.
+#     """
+#     split = line.splitlines()
+#     if(len(split)>1):
+#         newline = split[0] + ' !Hephaestos<<< \n'
+#         for k in range(1, len(split)-1):
+#             newline = newline + split[k] + '\n'
+#         newline = newline + split[-1] + ' !Hephaestos>>> \n'
+#     else:
+#         try:
+#             if('#' == split[0][0]):
+#                 newline = split[0] + ' /* Hephaestos substitution */ \n' # Preprocessor directives have a different comment syntax.
+#             else:
+#                 newline = split[0] + ' ! Hephaestos substitution \n'
+#         except IndexError:
+#             newline = line
+#     return newline

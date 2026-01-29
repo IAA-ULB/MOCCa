@@ -9,7 +9,7 @@ _array_element_pattern = re.compile(r"^(\w+)\(d+\)$")
 
 class Param:
     def __init__(self, param_file: Path|str):
-        """Read EDF parameters from file and store them as attributes of self.
+        """Read Skyrme parameters from file and store them as attributes of self.
 
         Args:
             filepath: Either a Path to a .param file, or a str with the name of the parameterization (without suffix),
