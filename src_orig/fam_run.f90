@@ -8,7 +8,7 @@ program run_FAM
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
   use fam_testing, only : test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
-  use fam_testing, only : test_bogo
+  use fam_testing, only : test_qptrafo
   use gmres 
   use timing
 
@@ -138,7 +138,7 @@ program run_FAM
   ! call run_FAM_tests(X,Y)
 
   ! run some tests on the new qp trafo routines => to be removed when validated
-  call test_bogo()
+  call test_qptrafo()
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
