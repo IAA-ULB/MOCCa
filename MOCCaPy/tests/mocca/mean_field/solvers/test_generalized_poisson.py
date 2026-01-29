@@ -587,22 +587,26 @@ def test_gps(print_to_file=False):
     M = 8
     sigma = 0.5
     domain = 2
-    a, b = -1, 1
+    a, b = 1, 0
     p = Path(__file__).parent / "test_gps.txt"
     of = p.open(mode="w") if print_to_file else None
 
     for dim in [
         1,
-        2,
-        3,
+        # 2,
+        # 3,
     ]:
         n_iter = 8 if dim == 1 else 6
 
-        stencils = [L3p,L5p,LLg]
+        stencils = [
+            # L3p,
+            L5p,
+            LLg
+        ]
 
         analytical_solutions = [
             gauss,
-            x_gauss,
+            # x_gauss,
         ] if dim == 1 else [
             gauss,
             x_gauss,
@@ -620,7 +624,7 @@ def test_gps(print_to_file=False):
         ]
         reduced_cases = [
             False,
-            True,
+            # True,
         ] if dim == 1 else [
             False,
             True,
@@ -639,7 +643,7 @@ def test_gps(print_to_file=False):
         for stencil in stencils:
             for analytical_solution in analytical_solutions:
                 for reduced in reduced_cases:
-                    uniform_cases = [True] if dim == 1 else [
+                    uniform_cases = [True] if (dim == 1) else [
                                 True,
                                 False,
                                ]

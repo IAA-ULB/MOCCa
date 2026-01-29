@@ -37,8 +37,9 @@ class Timer(ContextDecorator):
         """Initialize the Timer object"""
         self.name = name
         self._start_time = None
-        self.timers[name] = [ 0, .0, .0, sys.float_info.max, .0 ]
-        #   [count, sum, ssq, min, max]
+        if name not in Timer.timers:
+            self.timers[name] = [ 0, .0, .0, sys.float_info.max, .0 ]
+            #   [count, sum, ssq, min, max]
 
     def __repr__(self):
         data = self.timers[self.name]
