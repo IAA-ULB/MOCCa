@@ -5,7 +5,7 @@ from mocca.edf import Param
 from mocca.edf.bxl import BXL
 
 project_folder = Path(__file__).parent.parent.parent.parent.parent
-assert project_folder.name == 'tantalus_full'
+#assert project_folder.name == 'tantalus_full'
 
 
 def test_Param0():
