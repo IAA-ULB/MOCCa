@@ -192,7 +192,11 @@ module fam
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the free response of the sp hamiltonian
     if(.not.allocated(dH_free_flat)) then 
-      allocate(dH_free_flat(nwt * nwt))
+      if(pairingtype==0) then
+        allocate(dH_free_flat(nwt * nwt))
+      else
+        allocate(dH_free_flat(3 * nwt * nwt))
+      endif
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -219,6 +223,9 @@ module fam
     if(.not.allocated(drho)) then 
       allocate(drho(nwt,nwt))
       allocate(dkappa_plus(nwt,nwt), dkappa_minus(nwt,nwt))
+      ! todo : do not allocate dkappa in asbence of pairing
+      !        this requires to modify densit_offdiag to optional arguments
+
       ! allocate(dR(2*nwt,2*nwt))
     endif
   
@@ -324,19 +331,32 @@ module fam
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
-    complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
+    complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
 
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p, strength
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
-    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
-    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
-    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
+    if (pairingtype==0) then
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
+      dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
-    ! get the ph and hp subblocks
-    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
+      ! get the ph and hp subblocks of the perturbed sp hamiltonian
+      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+
+    else
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
+      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
+      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
+      dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
+
+      ! transform the perturbed hamiltonian to the qp basis, keeping only the dH20 and dH02 components
+      call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+    endif
 
     ! calculate X and Y from the perturbed dH
     call calculate_XY(dH)
@@ -365,8 +385,16 @@ module fam
     call combine_potentials(dFs)
     call combine_potentials(dFa)
 
-    ! construct the sp hamiltonian
-    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+    if (pairingtype==0) then
+      ! construct the sp hamiltonian in HF basis
+      dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+    else
+      ! construct the sp hamiltonian + pairing fields in HF basis
+      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+    endif
 
     if(fam_verbose > 2) call print_all_fam_spmat()
 
@@ -510,9 +538,16 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
 
     if (fam_verbose > 1) print *, "build_perturbed_densities :: "
 
-    drho = X + transpose(Y)
-    dkappa_plus  = 0  
-    dkappa_minus = 0
+
+    if (pairingtype==0) then 
+      drho = X + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else 
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=transpose(Y), O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+    endif
+
+
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
   end subroutine build_perturbed_densities
@@ -803,10 +838,10 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     else
       ! Define the external field F as the qpme obtained by performing a bogolibov 
       ! transformation and storing the F^20 anf F^02 comnpnents
-      call transform_O11sp_to_O20qp(Bogoliubov, f_LK_spme, f_LK_qpme(:,:,1))
+      call transform_sp_to_qp(Bogoliubov, O11sp=f_LK_spme, O20qp=f_LK_qpme(:,:,1), O02qp=f_LK_qpme(:,:,2))
 
-      ! Assuming that F is Hermitian, F20 = - F02^dagger = F02^*
-      f_LK_qpme(:,:,2) = conjg(f_LK_qpme(:,:,1))
+      ! ! Assuming that F is Hermitian, then F20 = F02^*
+      ! f_LK_qpme(:,:,2) = conjg(f_LK_qpme(:,:,1))
 
       if(fam_verbose > 2) then
         print *, ' f_LK_qpme(:,:,1)'

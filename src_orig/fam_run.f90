@@ -125,14 +125,21 @@ program run_FAM
   endif
 
   !---------------------------------------------------------------------------------
-  ! allocate the single-particle hamiltonians 
-  ! TODO: generalize to HFB Hamiltonian
+  ! allocate the flattend single-particle hamiltonians (+pairing fields)
   if(.not. allocated(dH_flat)) then
-    allocate(dH_flat(nwt*nwt))
+    if(pairingtype==0) then
+      allocate(dH_flat(nwt * nwt))
+    else
+      allocate(dH_flat(3 * nwt * nwt))
+    endif
   endif
 
   if(.not. allocated(dH_flat_next)) then
-    allocate(dH_flat_next(nwt*nwt))
+    if(pairingtype==0) then
+      allocate(dH_flat_next(nwt * nwt))
+    else
+      allocate(dH_flat_next(3 * nwt * nwt))
+    endif
   endif
   
   ! call run_FAM_tests(X,Y)
