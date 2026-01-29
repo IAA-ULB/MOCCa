@@ -5,7 +5,7 @@ import glob
 import pytest
 from pytest import approx
 from mocca.edf.param import Param
-from mocca.hephaestos.hephaestos import read_functional_from_file, generate_EDF_class
+from mocca.hephaestos import read_functional_from_file, generate_EDF_class
 
 func_names = glob.glob('mocca/hephaestos/func_files/*.func')
 
