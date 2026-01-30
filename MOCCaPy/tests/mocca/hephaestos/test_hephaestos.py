@@ -8,7 +8,7 @@ import sys
 from importlib import import_module
 
 from mocca.edf.param import Param
-from mocca.hephaestos import read_functional_from_file, generate_EDF_class
+from mocca.hephaestos import read_functional_from_file, generate_EDF_class, FunctionalGenerator
 
 path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
@@ -18,6 +18,7 @@ func_files = (path2MOCCaPy/'mocca/hephaestos/func_files/').glob('*.func')
 
 
 tmp_folder = path2MOCCaPy/"tests/mocca/hephaestos/tmp"
+tmp_folder.mkdir(exist_ok=True, parents=True)
 sys.path.insert(0, str(tmp_folder))
 
 @pytest.mark.parametrize("func_file", func_files)
@@ -140,6 +141,15 @@ def test_calculate_coupling_constants_NLO():
     assert SLy4.coupling_constants[('E_D_I_I_DP_I_I_DP_I_I', ('0', 'n', 'n'), 'sigmap')]    == approx (  1953.125043655747)
     assert SLy4.coupling_constants[('E_D_I_I_DP_I_I_DP_I_I', ('0', 'p', 'p'), 'sigmap')]    == approx (  1953.125043655747)
 
+
+@pytest.mark.parametrize("func_path", func_files)
+def test_FunctionalGenerator(func_path):
+    # ctor
+    fg = FunctionalGenerator(func_path)
+    # generate
+    fg.generate_module(tmp_folder)
+    # load
+    mod = fg.load()
 
 if __name__ == "__main__":
     test_read_functional_from_file('mocca/hephaestos/func_files/NLO.func')

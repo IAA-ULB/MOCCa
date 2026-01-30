@@ -1,7 +1,7 @@
 """
   This module provides functionality to generate custom code that MOCCaPy can rely on.
 """
-
+from importlib import import_module
 from pathlib import Path
 from string import Template
 
@@ -27,46 +27,101 @@ spaces_per_indent = 4
 
 #     return
 
-def edf_module_name(func_name:str):
+class FunctionalGenerator:
+    """Create a EDF class from a `.func` file or a `.func.json` file.
+
+    Remark:
+        This class wraps the methods provided by Wouter.
+    """
+    def __init__(self, func_path:Path):
+        """
+        Args:
+            func_path : Path to a `.func` file or a `.func.json` file
+        """
+        self.func_path = func_path
+        self.edf_specification = read_functional_from_file(func_path)
+
+    def generate_module(self, location:Path=Path('.')):
+        """Generate a Python module with the EDF class from the specification read in the constructor.
+        Args:
+            location : Path to folder where Python module is written.
+        """
+
+        class_name = edf_class_name(self.edf_specification['func_name'])
+        self.edf_specification['class_name' ] = class_name
+        self.edf_specification['module_name'] = class_name.lower()
+        self.edf_specification['func_path'  ] = self.func_path
+
+        generate_EDF_class(edf_specification=self.edf_specification, location=location)
+
+    def load(self):
+        """Load the python module.
+
+        Returns:
+            a reference to the python module loaded.
+        Raises:
+            ModuleNotFoundError if the python module could not be loaded.
+        """
+        mod = import_module(self.edf_specification['module_name'])
+        return mod
+#--------------------------------------------------------------------------------------------------
+# functions provided by Wouter.
+
+def edf_class_name(func_name:str):
     """
     Args:
         func_name : string name of the .func file (stem, without the extension)
     Returns:
-         string: lowercase, dashes replaced with underscores.
+        string: dashes and blanks replaced with underscores. First character is capitalized
+    Raises:
+        ValueError: if func_name does not start with a alphabetical character.
     """
-    return func_name.replace('-', '_').lower()
+    if func_name[0].isalpha():
+        class_name = func_name[0].upper() + func_name[1:]
+    else:
+        raise ValueError(
+            f"The name of a `.func` file must start with an alphabetical character.\n"
+            f"Otherwise it cannot be converted to a class name. '{func_name}' does not comply."
+        )
+    return class_name.replace('-', '_').replace(' ', '_')
 
 
 def generate_EDF_class(edf_specification, location:Path=Path('.')):
     """
-      Generate Python source code for several purposes.
+    Generate Python source code for several purposes.
 
-      Args :
+    Args :
+        edf_specification : a dictionary containing all relevant input for a Hephaestos run
+            It currently requires the following keys
+            'func_file' : the file specifying the EDF being generated
 
-        edf_specification : dictionary
-          a dictionary containing all relevant input for a Hephaestos run
+        location: Path to the folder where Python module is written.
 
-          It currently requires the following keys
-         'func_file' : the file specifying the EDF being generated
-
-        location
     Remark:
-        output_file : string
-          the name to which the new EDF class file will be written is now
-          automatically generated from the .func filename
+        the original output_file argument is removed because the module name and the class
+        name to which the new EDF class file will be written is now
+        automatically generated from the .func filename
     """
 
     # Relevant keys currently
     # $DESCRIPTION : a string to place in the comments
-    # $FUNC_NAME   : name of the functional model, i.e. 'BXL' for BXL.func
-    #
-    edf_specification['module_name'] = edf_module_name(edf_specification['name'])
+    # $CLASS_NAME  : name of the EDF class, derived froM the name of the `.func` file, agreeing
+    # $FUNC_NAME   : the name of the `.func` file, agreeing
+
+    # with standard Python naming conventions. i.e. 'BXL-N2LO-full' becomes  BXL_N2LO_full.
+
+    if not 'module_name' in edf_specification:
+        class_name = edf_class_name(edf_specification['func_name'])
+        edf_specification['class_name' ] = class_name
+        edf_specification['module_name'] = class_name.lower()
+
     module_path = location / (edf_specification['module_name'] + '.py')
 
     generated_code = {}
 
-    generated_code['FUNC_NAME']   = edf_specification['name']
-    generated_code['DESCRIPTION'] = edf_specification['description']
+    generated_code['FUNC_NAME'  ] = edf_specification['func_name']
+    generated_code['CLASS_NAME' ] = edf_specification['class_name']
+    generated_code['DESCRIPTION'] = '\n'.join(edf_specification['description'])
 
     coupling_constants_calculation = ''
 
@@ -93,10 +148,13 @@ def generate_EDF_class(edf_specification, location:Path=Path('.')):
     coupling_constants_calculation   = coupling_constants_calculation[:-1]
     generated_code['CC_CALCULATION'] = coupling_constants_calculation
 
+    # As it is assumed that the link between a .func file and the Python module
+    # with the corresponding EDF class is unique we do NOT check that the Python module
+    # exists. If it does, it is simply overwritten.
     with open(module_path, mode='w') as f:
         text = substitute('mocca/hephaestos/templates/EDF_class.py', generated_code)
         f.write(text)
-    pass
+
 
     # An implementation of a specific EDF implementation should have
     # - a way to read a parameterisation file
@@ -152,7 +210,7 @@ def read_functional_from_file(fname):
 
      Args:
         fname : string or Path
-            the name of the file containing the functional specification
+            the path to the file containing the functional specification
 
      Returns:
         edf_specification : dictionary
@@ -241,8 +299,8 @@ def read_functional_from_file(fname):
     with open(fpath, 'r') as f:
 
         edf_specification = {
-            'name'               : fpath.stem,
-            'description'        : '',
+            'func_name'          : fpath.stem,
+            'description'        : [],
             'parameters'         : [],
             'parameter_types'    : [],
             'functional_terms'   : [],
@@ -260,12 +318,12 @@ def read_functional_from_file(fname):
                     continue
 
                 if line[0] == '#':
-                    #-signs indicate PART 1, description of the EDF
+                    # '#'-signs indicate PART 1, the tdescription of the EDF
                     if line.startswith('# '):
                         line = line[2:]
                     line = line.strip()
                     if len(line) > 1:
-                        edf_specification['description'] += '\n' + line
+                        edf_specification['description'].append(line)
                     continue
 
                 if line[0:6] == '!TERMS' :
