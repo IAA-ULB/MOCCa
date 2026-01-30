@@ -783,7 +783,30 @@ contains
       
 
     if(pairingtype==0) then
-      print *, 'PairingType = 0 => HF :: Cannot perform QP trafo test. Returning ... '
+      print *, 'PairingType = 0 => HF :: Cannot perform QP trafo test. Printing ph matrix elements'
+      
+      allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
+  
+      ! define Rsp as the spme of r^2
+      Rsp(:,:,1) = 0
+      Rsp(:,:,2) = Rsq_spme()
+      Rsp(:,:,3) = 0
+
+      allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+      Rph = 0
+
+      call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
+      
+      print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+      ! call print_spme_complex( Rph(:,:,1))
+      print *, 'Fph_ia : BLOCK 5 & 6'
+      T = HFblocks(5)+HFblocks(6)
+      do i=nwn+1,nwn+T
+        print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,nwn+1:nwn+T,1)
+      enddo
+
+      print '(99f10.5)', rho_can(nwn+1:nwn+T)
+
       return
     endif
 
@@ -870,9 +893,9 @@ contains
 
     print * , 'TEST 2 : perform forth and back Bogo trafo for Rsq: spme -> qpme -> spme'
 
-    allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq
+    allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
     allocate(Rqp(nwt,nwt,3))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-    allocate(Rspback(nwt,nwt,3)) ! contains the spme of a one-body operator F: f20_pq, f11_pq
+    allocate(Rspback(nwt,nwt,3)) ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
 
     ! define Rsp as the spme of r^2
     Rsp(:,:,1) = 0
@@ -951,13 +974,21 @@ contains
 
     print * , 'TEST * : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
 
+    print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
+
+    print *, 'f11_pq : BLOCK 5 & 6'
+    si =  nwn ! start index of block 5
+    T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
+
+    do i=si+1,si+T
+      print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
+    enddo
+
+
     
     print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
 
     print *, 'F20_k1k2 : BLOCK 5 & 6'
-    si =  nwn+1 ! start index of block 5
-    T = HFblocks(1) + HFblocks(2) ! size of block5 + block6
-
     do i=si+1,si+T
       print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
     enddo
@@ -970,8 +1001,12 @@ contains
     ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
     ! the existing particle hole getters. 
     call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
+
+
     print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+    
     ! call print_spme_complex( Rph(:,:,1))
+    
     print *, 'Fph_ia : BLOCK 5 & 6'
     do i=si+1,si+T
       print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
