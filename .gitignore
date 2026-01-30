@@ -61,6 +61,7 @@ env
 experiments/
 ./MOCCaPy/sandbox/mocca
 ./MOCCaPy/sandbox/shenfun
+MOCCaPy/sandbox/relativity.py
 MOCCaPy/tests/mocca/mesh/png/
 MOCCaPy/design_docs/__marimo__/
 
@@ -79,5 +80,7 @@ MOCCaPy/f90/_build_*/
 MOCCaPy/tests/mocca/mean_field/states/spwf_0.2_0.2_0.2/*.hdf5
 MOCCaPy/tests/mocca/mean_field/states/spwf_0.2_0.2_0.16/*.hdf5
 MOCCaPy/tests/mocca/mean_field/solvers/test_generalized_poisson.py.txt
+MOCCaPy/tests/mocca/hephaestos/tmp/
+
 MOCCaPy/presentations/MOCCa-users-meeting-26.02_files
 MOCCaPy/presentations/MOCCa-users-meeting-26.02.html

@@ -1,9 +1,10 @@
+"""$DESCRIPTION
 """
-$DESCRIPTION
-"""
+
 from mocca.edf.param import Param
 from mocca.edf import EDF
 from mocca.edf.ccfunctions import skyrme_cc, skyrme_ct
+
 
 class $FUNC_NAME(EDF):
     """ A class implementing a functional of the $FUNC_NAME type"""

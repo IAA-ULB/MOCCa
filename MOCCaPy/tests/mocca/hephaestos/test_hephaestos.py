@@ -1,15 +1,26 @@
 """
     PyTest-compatible tests for the hephaestos submodule
 """
-import glob
+from pathlib import Path
 import pytest
 from pytest import approx
+import sys
+from importlib import import_module
+
 from mocca.edf.param import Param
 from mocca.hephaestos import read_functional_from_file, generate_EDF_class
 
-func_names = glob.glob('mocca/hephaestos/func_files/*.func')
+path2MOCCaPy = Path(__file__).parent
+while not path2MOCCaPy.name == 'MOCCaPy':
+    path2MOCCaPy = path2MOCCaPy.parent
 
-@pytest.mark.parametrize("func_file", func_names)
+func_files = (path2MOCCaPy/'mocca/hephaestos/func_files/').glob('*.func')
+
+
+tmp_folder = path2MOCCaPy/"tests/mocca/hephaestos/tmp"
+sys.path.insert(0, str(tmp_folder))
+
+@pytest.mark.parametrize("func_file", func_files)
 def test_read_functional_from_file(func_file):
     """
         (1) Execute the read_functional_from_file function for a given .func file
@@ -17,20 +28,20 @@ def test_read_functional_from_file(func_file):
         (3) Import it to check for syntax errors
 
         Args:
-            func_file :  string 
+            func_file :  string
                 file containing the functional specification
     """
     edf_specification = read_functional_from_file(func_file)
 
-    class_file = 'tests/mocca/hephaestos/'+edf_specification['name']+'.py'
-    generate_EDF_class(edf_specification, class_file)
+    generate_EDF_class(edf_specification, location=tmp_folder)
 
     # For now, we skip all functional files with '-' in the name -> this generates invalid Python code
-    if '-'  not in edf_specification['name']:
-        print ('Loading the new EDF class')
-        new_edf = __import__(class_file.split('/')[-1].replace('.py', ''))
+    # ET: that is fixed by replacing '-' with '_"
+    print('Loading the new EDF class')
+    new_edf = import_module(edf_specification['module_name'])
+    print(new_edf.__dir__())
 
-def test_calculate_coupling_constants():
+def test_calculate_coupling_constants_NLO():
     """
         Compare the calculation of the time-even coupling constants with known values
         for the SLy4 parameterization of the NLO EDF.
@@ -40,17 +51,15 @@ def test_calculate_coupling_constants():
         Args:
             None
     """
-    from pathlib import Path
 
     # Go to the top folder
     project_folder = Path(__file__).parent.parent.parent.parent.parent
 
-    edf_specification = read_functional_from_file('mocca/hephaestos/func_files/NLO.func')
-    class_file = 'tests/mocca/hephaestos/'+edf_specification['name'].lower()+'.py'
-    generate_EDF_class(edf_specification, class_file)
-    nlo = __import__(class_file.split('/')[-1].replace('.py', ''))
+    edf_specification = read_functional_from_file(path2MOCCaPy / 'mocca/hephaestos/func_files/NLO.func')
+    generate_EDF_class(edf_specification, location=tmp_folder)
+    nlo = import_module(edf_specification['module_name'])
 
-    SLy4_param = Param(project_folder / 'parameterizations/SLy4.param')
+    SLy4_param = Param(path2MOCCaPy / 'mocca/data/parameterizations/SLy4.param')
     SLy4       = nlo.NLO(SLy4_param)
 
     # Compare to known coupling constants for SLy4

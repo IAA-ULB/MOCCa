@@ -2,7 +2,8 @@
   This module provides functionality to generate custom code that MOCCaPy can rely on.
 """
 
-import sys
+from pathlib import Path
+from string import Template
 
 # TODO: how to properly pass this around?
 spaces_per_indent = 4
@@ -26,7 +27,17 @@ spaces_per_indent = 4
 
 #     return
 
-def generate_EDF_class(edf_specification, output_file):
+def edf_module_name(func_name:str):
+    """
+    Args:
+        func_name : string name of the .func file (stem, without the extension)
+    Returns:
+         string: lowercase, dashes replaced with underscores.
+    """
+    return func_name.replace('-', '_').lower()
+
+
+def generate_EDF_class(edf_specification, location:Path=Path('.')):
     """
       Generate Python source code for several purposes.
 
@@ -38,14 +49,19 @@ def generate_EDF_class(edf_specification, output_file):
           It currently requires the following keys
          'func_file' : the file specifying the EDF being generated
 
+        location
+    Remark:
         output_file : string
-          the name to which the new EDF class file will be written
+          the name to which the new EDF class file will be written is now
+          automatically generated from the .func filename
     """
 
     # Relevant keys currently
     # $DESCRIPTION : a string to place in the comments
     # $FUNC_NAME   : name of the functional model, i.e. 'BXL' for BXL.func
     #
+    edf_specification['module_name'] = edf_module_name(edf_specification['name'])
+    module_path = location / (edf_specification['module_name'] + '.py')
 
     generated_code = {}
 
@@ -60,10 +76,11 @@ def generate_EDF_class(edf_specification, output_file):
                                         +  '%-10s  = self.param.%s\n'%(param,param)
 
     coupling_constants_calculation += '\n'
-    for cc_fortran, term, iso, den_dep in zip(edf_specification['coupling_constants'], \
-                                              edf_specification['functional_terms']  , \
-                                              edf_specification['isospin_indices']   , \
-                                              edf_specification['density_dependence']):
+    for cc_fortran, term, iso, den_dep in zip(edf_specification['coupling_constants'],
+                                              edf_specification['functional_terms']  ,
+                                              edf_specification['isospin_indices']   ,
+                                              edf_specification['density_dependence'],
+                                              ):
         term_string = "'" + term + "'"
         cc_python = parse_cc_expression(cc_fortran, edf_specification)
         den_dep_str = "'" + den_dep + "'"
@@ -71,11 +88,15 @@ def generate_EDF_class(edf_specification, output_file):
         expression = 2*spaces_per_indent*' ' \
                    + "self.coupling_constants[(%-40s,%-15s,%-10s)] = %s"%(term_string, tuple(iso), den_dep_str, cc_python)
         coupling_constants_calculation +=  expression + '\n'
+
     # Remove the final newline
     coupling_constants_calculation   = coupling_constants_calculation[:-1]
     generated_code['CC_CALCULATION'] = coupling_constants_calculation
 
-    substitute('mocca/hephaestos/templates/EDF_class.py', output_file, generated_code)
+    with open(module_path, mode='w') as f:
+        text = substitute('mocca/hephaestos/templates/EDF_class.py', generated_code)
+        f.write(text)
+    pass
 
     # An implementation of a specific EDF implementation should have
     # - a way to read a parameterisation file
@@ -84,8 +105,6 @@ def generate_EDF_class(edf_specification, output_file):
     # - some way to retain the information on the corresponding potentials
     # - a way to calculate the action of sphamil on single-particle wavefunctions
     # - a way to calculate the energy of a given DensityVector
-
-    return
 
 def parse_cc_expression(fortran_exp, edf_specification):
     """
@@ -132,7 +151,7 @@ def read_functional_from_file(fname):
      from the file named fname.
 
      Args:
-        fname : string
+        fname : string or Path
             the name of the file containing the functional specification
 
      Returns:
@@ -218,71 +237,91 @@ def read_functional_from_file(fname):
      routine to calculate energies and fields.
     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     """
+    fpath = Path(fname).resolve()
+    with open(fpath, 'r') as f:
 
-    edf_specification = {}
-    edf_specification['name']               = fname.split('/')[-1].replace('.func', '')
-    edf_specification['description']        = ''
-    edf_specification['parameters']         = []
-    edf_specification['parameter_types']    = []
-    edf_specification['functional_terms']   = []
-    edf_specification['coupling_constants'] = []
-    edf_specification['isospin_indices']    = []
-    edf_specification['density_dependence'] = []
-    edf_specification['extra_calls']        = []
+        edf_specification = {
+            'name'               : fpath.stem,
+            'description'        : '',
+            'parameters'         : [],
+            'parameter_types'    : [],
+            'functional_terms'   : [],
+            'coupling_constants' : [],
+            'isospin_indices'    : [],
+            'density_dependence' : [],
+            'extra_calls'        : [],
+        }
 
-    termsstart       = 0
-    with open(fname, 'r') as f:
+        termsstart = False
         for line in f:
             try:
                 if len(line.split()) == 0:
                     # Forget about empty lines
                     continue
+
                 if line[0] == '#':
                     #-signs indicate PART 1, description of the EDF
-                    edf_specification['description'] = edf_specification['description'] + line
+                    if line.startswith('# '):
+                        line = line[2:]
+                    line = line.strip()
+                    if len(line) > 1:
+                        edf_specification['description'] += '\n' + line
                     continue
+
                 if line[0:6] == '!TERMS' :
                     # Signal that the parameter specification, PART 2 is over.
-                    termsstart  = 1
+                    termsstart = True
                     continue
+
                 if line[0] == '!' :
                     # comment line, don't do anything with it
                     continue
 
-                if termsstart == 0 :
+                if termsstart == False :
                     # Parse the parameters of the functional in PART 2
-                    split = line.split(';')
-                    for s in split:
-                        paramtype, param = identify_param(s)
-                        edf_specification['parameters'].append(param)
-                        edf_specification['parameter_types'].append(paramtype)
-                elif termsstart == 1 :
+                    param_descriptions = [w.split() for w in line.split(';')]
+                    for type,name in param_descriptions:
+                        if type not in ('RI'):
+                            raise ValueError(
+                                f"Hephaestos encountered invalid parameter type '{type}', expecting 'R'|'I'.\n"
+                                f"  while processing line:\n"
+                                f"  '{line}'\n"
+                                f"  in file:\n"
+                                f"  '{fpath}'."
+                            )
+                        edf_specification['parameters'].append(name)
+                        edf_specification['parameter_types'].append(type)
+
+                elif termsstart == True :
                     #  Start the actual terms of the functional in PART 4
-                    split = line.split(';')
-                    edf_specification['functional_terms'].append  (clean(split[0]))
-                    edf_specification['coupling_constants'].append(clean(split[1]))
-                    edf_specification['density_dependence'].append(clean(split[2]))
+                    split = [w.strip() for w in line.split(';')]
+                    edf_specification['functional_terms'  ].append(split[0])
+                    edf_specification['coupling_constants'].append(split[1])
+                    edf_specification['density_dependence'].append(split[2])
 
                     # check how many densities are in this particular term...
-                    densities,_ = parse_edf_term(clean(split[0]))
+                    densities,_ = parse_edf_term(split[0])
                     # ... such that we know how many isospin indices to expect!
                     iso_list = []
                     for k in range(3,3+len(densities)):
-                        iso = clean(split[k])
+                        iso = split[k].strip()
                         if iso not in ('0', '1', 'p', 'n'):
                             raise IndexError
                         iso_list.append(iso)
                     edf_specification['isospin_indices'].append(iso_list)
 
                     if len(split)>3+len(densities):
-                        extra = clean(split[-1])
+                        extra = split[-1].strip()
                         edf_specification['extra_calls'].append(extra)
                     else:
                         edf_specification['extra_calls'].append('')
-            except IndexError:
-                print ('Problem reading the following line in the func file.')
-                print (line)
-                sys.exit(1)
+
+            except Exception:
+                raise RuntimeError(
+                    f"Hephaestos failed interpreting line:\n"
+                    f"    {line}\n"
+                    f"in `.func` file {fname}"
+                )
 
     return edf_specification
 
@@ -311,23 +350,25 @@ def identify_param(param_string):
     """
     # First, strip sole "R" and "I"
     if 'R ' == param_string[0:2]:
-        paramtype = 'real'
+        param_type = 'real'
     elif 'I ' == param_string[0:2]:
-        paramtype = 'integer'
+        param_type = 'integer'
     else:
-        print ('Unrecognized parameter type.')
-        print ('Offending entry: ', param_string)
-        sys.exit(1)
+        raise ValueError(
+            f"Hephaestos faced an unrecognized parameter type '{param_type}', expecting 'R' or 'I'."
+        )
+        # print ('Offending entry: ', param_string)
+        # sys.exit(1)
 
-    # cleaning routine, strips spaces and newlines
-    param = clean(param_string[2:])
-    return paramtype, param
+    param = param_string[2:].strip()
+    return param_type, param
 
-def clean(a):
-    """
-        Quick'n'dirty string cleaning routine, strips spaces and newlines
-    """
-    return a.replace(' ', '').replace('\n', '')
+# replace with a.strip()
+# def clean(a):
+#     """
+#         Quick'n'dirty string cleaning routine, strips spaces and newlines
+#     """
+#     return a.replace(' ', '').replace('\n', '')
 
 def parse_edf_term(term):
     """
@@ -420,32 +461,30 @@ def parse_edf_term(term):
 
     return densities, coupling
 
-def substitute(src, target, dic):
-  """
+def substitute(src_template, dictionary):
+    """
     Substitute strings in a template file and write the result to a target file,
     taking care to place annotations that indicate where substitutions have been made.
 
     Input:
         src: Source file (template)
-        target: Target file (generated)
-        dic: Dictionary with substitutions
+        dictionary: Dictionary with substitutions
 
     Output:
         None (writes to target file)
     """
-
-  from string import Template
-
-  with open(src, 'r') as template:
-    with open(target, 'w') as generated:
+    code = ''
+    with open(src_template, 'r') as template:
         for line in template:
-            newline = Template(line).substitute(dic)
+            newline = Template(line).substitute(dictionary)
             #if( newline != line):
             #    # Some string substitution happened
             #    generated.write(annotate(newline))
             #else:
             # No substitution happened, just copy the line
-            generated.write(newline)
+            code += newline
+
+    return code
 
 # def annotate(line):
 #     TODO: this function is not suited to Python YET

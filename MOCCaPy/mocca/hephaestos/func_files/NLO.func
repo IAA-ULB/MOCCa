@@ -1,4 +1,4 @@
-# 
+#
 # Standard NLO Skyrme functional 
 # -> with time-odd terms
 # -> without tensor terms
@@ -13,8 +13,8 @@ R Vn ;R Vp ;R alpha;R sigmap
 !---------------------------------------------------------------------------------------------------------------
 ! Central, LO terms   
 ! Time-even  
-! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
-E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                                   ;   1      ; 0 ; 0
+! Term                         ! Coupling constant                                  ! DD_pow  ! isospin indices
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                                   ;   1     ; 0 ; 0
 E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,1)                                   ;   1     ; 1 ; 1
 E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,0)                          ; sigma   ; 0 ; 0 ; 0
 E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,1)                          ; sigma   ; 0 ; 1 ; 1
