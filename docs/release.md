@@ -17,6 +17,14 @@ where
 This page will list release notes for all releases that increment at least the minor version, but 
 not the patch version.
 
+## v0.3.0 - long-awaited merges 
+  - merging of the `difficult-merge' pasta AND fam branches into master
+  - support for reading and writing HDF5 files
+  - calculation of the moments of inertia is now performed by default
+  - automated testing expanded
+  - standards set for documentation and style
+  - new compilation procedure
+
 ## v0.2.0 - Quasiparticle tagging
   - Inclusion of "tagging" strategy to block quasiparticles 
   - Reenabling of the calculation of the divergence of the spin-orbit current density.
