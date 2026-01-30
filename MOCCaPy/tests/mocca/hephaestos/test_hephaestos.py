@@ -14,8 +14,8 @@ path2MOCCaPy = Path(__file__).parent
 while not path2MOCCaPy.name == 'MOCCaPy':
     path2MOCCaPy = path2MOCCaPy.parent
 
-func_files = (path2MOCCaPy/'mocca/hephaestos/func_files/').glob('*.func')
-
+func_files = list((path2MOCCaPy/'mocca/hephaestos/func_files/').glob('*.func'))
+# glob returns a generator, which can be used only once, hence, we turn the generator into a list
 
 tmp_folder = path2MOCCaPy/"tests/mocca/hephaestos/tmp"
 tmp_folder.mkdir(exist_ok=True, parents=True)
