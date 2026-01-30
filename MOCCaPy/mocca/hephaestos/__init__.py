@@ -60,7 +60,8 @@ class FunctionalGenerator:
         Returns:
             a reference to the python module loaded.
         Raises:
-            ModuleNotFoundError if the python module could not be loaded.
+            ModuleNotFoundError if the python module could not be loaded. It may not exist, or
+            its location may not be on the search path.
         """
         mod = import_module(self.edf_specification['module_name'])
         return mod

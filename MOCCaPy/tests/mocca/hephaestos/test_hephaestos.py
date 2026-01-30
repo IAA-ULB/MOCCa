@@ -42,19 +42,17 @@ def test_read_functional_from_file(func_file):
     new_edf = import_module(edf_specification['module_name'])
     print(new_edf.__dir__())
 
+
 def test_calculate_coupling_constants_NLO():
     """
-        Compare the calculation of the time-even coupling constants with known values
-        for the SLy4 parameterization of the NLO EDF.
+    Compare the calculation of the time-even coupling constants with known values
+    for the SLy4 parameterization of the NLO EDF.
 
-        TODO: extend this to include the time-odd coupling constants
+    TODO: extend this to include the time-odd coupling constants
 
-        Args:
-            None
+    Args:
+        None
     """
-
-    # Go to the top folder
-    project_folder = Path(__file__).parent.parent.parent.parent.parent
 
     edf_specification = read_functional_from_file(path2MOCCaPy / 'mocca/hephaestos/func_files/NLO.func')
     generate_EDF_class(edf_specification, location=tmp_folder)
