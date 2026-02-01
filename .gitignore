@@ -1,13 +1,12 @@
-src/*
-obj/*
-mod/*
-
-build/*
-src_fam/*
-obj_fam/*
-mod_fam/*
-
 make.inc
+
+build/ 
+build*
+
+MOCCaPy_fortran/*.f90
+MOCCaPy_fortran/*.so
+
+
 
 *exe
 *i

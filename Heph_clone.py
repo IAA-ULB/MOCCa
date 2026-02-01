@@ -9,10 +9,16 @@
 #-------------------------------------------------------------------------------
 from os.path  import isfile as isfile
 import os
+
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+
 from src_heph import heph_symmetries,heph_densities,heph_functional,heph_fields
 from src_heph import preprocess as pp
-#from src_heph import latex
-import sys, importlib
+from src_heph import heph_substitute
+import  importlib
 
 #-------------------------------------------------------------------------------
 # DECLARATIONS 
@@ -52,29 +58,29 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
 #-------------------------------------------------------------------------------
 # Actually start Hephaestos
 #-------------------------------------------------------------------------------
-if(len(sys.argv) != 6):
+# if(len(sys.argv) != 6):
   
-  print ("Running Hephaestos requires specifying either five or four arguments.")
-  print (' 1. specifying a configuration file')
-  print (' 2. indicate whether compiling a mean-field or FAM executable')
-  print (' 3. specifying the chosen option regarding density summation')
-  print (' 4. specifying the location of the generated source file')
-  print (' 5. name of the source code file to be processed OR "dry-run" to simulate processing of all files')
-  print (' Examples:')
-  print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf version.f90 -> will process ONLY version.f90' )
-  print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf dry-run     -> will process ALL .f90 files' )
+#   print ("Running Hephaestos requires specifying either five or four arguments.")
+#   print (' 1. specifying a configuration file')
+#   print (' 2. indicate whether compiling a mean-field or FAM executable')
+#   print (' 3. specifying the chosen option regarding density summation')
+#   print (' 4. specifying the location of the generated source file')
+#   print (' 5. name of the source code file to be processed OR "dry-run" to simulate processing of all files')
+#   print (' Examples:')
+#   print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf version.f90 -> will process ONLY version.f90' )
+#   print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf dry-run     -> will process ALL .f90 files' )
 
-  sys.exit(1)
+#   sys.exit(1)
 
-config                 = sys.argv[1]
-EXETYPE                = sys.argv[2]
-DENSITY_SPWF_SUMMATION = int(sys.argv[3])
-source_location        = sys.argv[4]
-filename               = sys.argv[5]
+config                 = 'NLO' #sys.argv[1]
+EXETYPE                = 'mf'     #sys.argv[2]
+DENSITY_SPWF_SUMMATION = 0      # int(sys.argv[3])
+source_location        = 'src_orig/' #sys.argv[4]
+filename               = "" #sys.argv[5]
 
-if(filename != 'dry-run' and not filename.endswith('.f90')):
-  print ("The specified filename must end with .f90 or be 'dry-run'.")
-  sys.exit(1)
+# if(filename != 'dry-run' and not filename.endswith('.f90')):
+#   print ("The specified filename must end with .f90 or be 'dry-run'.")
+#   sys.exit(1)
 
 assert(EXETYPE == 'mf' or EXETYPE == 'fam')
 if(EXETYPE == 'mf'):  
@@ -165,14 +171,6 @@ if(not GENPATH.endswith('/')):
 so    = heph_symmetries.initsymmetries(SYMSTRING,REDUCE,QUANT_AXIS,SECOND_AXIS)
 oldso = heph_symmetries.initsymmetries(INSYM,INREDUCE,QUANT_AXIS,SECOND_AXIS)
 
-if(filename == 'dry-run'):
-  print ("  Symmetry information" )
-  heph_symmetries.printsymmetryoption(so)
-  print(line)
-  print ("  Symmetry information" )
-  heph_symmetries.printsymmetryoption(oldso)
-  print(line)
-
 # Initialize the densities module, setting up the properties of all the
 # operators
 heph_densities.initdensities()
@@ -180,18 +178,58 @@ heph_densities.initdensities()
 # Next, we read all the functional information
 description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active, print_stdout=(filename == 'dry-run'))
 #-------------------------------------------------------------------------------
-# On to the real business: generating Fortran code.
-if( filename == 'dry-run'):
-  # This is a dry-run: we will simulate tackling ALL files and print output 
-  #    but we will NOT generate any final source code files.
-  for fname in FORTRANFILES:
-    pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=True)
-else: 
-  # Process the one specific file we have been asked for
-  split = filename.split('/')
-  fname = split[-1]
-  SRCPATH = '/'.join(split[0:-1]) + '/'
-  pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=False)
+# Rename the wavefunction arrays to reflection what is needed inside the function
+heph_densities.ArrayNames = ['psi', 'dpsi', 'ddpsi']
+
+for D in heph_densities.Densities_needed:
+  (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
+                                   MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply,\
+                                   Write,  dendic)= \
+  heph_densities.GenDensityExpression(D,[],False,'wave', 'wave', 'wave', 'wave', so, False, False, novector=True)
+
+  dic = {}
+  dic['NAME']            = D
+  dic['Expression']      = Expression
+
+  dic['DIM']  = dendic['DIM']
+  dic['DIM_nocomma']  = dendic['DIM'][1:]
+
+  heph_substitute.substitute('MOCCaPy_fortran/templates/density.f90', 'MOCCaPy_fortran/%s.f90'%D, dic, make_notes=False)
+
+# def GenDensityExpression(denin,derivative_combinations,intermediate, 
+#                          leftwave     , rightwave     ,
+#                          left_der_wave, right_der_wave, so,
+#                          fam_active, density_spwf_summation,  
+#                          complex_component=0, weight = 'weight',
+#                          silent=False, symmetrize=0):
+
+# if(filename == 'dry-run'):
+#   print ("  Symmetry information" )
+#   heph_symmetries.printsymmetryoption(so)
+#   print(line)
+#   print ("  Symmetry information" )
+#   heph_symmetries.printsymmetryoption(oldso)
+#   print(line)
+
+# # Initialize the densities module, setting up the properties of all the
+# # operators
+# heph_densities.initdensities()
+# #-------------------------------------------------------------------------------
+# # Next, we read all the functional information
+# description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active, print_stdout=(filename == 'dry-run'))
+# #-------------------------------------------------------------------------------
+# # On to the real business: generating Fortran code.
+# if( filename == 'dry-run'):
+#   # This is a dry-run: we will simulate tackling ALL files and print output 
+#   #    but we will NOT generate any final source code files.
+#   for fname in FORTRANFILES:
+#     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=True)
+# else: 
+#   # Process the one specific file we have been asked for
+#   split = filename.split('/')
+#   fname = split[-1]
+#   SRCPATH = '/'.join(split[0:-1]) + '/'
+#   pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=False)
 
 
 sys.exit(0)

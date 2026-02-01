@@ -9,7 +9,7 @@ from string                    import Template
 from src_heph.heph_symmetries  import *
 from math                      import copysign
 
-def ProcessTransform(fname, src, target, so, oldso):
+def ProcessTransform(fname, src, target, so, oldso, dry_run=False):
     """
       Generate the required Fortran code for the transformation of input 
       single-particle wavefunctions. 
@@ -109,7 +109,6 @@ def ProcessTransform(fname, src, target, so, oldso):
       # conserved in old-symmetry-options, but is broken in new-symmetry-options
       s = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
       c = []
-#      print (so.syms, oldso.syms)
       for i,sym in enumerate(oldso.syms):
         Found = True
         if(sym is None):
@@ -125,8 +124,6 @@ def ProcessTransform(fname, src, target, so, oldso):
         print ("Big problem in ProcessTransform.")
         quit()
             
-#      print (s)
-#      print (s.coord)
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Now to figure out how to do the actual expansion in the requested axis
       for block in range(1,5):
@@ -173,11 +170,8 @@ def ProcessTransform(fname, src, target, so, oldso):
       if (sym == symdic['P']):
         dic['PBROKEN'] = '!'
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))
+    if(not dry_run):
+      substitute(src+fname, target+fname, dic)
 
 def PythLogicalToFortranString(l):
   if(l):

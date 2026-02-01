@@ -49,7 +49,7 @@ HOcomform     = .true.
 nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
 ptype=0
-interpolationtype=1
+interpolationtype=0
 integrationtype=0
 
 /

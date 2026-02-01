@@ -56,7 +56,9 @@ nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
 eps      = 1e-8
 ptype=0
-interpolationtype=1
+interpolationtype=0
+interpolationtype=0
+integrationtype=0
 /
 
 

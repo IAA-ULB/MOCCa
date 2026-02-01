@@ -43,13 +43,5 @@ There are many tricks you can play with the MOCCa compilation process since you 
 in make.inc or the Makefile from the command line. I here list only a few typical commands that have been useful in the past, 
 you can surely come up with more to suit your workflow.
 
-- `make mf MF_PRE=''`: 
-   This command will recompile the mf executable but will entirely skip the Hephaestos regeneration of the source code, allowing you to reuse module files from a 
-   previous (possibly failed) compilation. Particularly useful when debugging because (i) compilation will be faster 
-   and (ii) you can manually change things in the Hephaestos-generated source code.
-
-- `make fam FAM_PRE=''`: 
-   Identical to the previous commmand, but for the FAM executable.
-
 - `make EXENAME=$exe`:
    Manually specify the name of the final executable as `$exe`, overriding the default convention.

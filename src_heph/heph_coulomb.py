@@ -11,7 +11,7 @@ from src_heph.heph_symmetries  import *
 from string                    import Template
 
 
-def ProcessCoulomb(fname, src, target, so, fam_active):
+def ProcessCoulomb(fname, src, target, so, fam_active, dry_run=False):
   """
   Preprocess the Coulomb.f90 file.
 
@@ -45,10 +45,7 @@ def ProcessCoulomb(fname, src, target, so, fam_active):
   else:   
    dic['FAM'] = '0'       
 
-  substitute(src + fname, target+fname, dic)  
-  # with open(src+fname, 'r') as template:
-  #   with open(target+fname, 'w') as generated:
-  #     for line in template:
-  #       generated.write(Template(line).substitute(dic)) 
+  if(not dry_run):
+    substitute(src + fname, target+fname, dic)  
 
 

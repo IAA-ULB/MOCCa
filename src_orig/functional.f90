@@ -2030,8 +2030,6 @@ $K4POT
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot_complex
 
-
-#if( $FAM == 0)
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
 &                                        sx,sy,sz,iso, onthefly, Fin) result(hpsi)
@@ -2230,7 +2228,6 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
 $PAIRINGACTION
 
   end function delta_action
-#endif
 
   function calcspwfenergy() result(spwfenergy)
     !---------------------------------------------------------------------------
@@ -2267,9 +2264,12 @@ $EREAR
     ! Add kinetic and CoulombExchange contributions
     spwfenergy = spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
 
-    ! Always add the 1-body COMcorrection. In case it is used iteratively, it
-    ! is double counted along with the kinetic energy!
-    if(COM1body.gt.0) then
+    ! Add the 1-body COMcorrection. 
+    if(COM1body.eq.1) then
+        ! Perturbative use: add it completely
+        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))
+    else if(COM1body.eq.2) then
+        ! self-consistent use; add only half
         SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
     endif
 

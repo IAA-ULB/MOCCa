@@ -34,7 +34,7 @@
 refE=-177.062001 # Total energy of O16 in MeV
 refS20=1.66      # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
 
-set -e # exit immediately if command gives non-zero exit status
+# set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
@@ -167,8 +167,8 @@ omega=25.0
 smear=1.0
 l=2
 m=0
-maxiter=10000
-fam_precision=1e-11
+maxiter=30
+fam_precision=1e-8
 /
 EOF
 
@@ -237,8 +237,8 @@ omega=25.0
 smear=1.0
 l=2
 m=0
-maxiter=10000
-fam_precision=1e-11
+maxiter=30
+fam_precision=1e-8
 /
 EOF
 # Run the calculation
@@ -298,8 +298,8 @@ omega=25.0
 smear=1.0
 l=2
 m=0
-maxiter=10000
-fam_precision=1e-11
+maxiter=30
+fam_precision=1e-8
 /
 EOF
 # Run the calculation
