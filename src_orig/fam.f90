@@ -186,16 +186,16 @@ module fam
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed Hamiltonian as 0
     if(.not.allocated(dH)) then 
-      allocate(dH(nwt,nwt,2))
+      allocate(dH(nwt,nwt,2)) ! stores dH20, dH02 (qp basis)
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the free response of the sp hamiltonian
     if(.not.allocated(dH_free_flat)) then 
       if(pairingtype==0) then
-        allocate(dH_free_flat(nwt * nwt))
+        allocate(dH_free_flat(nwt * nwt)) ! stores dh (sp basis)
       else
-        allocate(dH_free_flat(3 * nwt * nwt))
+        allocate(dH_free_flat(3 * nwt * nwt)) ! stores dh, ddelta+, ddelta- (sp basis)
       endif
     endif
 
@@ -435,11 +435,14 @@ module fam
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the FAM master equation
+    ! In absense of pairing, X, Y, dH, F store ph subblocks and loops are only 
+    ! over ph pairs. In presence of pairing, X, Y, dH and F store qp matrix element
+    ! and loops run over the complete qp basis.  
     !---------------------------------------------------------------------------
     implicit none
     complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
-    integer       :: p, h
+    integer       :: p, h, si, N, N2, i, j, B, T
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
 
     if (fam_verbose > 1) print *, "calculate_XY :: update X and Y"
@@ -448,22 +451,51 @@ module fam
     X = - (F(:,:,1) + dH(:,:,1))
     Y = - (F(:,:,2) + dH(:,:,2))
 
+    if(fam_verbose > 2) then
+      print * , "||X_unnorm||",   sum(abs(X(:,:)**2))
+      print * , "||Y_unnorm||",   sum(abs(Y(:,:)**2))
+    endif
     ! normalise with energy denominator
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      e_h = spenergies(h) 
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-            ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-            !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
-$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
-$NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
-        e_p = spenergies(p) 
-        if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
+
+    if(pairingtype==0) then ! FAM
+      do h = 1, nwt
+        occ_h = rho_can(h)
+        e_h = spenergies(h) 
+        if(occ_h < 1d-6) cycle
+        do p = 1, nwt
+              ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+              !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
+  $TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
+  $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
+          e_p = spenergies(p) 
+          if(occ_p < 1d-6) cycle
+          X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
+          Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
+        enddo
       enddo
-    enddo
+    
+
+    else ! QFAM
+    
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        do i = si+1, si+T
+          do j = si+1, si+T
+            X(i,j) = X(i,j) / (qpenergies(i) + qpenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(i,j) = Y(i,j) / (qpenergies(i) + qpenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
+          enddo
+        enddo
+        si = si+T
+      enddo
+    endif
+
+    if(fam_verbose > 2) then
+      print * , "||X||",   sum(abs(X(:,:)**2))
+      print * , "||Y||",   sum(abs(Y(:,:)**2))
+    endif
 
   end subroutine calculate_XY
 

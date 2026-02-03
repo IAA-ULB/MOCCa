@@ -972,7 +972,7 @@ contains
     ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
     ! true here since even in a trivial Bogo, indexing of the states can be altered
 
-    print * , 'TEST * : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
+    print * , 'TEST 4 : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
 
     print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
 
@@ -1004,6 +1004,11 @@ contains
 
 
     print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+
+    print *, '||f11||', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
+    print *, '||F20||', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
+    print *, '||Fph||', sum(abs(Rph(:, :,1) * Rph(:, :,1)))
+
     
     ! call print_spme_complex( Rph(:,:,1))
     
@@ -1011,9 +1016,11 @@ contains
     do i=si+1,si+T
       print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
     enddo
-    
-    stop
 
+    print *, '||F20 (proton)|| - 2 * ||Fph (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1))) - 2 * sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+    print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
+    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)|| since the trivial Bogolibov trafo can reorder spstates'
+    
   end subroutine test_qptrafo
 
 
