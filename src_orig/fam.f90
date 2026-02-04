@@ -442,7 +442,7 @@ module fam
     implicit none
     complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
-    integer       :: p, h, si, N, N2, i, j, B, T
+    integer       :: p, h, si, si2, N, N2, i, j, B, T
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
 
     if (fam_verbose > 1) print *, "calculate_XY :: update X and Y"
@@ -464,36 +464,39 @@ module fam
         N2 = HFblocks(B+1)
         T = N + N2
         ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
-        do j = si+1, si+T
-          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
-          do i = si+1, si+T
-            X(i,j) = X(i,j) / (spenergies(i) - spenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
-            Y(i,j) = Y(i,j) / (spenergies(i) - spenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
+        do j = 1, T
+          if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = 1, T
+            X(si+i,si+j) = X(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(si+i,si+j) = Y(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) + CMPLX(omega_fam,smear,KIND=dp) )
           enddo
         enddo
-        print * , 'Blocks' , B, ' & ', B+1
-        print * , "||X(B:B+1)||",   sum(abs(X(si+1:si+T,si+1:si+T)**2))
-        print * , "||Y(B:B+1)||",   sum(abs(Y(si+1:si+T,si+1:si+T)**2))
         si = si+T
       enddo 
 
+    
     else ! QFAM
     
-      si = 0
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      ! We require two start indices
+      ! si  determines the start of the block in qp-basis of dimension nwt   -> X, Y
+      ! si2 determines the start of the block in qp-basis of dimension 2*nwt -> qpenergies (-Emax,..., -E1, E1,..., Emax)
+      si = 0; si2 = 0
       do B=1,8,2
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
         N2 = HFblocks(B+1)
         T = N + N2
-        do j = si+1, si+T
-          do i = si+1, si+T
-            X(i,j) = X(i,j) / (qpenergies(i) + qpenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
-            Y(i,j) = Y(i,j) / (qpenergies(i) + qpenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
+        do j = 1, T
+          do i = 1, T
+
+            ! fetch qpenergies from second half (si2 + T), i.e. positive qp spectrum 
+
+            X(si+i,si+j) = X(si+i,si+j) / (qpenergies(si2+T+i) + qpenergies(si2+T+j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(si+i,si+j) = Y(si+i,si+j) / (qpenergies(si2+T+i) + qpenergies(si2+T+j) + CMPLX(omega_fam,smear,KIND=dp) )
           enddo
         enddo
-        print * , 'Blocks' , B, ' & ', B+1
-        print * , "||X(B:B+1)||",   sum(abs(X(si+1:si+T,si+1:si+T)**2))
-        print * , "||Y(B:B+1)||",   sum(abs(Y(si+1:si+T,si+1:si+T)**2))
-        si = si+T
+        si  = si  +   T ! move start index by size of IP block 
+        si2 = si2 + 2*T ! move start index by twice the size of IP block
       enddo
     endif
 
