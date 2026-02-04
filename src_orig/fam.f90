@@ -458,22 +458,24 @@ module fam
     ! normalise with energy denominator
 
     if(pairingtype==0) then ! FAM
-      do h = 1, nwt
-        occ_h = rho_can(h)
-        e_h = spenergies(h) 
-        if(occ_h < 1d-6) cycle
-        do p = 1, nwt
-              ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-              !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
-  $TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
-  $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
-          e_p = spenergies(p) 
-          if(occ_p < 1d-6) cycle
-          X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
-          Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = si+1, si+T
+          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = si+1, si+T
+            X(i,j) = X(i,j) / (spenergies(i) - spenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(i,j) = Y(i,j) / (spenergies(i) - spenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
+          enddo
         enddo
-      enddo
-    
+        print * , 'Blocks' , B, ' & ', B+1
+        print * , "||X(B:B+1)||",   sum(abs(X(si+1:si+T,si+1:si+T)**2))
+        print * , "||Y(B:B+1)||",   sum(abs(Y(si+1:si+T,si+1:si+T)**2))
+        si = si+T
+      enddo 
 
     else ! QFAM
     
@@ -482,12 +484,15 @@ module fam
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
         N2 = HFblocks(B+1)
         T = N + N2
-        do i = si+1, si+T
-          do j = si+1, si+T
+        do j = si+1, si+T
+          do i = si+1, si+T
             X(i,j) = X(i,j) / (qpenergies(i) + qpenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
             Y(i,j) = Y(i,j) / (qpenergies(i) + qpenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
           enddo
         enddo
+        print * , 'Blocks' , B, ' & ', B+1
+        print * , "||X(B:B+1)||",   sum(abs(X(si+1:si+T,si+1:si+T)**2))
+        print * , "||Y(B:B+1)||",   sum(abs(Y(si+1:si+T,si+1:si+T)**2))
         si = si+T
       enddo
     endif
@@ -498,6 +503,56 @@ module fam
     endif
 
   end subroutine calculate_XY
+
+  subroutine calculate_XY_old(dH)
+    !---------------------------------------------------------------------------
+    ! Old implementation of calculate_XY for FAM, where the double for loop is 
+    ! is restricted to particle and holes states but neglects symmetry blocks
+    !---------------------------------------------------------------------------
+    implicit none
+    complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
+
+    integer       :: p, h, si, N, N2, i, j, B, T
+    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
+
+    if (fam_verbose > 1) print *, "calculate_XY_old :: update X and Y"
+
+    if (pairingtype.ne.0) then 
+      print *, "calculate_XY_old only applicable to HF" 
+      return
+    endif
+
+    X = - (F(:,:,1) + dH(:,:,1))
+    Y = - (F(:,:,2) + dH(:,:,2))
+
+    if(fam_verbose > 2) then
+      print * , "||X_unnorm||",   sum(abs(X(:,:)**2))
+      print * , "||Y_unnorm||",   sum(abs(Y(:,:)**2))
+    endif
+
+    ! normalise with energy denominator
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      e_h = spenergies(h) 
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+            ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+            !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
+$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
+$NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
+        e_p = spenergies(p) 
+        if(occ_p < 1d-6) cycle
+        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
+      enddo
+    enddo
+
+    if(fam_verbose > 2) then
+      print * , "||X||",   sum(abs(X(:,:)**2))
+      print * , "||Y||",   sum(abs(Y(:,:)**2))
+    endif
+
+  end subroutine calculate_XY_old
 
 
   subroutine store_XY_hist()
