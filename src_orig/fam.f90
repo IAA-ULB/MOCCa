@@ -237,6 +237,8 @@ module fam
     dH_free_flat = 0
     call iterate_dHsp(dH_free_flat, dH_free_flat)
 
+    if (fam_verbose > 1) print *, '||dH_free||', sum(abs(dH_free_flat(:))**2)
+
 
   end subroutine inifam
 
@@ -323,9 +325,11 @@ module fam
     !    dHspout_flat : updated perturbed sp hamiltonian in HF basis as a
     !                   flat array
     !---------------------------------------------------------------------------
-    1 format('||dH_ph||² = ', es10.3, '     ||dH_hp||² = ', es10.3)
+    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
     2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     implicit none
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
@@ -343,6 +347,8 @@ module fam
       dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
+
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
       call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
 
@@ -352,6 +358,8 @@ module fam
       !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
       dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
+
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
 
       ! transform the perturbed hamiltonian to the qp basis, keeping only the dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
@@ -376,6 +384,16 @@ module fam
     ! build the perturbed densities on the mesh dRs, dRa from X and Y
     call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
+    if (fam_verbose > 0) then
+      if(pairingtype==0) then
+        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
+      else
+        print 22,  sum(abs(drho)**2), 0.0,  0.0
+      endif
+    endif
+
+
+
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
 
@@ -390,11 +408,11 @@ module fam
       dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
     else ! QFAM
       ! construct the sp hamiltonian + pairing fields in HF basis
-      ! dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
       dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-      ! dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
-      dHspout(:,:,1) = 0
-      dHspout(:,:,3) = 0
+      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+      ! dHspout(:,:,1) = 0
+      ! dHspout(:,:,3) = 0
     endif
 
     if(fam_verbose > 2) call print_all_fam_spmat()
@@ -452,10 +470,6 @@ module fam
     X = - (F(:,:,1) + dH(:,:,1))
     Y = - (F(:,:,2) + dH(:,:,2))
 
-    if(fam_verbose > 2) then
-      print * , "||X_unnorm||",   sum(abs(X(:,:)**2))
-      print * , "||Y_unnorm||",   sum(abs(Y(:,:)**2))
-    endif
     ! normalise with energy denominator
 
     if(pairingtype==0) then ! FAM
@@ -529,11 +543,6 @@ module fam
     X = - (F(:,:,1) + dH(:,:,1))
     Y = - (F(:,:,2) + dH(:,:,2))
 
-    if(fam_verbose > 2) then
-      print * , "||X_unnorm||",   sum(abs(X(:,:)**2))
-      print * , "||Y_unnorm||",   sum(abs(Y(:,:)**2))
-    endif
-
     ! normalise with energy denominator
     do h = 1, nwt
       occ_h = rho_can(h)
@@ -552,8 +561,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     enddo
 
     if(fam_verbose > 2) then
-      print * , "||X||",   sum(abs(X(:,:)**2))
-      print * , "||Y||",   sum(abs(Y(:,:)**2))
+      print * , "||X||²",   sum(abs(X(:,:)**2))
+      print * , "||Y||²",   sum(abs(Y(:,:)**2))
     endif
 
   end subroutine calculate_XY_old
@@ -634,13 +643,9 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
       drho = X  + transpose(Y)
       dkappa_plus  = 0  
       dkappa_minus = 0
-
-      call print_spme_complex(drho)
     else 
       call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
-      call print_spme_complex(drho)
     endif
-
 
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
@@ -988,6 +993,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       if(fam_verbose > 2) then
         print *, 'f^+_LK'
        call print_spme_complex(f_LK_spme)
+       print *, '||f||²', sum(abs(f_LK_spme)**2)
      endif
 
       ! note: 
@@ -1021,6 +1027,14 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       endif
 
     endif
+
+    if(fam_verbose > 1) then
+
+      print *, '||F(:,:,1)||²', sum(abs(f_LK_qpme(:,:,1))**2)
+      print *, '||F(:,:,2)||²', sum(abs(f_LK_qpme(:,:,2))**2)
+
+    endif
+
 
     deallocate(f_LK_spme)
 
@@ -1772,32 +1786,50 @@ $TR                             &  + matmul(Vb,  matmul(  conjg(Ob20qp), transpo
   subroutine print_all_fam_spmat()
 
     print *, 'X'
-    call print_spme_complex(X)
+    print *, '||X||² = ', sum(abs(X)**2)
+    if (pairingtype==0) then
+      call print_spme_complex(X)
+    else 
+      call print_spme_complex_superblock(X)
+    endif
 
     print *, 'Y'
-    call print_spme_complex(Y)
+    print *, '||Y||² = ', sum(abs(Y)**2)
+    if (pairingtype==0) then
+      call print_spme_complex(Y)
+    else 
+      call print_spme_complex_superblock(Y)
+    endif
 
     print *, 'drho'
-    call print_spme_complex(X + transpose(Y))
+    print *, '||drho||² = ', sum(abs(drho)**2)
+    call print_spme_complex(drho)
 
-!     print *, 'drho_sym'
-!     call print_spme_complex(X + transpose(Y) + transpose(X) + Y)
-!
-!     print *, 'drho_antisym'
-!     call print_spme_complex(X + transpose(Y) - transpose(X) - Y)
+    if (pairingtype.ne.0) then
+      print *, 'dkappa_plus'
+      print *, '||dkappa_plus||² = ', sum(abs(dkappa_plus)**2)
+      call print_spme_complex_superblock(dkappa_plus)
 
+      print *, 'dkappa_minus'
+      print *, '||dkappa_minus||² = ', sum(abs(dkappa_minus)**2)
+      call print_spme_complex_superblock(dkappa_minus)
+    endif
 
     print *, 'dH20'
-    call print_spme_complex(dH(:,:,1))
+    print *, '||dH20||² = ', sum(abs(dH(:,:,1))**2)
+    if (pairingtype==0) then
+      call print_spme_complex(dH(:,:,1))
+    else 
+      call print_spme_complex_superblock(dH(:,:,1))
+    endif
 
     print *, 'dH02'
-    call print_spme_complex(dH(:,:,2))
-
-!     print *, 'F20'
-!     call print_spme_real(F(:,:,1))
-!
-!     print *, 'F02'
-!     call print_spme_real(F(:,:,2))
+    print *, '||dH02||² = ', sum(abs(dH(:,:,2))**2)
+    if (pairingtype==0) then
+      call print_spme_complex(dH(:,:,2))
+    else 
+      call print_spme_complex_superblock(dH(:,:,2))
+    endif
 
   end subroutine
 
