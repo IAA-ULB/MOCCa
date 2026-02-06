@@ -323,8 +323,8 @@ module fam
     !    dHspout_flat : updated perturbed sp hamiltonian in HF basis as a
     !                   flat array
     !---------------------------------------------------------------------------
-    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-    2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
+    1 format('||dH_ph||² = ', es10.3, '     ||dH_hp||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
     3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
     implicit none
@@ -333,8 +333,7 @@ module fam
 
     complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
 
-    integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p, strength
+    real(KIND=dp) :: strength
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
@@ -362,8 +361,8 @@ module fam
     call calculate_XY(dH)
 
     if (fam_verbose>0) then
-      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
+      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
       strength =  calc_strength()
       print 3, l,m, omega_fam, strength
     endif
@@ -386,14 +385,16 @@ module fam
     call combine_potentials(dFa)
 
 
-    if (pairingtype==0) then
+    if (pairingtype==0) then ! FAM
       ! construct the sp hamiltonian in HF basis
       dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-    else
+    else ! QFAM
       ! construct the sp hamiltonian + pairing fields in HF basis
-      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      ! dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
       dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+      ! dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+      dHspout(:,:,1) = 0
+      dHspout(:,:,3) = 0
     endif
 
     if(fam_verbose > 2) call print_all_fam_spmat()
@@ -630,11 +631,14 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
 
 
     if (pairingtype==0) then 
-      drho = X + transpose(Y)
+      drho = X  + transpose(Y)
       dkappa_plus  = 0  
       dkappa_minus = 0
+
+      call print_spme_complex(drho)
     else 
-      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=transpose(Y), O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+      call print_spme_complex(drho)
     endif
 
 
@@ -675,8 +679,85 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
   end subroutine build_dH_explicit
 
 
- function calc_strength() result (res)
+  function calc_strength() result (res)
     !---------------------------------------------------------------------------
+    ! Calculate the strength S(omega,F) and store output in strength and 
+    ! strength_complex and return strength
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! strength_complex is defined as 
+    !     strength_complex = Tr (F^dagger * drho)
+    !                      = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! while the strength  
+    !     strength = -1/pi * strength_complex
+    ! 
+    ! note: 
+    !  - normalisation of external field may have to be taken into account
+    !    S -> S/alpha
+    !  - in case of FAM, F(:,:,1) contains the ph block and F(:,:,2) contains
+    !    the hp block which differ is F if not Hermitian
+    !  - in case of QFAM, F(:,:,1) contains the F20 block in qp basis and F(:,:,2)
+    !    contains the F02 block which differ if F is not Hermitian
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp) :: S = 0
+    real(KIND=dp) :: res
+    integer :: i, j, si, B, N, N2, T
+
+    if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
+
+    S = 0
+
+
+    if(pairingtype==0) then ! FAM
+      si = 0
+      ! loop over 8 isospin-parity-signature (IPS) block 
+      do B=1,8
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = si+1, si+N
+          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = si+1, si+N
+            S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si = si+N
+      enddo
+
+      $TR S = 2 * S ! Time-reversal factor 2
+
+    
+    else ! QFAM
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! loop over unique qp pairs, i.e. j < i
+        do j = si+1, si+T
+          do i = j+1, si+T
+             S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si  = si + T 
+      enddo
+
+    endif
+
+    strength_complex = S 
+    strength = - strength_complex%im / pi
+
+    ! return the strength
+    res = strength
+
+  end function calc_strength
+
+
+ function calc_strength_old() result (res)
+    !---------------------------------------------------------------------------
+    ! Old routine applied to FAM based on ph blocks
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate the strength S(omega,F) and store output in strength and 
     ! strength_complex and return strength
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -698,7 +779,6 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
 
     if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
 
-
     S = 0
     do h = 1, nwt
       occ_h = rho_can(h)
@@ -719,7 +799,7 @@ $TR S = 2 * S ! Time-reversal factor 2
     ! return the strength
     res = strength
 
-  end function calc_strength
+  end function calc_strength_old
 
 
   subroutine calc_strength_decomp(S_complex, strength)
