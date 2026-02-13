@@ -1389,9 +1389,11 @@ $TR                                 &   - matmul(transpose(Vb),  matmul(  conjg(
 
   subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
     !---------------------------------------------------------------------------
-    ! Performing quasi-particle transformation of a particle-number conserving 
-    ! Hermitian 1-body operator O11sp. The function returns the 20 and 11 
-    ! components of the operator in the QP-basis.
+    ! Performing quasi-particle transformation of a generic on 1-body operator 
+    ! O = O20sp + O11sp + O02sp. The function returns the matrix elements in of 
+    ! O in the operator in the QP-basis.
+    ! The input arguments O20sp, O11sp, O02sp are optional, as are the output 
+    ! arguments O20qp, O11qp, O02qp. 
     !  
     ! Bogo contains the bogoliubov transformation W organised in block matrices
     ! where blocks have twice the size of HFblocks, i.e.
@@ -1400,14 +1402,16 @@ $TR                                 &   - matmul(transpose(Vb),  matmul(  conjg(
     !    Bogo  =   (     Wb    : )                Wb  =   (              )
     !              (        ..Wb )                        (  Ub^*   Vb   )
     ! and 
-    !        O20b =   Ub^{dagger} o11b Vb^* - Vb^{dagger} o11b^T Ub^*
-    !        O11b =   Ub^{dagger} o11b Ub^* - Vb^{dagger} o11b^T Vb^*
+    !       O20qp = + U^{dagger} o11sp   V^* + U^{dagger} o20sp   U^* 
+    !               - V^{dagger} o02sp^* V^* - V^{dagger} o11sp^T U^*
     ! 
-    ! Note that for a hermitian operator O, the O02 component can be obtained
-    ! trivially form O02 by complex conjugation
-    !        O02b = - Vb^T  o11b Ub   + Ub^T  o11b^T Vb 
-    !             = - O20b^{dagger} = O20b^*
+    !       O11qp = + U^{dagger} o11sp   U   + U^{dagger} o20sp   V
+    !               - V^{dagger} o02sp^* U   - V^{dagger} o11sp^T V
     ! 
+    !       O02qp = - V^T        o11sp   U   - V^T        o20sp   V 
+    !               + U^T        o02sp^* U   + U^T        o11sp^T V
+    ! 
+     ! 
     ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
     ! Hence matrices U and V have block structure in Rz
     !              (  Ub(++)   0  )                         (   0    Vb(+-) )
@@ -1457,42 +1461,42 @@ $TR                                 &   - matmul(transpose(Vb),  matmul(  conjg(
 
       if(present(O20qp)) then
         if(present(O11sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(        O11b , Vb))
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(  conjg(O11b), Ub))
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Vb))
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
         endif
         if(present(O20sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(        O20b , Ub)) 
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
         endif
         if(present(O02sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(        O02b , Vb))
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Vb))
         endif
       endif 
 
 
       if(present(O11qp)) then
         if(present(O11sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(        O11b , Ub))
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(  conjg(O11b), Vb))
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Ub))
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
         endif
         if(present(O20sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(        O20b , Vb))
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Vb))
         endif
         if(present(O02sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(        O02b , Ub))
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Ub))
         endif
       endif 
 
 
       if(present(O02qp)) then
         if(present(O11sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(        O11b , Ub))
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(  conjg(O11b), Vb))
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O11b , Ub))
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
         endif
         if(present(O20sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(        O20b , Vb))
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O20b , Vb))
         endif
         if(present(O02sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(        O02b , Ub))
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O02b , Ub))
         endif
       endif 
 
@@ -1667,42 +1671,42 @@ $TR                             &  + matmul(Vb,  matmul(  conjg(Ob20qp), transpo
 
       if(present(O20sp)) then
         if(present(O11qp)) then
-          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(       O11b , transpose(Vb)))
-          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul( conjg(O11b), transpose(Ub)))
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Vb)))
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(transpose(O11b), transpose(Ub)))
         endif
         if(present(O20qp)) then
-          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(       O20b , transpose(Ub)))
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O20b , transpose(Ub)))
         endif
         if(present(O02qp)) then
-          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(       O02b , transpose(Vb)))
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O02b , transpose(Vb)))
         endif
       endif 
 
 
       if(present(O11sp)) then
         if(present(O11qp)) then
-          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(       O11b , transpose(Ub)))
-          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul( conjg(O11b), transpose(Vb)))
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Ub)))
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(transpose(O11b), transpose(Vb)))
         endif
         if(present(O20qp)) then
-          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(       O20b , transpose(Vb)))
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O20b , transpose(Vb)))
         endif
         if(present(O02qp)) then
-          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(       O02b , transpose(Ub)))
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O02b , transpose(Ub)))
         endif
       endif 
 
 
       if(present(O02sp)) then
         if(present(O11qp)) then
-          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(       O11b , transpose(Ub)))
-          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul( conjg(O11b), transpose(Vb)))
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O11b , transpose(Ub)))
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(transpose(O11b), transpose(Vb)))
         endif
         if(present(O20qp)) then
-          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(       O20b , transpose(Vb)))
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O20b , transpose(Vb)))
         endif
         if(present(O02qp)) then
-          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(       O02b , transpose(Ub)))
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O02b , transpose(Ub)))
         endif
       endif
 
