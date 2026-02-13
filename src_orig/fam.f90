@@ -316,8 +316,16 @@ module fam
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
-    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
-    ! (in HF basis), which contain dh and ddelta (in the QFAM).  
+    ! Perform one FAM loop of the perturbed single-particle hamiltonian dh
+    ! (in HF basis), which contain dh and ddelta (in the QFAM). One full FAM 
+    ! iterations consists of 6 steps : 
+    ! 
+    ! (1) transform dh, ddelta+/- to QP basis         => dH20, dH02
+    ! (2) compute XY from linear response equation    => X20, Y02
+    ! (3) transform XY back to sp basis               => drho, dkappa+/-
+    ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
+    ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
+    ! (6) compute perturbed sp hamiltonian and paring => dh, ddelta+/-
     !
     ! Input:
     !    dHsp_flat    : perturbed sp hamiltonian in HF basis as a flat array
@@ -341,16 +349,20 @@ module fam
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (1) unpack the flat vector to dh, ddelta+/- and transform to QP basis dH20 dH02
+
     if (pairingtype==0) then
       ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
       ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
       dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
-      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
-
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
       call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+
+      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
 
     else
       ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
@@ -359,30 +371,47 @@ module fam
       dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
-      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
-
       ! transform the perturbed hamiltonian to the qp basis, keeping only the dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+
+      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
     endif
 
-    ! calculate X and Y from the perturbed dH
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (2) compute X and Y amplitudes from linear response equation
     call calculate_XY(dH)
 
+    call store_XY_hist()
+
+    if (fam_verbose>1) then
+      print *, 'Verify antisymmetry of X and Y'
+      print * , '||X + X^T|| = ', sum(abs(X+transpose(X))**2)
+      print * , '||Y + Y^T|| = ', sum(abs(Y+transpose(Y))**2)
+    endif
+
     if (fam_verbose>0) then
-      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
       print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
       strength =  calc_strength()
       print 3, l,m, omega_fam, strength
     endif
 
-    ! Apply simple linear mixing of X and Y. 
-    ! call mix_XY_linear(lin_mix_coeff)
-    ! -> this may be skipped when using GMRES
 
-    call store_XY_hist()
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (3) Obtain perturbed (pairing) density matrices in HF basis
 
-    ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
+    if (pairingtype==0) then 
+      drho = X  + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else 
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (4) Compute perturbed densities on the mesh
+
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
@@ -392,7 +421,8 @@ module fam
       endif
     endif
 
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (5) compute perturbed fields on the mesh
 
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
@@ -402,15 +432,23 @@ module fam
     call combine_potentials(dFs)
     call combine_potentials(dFa)
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (6) calculate perturbed hamiltonian and pairing in the HF basis
 
     if (pairingtype==0) then ! FAM
       ! construct the sp hamiltonian in HF basis
       dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
+
     else ! QFAM
       ! construct the sp hamiltonian + pairing fields in HF basis
       dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
       dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
       dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
+
       ! dHspout(:,:,1) = 0
       ! dHspout(:,:,3) = 0
     endif
@@ -806,8 +844,88 @@ $TR S = 2 * S ! Time-reversal factor 2
 
   end function calc_strength_old
 
-
   subroutine calc_strength_decomp(S_complex, strength)
+    !---------------------------------------------------------------------------
+    ! Calculate the complex response and the strength decomposed into
+    ! different symmetry channels. For now, this assumes that the perturbing
+    ! operator must respect all symmetries, i.e. diagonal in tau,pi,z-sign. 
+    ! In the future, applying the idea for a non-trivial perturbation operator
+    ! would require to loop over the blocks in a (partial) off-diagonal way, 
+    ! e.g. pi=-pi' when l is odd. 
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp), intent(out) :: S_complex(8) 
+    real(KIND=dp), intent(out) :: strength(8)
+    integer :: i, j, B, N, N2, si, T
+    real(KIND=dp) :: occ_h, occ_p
+
+    if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
+
+    if (mod(l,2) == 1 .or. mod(m,2) == 1) then
+      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
+      ! print *, "calling calc_strength() instead"
+      ! call calc_strength()
+      return
+    endif
+
+    S_complex = 0
+    strength = 0
+
+
+   if(pairingtype==0) then ! FAM
+      si = 0
+      ! loop over 8 isospin-parity-signature (IPS) block 
+      do B=1,8
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = si+1, si+N
+          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = si+1, si+N
+            S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si = si+N
+      enddo
+
+    
+    else ! QFAM
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! loop over unique qp pairs, i.e. j < i
+        do j = si+1, si+T
+          do i = j+1, si+T
+             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si  = si + T 
+      enddo
+
+    endif
+
+
+$TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
+    strength(:) = - S_complex(:)%im / pi
+
+    if (fam_verbose > 0) then
+      print *, 'Decomposed strength : '
+      print * , 'S_n+ : (', strength(1), ' , ', strength(2), ' )'
+      print * , 'S_n- : (', strength(3), ' , ', strength(4), ' )'
+      print * , 'S_p+ : (', strength(5), ' , ', strength(6), ' )'
+      print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
+      print * , 'S_tot : ', sum(strength(:))
+    endif
+
+
+
+  end subroutine calc_strength_decomp
+
+
+  subroutine calc_strength_decomp_old(S_complex, strength)
     !---------------------------------------------------------------------------
     ! Calculate the complex response and the strength decomposed into
     ! different symmetry channels. For now, this assumes that the perturbing
@@ -822,10 +940,10 @@ $TR S = 2 * S ! Time-reversal factor 2
     integer :: h, p, B, N, si
     real(KIND=dp) :: occ_h, occ_p
 
-    if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
+    if (fam_verbose > 1) print *, "calc_strength_decomp_old :: S_lm where l= ", l, "m=", m
 
     if (mod(l,2) == 1 .or. mod(m,2) == 1) then
-      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
+      print *, "NOT IMPLEMENTED :: calc_strength_decomp_old() not applicable when l or m is odd"
       ! print *, "calling calc_strength() instead"
       ! call calc_strength()
       return
@@ -864,7 +982,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
 
 
-  end subroutine calc_strength_decomp
+  end subroutine calc_strength_decomp_old
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------

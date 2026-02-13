@@ -319,7 +319,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (5) Run the mean-field calculation with pairing (eventhough zero)
-setup_test_env_fam "fam_t0t3" "$1" "$1" "t0t3"
+setup_test_env_fam "fam_t0t3" "$1" "$4" "t0t3"
 
 # Create runtime data
 cat << EOF > mf.data
@@ -363,9 +363,50 @@ EOF
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
 
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (6) Run a calculation that freezes the potentials just to get a 
+#     robust set of virtual states
+cat << EOF > mf.data
+&nucleus
+neutrons=8, protons=8
+energy_prec=1e-20
+/
+&mesh
+nx=8, ny=8, nz=8, dx=0.8
+/
+&func
+name_param='t0t3'
+/
+&pairing
+type='HFB'
+/
+&evolution
+maxiter=1000
+dt=0.0209, momentum=0.5746
+Estimateparams=.false.
+freezeiter=1000
+/
+&scfiteration
+/
+&wfs
+nwn = 14, nwp = 14
+osc_freq = 0.2, 0.2, 0.2
+/
+&IO
+InputFilename='mf_hfb.wf'
+OutputFilename='mf_hfb.wf'
+allowtransform=.true.
+/
+&MomentParam
+/
+&Cranking
+/
+EOF
+./$exe < mf.data > $mfoutfile.bis
+
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (6) Run the LO QFAM calculation
+# (7) Run the LO QFAM calculation
 
 # Create runtime data
 cat << EOF > fam.data
@@ -387,12 +428,13 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 14, nwp = 14
+nwn = 28, nwp = 28
 /
 &IO
 InputFilename='mf_hfb.wf'
 OutputFilename='trash'
 famfile='S_20.HFB.fam'
+allowtransform=.true.
 /
 &MomentParam
 /
