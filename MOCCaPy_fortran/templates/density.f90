@@ -1,4 +1,4 @@
-function calc_$NAME(rho_1b, psi, dpsi, ddpsi, hfblocks, ngrid, npsi ) result ($NAME) 
+subroutine calc_$NAME(rho_1b, psi, dpsi, ddpsi, hfblocks, ngrid, npsi, $NAME)
     !--------------------------------------------------------------------------------------------
     ! A stand-alone function capable of calculating a local density $NAME from the one-body
     ! density matrix in the canonical basis and the single-particle wavefunctions and their 
@@ -26,11 +26,11 @@ function calc_$NAME(rho_1b, psi, dpsi, ddpsi, hfblocks, ngrid, npsi ) result ($N
 
     implicit none
 
-    real*8, intent(in) :: psi(ngrid,4,npsi), dpsi(ngrid,3,4,npsi), ddpsi(ngrid,6,4,npsi)
-    real*8, intent(in) :: rho_1b(npsi)
+    real*8, intent(in)  :: psi(ngrid,4,npsi), dpsi(ngrid,3,4,npsi), ddpsi(ngrid,6,4,npsi)
+    real*8, intent(in)  :: rho_1b(npsi)
     integer, intent(in) :: hfblocks(8), ngrid, npsi
+    real*8, intent(out) :: $NAME(ngrid$DIM,2)
 
-    real*8 :: $NAME(ngrid$DIM,2)
     real*8 :: temp
 
     real*8 :: weight
@@ -51,4 +51,4 @@ $Expression
         enddo
         si = si + Nblock
     enddo
-end function calc_$NAME
+end subroutine calc_$NAME
