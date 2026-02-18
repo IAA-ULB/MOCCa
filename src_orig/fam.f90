@@ -595,51 +595,6 @@ module fam
 
   end subroutine calculate_XY
 
-  subroutine calculate_XY_old(dH)
-    !---------------------------------------------------------------------------
-    ! Old implementation of calculate_XY for FAM, where the double for loop is 
-    ! is restricted to particle and holes states but neglects symmetry blocks
-    !---------------------------------------------------------------------------
-    implicit none
-    complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
-
-    integer       :: p, h, si, N, N2, i, j, B, T
-    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
-
-    if (fam_verbose > 1) print *, "calculate_XY_old :: update X and Y"
-
-    if (pairingtype.ne.0) then 
-      print *, "calculate_XY_old only applicable to HF" 
-      return
-    endif
-
-    X = - (F(:,:,1) + dH(:,:,1))
-    Y = - (F(:,:,2) + dH(:,:,2))
-
-    ! normalise with energy denominator
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      e_h = spenergies(h) 
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-            ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-            !     Worse: this kind of introduces a different cutoff on "hole" versus "particle" when T is conserved
-$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved 
-$NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
-        e_p = spenergies(p) 
-        if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
-      enddo
-    enddo
-
-    if(fam_verbose > 2) then
-      print * , "||X||²",   sum(abs(X(:,:)**2))
-      print * , "||Y||²",   sum(abs(Y(:,:)**2))
-    endif
-
-  end subroutine calculate_XY_old
-
 
   subroutine store_XY_hist()
     !---------------------------------------------------------------------------
@@ -1215,7 +1170,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     complex(KIND=dp), intent(out), optional :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
 
     real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:)
-    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:)
+    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:), temp(:,:)
     integer                       :: B, N, N2, si, sb, T, i
 
     if(present(O20qp)) O20qp = 0._dp
@@ -1248,17 +1203,42 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
       if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
 
+      ! print * , 'U : '
+      ! do i=1,T
+      !   print "(99f10.5)",  Ub(i, 1:T)
+      ! enddo
+      
+      ! print * , 'V : '
+      ! do i=1,T
+      !   print "(99f10.5)",  Vb(i, 1:T)
+      ! enddo
 
       if(present(O20qp)) then
         if(present(O11sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Vb))
+   $NTR   O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Vb))
+   $TR    O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Ub),  matmul(          O11b , Vb))
           O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
+          if (fam_verbose > 2) then
+     $NTR   temp = + matmul(transpose(Ub),  matmul(          O11b , Vb))
+     $TR    temp = - matmul(transpose(Ub),  matmul(          O11b , Vb))
+            print * , ' O20 qp term 1 : ', temp(si+1,si+1)
+            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
+            print * , ' O20 qp term 2 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O20sp)) then
           O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
+            print * , ' O20 qp term 3 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O02sp)) then
           O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Vb))
+          if (fam_verbose > 2) then
+            temp = - matmul(transpose(Vb),  matmul(          O02b , Vb))
+            print * , ' O20 qp term 4 : ', temp(si+1,si+1)
+          endif
         endif
       endif 
 
@@ -1267,26 +1247,57 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
         if(present(O11sp)) then
           O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Ub))
           O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O11b , Ub))
+            print * , ' O11 qp term 1 : ', temp(si+1,si+1)
+            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
+            print * , ' O11 qp term 2 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O20sp)) then
           O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Vb))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O20b , Vb))
+            print * , ' O11 qp term 3 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O02sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Ub))
+  $NTR    O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Ub))
+  $TR     O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Vb),  matmul(          O02b , Ub))
+          if (fam_verbose > 2) then
+  $NTR      temp = - matmul(transpose(Vb),  matmul(          O02b , Ub))
+  $TR       temp = + matmul(transpose(Vb),  matmul(          O02b , Ub))
+            print * , ' O11 qp term 4 : ', temp(si+1,si+1)
+          endif
         endif
-      endif 
 
 
       if(present(O02qp)) then
         if(present(O11sp)) then
           O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O11b , Ub))
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+  $NTR    O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+  $TR     O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+          if (fam_verbose > 2) then
+            temp = - matmul(transpose(Vb),  matmul(          O11b , Ub))
+            print * , ' O02 qp term 1 : ', temp(si+1,si+1)
+  $NTR      temp = + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+  $TR       temp = - matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+            print * , ' O02 qp term 2 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O20sp)) then
           O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O20b , Vb))
+          if (fam_verbose > 2) then
+            temp =- matmul(transpose(Vb),  matmul(          O20b , Vb))
+            print * , ' O02 qp term 3 : ', temp(si+1,si+1)
+          endif
         endif
         if(present(O02sp)) then
           O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O02b , Ub))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O02b , Ub))
+            print * , ' O02 qp term 4 : ', temp(si+1,si+1)
+          endif
         endif
       endif 
 
@@ -1294,6 +1305,19 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       sb = sb +2*T
 
     enddo
+
+    if (fam_verbose > 2) then
+      print *, 'Antisymmetry : '
+      if(present(O20sp)) print *, '    O20sp = - O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
+      if(present(O02sp)) print *, '    O02sp = - O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
+      if(present(O20qp)) print *, '    O20qp = - O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
+      if(present(O02qp)) print *, '    O02qp = - O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      print *, 'Hermiticity : '
+      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
+      if(present(O11sp)) print *, '    O11sp = O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
+      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
+      if(present(O11qp)) print *, '    O11qp = O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+    endif
     
   end subroutine transform_sp_to_qp
 
@@ -1344,7 +1368,6 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
     complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:)
-    complex(KIND=dp), allocatable :: OV(:,:), OU(:,:)
     integer                       :: B, N, N2, si, sb, T, i
 
 
@@ -1380,7 +1403,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
       if(present(O20sp)) then
         if(present(O11qp)) then
-          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Vb)))
+  $NTR    O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Vb)))
+  $TR     O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Ub,  matmul(          O11b , transpose(Vb)))
           O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(transpose(O11b), transpose(Ub)))
         endif
         if(present(O20qp)) then
@@ -1401,7 +1425,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
           O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O20b , transpose(Vb)))
         endif
         if(present(O02qp)) then
-          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O02b , transpose(Ub)))
+  $NTR    O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O02b , transpose(Ub)))
+  $TR     O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Vb,  matmul(          O02b , transpose(Ub)))
         endif
       endif 
 
@@ -1409,7 +1434,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       if(present(O02sp)) then
         if(present(O11qp)) then
           O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O11b , transpose(Ub)))
-          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(transpose(O11b), transpose(Vb)))
+  $NTR    O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(transpose(O11b), transpose(Vb)))
+  $TR     O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Ub,  matmul(transpose(O11b), transpose(Vb)))
         endif
         if(present(O20qp)) then
           O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O20b , transpose(Vb)))
