@@ -470,10 +470,10 @@ contains
       call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
       nwt_local = nwt
 
-      call allocate_memory_derivatives(0)
-      call set_spwf_symmetries(sx, sy, sz, HFblocks)
-      call deriveHF()
-      call write_Bert_output("nilsson")
+      !call allocate_memory_derivatives(0)
+      !call set_spwf_symmetries(sx, sy, sz, HFblocks)
+      !call deriveHF()
+      !call write_Bert_output("nilsson")
 
       guessgaps         = .true.
       fileblocks        = HFBlocks
@@ -573,8 +573,6 @@ contains
 #endif
 
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
-    call deriveHF()
-    call write_Bert_output("after-ortho")
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
@@ -885,16 +883,19 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine Brussels_output
 
   subroutine write_Bert_output(suffix )
-    !
-    !
-    !
-    !
-
+    !----------------------------------------------------------------------------
+    ! Write various information to different files for benchmarking with MOCCaPy.
+    !----------------------------------------------------------------------------
+    use evolution, only : apply_sphamil_block
     character(len=*), intent(in) :: suffix
     character(len=100) :: filename
-    integer :: i,j,k,l,mu, wave, mi
+    integer :: i,j,k,l,mu, wave, mi, si, B, iso, N 
+    real(KIND=dp), allocatable :: hpsi(:,:,:)
 
-    write(filename, '("Bert_", a,"_wfs.txt")') trim(suffix)
+    !----------------------------------------------------------------------------
+    ! Information on the wavefunctions 
+    !----------------------------------------------------------------------------
+    write(filename, '("Bert_", a,"_psi.txt")') trim(suffix)
     print *, 'Writing Bert output to file: ', trim(filename)
     open(unit=20, file=filename)
     write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \psi(i,1,1) \psi(i,2,1) \psi(i,3,1) \psi(i,4,1) \psi(i,1,2) ....'
@@ -917,7 +918,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     write(filename, '("Bert_", a,"_nabla_x_wfs.txt")') trim(suffix)
     print *, 'Writing Bert output to file: ', trim(filename)
     open(unit=20, file=filename)
-    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_x \psi(i,1,1)  \nabla_x \psi(i,2,1)  \nabla_x \psi(i,3,1)  \nabla_x \psi(i,4,1)  \nabla_x \psi(i,1,2) ....'
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_x \psi(i,1,1)  \nabla_x \psi(i,2,1) ' // & 
+    &                ' \nabla_x \psi(i,3,1)  \nabla_x \psi(i,4,1)  \nabla_x \psi(i,1,2) ....'
     do k=1,nz
       do j=1,ny
       do i=1,nx
@@ -938,7 +940,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     write(filename, '("Bert_", a,"_nabla_y_wfs.txt")') trim(suffix)
     print *, 'Writing Bert output to file: ', trim(filename)
     open(unit=20, file=filename)
-    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_y \psi(i,1,1)  \nabla_y \psi(i,2,1)  \nabla_y \psi(i,3,1)  \nabla_y \psi(i,4,1)  \nabla_y \psi(i,1,2) ....'
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_y \psi(i,1,1)  \nabla_y \psi(i,2,1) ' // &
+    &                ' \nabla_y \psi(i,3,1)  \nabla_y \psi(i,4,1)  \nabla_y \psi(i,1,2) ....'
     do k=1,nz
       do j=1,ny
       do i=1,nx
@@ -958,7 +961,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     write(filename, '("Bert_", a,"_nabla_z_wfs.txt")') trim(suffix)
     print *, 'Writing Bert output to file: ', trim(filename)
     open(unit=20, file=filename)
-    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_z \psi(i,1,1)  \nabla_z \psi(i,2,1)  \nabla_z \psi(i,3,1)  \nabla_z \psi(i,4,1)  \nabla_z \psi(i,1,2) ....'
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]    \nabla_z \psi(i,1,1)  \nabla_z \psi(i,2,1) ' // & 
+    &                '\nabla_z \psi(i,3,1)  \nabla_z \psi(i,4,1)  \nabla_z \psi(i,1,2) ....'
     do k=1,nz
       do j=1,ny
       do i=1,nx
@@ -978,7 +982,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     write(filename, '("Bert_", a,"_laplacian_wfs.txt")') trim(suffix)
     print *, 'Writing Bert output to file: ', trim(filename)
     open(unit=20, file=filename)
-    write(20, '(a)') '# x[fm]      y[fm]      z[fm]   \Delta \psi(i,1,1) \Delta \psi(i,2,1) \Delta \psi(i,3,1) \Delta\psi(i,4,1) \Delta \psi(i,1,2) ....'
+    write(20, '(a)') '# x[fm]      y[fm]      z[fm]   \Delta \psi(i,1,1) \Delta \psi(i,2,1) ' // &
+    &                '\Delta \psi(i,3,1) \Delta\psi(i,4,1) \Delta \psi(i,1,2) ....'
     do k=1,nz
       do j=1,ny
       do i=1,nx
@@ -995,29 +1000,176 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     enddo 
     close(20)
 
-   open(unit=20, file='Bert_lagx.txt')
-   do i=1,nx
-     do j=1,nx 
-       write(20, '(4es15.5)') derX(i,j,1), derX(i,j,2), laplaX(i,j,1), laplaX(i,j,2)
-     enddo
-   enddo
-   close(20)
+  !  open(unit=20, file='Bert_lagx.txt')
+  !  do i=1,nx
+  !    do j=1,nx 
+  !      write(20, '(4es15.5)') derX(i,j,1), derX(i,j,2), laplaX(i,j,1), laplaX(i,j,2)
+  !    enddo
+  !  enddo
+  !  close(20)
 
-   open(unit=20, file='Bert_lagy.txt')
-   do i=1,nx
-     do j=1,nx 
-       write(20, '(4es15.5)') derY(i,j,1), derY(i,j,2), laplaY(i,j,1), laplaY(i,j,2)
-     enddo
-   enddo
-   close(20)
+  !  open(unit=20, file='Bert_lagy.txt')
+  !  do i=1,nx
+  !    do j=1,nx 
+  !      write(20, '(4es15.5)') derY(i,j,1), derY(i,j,2), laplaY(i,j,1), laplaY(i,j,2)
+  !    enddo
+  !  enddo
+  !  close(20)
 
-   open(unit=20, file='Bert_lagz.txt')
-   do i=1,nx
-     do j=1,nx 
-       write(20, '(4es15.5)') derZ(i,j,1), derZ(i,j,2), laplaZ(i,j,1), laplaZ(i,j,2)
-     enddo
-   enddo
-   close(20)
+  !  open(unit=20, file='Bert_lagz.txt')
+  !  do i=1,nx
+  !    do j=1,nx 
+  !      write(20, '(4es15.5)') derZ(i,j,1), derZ(i,j,2), laplaZ(i,j,1), laplaZ(i,j,2)
+  !    enddo
+  !  enddo
+  !  close(20)
+
+  !-----------------------------------------------------------------------------
+  ! Information on the densities
+  ! ----------------------------------------------------------------------------
+  write(filename, '("Bert_", a,"_D_I_I.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]      z[fm]    D_I_I_n    D_I_I_p'
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 2es12.5)', advance='no') meshx(i), meshy(j), meshz(k), &
+        &          Density%D_I_I(meshindex(i,j,k),1), Density%D_I_I(meshindex(i,j,k),2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
+  write(filename, '("Bert_", a,"_D_Nm_Nm.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]      z[fm]    D_Nm_Nm_n    D_Nm_Nm_p'
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 2es12.5)', advance='no') meshx(i), meshy(j), meshz(k), &
+        &          Density%D_Nm_Nm(meshindex(i,j,k),1), Density%D_Nm_Nm(meshindex(i,j,k),2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20) 
+
+  write(filename, '("Bert_", a,"_C_I_NS.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]      z[fm]    C_I_NS_n_xx    C_I_NS_n_yx  ' // &
+  &                ' C_I_NS_n_zx    C_I_NS_n_xy      C_I_NS_n_yy    C_I_NS_n_zy  ' // & 
+  &                ' C_I_NS_n_xz    C_I_NS_n_yz      C_I_NS_n_zz    C_I_NS_p_xx  ' // &
+  &                ' C_I_NS_p_yx    C_I_NS_p_zx      C_I_NS_p_xy    C_I_NS_p_yy  ' // & 
+  &                ' C_I_NS_p_zy    C_I_NS_p_zx      C_I_NS_p_zy    C_I_NS_p_zz  '
+
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 18es12.5)', advance='no') meshx(i), meshy(j), meshz(k),  &
+        & Density%C_I_NS(meshindex(i,j,k),1:9,:,1), Density%C_I_NS(meshindex(i,j,k),1:9,:,2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
+  !-----------------------------------------------------------------------------
+  ! Information on the potentials
+  !----------------------------------------------------------------------------
+  write(filename, '("Bert_", a,"_F_I_I.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]     z[fm]    F_I_I_n    F_I_I_p'
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 2es12.5)', advance='no') meshx(i), meshy(j), meshz(k), &
+      &          potentials%F_I_I(meshindex(i,j,k),1), potentials%F_I_I(meshindex(i,j,k),2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
+  write(filename, '("Bert_", a,"_F_Nm_Nm.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]     z[fm]    F_Nm_Nm_n    F_Nm_Nm_p'
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx 
+        write(20, '(3es12.5, 2es12.5)', advance='no') meshx(i), meshy(j), meshz(k), &    
+      &          potentials%F_Nm_Nm(meshindex(i,j,k),1), potentials%F_Nm_Nm(meshindex(i,j,k),2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
+  write(filename, '("Bert_", a,"_G_I_NS.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]     y[fm]     z[fm]    G_I_NS_n_xx    G_I_NS_n_yx    G_I_NS_n_zx  ' // &
+  &                ' G_I_NS_n_xy    G_I_NS_n_yy    G_I_NS_n_zy  ' // & 
+  &                ' G_I_NS_n_xz    G_I_NS_n_yz    G_I_NS_n_zz  ' // &
+  &                ' G_I_NS_p_xx    G_I_NS_p_yx    G_I_NS_p_zx  ' // &
+  &                ' G_I_NS_p_xy    G_I_NS_p_yy    G_I_NS_p_zy  ' // &
+  &                ' G_I_NS_p_xz    G_I_NS_p_yz    G_I_NS_p_zz'
+
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx 
+        write(20, '(3es12.5, 18es12.5)', advance='no') meshx(i), meshy(j), meshz(k), &
+        & potentials%G_I_NS(meshindex(i,j,k),1:9,:,1), potentials%G_I_NS(meshindex(i,j,k),1:9,:,2)
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
+  !----------------------------------------------------------------------------
+  ! Information on the action of the single-particle hamiltonian on the wavefunctions
+  !----------------------------------------------------------------------------
+  allocate(hpsi(mv,4,nwt))
+  si = 0
+  do B=1,8
+    N = HFBlocks(B) ; if(N.eq.0) cycle
+    iso = -1        ; if(B.gt.4) iso = +1
+    wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
+    call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi(:,:,si+1:si+N),&
+    &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+    &                          HFdpsi(:,:,:,si+1:si+N),              &
+    &                          HFddpsi(:,:,:,si+1:si+N),.false., potentials)
+  enddo 
+
+  write(filename, '("Bert_", a,"_hpsi.txt")') trim(suffix)
+  print *, 'Writing Bert output to file: ', trim(filename)
+  open(unit=20, file=filename)
+  write(20, '(a)') '# x[fm]      y[fm]    z[fm]    h\psi(i,1,1) h\psi(i,2,1) h\psi(i,3,1) h\psi(i,4,1) h\psi(i,1,2) ....'
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(20, '(3es12.5, 8es12.5)', advance='no') meshx(i), meshy(j), meshz(k)
+        mi = meshindex(i,j,k)
+        do wave=1,nwt
+          do l=1,4
+            write(20, '(es15.5)', advance='no') hpsi(mi,l,wave)
+          enddo
+        enddo
+        write(20, '(a)') '' ! newline character
+      enddo
+    enddo
+  enddo
+  close(20)
+
 
   end subroutine write_Bert_output
   

@@ -285,6 +285,9 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Initial printout
     call full_printout(0,.false.,print_adv_spwf_properties)
+
+    call write_Bert_output("start")
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
