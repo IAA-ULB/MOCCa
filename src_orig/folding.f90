@@ -176,19 +176,13 @@ contains
     ! Output:
     !   G  :  Constructed folding matrix
     !
-    !          G(i,j) =     (r0 * sqrt(pi))**(-1) * exp[-(|+r_i - r_j|/r0)**2]
-    !                 + p * (r0 * sqrt(pi))**(-1) * exp[-(|-r_i - r_j|/r0)**2]
+    !          G(i,j) =     sum_n gamma_n( r_i - r_j)
+    !                 + p * sum_n gamma_n(-r_i - r_j)
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! A few notes:
     !
-    !  *) After construction, we normalize the folding matrix to offset 
-    !     numerical errors due to the mesh discretisation. In this way, we 
-    !     can guarantee that 
-    !
-    !         int dx int dx' G(x,x') f(x') = sum_ij G(i,j) f(j) = int dx f(x)  
-    !                                                           = sum_i  f(j)
-    !     i.e. that we don't change integrals on the mesh.
+    !  *) Contrary to gauss_1D, this function must NOT be normalized.
     ! 
     !  *) If the relevant Cartesian axis is completely stored in the code, 
     !     meaning that there is no reflection symmetry, it is up to the user
@@ -196,23 +190,40 @@ contains
     !     reflection symmetry along the axis.
     !---------------------------------------------------------------------------
 
-    real(KIND=dp)             :: G(m,m)
+    real(KIND=dp)             :: G(m,m), L 
     integer, intent(in)       ::  m, p
     real(KIND=dp), intent(in) :: r0, mesh(m)
+    integer :: i,j, ind, N_total, n 
+
+    ! Intializing to 0 the G array (Neccesary because of the sum over n)
+    G = 0.0_dp
+
+    ! The summation over N in the Gamma matrices goes from n \in  [0,N-1], with
+    ! N being the total number of sample points of HALF of a dimension of the cell
+    if(p.eq.1) then 
+        N_total = m
+    else
+        N_total = m/2
+    endif 
     
-    integer :: i,j, ind
-    
+    !Getting the total length of the box
+    L = 2*N_total*dx
+
     ! Elements actually represented on the mesh
     do i=1,m
         do j=1,m          
-            G(i,j) = Gaussian(mesh(i), mesh(j), r0)
+            do n=0,N_total-1
+                G(i,j) = G(i,j)+gamma(mesh(i), mesh(j), r0, n,L)*2_dp/L
+            enddo
         enddo
     enddo
     !---------------------------------------------------------------------------
     ! Elements to be gotten by symmetry.
     do i=1,m
         do j=1,m          
-            G(i,j) = G(i,j) + p*Gaussian(-mesh(i), mesh(j), r0)
+            do n=0,N_total-1
+                G(i,j) = G(i,j) + p*gamma(-mesh(i), mesh(j), r0,n,L)*2_dp/L
+            enddo
         enddo
     enddo
     !---------------------------------------------------------------------------
@@ -222,8 +233,10 @@ contains
 #if(USE_Periodic==1) 
     do i=1,m
         do j=1,m          
-            G(i,j) = G(i,j) + Gaussian(mesh(i)-(1+p)*m*dx, mesh(j), r0)        &
-            &      +  Gaussian((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0)
+            do n=0, N_total-1
+                G(i,j) = G(i,j) + gamma(mesh(i)-(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L    &
+                &      +  gamma((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L
+            enddo
         enddo
     enddo
 #endif
@@ -618,7 +631,36 @@ contains
     endif
 
     if (exact_interpolation) then
-      write(*,*) 'hello'
+    	do sign = -1,+1, 2
+    	  index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
+
+    	  ! HACK: the multiplication with reduX/Y/Z ensures that the breaking of 
+    	  !       a reflection symmetry automatically leads to Gaussian matrices 
+    	  !       being constructed with no reflection symmetry.
+
+    	  ! Neutrons
+    	  if(rplus_n .ne. 0.0_dp) then
+    	    call gamma_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
+    	    call gamma_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
+    	    call gamma_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
+    	  endif
+    	  if(rmin_n .ne. 0.0_dp) then
+    	    call gamma_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
+    	    call gamma_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
+    	    call gamma_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
+    	  endif
+    	  ! Protons
+    	  if(rplus_p .ne. 0.0_dp) then
+    	    call gamma_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
+    	    call gamma_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
+    	    call gamma_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
+    	  endif
+    	  if(rmin_p .ne. 0.0_dp) then
+    	    call gamma_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
+    	    call gamma_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
+    	    call gamma_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
+    	  endif
+    	enddo
     else
     	do sign = -1,+1, 2
     	  index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
