@@ -62,11 +62,11 @@ contains
   return
  end function gaussian
 
- pure function gamma(r1,r2, r0,n,L) result(G)
+ pure function gamma_function(r1,r2, r0,n,L) result(G)
   !-----------------------------------------------------------------------------
   ! Returns the 1D Gamma function given by
   ! 
-  !     G(|r1 - r2|) = exp[-(pi*r0/L*(n+1/2))**2]*cos(2*pi/L*(n+1/2)*(r))
+  !     G(|r1 - r2|) = exp[-(pi*r0/L*(n+1/2))**2]*cos(2*pi/L*(n+1/2)*(r1-r2))
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in) :: r1, r2, r0, L
   integer, intent(in)       :: n
@@ -76,7 +76,7 @@ contains
   cos_arg  = 2.0_dp * pi / L * (n + 1.0_dp/2.0_dp) * (r1 - r2)
   G = exp(-exponent**2) * cos(cos_arg)
   return
- end function gamma
+ end function gamma_function
  
  subroutine gauss_1D(G, mesh, m, r0, p)
     !---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ contains
     real(KIND=dp)             :: G(m,m), L 
     integer, intent(in)       ::  m, p
     real(KIND=dp), intent(in) :: r0, mesh(m)
-    integer :: i,j, ind, N_total, n 
+    integer :: i,j, N_total, n 
 
     ! Intializing to 0 the G array (Neccesary because of the sum over n)
     G = 0.0_dp
@@ -213,7 +213,7 @@ contains
     do i=1,m
         do j=1,m          
             do n=0,N_total-1
-                G(i,j) = G(i,j)+gamma(mesh(i), mesh(j), r0, n,L)*2_dp/L
+                G(i,j) = G(i,j)+gamma_function(mesh(i), mesh(j), r0, n,L)*2_dp/L
             enddo
         enddo
     enddo
@@ -222,7 +222,7 @@ contains
     do i=1,m
         do j=1,m          
             do n=0,N_total-1
-                G(i,j) = G(i,j) + p*gamma(-mesh(i), mesh(j), r0,n,L)*2_dp/L
+                G(i,j) = G(i,j) + p*gamma_function(-mesh(i), mesh(j), r0,n,L)*2_dp/L
             enddo
         enddo
     enddo
@@ -234,27 +234,27 @@ contains
     do i=1,m
         do j=1,m          
             do n=0, N_total-1
-                G(i,j) = G(i,j) + gamma(mesh(i)-(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L    &
-                &      +  gamma((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L
+                G(i,j) = G(i,j) + gamma_function(mesh(i)-(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L    &
+                &      +  gamma_function((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L
             enddo
         enddo
     enddo
 #endif
-    !---------------------------------------------------------------------------
-    ! Normalize, to avoid the numerical errors due to the mesh discretization.
-    ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
-    !                 column, chosen "sufficiently far away" from the boundary
-    !                 of the mesh. If we would normalize G for j = m, on the 
-    !                 boundary, we would divide by too small a number, as the 
-    !                 Gaussian should extend BEYOND the mesh. 
-    !                 Naively, we could choose ind = 1 for this, 
-    !                 but this is ON the boundary of the mesh when this axis
-    !                 is not reduced through a conserved symmetry. For 
-    !                 reasonable meshes and reasonable folding sizes, m/2+1
-    !                 is several points away from either boundary of the mesh.
-    ind = m/2 + 1 
-    
-    G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
+!    !---------------------------------------------------------------------------
+!    ! Normalize, to avoid the numerical errors due to the mesh discretization.
+!    ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
+!    !                 column, chosen "sufficiently far away" from the boundary
+!    !                 of the mesh. If we would normalize G for j = m, on the 
+!    !                 boundary, we would divide by too small a number, as the 
+!    !                 Gaussian should extend BEYOND the mesh. 
+!    !                 Naively, we could choose ind = 1 for this, 
+!    !                 but this is ON the boundary of the mesh when this axis
+!    !                 is not reduced through a conserved symmetry. For 
+!    !                 reasonable meshes and reasonable folding sizes, m/2+1
+!    !                 is several points away from either boundary of the mesh.
+!    ind = m/2 + 1 
+!    
+!    G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine gamma_1D
 
 
@@ -565,6 +565,11 @@ contains
     real(KIND=dp)              :: hbom, mhb, B
     integer                    :: n_gauss_n, n_gauss_p, sign, index
 	logical                    :: exact_interpolation  = .true.
+
+    if (exact_interpolation) then
+        write(*,*) 'Exact interpolation activated'
+    endif
+
 
     ! The determination of folding parameters from the parameterization input 
     ! for neutrons and protons is not the same; see documentation.
