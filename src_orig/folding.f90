@@ -544,27 +544,27 @@ contains
   !-----------------------------------------------------------------------------
  end function fold_one_gaussian
 
- subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, hbm, & 
- &                             Gxn,Gyn,Gzn, Gxp, Gyp, Gzp)
+ subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, & 
+ &                             exact_interpolation, hbm,Gxn,Gyn,Gzn, Gxp, Gyp, Gzp)
     !---------------------------------------------------------------------------
     ! Construct the matrices for Gaussian folding.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !  protonsize, neutronsize : sizes of the Gaussians for folding
     !  hoconform  : whether to apply the harmonic-oscillator correction
+    !  exact_interpolation: whether to apply the integral interpolation procedure
     !  hbm        : hbar^2/m for use in the harmonic-oscillator correction
     !
     ! Output:
     !   Gx/y/zn/p : Gaussian factors for folding the density
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: neutron_size(2), proton_size(2), hbm(2)
-    logical, intent(in)        :: hocomform
+    logical, intent(in)        :: hocomform, exact_interpolation
     real(KIND=dp), allocatable, intent(out) :: Gxn(:,:,:,:), Gyn(:,:,:,:), Gzn(:,:,:,:)
     real(KIND=dp), allocatable, intent(out) :: Gxp(:,:,:,:), Gyp(:,:,:,:), Gzp(:,:,:,:)
     real(KIND=dp)              :: rplus_n, rplus_p, rmin_n, rmin_p
     real(KIND=dp)              :: hbom, mhb, B
     integer                    :: n_gauss_n, n_gauss_p, sign, index
-	logical                    :: exact_interpolation  = .true.
 
     if (exact_interpolation) then
         write(*,*) 'Exact interpolation activated'
