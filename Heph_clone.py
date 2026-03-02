@@ -181,6 +181,8 @@ description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATI
 # Rename the wavefunction arrays to reflection what is needed inside the function
 heph_densities.ArrayNames = ['psi', 'dpsi', 'ddpsi']
 
+#--------------------------------------------------------------------------------
+# Generate density routines
 for D in heph_densities.Densities_needed:
   (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply,\
@@ -196,6 +198,33 @@ for D in heph_densities.Densities_needed:
 
   heph_substitute.substitute('MOCCaPy_fortran/templates/density.f90', 'MOCCaPy_fortran/%s.f90'%D, dic, make_notes=False)
 
+
+#¸--------------------------------------------------------------------
+# Generating everything for the fields
+fields_result = heph_fields.GenerateFields(so, oldso, True, fam_active)
+#
+# We are interested only in #2 -> the calculation of the fields
+calc = fields_result[2]
+
+# First, we massage the declaration
+# First, remove all mentions of allocation
+newcalc = ''
+for line in calc.split('\n'):
+  if('allocate' in line or 'if' in line):
+    continue
+  else:
+    newline = line.replace('R%', '').replace("F%",'')
+    newcalc += '\n' + newline
+
+dic = {}
+dic['NAME']            = D
+dic['EXPRESSION']      = newcalc
+
+heph_substitute.substitute('MOCCaPy_fortran/templates/potential.f90', 'MOCCaPy_fortran/manual.f90', dic, make_notes=False)
+
+#
+#
+#
 # def GenDensityExpression(denin,derivative_combinations,intermediate, 
 #                          leftwave     , rightwave     ,
 #                          left_der_wave, right_der_wave, so,
