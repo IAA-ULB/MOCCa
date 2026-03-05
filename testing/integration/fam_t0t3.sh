@@ -17,7 +17,7 @@
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001 MeV                  1 keV
-#  - strength S_20 @ 25.0 MeV          1.66     fm^4 MeV^-1          1e-2
+#  - strength S_20 @ 25.0 MeV          1.6612   fm^4 MeV^-1          1e-4
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
@@ -33,7 +33,7 @@
 #-------------------------------------------------------------------------------
 # These are the hardcoded answers
 refE=-177.062001 # Total energy of O16 in MeV
-refS20=1.66      # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
+refS20=1.6612    # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
 
 # set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -189,7 +189,7 @@ check_energy=$?
 # b) Get the strength from the S_20.fam file
 S=$(get_strength "S_20.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S $refS20 0.01
+compare_floats $S $refS20 0.0001
 check_strength=$?
 
 # We keep the wf file!
@@ -252,7 +252,7 @@ fam_T_check=$?
 # b) Get the strength from the S_20.T.fam file
 S_T=$(get_strength "S_20.T.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S_T $refS20 0.01
+compare_floats $S_T $refS20 0.0001
 check_strength_T=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
@@ -311,7 +311,7 @@ fam_P_check=$?
 # b) Get the strength from the S_20.fam file
 S_P=$(get_strength "S_20.P.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S_P $refS20 0.01
+compare_floats $S_P $refS20 0.0001
 check_strength_P=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
@@ -319,7 +319,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (5) Run the mean-field calculation with pairing (eventhough zero)
-setup_test_env_fam "fam_t0t3" "$1" "$4" "t0t3"
+setup_test_env_fam "qfam_t0t3" "$1" "$1" "t0t3"
 
 # Create runtime data
 cat << EOF > mf.data
@@ -428,12 +428,81 @@ maxiter=1000
 &scfiteration
 /
 &wfs
+nwn = 14, nwp = 14
+/
+&IO
+InputFilename='mf_hfb.wf'
+OutputFilename='trash'
+famfile='S_20.QFAM.fam'
+/
+&MomentParam
+/
+&Cranking
+/
+&fam
+omega=25.0
+smear=1.0
+l=2
+m=0
+maxiter=30
+fam_precision=1e-8
+/
+EOF
+
+# Run the calculation
+./$exefam < fam.data > $famoutfile
+# .... and immediately check if Tantalus reported back some error codes
+qfam_check=$?
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Starting the checking
+
+# b) Get the strength from the S_20.fam file
+S=$(get_strength "S_20.QFAM.fam" 25.0)
+# ... and compare with a tolerance of 1e-2 to the expected answer
+compare_floats $S $refS20 0.0001
+check_strength_QRPA=$?
+
+mv mf_hfb.wf ../
+
+
+# ... but otherwise clean-up
+teardown_test_env
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (8) Run the LO-T QFAM calculation
+
+setup_test_env_fam "qfam_t0t3" "$1" "$2" "t0t3"
+
+cp ../mf_hfb.wf .
+
+
+# Create runtime data
+cat << EOF > fam.data
+&nucleus
+neutrons=8, protons=8
+/
+&mesh
+nx=8, ny=8, nz=8, dx=0.8
+/
+&func
+name_param='t0t3'
+/
+&pairing
+type='HFB'
+/
+&evolution
+maxiter=1000
+/
+&scfiteration
+/
+&wfs
 nwn = 28, nwp = 28
 /
 &IO
 InputFilename='mf_hfb.wf'
 OutputFilename='trash'
-famfile='S_20.HFB.fam'
+famfile='S_20.QFAM.T.fam'
 allowtransform=.true.
 /
 &MomentParam
@@ -453,29 +522,30 @@ EOF
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
-fam_HFB_check=$?
+qfam_T_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
 
 # b) Get the strength from the S_20.fam file
-S=$(get_strength "S_20.HFB.fam" 25.0)
+S=$(get_strength "S_20.QFAM.T.fam" 25.0)
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S $refS20 0.01
-check_strength_HFB=$?
+compare_floats $S $refS20 0.0001
+check_strength_QRPA_T=$?
 
 # ... but otherwise clean-up
 teardown_test_env
 
+
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $fam_HFB_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_HFB))
+fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_check || $qfam_T_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_QRPA || $check_strength_QRPA_T))
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
 else
-	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $fam_HFB_check
-	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_HFB = $check_strength_HFB \033[0m"
+	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
+	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, , S20_QRPA_T = $check_strength_QRPA_T \033[0m"
 fi
 
 exit $fail
