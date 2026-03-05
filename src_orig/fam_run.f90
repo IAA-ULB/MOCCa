@@ -230,7 +230,7 @@ program run_FAM
         call iterate_dHsp(dH_flat, dH_flat_next)
 
         ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-        call run_FAM_tests(X,Y)
+        ! call run_FAM_tests(X,Y)
 
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat

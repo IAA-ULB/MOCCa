@@ -776,7 +776,7 @@ contains
     complex(KIND=dp), allocatable :: identity(:,:)
     complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Rph(:,:,:)
 
-    real(KIND=dp), allocatable :: N20(:,:), N11(:,:)
+    real(KIND=dp), allocatable :: N20(:,:), N11(:,:), gaps(:,:)
     complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
 
     integer :: i, si, T
@@ -799,13 +799,13 @@ contains
       
       print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
       ! call print_spme_complex( Rph(:,:,1))
-      print *, 'Fph_ia : BLOCK 5 & 6'
-      T = HFblocks(5)+HFblocks(6)
-      do i=nwn+1,nwn+T
-        print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,nwn+1:nwn+T,1)
-      enddo
+      ! print *, 'Fph_ia : BLOCK 5 & 6'
+      ! T = HFblocks(5)+HFblocks(6)
+      ! do i=nwn+1,nwn+T
+      !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,nwn+1:nwn+T,1)
+      ! enddo
 
-      print '(99f10.5)', rho_can(nwn+1:nwn+T)
+      ! print '(99f10.5)', rho_can(nwn+1:nwn+T)
 
       return
     endif
@@ -838,23 +838,23 @@ contains
     ! get qpme of N11 from existing routine, for the neutron channel
     N11 = calcN11(Bogoliubov, HFblocks(1:4))
 
-    print *, 'N20 (new routine) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
-    enddo
+    ! print *, 'N20 (new routine) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
+    ! enddo
 
 
-    print *, 'N20 (existing routine) : BLOCK 1 & 2'
-    do i=1,T
-      print "(99f10.5)",  N20(i, 1:T)
-    enddo
+    ! print *, 'N20 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99f10.5)",  N20(i, 1:T)
+    ! enddo
 
-    print *, 'diff '
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
-    enddo
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
+    ! enddo
 
     
     print *, ' ||N20(existing routine) - N20(new)|| = ', &
@@ -862,27 +862,93 @@ contains
 
 
 
-    print *, 'N11 (new routine) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
-    enddo
+    ! print *, 'N11 (new routine) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
+    ! enddo
 
 
-    print *, 'N11 (existing routine) : BLOCK 1 & 2'
-    do i=1,T
-      print "(99f10.5)",  N11(i, 1:T)
-    enddo
+    ! print *, 'N11 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99f10.5)",  N11(i, 1:T)
+    ! enddo
 
-    print *, 'diff '
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
-    enddo
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
+    ! enddo
 
 
     
     print *, ' ||N11(existing routine) - N11(new)|| = ', &
+    & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 1. some test for the particle number operator, comparing to existing routines
+
+    print * , 'TEST 1bis : comparing to exising routines for the sp hamiltonian'
+
+    ! transform to qpme N20
+    call transform_sp_to_qp(Bogoliubov, O11sp=dcmplx(sphamil), O20qp=N20new, O11qp=N11new)
+
+    allocate(gaps(nwn,nwn)) 
+    gaps = 0
+
+
+    ! get qpme of N20 from existing routine, for the neutron channel
+    N20 = calcH20(Bogoliubov, sphamil(1:nwn,1:nwn), gaps, HFblocks(1:4))
+
+    ! get qpme of N11 from existing routine, for the neutron channel
+    N11 = calcH11(Bogoliubov, sphamil(1:nwn,1:nwn), gaps, HFblocks(1:4))
+
+    print *, 'H20 (new routine) : BLOCK 1 & 2'
+    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N20new(i, 1:T)
+    ! enddo
+
+
+    ! print *, 'H20 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99g10.5)",  N20(i, 1:T)
+    ! enddo
+
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
+    ! enddo
+
+    
+    print *, ' ||H20(existing routine) - H20(new)|| = ', &
+    & sum(abs(N20(:,:) - N20new(1:nwn,1:nwn)))
+
+
+
+    ! print *, 'H11 (new routine) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N11new(i, 1:T)
+    ! enddo
+
+
+    ! print *, 'H11 (existing routine) : BLOCK 1 & 2'
+    ! do i=1,T
+    !   print "(99g10.5)",  N11(i, 1:T)
+    ! enddo
+
+    ! print *, 'diff '
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
+    ! enddo
+
+
+    
+    print *, ' ||H11(existing routine) - H11(new)|| = ', &
     & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
 
 
@@ -910,45 +976,45 @@ contains
     call transform_qp_to_sp(Bogoliubov, Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3), Rspback(:,:,1), Rspback(:,:,2), Rspback(:,:,3))
 
 
-    print *, 'F20 (sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
-    enddo
+    ! print *, 'F20 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
+    ! enddo
 
-    print *, 'F20 (qp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 1)
-    enddo
+    ! print *, 'F20 (qp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 1)
+    ! enddo
 
    
-    print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
-    enddo
+    ! print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
+    ! enddo
     print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
 
 
-    print *, 'F11 (sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
-    enddo
+    ! print *, 'F11 (sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
+    ! enddo
 
-    print *, 'F11 (qp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 2)
-    enddo
+    ! print *, 'F11 (qp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 2)
+    ! enddo
 
    
-    print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    do  i=1,T
-      print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
-    enddo
+    ! print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
+    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
+    ! do  i=1,T
+    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
+    ! enddo
     print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
 
 
@@ -957,12 +1023,15 @@ contains
 
     print * , 'TEST 3 : perform symmetry checks on Rsq qpme'
     
-    print *, 'Antisymmetry : '
+    print *, '(anti)Symmetry : '
     print *, '    R20_ab = -R20_ba   : satisfied up to',  sum(abs(Rqp(:,:,1) + transpose(Rqp(:,:,1))))
     print *, '    R02_ab = -R02_ba   : satisfied up to',  sum(abs(Rqp(:,:,3) + transpose(Rqp(:,:,3))))
+    print *, '    R20_ab = +R20_ba   : satisfied up to',  sum(abs(Rqp(:,:,1) - transpose(Rqp(:,:,1))))
+    print *, '    R02_ab = +R02_ba   : satisfied up to',  sum(abs(Rqp(:,:,3) - transpose(Rqp(:,:,3))))
     print *, 'Hermiticity : '
     print *, '    R11_ab =  R11_ba^* : satisfied up to',  sum(abs(Rqp(:,:,2) - conjg(transpose(Rqp(:,:,2)))))
     print *, '    R20_ab =  R02_ab^* : satisfied up to',  sum(abs(Rqp(:,:,1) - conjg(Rqp(:,:,3))))
+    print *, '    R20_ab = -R02_ab^* : satisfied up to',  sum(abs(Rqp(:,:,1) + conjg(Rqp(:,:,3))))
 
 
 
@@ -974,24 +1043,24 @@ contains
 
     print * , 'TEST 4 : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
 
-    print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
+    ! print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
 
-    print *, 'f11_pq : BLOCK 5 & 6'
-    si =  nwn ! start index of block 5
-    T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
+    ! print *, 'f11_pq : BLOCK 5 & 6'
+    ! si =  nwn ! start index of block 5
+    ! T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
 
-    do i=si+1,si+T
-      print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
-    enddo
+    ! do i=si+1,si+T
+    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
+    ! enddo
 
 
     
-    print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
+    ! print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
 
-    print *, 'F20_k1k2 : BLOCK 5 & 6'
-    do i=si+1,si+T
-      print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
-    enddo
+    ! print *, 'F20_k1k2 : BLOCK 5 & 6'
+    ! do i=si+1,si+T
+    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
+    ! enddo
 
 
     allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
@@ -1003,23 +1072,23 @@ contains
     call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
 
 
-    print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+    ! print *, '2x||Fph (proton)||', 2.*sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
 
-    print *, '||f11||', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
-    print *, '||F20||', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
-    print *, '||Fph||', sum(abs(Rph(:, :,1) * Rph(:, :,1)))
+    print *, '  ||f11|| = ', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
+    print *, '  ||F20|| = ', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
+    print *, '2x||Fph|| = ', 2. * sum(abs(Rph(:, :,1) * Rph(:, :,1)))
 
     
     ! call print_spme_complex( Rph(:,:,1))
     
-    print *, 'Fph_ia : BLOCK 5 & 6'
-    do i=si+1,si+T
-      print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
-    enddo
+    ! print *, 'Fph_ia : BLOCK 5 & 6'
+    ! do i=si+1,si+T
+    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
+    ! enddo
 
-    print *, '||F20 (proton)|| - 2 * ||Fph (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1))) - 2 * sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+    print *, '||F20|| - 2*||Fph|| = ', sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
-    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)|| since the trivial Bogolibov trafo can reorder spstates'
+    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)|| since the trivial Bogolibov trafo can reorder sp states'
     
   end subroutine test_qptrafo
 
@@ -1337,8 +1406,17 @@ contains
 
     !call store_XY_hist()
 
-    ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa, dR_pp_plus, dR_pp_minus)
+    ! From X & Y, calculate perturbed (pairing) density matrices in HF basis 
+    if (pairingtype==0) then 
+      drho = X  + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else 
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+    endif
+
+    ! Compute perturbed densities on the mesh
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_minus, dF_pp_plus)
