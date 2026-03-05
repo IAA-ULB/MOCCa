@@ -198,7 +198,7 @@ contains
     ! Intializing to 0 the G array (Neccesary because of the sum over n)
     G = 0.0_dp
 
-    ! The summation over N in the Gamma matrices goes from n \in  [0,N-1], with
+    ! The summation over N in the Gamma matrices goes over n \in  [0,N-1], with
     ! N being the total number of sample points of HALF of a dimension of the cell
     if(p.eq.1) then 
         N_total = m
