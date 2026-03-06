@@ -917,15 +917,17 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
 
 
-      ! Multiply the operator by the effective charges 
-      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
-      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
-
       ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
       ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
 
 
       endif
+
+
+      ! Multiply the operator by the effective charges 
+      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
+      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
+
      
       if(fam_verbose > 2) then
         print *, 'f^+_LK'
