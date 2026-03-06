@@ -128,7 +128,7 @@ $PARAMDECL
     ! If true, use a modified interpolation function instead of the Gaussians
     ! that accounts for the fact that dx may be too small to resolve the Gaussian
     ! peak
-    logical :: exact_interpolation = .false.
+    logical :: exact_coulomb_folding = .true.
     !---------------------------------------------------------------------------
     ! Whether to treat the inclusion of the nucleon form factors in the Coulomb
     ! module selfconsistently or not.
@@ -194,7 +194,7 @@ contains
     ! predefined options
     namelist /skf/ name, func_file, hbm, e2, COM1body, COM2body, coultreatment,&
     &              protonsize, nucleonsize_selfconsistent, neutronsize,        &
-    &              hocomform, exact_interpolation, rotcorr, rotcorrb, rotcorrc,&
+    &              hocomform, exact_coulomb_folding, rotcorr, rotcorrb, rotcorrc,&
     &              coulorder,Estabp, Estabn, neutroncoulomberror, cutneutron,  &
     &              cutproton, CutType,  rotcorr_cut, rotcutwindow, rotcutmu,   &
     &              vibcorr, vibcorrb, vibcorrl, vibcorrd, eps, pairingmu,      &
@@ -347,7 +347,7 @@ $CHECKPARAMS
     call MPI_BCAST(protonsize         , 2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(neutronsize        , 2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(hocomform          , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(exact_interpolation, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(exact_coulomb_folding, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
     
     call MPI_BCAST(neutroncoulomberror       , 1, MPI_LOGICAL, 0, &
     &                                                MPI_COMM_WORLD, mpi_err)
@@ -399,7 +399,7 @@ $BCASTPARAMS
       rotcutmu = pairingmu
     endif
     ! b) constructing the relevant folding matrices 
-    call construct_folding_matrices(protonsize, neutronsize, hocomform,  exact_interpolation,hbm, &
+    call construct_folding_matrices(protonsize, neutronsize, hocomform,  exact_coulomb_folding,hbm, &
     &                               gauss_x_neutron, gauss_y_neutron, gauss_z_neutron, &
     &                               gauss_x_proton,  gauss_y_proton,  gauss_z_proton)
    
@@ -423,7 +423,7 @@ $BCASTPARAMS
     protonsize = 0.0d0 ; neutronsize= 0.0d0 
     nucleonsize_selfconsistent = .true.
     hocomform  = .false.
-    exact_interpolation = .false.
+    exact_coulomb_folding = .false.
     ! Numerical safeguard
     eps        = 1d-20
     ! Rotational and vibrational corrections
@@ -560,7 +560,7 @@ $PRINTPARAMS
       if(hocomform) then
           print 87
       endif
-      if(exact_interpolation) then
+      if(exact_coulomb_folding) then
           print 88
       endif
     endif
