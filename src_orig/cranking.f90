@@ -240,8 +240,11 @@ $NTR        enddo
 
     call cpu_time(t1)
     do B=1,8,2 
+        write(*,*) "Block",B
         NB    = HFBlocks(B) ; if(NB .eq. 0) cycle
         NB_TR = HFBlocks(B+1) ; if(NB_TR .eq. 0) cycle
+        write(*,*) "N_total", N_total, "NB", NB, "NB_TR", NB_TR
+        write(*,*) "--------------------------------------------"
         do wave=1,NB
             do wave_TR=1, NB_TR
                 ! Calculates overlap between a given s.p. orbital and another from the block with
@@ -249,14 +252,16 @@ $NTR        enddo
                 overlap = sum (canpsi(:,:,N_total + wave) * &
                 &          TimeReverse(canpsi(:,:,N_total + NB + wave_TR))) *dv
                 dif_rho = rho_can(N_total + wave) - rho_can(N_total + NB + wave_TR)
-                if (abs(overlap).ge.0.3_dp) then
+                if (abs(overlap).ge.0.1_dp) then
                 ! If the overlap between a state and (the time-reverse of) another one is big, then
                 ! we have a pseudo time-reversal pair
-                    if (abs(dif_rho) .ge. 0.3_dp) then
+                    if (abs(dif_rho) .ge. 0.5_dp) then
+                    write(*,*) "wf_1",N_total + wave, "wf_2",N_total + NB + wave_TR
+                    write(*,*) "ov",overlap, "rho_1",rho_can(N_total + wave), "rho_2",rho_can(N_total + NB + wave_TR)
                         ! If the occupancy in the canonical basis (rho) is very different between them,
                         ! then it's the block-conjugate pair. We now procede to infer which one of them 
-                        ! is the paired particle               
-                        write(*,*) overlap, rho_can(N_total + wave), rho_can(N_total + NB + wave_TR)
+                        ! is the blocked particle               
+!                        write(*,*) N_total + wave, N_total +NB + wave_TR
                         if (rho_can(N_total + wave) .ge. rho_can(N_total + NB + wave_TR)) then
                             blocked_list_canonical(N_total + wave) = .true.
                         else
