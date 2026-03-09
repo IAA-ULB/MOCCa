@@ -97,6 +97,10 @@ module cranking
  !    Total angular momentum in the three Cartesian directions, calculated
  !    by integration of the spin and current densities, but including the
  !    multipole cutoff.
+ ! TotalAngMom_col:
+ !    Total angular momentum in the three Cartesian directions, calculated
+ !    by summation of the single-particle contributions WITHOUT the contribution
+ !    from the blocked particle
  ! AngMomOld:
  !    Values of the total angular momentum at the previous iteration, used for
  !    readjustment of the cranking constraints.
@@ -110,10 +114,11 @@ module cranking
  ! AMBlock:
  !    Values of the total angular momentum, split by quantum number block.
  !------------------------------------------------------------------------------
- real(KIND=dp) :: TotalAngMom(3)= 0.0_dp, AngMomOld(3)  = 0.0_dp
+ real(KIND=dp) :: TotalAngMom(3)= 0.0_dp, AngMomOld(3)  = 0.0_dp  
  real(KIND=dp) :: J2_sp(3)      = 0.0_dp, AMBlock(8,3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp, AngMomOld_dens(3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp, AngMomOld_cut(3)   = 0.0_dp
+ real(KIND=dp) :: TotalAngMom_col(3)= 0.0_dp
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -214,6 +219,36 @@ $NTR        enddo
     enddo
   end subroutine readcranking
 
+  subroutine create_blocked_list_canonical()
+    !-----------------------------------------------------------------------------
+    ! Creates an array with 1 for i corresponding to the index of a blocked state
+    ! in the quasiparticle basis and 0 otherwise
+    !
+    ! Output: 
+    ! blocked_list_canonical :1D array of size # spwf which has 1 if the state is
+    !                         identified as the "blocked" state in the canonical
+    !                         basis and 0 otherwise
+    ! 
+    !----------------------------------------------------------------------------- 
+    integer :: B, N, N1, wave
+
+
+    N1 = 0
+    write(*,*) nwt, shape(canpsi)
+    do B=1,8
+        N= HFBlocks(B) ; if (N.eq.0) cycle
+        if (B.eq.1) then
+            do wave = 1, N
+                write(*,*) sum(canpsi(:,:,wave)*canpsi(:,:,wave))*dv, rho_can(wave)
+            enddo
+        endif
+        N1 = N1 + N
+    enddo
+    write(*,*) N1
+    !TimeReverse
+
+  end subroutine create_blocked_list_canonical
+
   subroutine updateAM(R, save_history)
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and cranking energies.
@@ -230,6 +265,8 @@ $NTR    use Moments, only : cutoff
     type(DensityVector), intent(in) :: R
     logical, INTENT(IN) :: save_history
 $NTR    integer   :: B, N, wave, si, i, c, it
+$NTR    logical, allocatable :: blocked_list_canonical(:)
+
 $TR real(KIND=dp) :: trash
 
 
@@ -245,6 +282,14 @@ $TR real(KIND=dp) :: trash
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
+
+        ! If blocking is activated, we look for the "blocked" particle in the canonical
+        ! basis
+$NTR    if (allocated(BlockLowest).or.allocated(BlockLowest)) then
+$NTR        allocate(blocked_list_canonical(nwt))
+$NTR        blocked_list_canonical = .false.
+$NTR        call create_blocked_list_canonical()
+$NTR    endif 
 $NTR    si = 0
 $NTR    do B=1,8
 $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
