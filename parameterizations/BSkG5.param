@@ -59,6 +59,7 @@ e2                         = 1.43996446,
 Protonsize                 = 0.895, 0.0
 Neutronsize                = 0.387, 0.467
 HOcomform                  = .false.
+exact_coulomb_folding      = .false.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Collective corrections: rotational, vibrational and COM
 rotcorr  = 1

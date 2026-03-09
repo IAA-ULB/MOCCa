@@ -52,7 +52,7 @@ contains
   !-----------------------------------------------------------------------------
   ! Returns the 1D Gaussian function given by
   ! 
-  !     G(|r1 - r2|) = (r0 * sqrt(pi))**(-1) * exp[-(r/r0)**2]
+  !     G(|r1 - r2|,n) = exp[-(r/r0)**2]
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in) :: r1, r2, r0
   real(KIND=dp) :: dr, G
@@ -61,6 +61,22 @@ contains
   G = 1.0/(r0 * sqrt(pi)) * exp(-dr**2)
   return
  end function gaussian
+
+ pure function gamma_function(r1,r2, r0,n,L) result(G)
+  !-----------------------------------------------------------------------------
+  ! Returns the 1D Gamma function given by
+  ! 
+  !     G(|r1 - r2|) = exp[-(pi*r0/L*(n+1/2))**2]*cos(2*pi/L*(n+1/2)*(r1-r2))
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in) :: r1, r2, r0, L
+  integer, intent(in)       :: n
+  real(KIND=dp)             :: exponent, cos_arg, G
+  
+  exponent = pi * r0 / L * (n + 1.0_dp/2.0_dp)
+  cos_arg  = 2.0_dp * pi / L * (n + 1.0_dp/2.0_dp) * (r1 - r2)
+  G = exp(-exponent**2) * cos(cos_arg)
+  return
+ end function gamma_function
  
  subroutine gauss_1D(G, mesh, m, r0, p)
     !---------------------------------------------------------------------------
@@ -143,6 +159,88 @@ contains
     
     G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine gauss_1D
+
+
+ subroutine gamma_1D(G, mesh, m, r0, p)
+    !---------------------------------------------------------------------------
+    ! Function that constructs a matrix to fold in 1-D with the Gamma matrix
+    ! coming from the exact interpolation of the folding of the density matrix
+    ! and a Gaussian
+    !
+    ! Input:
+    !   mesh : mesh coordinates along this direction
+    !   m    : number of mesh points along this direction
+    !   p    : symmetry sign for reflection along this direction.
+    !   r0   : width of the Gaussian
+    !
+    ! Output:
+    !   G  :  Constructed folding matrix
+    !
+    !          G(i,j) =     sum_n gamma_n( r_i - r_j)
+    !                 + p * sum_n gamma_n(-r_i - r_j)
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! A few notes:
+    !
+    !  *) Contrary to gauss_1D, this function must NOT be normalized.
+    ! 
+    !  *) If the relevant Cartesian axis is completely stored in the code, 
+    !     meaning that there is no reflection symmetry, it is up to the user
+    !     to pass in p = 0, removing trivially the contribution of any 
+    !     reflection symmetry along the axis.
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp)             :: G(m,m), L 
+    integer, intent(in)       ::  m, p
+    real(KIND=dp), intent(in) :: r0, mesh(m)
+    integer :: i,j, N_total, n 
+
+    ! Intializing to 0 the G array (Neccesary because of the sum over n)
+    G = 0.0_dp
+
+    ! The summation over N in the Gamma matrices goes over n \in  [0,N-1], with
+    ! N being the total number of sample points of HALF of a dimension of the cell
+    if(abs(p).eq.1) then
+        N_total = m
+    else
+        N_total = m/2
+    endif 
+    
+    !Getting the total length of the box
+    L = 2*N_total*dx
+
+    ! Elements actually represented on the mesh
+    do i=1,m
+        do j=1,m          
+            do n=0,N_total-1
+                G(i,j) = G(i,j)+gamma_function(mesh(i), mesh(j), r0, n,L)*2_dp/L
+            enddo
+        enddo
+    enddo
+    !---------------------------------------------------------------------------
+    ! Elements to be gotten by symmetry.
+    do i=1,m
+        do j=1,m          
+            do n=0,N_total-1
+                G(i,j) = G(i,j) + p*gamma_function(-mesh(i), mesh(j), r0,n,L)*2_dp/L
+            enddo
+        enddo
+    enddo
+    !---------------------------------------------------------------------------
+    !NS: for periodic boundary conditions add contribution from 2 (symmetric)
+    !neighboors. Should be enough for realistic box sizes due to rapid fall down
+    !of the exponent.
+#if(USE_Periodic==1) 
+    do i=1,m
+        do j=1,m          
+            do n=0, N_total-1
+                G(i,j) = G(i,j) + gamma_function(mesh(i)-(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L    &
+                &      +  gamma_function((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0,n,L)*2_dp/L
+            enddo
+        enddo
+    enddo
+#endif
+ end subroutine gamma_1D
 
  subroutine fold_form_factor_real(f, folded, mx, my, mz, sx, sy, sz) 
   !--------------------------------------------------------------------------
@@ -429,26 +527,29 @@ contains
   !-----------------------------------------------------------------------------
  end function fold_one_gaussian
 
- subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, hbm, & 
- &                             Gxn,Gyn,Gzn, Gxp, Gyp, Gzp)
+ subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, & 
+ &                             exact_coulomb_folding, hbm,Gxn,Gyn,Gzn, Gxp, Gyp, Gzp)
     !---------------------------------------------------------------------------
     ! Construct the matrices for Gaussian folding.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !  protonsize, neutronsize : sizes of the Gaussians for folding
     !  hoconform  : whether to apply the harmonic-oscillator correction
+    !  exact_coulomb_folding: whether to apply the integral interpolation procedure
     !  hbm        : hbar^2/m for use in the harmonic-oscillator correction
     !
     ! Output:
     !   Gx/y/zn/p : Gaussian factors for folding the density
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: neutron_size(2), proton_size(2), hbm(2)
-    logical, intent(in)        :: hocomform
+    logical, intent(in)        :: hocomform, exact_coulomb_folding
     real(KIND=dp), allocatable, intent(out) :: Gxn(:,:,:,:), Gyn(:,:,:,:), Gzn(:,:,:,:)
     real(KIND=dp), allocatable, intent(out) :: Gxp(:,:,:,:), Gyp(:,:,:,:), Gzp(:,:,:,:)
     real(KIND=dp)              :: rplus_n, rplus_p, rmin_n, rmin_p
     real(KIND=dp)              :: hbom, mhb, B
     integer                    :: n_gauss_n, n_gauss_p, sign, index
+
+
 
     ! The determination of folding parameters from the parameterization input 
     ! for neutrons and protons is not the same; see documentation.
@@ -514,37 +615,70 @@ contains
         endif
     endif
 
-    do sign = -1,+1, 2
-      index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
+    if (exact_coulomb_folding) then
+    	do sign = -1,+1, 2
+    	  index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
 
-      ! HACK: the multiplication with reduX/Y/Z ensures that the breaking of 
-      !       a reflection symmetry automatically leads to Gaussian matrices 
-      !       being constructed with no reflection symmetry.
+    	  ! HACK: the multiplication with reduX/Y/Z ensures that the breaking of 
+    	  !       a reflection symmetry automatically leads to Gaussian matrices 
+    	  !       being constructed with no reflection symmetry.
 
-      ! Neutrons
-      if(rplus_n .ne. 0.0_dp) then
-        call gauss_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
-        call gauss_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
-        call gauss_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
-      endif
-      if(rmin_n .ne. 0.0_dp) then
-        call gauss_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
-        call gauss_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
-        call gauss_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
-      endif
-      ! Protons
-      if(rplus_p .ne. 0.0_dp) then
-        call gauss_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
-        call gauss_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
-        call gauss_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
-      endif
-      if(rmin_p .ne. 0.0_dp) then
-        call gauss_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
-        call gauss_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
-        call gauss_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
-      endif
-    enddo
+    	  ! Neutrons
+    	  if(rplus_n .ne. 0.0_dp) then
+    	    call gamma_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
+    	    call gamma_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
+    	    call gamma_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
+    	  endif
+    	  if(rmin_n .ne. 0.0_dp) then
+    	    call gamma_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
+    	    call gamma_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
+    	    call gamma_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
+    	  endif
+    	  ! Protons
+    	  if(rplus_p .ne. 0.0_dp) then
+    	    call gamma_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
+    	    call gamma_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
+    	    call gamma_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
+    	  endif
+    	  if(rmin_p .ne. 0.0_dp) then
+    	    call gamma_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
+    	    call gamma_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
+    	    call gamma_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
+    	  endif
+    	enddo
+    else
+    	do sign = -1,+1, 2
+    	  index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
 
+    	  ! HACK: the multiplication with reduX/Y/Z ensures that the breaking of 
+    	  !       a reflection symmetry automatically leads to Gaussian matrices 
+    	  !       being constructed with no reflection symmetry.
+
+    	  ! Neutrons
+    	  if(rplus_n .ne. 0.0_dp) then
+    	    call gauss_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
+    	    call gauss_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
+    	    call gauss_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
+    	  endif
+    	  if(rmin_n .ne. 0.0_dp) then
+    	    call gauss_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
+    	    call gauss_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
+    	    call gauss_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
+    	  endif
+    	  ! Protons
+    	  if(rplus_p .ne. 0.0_dp) then
+    	    call gauss_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
+    	    call gauss_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
+    	    call gauss_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
+    	  endif
+    	  if(rmin_p .ne. 0.0_dp) then
+    	    call gauss_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
+    	    call gauss_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
+    	    call gauss_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
+    	  endif
+    	enddo
+    endif
  end subroutine construct_folding_matrices
+
 
 end module folding

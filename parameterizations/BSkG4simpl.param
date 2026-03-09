@@ -64,6 +64,7 @@ Protonsize                 = 0.895, 0.0
 Neutronsize                = 0.387, 0.467
 HOcomform                  = .false.
 nucleonsize_selfconsistent = .true.
+exact_coulomb_folding      = .false.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Collective corrections: rotational, vibrational and COM
 rotcorr     = 0
