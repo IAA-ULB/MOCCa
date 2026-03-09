@@ -219,33 +219,60 @@ $NTR        enddo
     enddo
   end subroutine readcranking
 
-  subroutine create_blocked_list_canonical()
+
+  subroutine create_blocked_list_canonical(blocked_list_canonical)
     !-----------------------------------------------------------------------------
     ! Creates an array with 1 for i corresponding to the index of a blocked state
     ! in the quasiparticle basis and 0 otherwise
     !
     ! Output: 
-    ! blocked_list_canonical :1D array of size # spwf which has 1 if the state is
+    ! blocked_list_canonical :1D array of size # spwf which has .true. if the state is
     !                         identified as the "blocked" state in the canonical
-    !                         basis and 0 otherwise
+    !                         basis and .false. otherwise
     ! 
     !----------------------------------------------------------------------------- 
-    integer :: B, N, N1, wave
+    integer :: B,NB,NB_TR, N_total, wave, wave_tr, n_blocked_states_found
+    logical :: blocked_list_canonical(nwt)
+    real(KIND=dp):: overlap, dif_rho, t1, t2
 
+    blocked_list_canonical = .false.
+    N_total = 0; n_blocked_states_found = 0
 
-    N1 = 0
-    write(*,*) nwt, shape(canpsi)
-    do B=1,8
-        N= HFBlocks(B) ; if (N.eq.0) cycle
-        if (B.eq.1) then
-            do wave = 1, N
-                write(*,*) sum(canpsi(:,:,wave)*canpsi(:,:,wave))*dv, rho_can(wave)
+    call cpu_time(t1)
+    do B=1,8,2 
+        NB    = HFBlocks(B) ; if(NB .eq. 0) cycle
+        NB_TR = HFBlocks(B+1) ; if(NB_TR .eq. 0) cycle
+        do wave=1,NB
+            do wave_TR=1, NB_TR
+                ! Calculates overlap between a given s.p. orbital and another from the block with
+                ! opposite time signature
+                overlap = sum (canpsi(:,:,N_total + wave) * &
+                &          TimeReverse(canpsi(:,:,N_total + NB + wave_TR))) *dv
+                dif_rho = rho_can(N_total + wave) - rho_can(N_total + NB + wave_TR)
+                if (abs(overlap).ge.0.3_dp) then
+                ! If the overlap between a state and (the time-reverse of) another one is big, then
+                ! we have a pseudo time-reversal pair
+                    if (abs(dif_rho) .ge. 0.3_dp) then
+                        ! If the occupancy in the canonical basis (rho) is very different between them,
+                        ! then it's the block-conjugate pair. We now procede to infer which one of them 
+                        ! is the paired particle               
+                        write(*,*) overlap, rho_can(N_total + wave), rho_can(N_total + NB + wave_TR)
+                        if (rho_can(N_total + wave) .ge. rho_can(N_total + NB + wave_TR)) then
+                            blocked_list_canonical(N_total + wave) = .true.
+                        else
+                            blocked_list_canonical(N_total +NB + wave_TR) = .true.
+                        endif
+                        n_blocked_states_found = n_blocked_states_found + 1
+                    endif
+                endif
             enddo
-        endif
-        N1 = N1 + N
+        enddo
+        N_total = N_total + NB + NB_TR
     enddo
-    write(*,*) N1
-    !TimeReverse
+    call cpu_time(t2)
+
+    write(*,*) "n_blocked_state_found" , n_blocked_states_found
+    write(*,*) "ellapsed_time" , t2-t1
 
   end subroutine create_blocked_list_canonical
 
@@ -285,10 +312,9 @@ $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is con
 
         ! If blocking is activated, we look for the "blocked" particle in the canonical
         ! basis
-$NTR    if (allocated(BlockLowest).or.allocated(BlockLowest)) then
+$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
 $NTR        allocate(blocked_list_canonical(nwt))
-$NTR        blocked_list_canonical = .false.
-$NTR        call create_blocked_list_canonical()
+$NTR        call create_blocked_list_canonical(blocked_list_canonical)
 $NTR    endif 
 $NTR    si = 0
 $NTR    do B=1,8
