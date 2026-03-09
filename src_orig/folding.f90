@@ -200,7 +200,7 @@ contains
 
     ! The summation over N in the Gamma matrices goes over n \in  [0,N-1], with
     ! N being the total number of sample points of HALF of a dimension of the cell
-    if(p.eq.1) then 
+    if(abs(p).eq.1) then
         N_total = m
     else
         N_total = m/2
@@ -227,7 +227,7 @@ contains
         enddo
     enddo
     !---------------------------------------------------------------------------
-    !NS: for periodic boundary conditions add contrubution from 2 (symmetric)
+    !NS: for periodic boundary conditions add contribution from 2 (symmetric)
     !neighboors. Should be enough for realistic box sizes due to rapid fall down
     !of the exponent.
 #if(USE_Periodic==1) 
@@ -240,24 +240,7 @@ contains
         enddo
     enddo
 #endif
-!    !---------------------------------------------------------------------------
-!    ! Normalize, to avoid the numerical errors due to the mesh discretization.
-!    ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
-!    !                 column, chosen "sufficiently far away" from the boundary
-!    !                 of the mesh. If we would normalize G for j = m, on the 
-!    !                 boundary, we would divide by too small a number, as the 
-!    !                 Gaussian should extend BEYOND the mesh. 
-!    !                 Naively, we could choose ind = 1 for this, 
-!    !                 but this is ON the boundary of the mesh when this axis
-!    !                 is not reduced through a conserved symmetry. For 
-!    !                 reasonable meshes and reasonable folding sizes, m/2+1
-!    !                 is several points away from either boundary of the mesh.
-!    ind = m/2 + 1 
-!    
-!    G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine gamma_1D
-
-
 
  subroutine fold_form_factor_real(f, folded, mx, my, mz, sx, sy, sz) 
   !--------------------------------------------------------------------------
