@@ -168,8 +168,9 @@ module pairing
  !         HFB Hamiltonian
  !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
  integer :: pairingscheme = 0
-
-
+ !----------------------------------------------------------------------------
+ !Collective rho and kappa used to calculate the collective angular momentum
+ real(KIND=dp), allocatable :: rho_col(:,:),  kappa_col(:,:)
 contains
 
   subroutine initpairing(file_number)
@@ -729,6 +730,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(qpdispersions)) then
         allocate(qpdispersions(2*nwt)) ; qpdispersions = 0.0d0
       endif
+      if(.not. allocated(rho_col)) then
+        allocate(rho_col(nwt,nwt))     ; rho_col   = 0.0
+      endif
+      if(.not.allocated(kappa_col)) then
+        allocate(kappa_col(nwt,nwt))   ; kappa_col = 0.0
+      endif
 
       if(blocktype .eq. 7) then
         ! Precompute the overlaps between the HF-basis states and the tagging spwf
@@ -748,13 +755,13 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
-        &   .true. , 1, HFBmix, ifail)
+        &   .true. , 1, HFBmix, ifail, rho_col, kappa_col)
       case(-1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
-        &  .false., 1,HFBmix, ifail)
+        &  .false., 1,HFBmix, ifail, rho_col, kappa_col)
       end select
     end select
     ! Construct the density in the Hartree-Fock basis 

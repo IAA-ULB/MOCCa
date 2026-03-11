@@ -385,7 +385,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
-  &                          p_overlaps, move, maxhfbiter, mix, ifail) 
+  &                          p_overlaps, move, maxhfbiter, mix, ifail,         &
+  &                          rho_col, kappa_col) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -465,6 +466,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
     real(KIND=dp), intent(inout) :: Fermi(2)          , Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
+    real(KIND=dp), intent(inout) :: kappa_col(:,:), rho_col(:,:)
+
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
     real(KIND=dp), intent(in)    :: sph(:,:),gaps(:,:)
     integer, intent(inout)       :: ifail
@@ -480,7 +483,6 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:), Bogo_col(:,:)
     ! Collective densities for blocked calculations nuclei
-    real(KIND=dp), allocatable :: kappa_col(:,:), rho_col(:,:)
 
     integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
 
@@ -639,6 +641,12 @@ $TR    endif
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
+    !---------------------------------------------------------------------------
+    ! If the collective Bogolyubov matrix is allocated (for now only for gradient
+    ! calculations, then it calculates the collective rho and kappa matrices)
+    if (allocated(Bogo_col)) then
+!        call PairingMatrices(configmatrix, Bogo_col, rho_col, kappa_col)
+    endif
   end subroutine solvepairing_HFB_gradient
   
   subroutine figure_out_blocking_structure(sph , gaps, lambda,             &
@@ -706,6 +714,8 @@ $TR    endif
     !     part_qps    : indices of the partner quasiparticles
     !     p_overlaps  : overlap between the time-reversed blocked qp and the
     !                   (detected) partner
+    !     Bogo        : Bogolyubov transformation matrix WITHOUT quasiparticle 
+    !                   excitation 
     !---------------------------------------------------------------------------
   
     real(KIND=dp), intent(in) :: sph(:,:), gaps(:,:), lambda(2)
@@ -1480,8 +1490,6 @@ $TR    dispersion = 2 * dispersion
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
     real(KIND=dp), intent(out):: rho(:,:), kappa(:,:)
     integer                   :: si, sb, B, i,j,k, N, N2, column
-    integer :: l , nconfig
-    
     
     si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
