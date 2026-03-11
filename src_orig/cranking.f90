@@ -233,18 +233,14 @@ $NTR        enddo
     !----------------------------------------------------------------------------- 
     integer :: B,NB,NB_TR, N_total, wave, wave_tr, n_blocked_states_found
     logical :: blocked_list_canonical(nwt)
-    real(KIND=dp):: overlap, dif_rho, t1, t2
+    real(KIND=dp):: overlap, dif_rho
 
     blocked_list_canonical = .false.
     N_total = 0; n_blocked_states_found = 0
 
-    call cpu_time(t1)
     do B=1,8,2 
-        write(*,*) "Block",B
         NB    = HFBlocks(B) ; if(NB .eq. 0) cycle
         NB_TR = HFBlocks(B+1) ; if(NB_TR .eq. 0) cycle
-        write(*,*) "N_total", N_total, "NB", NB, "NB_TR", NB_TR
-        write(*,*) "--------------------------------------------"
         do wave=1,NB
             do wave_TR=1, NB_TR
                 ! Calculates overlap between a given s.p. orbital and another from the block with
@@ -252,16 +248,15 @@ $NTR        enddo
                 overlap = sum (canpsi(:,:,N_total + wave) * &
                 &          TimeReverse(canpsi(:,:,N_total + NB + wave_TR))) *dv
                 dif_rho = rho_can(N_total + wave) - rho_can(N_total + NB + wave_TR)
-                if (abs(overlap).ge.0.1_dp) then
-                ! If the overlap between a state and (the time-reverse of) another one is big, then
-                ! we have a pseudo time-reversal pair
+
+
+                if (abs(overlap).ge.0.5_dp) then
+                    ! If the overlap between a state and (the time-reverse of) another one is big, then
+                    ! we have a pseudo time-reversal pair
                     if (abs(dif_rho) .ge. 0.5_dp) then
-                    write(*,*) "wf_1",N_total + wave, "wf_2",N_total + NB + wave_TR
-                    write(*,*) "ov",overlap, "rho_1",rho_can(N_total + wave), "rho_2",rho_can(N_total + NB + wave_TR)
                         ! If the occupancy in the canonical basis (rho) is very different between them,
                         ! then it's the block-conjugate pair. We now procede to infer which one of them 
-                        ! is the blocked particle               
-!                        write(*,*) N_total + wave, N_total +NB + wave_TR
+                        ! is the blocked particle 
                         if (rho_can(N_total + wave) .ge. rho_can(N_total + NB + wave_TR)) then
                             blocked_list_canonical(N_total + wave) = .true.
                         else
@@ -274,10 +269,6 @@ $NTR        enddo
         enddo
         N_total = N_total + NB + NB_TR
     enddo
-    call cpu_time(t2)
-
-    write(*,*) "n_blocked_state_found" , n_blocked_states_found
-    write(*,*) "ellapsed_time" , t2-t1
 
   end subroutine create_blocked_list_canonical
 
@@ -297,7 +288,6 @@ $NTR    use Moments, only : cutoff
     type(DensityVector), intent(in) :: R
     logical, INTENT(IN) :: save_history
 $NTR    integer   :: B, N, wave, si, i, c, it
-$NTR    logical, allocatable :: blocked_list_canonical(:)
 
 $TR real(KIND=dp) :: trash
 
@@ -317,10 +307,10 @@ $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is con
 
         ! If blocking is activated, we look for the "blocked" particle in the canonical
         ! basis
-$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
-$NTR        allocate(blocked_list_canonical(nwt))
-$NTR        call create_blocked_list_canonical(blocked_list_canonical)
-$NTR    endif 
+!$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
+!$NTR        allocate(blocked_list_canonical(nwt))
+!$NTR        call create_blocked_list_canonical(blocked_list_canonical)
+!$NTR    endif 
 $NTR    si = 0
 $NTR    do B=1,8
 $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle

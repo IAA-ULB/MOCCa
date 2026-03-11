@@ -204,6 +204,7 @@ contains
     real(KIND=dp), allocatable   :: n_tag_overlaps(:), p_tag_overlaps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:), n_overlaps(:)
 
+
     integer                     :: si, sb, N, N2, B, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
     !-----------------END OF DECLARATIONS --------------------------------------
@@ -477,8 +478,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp)                :: minqp, maxqp, condi, trash
     real(KIND=dp)                :: tempEqp(nwt), full_eqp(2*nwt), occ(nwt)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
-    real(KIND=dp), allocatable   :: p_overlaps(:) 
-
+    real(KIND=dp), allocatable   :: p_overlaps(:), Bogo_col(:,:)
+    ! Collective densities for blocked calculations nuclei
+    real(KIND=dp), allocatable :: kappa_col(:,:), rho_col(:,:)
 
     integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
 
@@ -628,7 +630,8 @@ $TR    endif
 
     if(blocktype .ne. 4) then
       call figure_out_blocking_structure(sph, gaps, Fermi, bogo, &
-      &              blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
+      &              blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest, &
+      &              Bogo_col)
     else
       call figure_out_blocking_structure_EFA( &
       & configmatrix,blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
@@ -636,13 +639,12 @@ $TR    endif
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
-
   end subroutine solvepairing_HFB_gradient
   
   subroutine figure_out_blocking_structure(sph , gaps, lambda,             &
   &                                             Bogo_ref, bl_qps, part_qps,    &
   &                                             p_overlaps,                    &
-  &                                             BlockType, blocklowest) 
+  &                                             BlockType, blocklowest,bogo) 
     !---------------------------------------------------------------------------
     !  This subroutine attemps to figure out which quasiparticles are blocked
     !  in a given "ordered" Bogoliubov transformation matrix. In addition, it
@@ -711,10 +713,11 @@ $TR    endif
     integer, intent(in)                            :: BlockType
     character(len=2), intent(in), allocatable      :: BlockLowest(:)
     integer, allocatable, intent(out)       :: bl_qps(:), part_qps(:)
+    real(KIND=dp), allocatable, intent(out) :: Bogo(:,:)
     real(KIND=dp), allocatable, intent(out) :: p_overlaps(:)
 
     real(KIND=dp)             :: part, lambda_copy(2), maxov, tr_over
-    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
+    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), eqp(:)
     real(KIND=dp), allocatable:: overlap(:,:), tr_qp(:), qpover(:)
     integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
     integer                   :: column
@@ -1477,7 +1480,9 @@ $TR    dispersion = 2 * dispersion
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
     real(KIND=dp), intent(out):: rho(:,:), kappa(:,:)
     integer                   :: si, sb, B, i,j,k, N, N2, column
-
+    integer :: l , nconfig
+    
+    
     si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
       N = HFBlocks_global(B)   ;  if(N .eq. 0) cycle 
