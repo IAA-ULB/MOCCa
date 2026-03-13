@@ -37,6 +37,7 @@ module cranking
  use nil8
  use pairing
  use densities
+ use hfb 
 
  implicit none
 
@@ -97,6 +98,10 @@ module cranking
  !    Total angular momentum in the three Cartesian directions, calculated
  !    by integration of the spin and current densities, but including the
  !    multipole cutoff.
+ ! TotalAngMom_col:
+ !    Total angular momentum in the three Cartesian directions, calculated
+ !    by summation of the single-particle contributions MINUS the contribution
+ !    of the paired QP level (if any)
  ! AngMomOld:
  !    Values of the total angular momentum at the previous iteration, used for
  !    readjustment of the cranking constraints.
@@ -114,6 +119,7 @@ module cranking
  real(KIND=dp) :: J2_sp(3)      = 0.0_dp, AMBlock(8,3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp, AngMomOld_dens(3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp, AngMomOld_cut(3)   = 0.0_dp
+ real(KIND=dp) :: TotalAngMom_col(3)  = 0.0_dp
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -229,7 +235,7 @@ $NTR    use Moments, only : cutoff
 
     type(DensityVector), intent(in) :: R
     logical, INTENT(IN) :: save_history
-$NTR    integer   :: B, N, wave, si, i, c, it
+$NTR    integer   :: B, N, wave, si, i, c, it, idx,sb,N2,T,k
 $TR real(KIND=dp) :: trash
 
 
@@ -242,6 +248,11 @@ $TR real(KIND=dp) :: trash
     ! ... and resetting the current values
     totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
     J2_sp       = 0.0
+
+    ! Quasiparticle Jz are updated to be able to calculate a collective
+    ! angular momentum
+    if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
+
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
@@ -262,6 +273,32 @@ $NTR        enddo
 $NTR      enddo
 $NTR      si = si + N
 $NTR    enddo
+$NTR
+$NTR    !-------------------------------------------------------------------------
+$NTR    ! We calculate the collective angular momentum by extracting the contribution of
+$NTR    ! the blocked QP. If there is no blocking, the contribution is trivial
+        TotalAngMom_col = TotalAngMom
+
+$NTR    ! LG: To obtain the contribution of of the blocked quasiparticle, I reverse
+$NTR    ! eingeniered the procedure from the subroutine printqps
+$NTR    if (allocated(blocked_qps)) then
+$NTR      si = 0
+$NTR      sb = 0
+$NTR      do B=1,8,2
+$NTR        N = HFBlocks(B); if(N.eq.0) cycle
+$NTR        N2= HFBlocks(B+1)
+$NTR        T = N + N2
+$NTR        do i=T+1, 2*T
+$NTR          do k=1,size(blocked_qps)
+$NTR            if(blocked_qps(k) .eq. si+i-T) then
+$NTR              write(*,*)  blocked_qps(k),sb+i,qp_J(3,sb+i)
+$NTR            endif
+$NTR          enddo
+$NTR        enddo
+$NTR        si = si +   T
+$NTR        sb = sb +   2*T
+$NTR      enddo 
+$NTR    endif
 $NTR
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
