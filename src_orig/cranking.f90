@@ -262,6 +262,9 @@ $NTR        enddo
                         else
                             blocked_list_canonical(N_total +NB + wave_TR) = .true.
                         endif
+                        write(*,*) "Overlap", overlap
+                        write(*,*) N_total+wave, rho_can(N_total+wave), can_J(3,N_total+wave)
+                        write(*,*) N_total+NB+wave_TR, rho_can(N_total+NB+wave_TR), can_J(3,N_total+NB+wave_TR)
                         n_blocked_states_found = n_blocked_states_found + 1
                     endif
                 endif
@@ -288,6 +291,7 @@ $NTR    use Moments, only : cutoff
     type(DensityVector), intent(in) :: R
     logical, INTENT(IN) :: save_history
 $NTR    integer   :: B, N, wave, si, i, c, it
+$NTR    logical, allocatable   :: blocked_list_canonical(:)
 
 $TR real(KIND=dp) :: trash
 
@@ -307,10 +311,10 @@ $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is con
 
         ! If blocking is activated, we look for the "blocked" particle in the canonical
         ! basis
-!$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
-!$NTR        allocate(blocked_list_canonical(nwt))
-!$NTR        call create_blocked_list_canonical(blocked_list_canonical)
-!$NTR    endif 
+$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
+$NTR        allocate(blocked_list_canonical(nwt))
+$NTR        call create_blocked_list_canonical(blocked_list_canonical)
+$NTR    endif 
 $NTR    si = 0
 $NTR    do B=1,8
 $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
