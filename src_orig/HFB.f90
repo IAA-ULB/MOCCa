@@ -485,6 +485,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! Collective densities for blocked calculations nuclei
 
     integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
+    integer :: NN
 
     ! Statement to stop the compiler complaining about this dummy variable
     if(allocated(blockindices)) trash = 0.0d0
@@ -579,6 +580,7 @@ $TR    endif
         sb = sb +2*T
       enddo
 
+
       !-------------------------------------------------------------------------
       ! Heavy-ball stepping for the neutrons
       call gradient_step(sph(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
@@ -643,9 +645,9 @@ $TR    endif
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
     ! If the collective Bogolyubov matrix is allocated (for now only for gradient
-    ! calculations, then it calculates the collective rho and kappa matrices)
+    ! calculations),  then it calculates the collective rho and kappa matrices
     if (allocated(Bogo_col)) then
-!        call PairingMatrices(configmatrix, Bogo_col, rho_col, kappa_col)
+        call PairingMatrices(configmatrix, Bogo_col, rho_col, kappa_col)
     endif
   end subroutine solvepairing_HFB_gradient
   

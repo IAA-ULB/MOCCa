@@ -37,6 +37,7 @@ module cranking
  use nil8
  use pairing
  use densities
+ use momentsofinertia
 
  implicit none
 
@@ -303,7 +304,7 @@ $TR real(KIND=dp) :: trash
       angmomold_cut   = totalangmom_cut
     endif
     ! ... and resetting the current values
-    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
+    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0 ; totalangmom_col = 0.0d0
     J2_sp       = 0.0
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
@@ -327,6 +328,9 @@ $NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * HF_J2(c,si+
 $NTR          else
 $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
 $NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
+$NTR            if (allocated(rho_col)) then 
+$NTR               TotalAngMom_col(c) = TotalAngMom_col(c) + sum(jz(si+wave,:)*rho_col(:,si+wave))
+$NTR            endif
 $NTR          endif
 $NTR        enddo
 $NTR      enddo
@@ -342,6 +346,8 @@ $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
 $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
+$NTR    write(*,*) TotalAngMom_col
+
 
 #if($TAUPRESENT == 1 )
 $NTR      do i=1, nx*ny*nz
@@ -362,6 +368,8 @@ $NTR    !-----------------------------------------------------------------------
 $NTR    ! The contribution of the cranking constraint to the total Routhian
 $NTR    crankenergy     = - omega * TotalAngMom
 $NTR    crankenergy_cut = - omega * TotalAngMom_cut
+
+
 
   end subroutine updateAM
 
