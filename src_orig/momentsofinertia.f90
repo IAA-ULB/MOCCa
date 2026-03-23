@@ -123,6 +123,10 @@ module momentsofinertia
   ! Procedure pointer to perform the calculation of all quantities in this
   ! module; defined differently depending on whether we are doing HF,HF+BCS or HFB.
   procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
+  !------------------------------------------------------------------------------
+  ! Jz component of the angular momentum calculated on the HF basis
+  real(KIND=dp),allocatable ::  jz(:,:)
+
 
 contains
 
@@ -718,7 +722,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 
     !----------------------------------------------------------------------------
     ! Single-particle matrix elements of Jx, Jy, Jz in the array labelled HFBasis
-    real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
+!    real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
+    real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt)
     ! Single-particle matrix elements of Jx, Jy, Jz in the canonical basis
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
     !  and WITH the pairing cutoff folded in
@@ -728,6 +733,11 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !---------------------------------------------------------------------------
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
     logical       ::  blocked
+
+
+    if (.not.(allocated(jz))) then
+        allocate(jz(nwt, nwt))
+    endif
 
 #if(USE_MPI>0)
     integer       :: mpi_err
@@ -1263,6 +1273,7 @@ $NTR      endif
       enddo
 $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two 
       J2_coll(:,3) = sum(J2_coll(:,1:2), 2)
+      
     endif
     !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
