@@ -264,13 +264,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     print_adv_spwf_properties = .false.
 #endif
 
-    call updateAM(Density,.true.) ! TODO: adapt the calculation of angular momentum
-                           !       to only ever use densities; this will avoid
-                           !       having to recalculate angular momentum matrix
-                           !       elements at every iteration
 
-    ! Only calculate the fields that have not been read from either a
-    ! wavefunction file or a potential file.
     if(allocated(potentials_read%F_I_I)) then
       potentials = calcPotentials(Density, potentials_read)
     else
@@ -282,6 +276,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! Calculate the energy WITH all the expensive parts included. 
     call CalcEnergy(Density,Potentials,.true.)  
     call calc_avg_gap()
+
+    call updateAM(Density,.true.) ! TODO: adapt the calculation of angular momentum
+                           !       to only ever use densities; this will avoid
+                           !       having to recalculate angular momentum matrix
+                           !       elements at every iteration
+
+    ! Only calculate the fields that have not been read from either a
+    ! wavefunction file or a potential file.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Initial printout
     call full_printout(0,.false.,print_adv_spwf_properties)
@@ -341,9 +343,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             call update_spwf_properties_HF()
             if(PairingType.eq.2) call update_spwf_properties_CAN()
         endif
-        call updateAM(Density, .true.) 
-        ! .... and readjust any constraints on it
-        call ReadjustCranking
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Do a double take when constraints are present: use the updated
@@ -431,6 +430,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call CalcEnergy(Density, Potentials, calc_expensive)
         ! Calculate the average pairing gap
         call calc_avg_gap()
+
+        call updateAM(Density, .true.) 
+        ! .... and readjust any constraints on it
+        call ReadjustCranking
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
         ! TODO: what is this?
