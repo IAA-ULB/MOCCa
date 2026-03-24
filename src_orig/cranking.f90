@@ -342,7 +342,6 @@ $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
 $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
-$NTR    write(*,*) "TotalAngMom_col", TotalAngMom_col
 
 
 #if($TAUPRESENT == 1 )
@@ -426,13 +425,14 @@ $TR  real(KIND=dp)                  :: trash
     type(DensityVector), intent(in) :: R
 $NTR    logical           :: found
 
-    1 format (2x,99('_') )
-   10 format (2x,99('-'))
-    2 format (30('-'), ' Angular Momentum (hbar) ',46('-') )
-    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 12x,'Densit. ')
+    1 format (2x,113('_') )
+   10 format (2x,113('-'))
+    2 format (30('-'), ' Angular Momentum (hbar) ',60('-') )
+    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 12x,'Densit. ',12x,'Collec.')
    31 format (15x, 'Densit.(*)',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 12x,'Spwfs   ')
-    4 format (3x,'J_',a1,'   ','|', 5f17.10 )
+    4 format (3x,'J_',a1,'   ','|', 6f17.10 )
    41 format (3x,'Size  |', 3f17.10,17x,1f17.10)
+   42 format (3x,'Size  |', 3f17.10,17x,2f17.10)
 $NTR    5 format (2x,' _______________________________________________________' )
 $NTR    6 format (3x,'Open spin')
 $NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
@@ -456,7 +456,7 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
         &                CrankEnergy(i), TotalAngMom     (i)
       else
         print 4, dir(i), TotalAngMom(i), CrankValues(i), Omega(i),   &
-        &                CrankEnergy(i), TotalAngMom_dens(i)
+        &                CrankEnergy(i), TotalAngMom_dens(i), TotalAngMom_col(i)
       endif
     enddo
     print 1
@@ -464,8 +464,8 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
       print 41, sqrt(sum(totalangmom_dens**2)), 0.0, &
       &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom**2))
     else
-      print 41, sqrt(sum(totalangmom**2)), 0.0, &
-      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
+      print 42, sqrt(sum(totalangmom**2)), 0.0, &
+      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2)), sqrt(sum(totalangmom_col**2))
     endif
     print 10
 
