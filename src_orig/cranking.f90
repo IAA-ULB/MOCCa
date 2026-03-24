@@ -327,12 +327,12 @@ $NTR      enddo
 $NTR      si = si + N
 $NTR    enddo
 $NTR
-$NTR    ! If the "collective" densities have not been allocated (Right now, if the calculation
-$NTR    ! does not include blocking OR the gradient method is not being used) then the collective
-$NTR    ! angular momentum is the same as the total one
-$NTR    if (.not.allocated(rho_col)) then
-$NTR      TotalAngMom_col = TotalAngMom
-$NTR    endif
+        ! If the "collective" densities have not been allocated (Right now, if the calculation
+        ! does not include blocking OR the gradient method is not being used) then the collective
+        ! angular momentum is the same as the total one
+        if (.not.allocated(rho_col)) then
+          TotalAngMom_col = TotalAngMom
+        endif
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
 $NTR    do it=1,2
