@@ -263,9 +263,6 @@ $NTR        enddo
                         else
                             blocked_list_canonical(N_total +NB + wave_TR) = .true.
                         endif
-                        write(*,*) "Overlap", overlap
-                        write(*,*) N_total+wave, rho_can(N_total+wave), can_J(3,N_total+wave)
-                        write(*,*) N_total+NB+wave_TR, rho_can(N_total+NB+wave_TR), can_J(3,N_total+NB+wave_TR)
                         n_blocked_states_found = n_blocked_states_found + 1
                     endif
                 endif
@@ -292,7 +289,6 @@ $NTR    use Moments, only : cutoff
     type(DensityVector), intent(in) :: R
     logical, INTENT(IN) :: save_history
 $NTR    integer   :: B, N, wave, si, i, c, it
-$NTR    logical, allocatable   :: blocked_list_canonical(:)
 
 $TR real(KIND=dp) :: trash
 
@@ -310,12 +306,6 @@ $TR real(KIND=dp) :: trash
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
 
-        ! If blocking is activated, we look for the "blocked" particle in the canonical
-        ! basis
-$NTR    if (allocated(BlockLowest).or.allocated(BlockIndices)) then
-$NTR        allocate(blocked_list_canonical(nwt))
-$NTR        call create_blocked_list_canonical(blocked_list_canonical)
-$NTR    endif 
 $NTR    si = 0
 $NTR    do B=1,8
 $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
@@ -329,7 +319,7 @@ $NTR          else
 $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
 $NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
 $NTR            if (allocated(rho_col)) then 
-$NTR               TotalAngMom_col(c) = TotalAngMom_col(c) + sum(jz(si+wave,:)*rho_col(:,si+wave))
+$NTR               TotalAngMom_col(c) = TotalAngMom_col(c) + sum(jz(:,si+wave)*rho_col(si+wave,:))
 $NTR            endif
 $NTR          endif
 $NTR        enddo
@@ -337,6 +327,12 @@ $NTR      enddo
 $NTR      si = si + N
 $NTR    enddo
 $NTR
+$NTR    ! If the "collective" densities have not been allocated (Right now, if the calculation
+$NTR    ! does not include blocking OR the gradient method is not being used) then the collective
+$NTR    ! angular momentum is the same as the total one
+$NTR    if (.not.allocated(rho_col)) then
+$NTR      TotalAngMom_col = TotalAngMom
+$NTR    endif
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
 $NTR    do it=1,2
@@ -346,7 +342,7 @@ $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
 $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
-$NTR    write(*,*) TotalAngMom_col
+$NTR    write(*,*) "TotalAngMom_col", TotalAngMom_col
 
 
 #if($TAUPRESENT == 1 )

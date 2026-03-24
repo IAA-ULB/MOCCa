@@ -450,6 +450,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
           ! Recalculate the energy with all parts included at the end, don't
           ! skimp on the expensive parts
           call CalcEnergy(Density, Potentials,  .true.)
+          ! ... and update angular momentum (Collective angmom depends 
+          ! on the jz matrix elements calculated in the expensive evaluation
+          ! of the energy)
+          call updateAM(Density, .true.)
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         !  update all spwf properties first to ensure correct printout of spwfs
