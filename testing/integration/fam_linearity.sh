@@ -7,7 +7,11 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_linearity.sh
+#   bash fam_linearity.sh [EXESUFFIX]  [-v/--verbose]
+#
+# where EXESUFFIX executables to be used.
+# Calling the script with flag -v or --verbose will print the values which are
+# compared.
 #
 #
 # Dependencies: none
@@ -41,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Set up
-setup_test_env_fam "fam_linearity" "LO" "LO" "t0t3"
+setup_test_env_fam "fam_linearity" "${args[0]}" "${args[0]}" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1a) Run the mean-field calculation
@@ -256,7 +260,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2a) Run the HFB calculation for O18 
-setup_test_env_fam "qfam_linearity" "LO" "LO" "t0t3"
+setup_test_env_fam "qfam_linearity" "${args[0]}" "${args[0]}" "t0t3"
 
 # Create runtime data
 cat << EOF > mf.data

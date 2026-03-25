@@ -38,7 +38,8 @@
 #
 # where EXESUFFIX,  EXESUFFIX_T, EXESUFFIX_P specify executables to be used: 
 # maximally symmetric, a time-reversal breaking and a parity breaking one.
-# calling the script with flag -v or --verbose will print the 
+# calling the script with flag -v or --verbose will print the values which are
+# compared.
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

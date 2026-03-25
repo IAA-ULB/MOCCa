@@ -841,7 +841,7 @@ jobs:
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash fam_linearity.sh --verbose
+          bash fam_linearity.sh --verbose ${{ env.SUFFIX }}
 
       - name: Upload test results
         if: success() || failure() # Always upload the code outputs
