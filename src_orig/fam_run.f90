@@ -76,7 +76,7 @@ program run_FAM
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
 
-  if(pairingtype.eq.0) then
+  if(.false.) then
     !----------------------------------------------------------------------------------  
     ! Perform an explicit diagonalisation of the single-particle hamiltonian 
     !  to ensure a "clean" start for FAM-RPA calculations

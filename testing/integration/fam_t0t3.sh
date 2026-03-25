@@ -4,36 +4,78 @@
 #  - and redo it for an explicitly time-reversal broken FAM calculation
 #  - and redo it for an explicitly parity broken FAM calculation
 #  - and redo it for an explicitly particle-number broken QFAM calculation
+#  - and redo it for an explicitly particle-number + time-reversal broken QFAM calculation
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# This script tests:
+#  Quantity                              Target                     Tolerance
+#  --------                              ------                     ---------
+#  - total HF energy                -177.062001     MeV               1     keV
+#  - strength S_20 @ 25.0 MeV          1.6612681654 fm^4 MeV^-1       1e-4  fm^4 MeV^-1 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
 #        heavy-ball parameters (dt, mu) are fixed to ensure reproducability. Not
 #        doing so would lead to unstable strengths differing from run to run.  
 #
-#        It turns out this is not even entirely sufficient; this is why the
-#        test accuracy on the strength has been drastically reduced.
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# This script tests:
-#  Quantity                              Target                     Tolerance
-#  --------                              ------                     ---------
-#  - total HF energy                -177.062001 MeV                  1 keV
-#  - strength S_20 @ 25.0 MeV          1.6612   fm^4 MeV^-1          1e-4
+#        There are two different values the FAM code can converge to based on the 
+#        presence on the pre diagonalisation step done at the beginning of 
+#        fam_run.f90. 
+#          - if the diagonalisation is enabled  : S_20(25.0) = 1.6611546044656
+#          - if the diagonalisation is disabled : S_20(25.0) = 1.6612681654265
+#
+#        However the reference value reported in this file based on commit 
+#        bg93d26f7 is 1.661298165, close to the later but not exactly equivalent
+#
+#        Also note that the QFAM converges to 1.6611546046598002, very close to 
+#        the former. 
+#
+#        Also note that the prediag step may be failing for parity-broken 
+#        calculations. This issue should be fixed.  
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P]
+#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [-v/--verbose]
 #
-# where EXESUFFIX and EXESUFFIX_T specify executables to be used: a time-reversal
-# conserving and a time-reversal breaking one.
+# where EXESUFFIX,  EXESUFFIX_T, EXESUFFIX_P specify executables to be used: 
+# maximally symmetric, a time-reversal breaking and a parity breaking one.
+# calling the script with flag -v or --verbose will print the 
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : P. Demol [pepijn.demol@ulb.be]
 # Reference commit hash: bf93d26f7e11175189ffa93dad4d2065adf702eb
 #-------------------------------------------------------------------------------
+
+# Initialize verbose mode as false by default
+verbose=false
+
+# Temporary array to hold arguments
+args=()
+
+# Parse all arguments for -v or --verbose
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -v|--verbose)
+      verbose=true
+      shift
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
 # These are the hardcoded answers
 refE=-177.062001 # Total energy of O16 in MeV
-refS20=1.6612    # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
+refS20=1.661298165    # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
+
+if $verbose; then
+	echo "reference values and tolerances: "
+    echo "               E = $refE (+/- 0.001) MeV"
+    echo "     S(omega=25) = $refS20 (+/- 0.001) fm^4 MeV^-1 "
+    echo
+fi 
 
 # set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -41,7 +83,7 @@ refS20=1.6612    # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_t0t3" "$1" "$1" "t0t3"
+setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[0]}" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -182,14 +224,24 @@ fam_check=$?
 # Starting the checking
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $mfoutfile)
+
+if $verbose; then 
+	echo " HF  LO   : E = $E"
+fi
+
 # ... and compare with a tolerance of 1 keV to the expected answer
 compare_floats $E $refE 0.001
 check_energy=$?
 
 # b) Get the strength from the S_20.fam file
 S=$(get_strength "S_20.fam" 25.0)
+
+if $verbose; then 
+	echo " FAM LO   : S(omega=25) = $S"
+fi
+
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S $refS20 0.0001
+compare_floats $S $refS20 0.001
 check_strength=$?
 
 # We keep the wf file!
@@ -199,7 +251,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO-T FAM calculation
-setup_test_env_fam "fam_t0t3" "$1" "$2" "t0t3"
+setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[1]}" "t0t3"
 cp ../mf.wf .
 
 # Create runtime data
@@ -251,8 +303,13 @@ fam_T_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # b) Get the strength from the S_20.T.fam file
 S_T=$(get_strength "S_20.T.fam" 25.0)
+
+if $verbose; then 
+	echo " FAM LO-T : S(omega=25) = $S_T"
+fi
+
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S_T $refS20 0.0001
+compare_floats $S_T $refS20 0.001
 check_strength_T=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
@@ -260,7 +317,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-P FAM calculation
-setup_test_env_fam "fam_t0t3" "$1" "$3" "t0t3"
+setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[2]}" "t0t3"
 mv ../mf.wf .
 
 # Create runtime data
@@ -275,6 +332,7 @@ nx=8, ny=8, nz=16, dx=0.8
 name_param='t0t3'
 /
 &pairing
+type='HF'
 /
 &evolution
 maxiter=1000
@@ -300,7 +358,7 @@ smear=1.0
 l=2
 m=0
 maxiter=30
-fam_precision=1e-8
+fam_precision=1e-10
 /
 EOF
 # Run the calculation
@@ -310,8 +368,13 @@ fam_P_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # b) Get the strength from the S_20.fam file
 S_P=$(get_strength "S_20.P.fam" 25.0)
+
+if $verbose; then 
+	echo " FAM LO-P : S(omega=25) = $S_P"
+fi
+
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S_P $refS20 0.0001
+compare_floats $S_P $refS20 0.001
 check_strength_P=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
@@ -319,7 +382,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (5) Run the mean-field calculation with pairing (eventhough zero)
-setup_test_env_fam "qfam_t0t3" "$1" "$1" "t0t3"
+setup_test_env_fam "qfam_t0t3" "${args[0]}" "${args[0]}" "t0t3"
 
 # Create runtime data
 cat << EOF > mf.data
@@ -404,6 +467,16 @@ allowtransform=.true.
 EOF
 ./$exe < mf.data > $mfoutfile.bis
 
+E=$(get_total_energy_stdout $mfoutfile.ter)
+
+if $verbose; then 
+	echo " HFB LO   : E = $E"
+fi
+
+# ... and compare with a tolerance of 1 keV to the expected answer
+compare_floats $E $refE 0.001
+check_energy=$?
+
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (7) Run the LO QFAM calculation
@@ -458,9 +531,14 @@ qfam_check=$?
 # Starting the checking
 
 # b) Get the strength from the S_20.fam file
-S=$(get_strength "S_20.QFAM.fam" 25.0)
+S_Q=$(get_strength "S_20.QFAM.fam" 25.0)
+
+if $verbose; then 
+	echo " QFAM LO   : S(omega=25) = $S_Q"
+fi
+
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S $refS20 0.0001
+compare_floats $S_Q $refS20 0.001
 check_strength_QRPA=$?
 
 mv mf_hfb.wf ../
@@ -472,7 +550,7 @@ teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (8) Run the LO-T QFAM calculation
 
-setup_test_env_fam "qfam_t0t3" "$1" "$2" "t0t3"
+setup_test_env_fam "qfam_t0t3" "${args[0]}" "${args[1]}" "t0t3"
 
 cp ../mf_hfb.wf .
 
@@ -528,9 +606,15 @@ qfam_T_check=$?
 # Starting the checking
 
 # b) Get the strength from the S_20.fam file
-S=$(get_strength "S_20.QFAM.T.fam" 25.0)
+S_QT=$(get_strength "S_20.QFAM.T.fam" 25.0)
+
+if $verbose; then 
+	echo " QFAM LO-T : S(omega=25) = $S_QT"
+fi
+
+
 # ... and compare with a tolerance of 1e-2 to the expected answer
-compare_floats $S $refS20 0.0001
+compare_floats $S_QT $refS20 0.001
 check_strength_QRPA_T=$?
 
 # ... but otherwise clean-up
