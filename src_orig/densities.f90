@@ -700,27 +700,34 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
-subroutine densit_offdiag(rho, kappa, Rs, Ra)
+subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_minus)
     !----------------------------------------------------------------------------
     ! Calculate normal and anomalous densities through a double sum across spwfs
     ! by summing symmetric and antisymmetric parts.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
-    !   rho      real/complex matrix
-    !   kappa    real/complex matrix
+    !   rho        :  complex matrix
+    !   kappa_plus : (antisymmetric) complex matrix
+    !   kappa_minus: (antisymmetric) complex matrix 
     !
     ! Output:
     !   Rs   : density vector containing the symmetric part of the densities
     !   Ra   : density vector containing the antisymmetric part of the densities
+    !   R_pp_plus  : density vector containing the pairing densities for
+    !                 kappa_plus
+    !   R_pp_minus : density vector containing the pairing densities for
+    !                 kappa_minus
     !----------------------------------------------------------------------------
-    complex(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
-    type(DensityVector), intent(out) :: Rs, Ra
+    complex(KIND=dp), intent(in)     :: rho(:,:), kappa_plus(:,:), kappa_minus(:,:)
+    type(DensityVector), intent(out) :: Rs, Ra, R_pp_plus, R_pp_minus
 
     call start_timer(T_den_perturbed)
 
-    Rs = densit_offdiag_symmetric(rho,kappa)
-    Ra = densit_offdiag_antisymmetric(rho,kappa)
-
+    ! building the ph densities
+    Rs = densit_offdiag_ph_symmetric(rho)      ! symmetric ph densities
+    Ra = densit_offdiag_ph_antisymmetric(rho)  ! antisymmetric ph densities
+    R_pp_plus = densit_offdiag_pp(kappa_plus)  ! pp densities for kappa_plus 
+    R_pp_minus= densit_offdiag_pp(kappa_minus) ! pp densities for kappa_minus
     call stop_timer(T_den_perturbed)
 
     !call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
@@ -734,6 +741,39 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
     !call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
 
 end subroutine densit_offdiag
+
+function densit_offdiag_restricted(rho, kappa) result(R)
+  !----------------------------------------------------------------------------
+  ! Calculate the mean-field densities for the restricted set of density
+  ! matrices, i.e., diagonal rho and kappa in the canonical basis.
+  !
+  ! TODO: document
+  !
+  ! Input :
+  !   rho      : real matrix
+  !   kappa    : real matrix
+  !
+  ! Output:
+  !   R        : densityvector, values for the ph and pp densities
+  !----------------------------------------------------------------------------
+    
+  real(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
+  complex(KIND=dp), allocatable :: rho_temp(:,:), kappa_plus_temp(:,:), kappa_minus_temp(:,:)
+  type(DensityVector)           :: R
+  type(DensityVector)           :: Rs, Ra, R_pp_plus, R_pp_minus
+
+  allocate(rho_temp(nwt,nwt), kappa_plus_temp(nwt,nwt), kappa_minus_temp(nwt,nwt))
+  rho_temp         = rho 
+
+  kappa_plus_temp  = kappa
+  kappa_minus_temp = 0.0d0
+
+  print *, 'RHo', rho_temp(1,1), rho_can(1)
+  call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
+  ! Combine the correct densities
+  R = Rs + R_pp_plus
+
+end function densit_offdiag_restricted
 
 subroutine print_maxval(name, den_sym, den_asym)
   !
@@ -752,22 +792,131 @@ subroutine print_maxval(name, den_sym, den_asym)
   print *
 end subroutine print_maxval
 
-function densit_offdiag_symmetric(rho, kappa) result(R)
+function densit_offdiag_pp(kappa) result(R)
+    !----------------------------------------------------------------------------
+    ! Calculate the pairing mean-field densities, based on arbitrary
+    ! anomalous density matrix kappa.
+    !
+    ! Input :
+    !   kappa    : complex matrix
+    !   R        : densityvector, values for the ph densities will be maintained
+    !
+    ! Output:
+    !   R        : densityvector, this time with values for the pp densities
+    !              added. 
+    !----------------------------------------------------------------------------
+    COMPLEX(KIND=dp), intent(in)       :: kappa(:,:)
+    type(DensityVector)                :: R
+
+    integer                            :: wave, wave2, i, B, it, N, si, N2, T
+    INTEGER                            :: wave_global, wave2_global, der_index
+    complex(KIND=dp)                   :: weight
+    complex(KIND=dp), allocatable      :: kappa_cut(:,:)
+    ! TODO: this for sure declares too much
+$SPWF_DECLARATION
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+
+
+    ! Ensure allocation of charge density to avoid trouble when combining with
+    !  other density vectors
+    allocate(R%chargedensity(nx,ny,nz)) ; R%chargedensity = 0.0d0
+
+    call start_timer(T_den_perturbed_pp)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! PAIRING DENSITIES
+    select case (PairingType) 
+    case(0)
+      !----------------------------------------
+      ! HF calculation, no need to sum pairing densities
+      !----------------------------------------
+    case(1)
+      call stp('Linear response calculations for HF+BCS not implemented yet.')
+    case(2)
+      !-------------------------------------------------------------------------
+      ! HFB calculations: full summations.
+      !-------------------------------------------------------------------------
+      ! Sum the pairing densities in the HFbasis. This could be done in the 
+      ! canonical basis, but this would surely be less straightforward because
+      ! of the presence of pairing cutoffs.
+      DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
+      DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
+
+      ! a) start out by "just" copying kappa
+      allocate(kappa_cut(nwt,nwt))
+      kappa_cut = kappa
+
+      si = 0
+      do B=1,8,2  ! <------- this loop ranges over the global set of spwfs
+        N = HFBlocks_global(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
+        T = N+N2
+        it = 2          
+        if( B.le. 4) it = 1
+
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Calculation of the pairing cutoffs * kappa
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        do wave=1,T
+          do wave2=1,T
+            kappa_cut(si+wave,si+wave2) = kappa_cut(si+wave,si+wave2) &
+            &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+          enddo
+        enddo
+        si = si + N + N2
+      enddo
+      ! with kappa_cut in hand, we can turn to the summation of the densities.
+      si = 0
+      do B=1,8,2  ! <------- this loop ranges over the LOCAL set of spwfs
+        N = HFBlocks(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        T = N+N2
+        it = 2          
+        if( B.le. 4) it = 1
+
+        do wave=1,N                         ! local index of the spwf
+          wave_global = spwf_map(si+wave)   ! global index of the spwf
+$TR          do wave2=wave,N               
+$NTR          do wave2=N+1,N+N2      
+                wave2_global = spwf_map(si+wave2)
+
+                ! This factor two is the antisymmetry of \kappa_cut
+                weight=2*kappa_cut(wave_global,wave2_global)
+                ! TODO: think about whether this factor two is appropriate here
+$TR             if(wave.ne.wave2) weight = 2 * weight  
+                ! 
+            do i=1,mv
+$HFBEXPRESSION  
+            enddo
+          enddo
+        enddo
+        si = si + N + N2
+      enddo
+    end select
+
+    call stop_timer(T_den_perturbed_pp)
+end function densit_offdiag_pp
+
+function densit_offdiag_ph_symmetric(rho) result(R)
     !------------------------------ ---------------------------------------------
-    ! Calculate the symmetric part(*) of the mean-field densities, both normal
-    ! and pairing, based on arbitrary matrices rho and kappa.
+    ! Calculate the symmetric part(*) of the particle-hole mean-field densities, 
+    ! based on arbitrary matrix rho.
     !
     ! TODO: explain "symmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !   rho      real/complex matrix
-    !   kappa    real/complex matrix
     !
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
 
-    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    complex(KIND=dp), intent(in) :: rho(:,:)
     type(DensityVector)          :: R
 
     complex(KIND=dp)          :: weight_sym
@@ -852,23 +1001,22 @@ $ISOSPINCOUPL_SYMMETRIC
 
     call stop_timer(T_den_perturbed_sym)
 
-end function densit_offdiag_symmetric
+end function densit_offdiag_ph_symmetric
 
-function densit_offdiag_antisymmetric(rho, kappa) result(R)
+function densit_offdiag_ph_antisymmetric(rho) result(R)
     !------------------------------ ---------------------------------------------
-    ! Calculate the antisymmetric part(*) of the mean-field densities, both normal
-    ! and pairing, based on arbitrary matrices rho and kappa.
+    ! Calculate the antisymmetric part(*) of the particle-hole mean-field densities, 
+    ! based on arbitrary matrix rho
     !
     ! TODO: explain "antisymmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !   rho      real/complex matrix
-    !   kappa    real/complex matrix
     !
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    complex(KIND=dp), intent(in) :: rho(:,:)
     type(DensityVector)          :: R
 
     complex(KIND=dp)          :: weight_asym
@@ -953,7 +1101,7 @@ $ISOSPINCOUPL_ANTISYMMETRIC
 
     call stop_timer(T_den_perturbed_asym)
 
-end function densit_offdiag_antisymmetric
+end function densit_offdiag_ph_antisymmetric
 
 function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sphamil_me)
     !------------------------------------------------------------------------------------
@@ -1006,25 +1154,6 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
     sphamil_me = sp_sym + sp_asym
     call stop_timer(T_spme_perturbed)
-
-    !si = 0
-    !do B=1,8
-    !  N = HFBlocks(B)!
-
-    !  print *, 'B = ', B, ' symmetric '
-    !  do i=1, N
-    !    print ('(99f10.3)'), sp_sym(si+i, si+1:si+N)
-    !  enddo
-    !  print *
-    !  print *, 'B = ', B, ' antisymmetric '
-    !  do i=1, N
-    !    print ('(99f10.3)'), sp_asym(si+i, si+1:si+N)
-    !  enddo
-    !  print *
-    !  print *
-!
-     ! si = si + N
-    !enddo
 
 end function calc_sphamil_me
 
@@ -1174,6 +1303,86 @@ $EXPRESSION_SPH_ANTISYM
     call stop_timer(T_spme_perturbed_asym)
 
   end function calc_sphamil_me_antisym
+
+  function calc_delta_me( denpsi, dendpsi, denddpsi, F,  onthefly) result(delta_me)
+    !------------------------------------------------------------------------
+    ! Calculate the matrix elements of \Delta in the Hartree-Fock basis.
+    !     
+    ! Attention: the pairing cutoffs figure in this function and those 
+    !            are calculated in the Hartree-Fock basis. Even if this function 
+    !            takes denpsi, dendpsi, denddpsi as input, these should be
+    !            the Hartree-Fock wavefunctions!
+    !
+    ! Input:
+    ! -------
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !    F      : potential vector containing the linearised pairing potentials
+    !   onthefly: [NOT IMPLEMENTED YET ]
+    !
+    !
+    ! Output:
+    ! -------
+    !  delta_me : matrix elements of the pairing tensor Delta.
+    !
+    !
+    ! TODO: 
+    ! - implement MPI parallelisation
+    !
+    !------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: F
+    complex(KIND=dp), allocatable     :: delta_me(:,:)
+    integer                           :: it, B, si, N, N2, wave_i, wave_j, i, T
+$SPWF_DECLARATION
+    call start_timer(T_spme_perturbed_pp)
+
+    ! initialize
+    allocate(delta_me(nwt,nwt)) ; delta_me = 0.0d0
+
+    si = 0
+    do B=1,8,2
+      N = HFBlocks(B) ;  if (N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+
+      !---------------------------------------------------------------------------
+      ! Determine the isospin index
+      if(B.ge.5) then
+        it = 2
+      else
+        it = 1
+      endif
+      do wave_i=si+1,si+N                       ! local index of the spwf
+$TR          do wave_j=wave_i,si+N              ! symmetry-reduced
+$NTR          do wave_j=si+N+1,si+N+N2      
+          do i=1,mv
+$EXPRESSION_DELTA_PP
+          enddo
+          ! The minus sign is because Hephaestos generates the expression for 
+          ! 
+          ! \tilde \rho_ji = \sum_{\sigma} \sigma psi_j(r',\sigma) \psi_i(r,-\sigma)
+          !   
+          ! whereas Delta is proportional to 
+          !
+          !  \Delta_ji \sim \tilde \rho_ij
+          !
+          ! This should be corrected in Hephaestos, but it is much harder than including this minus sign.
+          delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
+          ! Delta is globally antisymmetric in the case of time-reversal symmetry, but we 
+          !  represent only half of the matrix explicitly!
+$TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i) 
+$NTR      delta_me(wave_i, wave_j) = -delta_me(wave_j, wave_i) 
+        enddo
+      enddo
+      si = si + N + N2
+    enddo
+
+    call stop_timer(T_spme_perturbed_pp)
+
+  end function calc_delta_me
 
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------

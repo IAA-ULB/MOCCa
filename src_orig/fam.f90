@@ -25,6 +25,7 @@ module fam
   use moments
   use fission_MOI
   use evolution
+  use pairing
 
   implicit none
 
@@ -58,56 +59,84 @@ module fam
   real(KIND=dp) :: fam_lin_mix = 0.3_dp
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
-  complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
-  !                                  | '-> sp index : hole
-  !                                  '-> sp index : particle
-  complex(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
-  !                                  | '-> sp index : hole
-  !                                  '-> sp index : particle
+  complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes in sp (FAM) or  
+  !                                         qp (QFAM) basis, size (nwt,nwt)
+  complex(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes in sp (FAM) or 
+  !                                         qp (QFAM) basis, size (nwt,nwt)
+  ! - In absence of pairing : (FAM)
+  !   X and Y contain ph ans hp elements respectively. They are ordered as X(p,h) 
+  !   and Y(p,h) /!\ where p is a unoccupied sp index h is an occupied sp index.
+  !   They are allocated ove the complete basis size (nwt,nwt)
+  ! - In presence of pairing : (QFAM)
+  !   X and Y are stored in the quasi-particle basis, containing X20 and Y02 
+  !   matrix elements. Only the positive qp spectrum is included such that size
+  !   is still (nwt,nwt)
   !-----------------------------------------------------------------------------
   ! Perturbed densities
-  ! /!\: contains the perturbation relative to the mean-field, e.g.
+  ! /!\: perturbations are always RELATIVE to the static mean-field, e.g.
   !         rho(omega) = rho_MF + drho(omega)
-  complex(KIND=dp), allocatable :: drho(:,:)   ! perturbation to the normal density matrix
-  complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbation to the pairing density matrix
-  ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbation to the generalised density matrix
+  complex(KIND=dp), allocatable :: drho(:,:)         ! perturbation to the normal density matrix in HF basis
+  complex(KIND=dp), allocatable :: dkappa_plus(:,:)  ! perturbations to the pairing density matrix in HF basis
+  complex(KIND=dp), allocatable :: dkappa_minus(:,:) 
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
-  type(DensityVector)   :: dRs, dRa  ! perturbation to the densities on the mesh
+  type(DensityVector)   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
-  type(PotentialVector) :: dFs, dFa  ! perturbation to the potentials on the mesh
+  type(PotentialVector) :: dFs, dFa  ! perturbation to the particle-hole potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
+  !
+  type(DensityVector)   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
+  !                         |           '-> associated with kappa_minus
+  !                         '-> associated with kappa^plus 
+  type(PotentialVector) :: dF_pp_plus, dF_pp_minus  ! perturbation to the particle-particle potentials on the mesh
+  !                         |           '-> associated with kappa_minus
+  !                         '-> associated with kappa_plus
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
-  real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  real(KIND=dp), allocatable :: Hunper(:,:) ! unperturbed Hamiltonian in HF basis
   ! -> currently not used, except for one routine in fam_testing.f90
-  complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbing
-  !                                   | | |      Hamiltonian in HF basis
-  !                                   | | '-> 1: ph block, 2: hp block
-  !                                   | '-> sp index : hole
-  !                                   '-> sp index : particle
-  complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of sp hamil
-  !                                             '-> nwt x nwt
+  complex(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in sp (FAM) or
+  !                                   | | |    qp (QFAM) basis, size (nwt,nwt,2)
+  !                                   | | '-> 1 : ph/20 or 2 : hp/02 component 
+  !                                   | '-> sp/qp index
+  !                                   '-> sp/qp index
+  ! - In absence of pairing : (FAM)
+  !   dH(:,:,1) and dH(:,:,2) contain ph and hp elements of the perturbed hamiltonian in the HF basis
+  !   They are allocated ove the complete basis size (nwt,nwt). 
+  ! - In presence of pairing : (QFAM)
+  !   dH(:,:,1) and dH(:,:,2) contain 20 and 02 elements of the perturbed hamiltonian in the HFG basis.
+  !   Only the positive qp spectrum is included such that size is still (nwt,nwt)
+  !   
+  complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of Hamiltonian in the HF basis
+  ! The free response is obtained by performing one complete FAM loop starting from dH=0
+  ! - In absence of pairing : (FAM)
+  !   dH_free_flat contains the free perturbed sp hamiltonian dh(:,:) in HF basis as a flat
+  !   array of length (nwt x nwt).  
+  ! - In presence of pairing : (QFAM)
+  !   dH_free_flat stacks the free perturbed sp hamiltonian dh(:,:) and pairing fields ddelta_plus 
+  !   and ddelta_minus in the HF basis as a flat array of length (nwt x nwt x 3)
   !-----------------------------------------------------------------------------
   ! external field
-  complex(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
-  !                                  | | '-> 1: ph block, 2: hp block 
-  !                                  | '-> sp index : hole
-  !                                  '-> sp index : particle
+  complex(KIND=dp), allocatable :: F(:,:,:)  ! perturbed external field in sp (FAM) or
+  !                                   | | |    qp (QFAM) basis, size (nwt,nwt,2)
+  ! - same remark as dH(:,:,:)        | | '-> 1 : ph/20 or 2 : hp/02 component 
+  !                                   | '-> sp/qp index
+  !                                   '-> sp/qp index 
   integer :: l, m ! anuglar momentum and projection quantum number of the multipole moment
-  real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charges for neutrons in units of e
-  real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charges for protons in units of e
+  real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
+  real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
   !-----------------------------------------------------------------------------
   ! convergence
   complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
-  !                                       | | '-> sp index : hole
-  !                                       | '-> sp index : particle
+  !                                       | | '-> sp/qp index 
+  !                                       | '-> sp/qp index
   !                                       '-> history index 
   complex(KIND=dp), allocatable :: Y_hist(:,:,:) ! history of Y through FAM iters
-  !                                       | | '-> sp index : hole
-  !                                       | '-> sp index : particle
+  !                                       | | '-> sp/qp index 
+  !                                       | '-> sp/qp index 
   !                                       '-> history index 
+  ! => REMARK: would it better to set the last index to be the history for memory contiguity
   integer :: hist_max = 2 ! history size 
   integer :: hist_current_idx = 0 ! rolling index through the history
   ! notes: 
@@ -131,15 +160,14 @@ module fam
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
 
-
   contains
-  
 
   subroutine inifam(omega, DensUnper, PotUnper)
     implicit none
     !---------------------------------------------------------------------------
-    ! Allocate the FAM objects, set the external field F and initialise the X
-    ! and Y from first order, i.e. dH=0. 
+    ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
+    ! densities, fields and strength are computed from the free response, i.e. one 
+    ! FAM loop starting from dH20 = dH02 = 0. 
     !
     ! Input:
     !    omega      : frequency of the perturbing field
@@ -159,7 +187,6 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the external field F
-
     if(.not.allocated(F)) then 
       F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
     endif
@@ -175,21 +202,30 @@ module fam
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed Hamiltonian as 0
     if(.not.allocated(dH)) then 
-      allocate(dH(nwt,nwt,2))
+      allocate(dH(nwt,nwt,2)) ! stores dHph (dH20), dHhp (dH02) in HF(B) basis for (Q)FAM
     endif
+
+    dH = 0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the free response of the sp hamiltonian
     if(.not.allocated(dH_free_flat)) then 
-      allocate(dH_free_flat(nwt * nwt))
+      if(pairingtype==0) then ! FAM
+        allocate(dH_free_flat(nwt * nwt)) ! stores dh in HF basis
+      else ! QFAM
+        allocate(dH_free_flat(3 * nwt * nwt)) ! stores dh, ddelta+, ddelta- in HF basis
+      endif
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise X and Y amplitudes and their history
     if(.not.allocated(X)) then
-      allocate(X(nwt,nwt)) 
-      allocate(Y(nwt,nwt))
+      allocate(X(nwt,nwt)) ! stores Xph (X20) in HF(B) basis for (Q)FAM
+      allocate(Y(nwt,nwt)) ! stores Yhp (Y02) in HF(B) basis for (Q)FAM
     endif
+
+    X = 0
+    Y = 0
 
     if(.not.allocated(X_hist)) then
       allocate(X_hist(hist_max,nwt,nwt)) 
@@ -201,14 +237,16 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! store the unperturbed densities
-    RUnper = DensUnper
+    Runper = DensUnper
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the perturbed densities
     if(.not.allocated(drho)) then 
       allocate(drho(nwt,nwt))
-      allocate(dkappa(nwt,nwt))
-      ! allocate(dR(2*nwt,2*nwt))
+      allocate(dkappa_plus(nwt,nwt), dkappa_minus(nwt,nwt))
+      ! todo : do not allocate dkappa in asbence of pairing
+      !        this requires to modify densit_offdiag to optional arguments
+
     endif
   
 
@@ -218,6 +256,8 @@ module fam
 
     dH_free_flat = 0
     call iterate_dHsp(dH_free_flat, dH_free_flat)
+
+    if (fam_verbose > 1) print *, '||dH_free||', sum(abs(dH_free_flat(:))**2)
 
 
   end subroutine inifam
@@ -296,65 +336,150 @@ module fam
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
-    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
-    ! (in HF basis), which contain dh and ddelta (in the QFAM).  
-    !
+    ! Perform one FAM loop of the perturbed single-particle hamiltonian dh
+    ! (in HF basis), which contain dh and ddelta (in the QFAM). 
+    ! 
     ! Input:
-    !    dHsp_flat    : perturbed sp hamiltonian in HF basis as a flat array
+    !    dHsp_flat    : perturbed hamiltonian in HF basis as a flat array
     ! Output:
-    !    dHspout_flat : updated perturbed sp hamiltonian in HF basis as a
-    !                   flat array
+    !    dHspout_flat : iterated perturbed hamiltonian in HF basis as a flat array
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    ! Note: in FAM dHsp_flat only contains dh, while in QFAM it stacks dh, 
+    !       ddelta+ and ddelta-
+    ! 
+    ! One full FAM iterations consists of 6 steps : 
+    ! 
+    ! (1) transform dh, ddelta+/- to QP basis         => dH20, dH02
+    ! (2) compute XY from linear response equation    => X20, Y02
+    ! (3) transform XY back to sp basis               => drho, dkappa+/-
+    ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
+    ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
+    ! (6) compute perturbed sp hamiltonian and paring => dh, ddelta+/-
+    !
     !---------------------------------------------------------------------------
-    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-    2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
+    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     implicit none
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
-    complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
+    complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
 
-    integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p
+    real(KIND=dp) :: strength
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
-    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
-    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
-    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (1) unpack the flat vector to dh, ddelta+/- and transform to QP basis dH20 dH02
 
-    ! get the ph and hp subblocks
-    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
+    if (pairingtype==0) then ! FAM
 
-    ! calculate X and Y from the perturbed dH
-    call calculate_XY(dH)
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
+      dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
-    if (fam_verbose>0) then
-      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
-      print 3, l,m, omega_fam,  calc_strength()
+      ! get the ph and hp subblocks of the perturbed sp hamiltonian
+      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+
+      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
+    else ! QFAM
+
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
+      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
+      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
+      dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
+
+      ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
+      call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+
+      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
     endif
 
-    ! Apply simple linear mixing of X and Y. 
-    ! call mix_XY_linear(lin_mix_coeff)
-    ! -> this may be skipped when using GMRES
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (2) compute X and Y amplitudes from linear response equation
+   
+    call calculate_XY(dH)
 
     call store_XY_hist()
 
-    ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa)
+    if (fam_verbose>1) then
+      print *, 'Verify antisymmetry of X and Y'
+      print * , '||X + X^T|| = ', sum(abs(X+transpose(X))**2)
+      print * , '||Y + Y^T|| = ', sum(abs(Y+transpose(Y))**2)
+    endif
+
+    if (fam_verbose>0) then
+      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
+      strength =  calc_strength()
+      print 3, l,m, omega_fam, strength
+    endif
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (3) Obtain perturbed (pairing) density matrices in HF basis
+
+    if (pairingtype==0) then ! FAM
+      drho = X  + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else ! QFAM
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (4) Compute perturbed densities on the mesh
+
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
+
+    if (fam_verbose > 0) then
+      if(pairingtype==0) then
+        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
+      else
+        print 22,  sum(abs(drho)**2), 0.0,  0.0
+      endif
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (5) compute perturbed fields on the mesh
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
 
     ! We add in all additional contributions to F_I_I that do not 
     !  result from the Skyrme functional.  
     call combine_potentials(dFs)
     call combine_potentials(dFa)
 
-    ! construct the sp hamiltonian
-    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (6) calculate perturbed hamiltonian and pairing in the HF basis
+
+    if (pairingtype==0) then ! FAM
+      
+      ! construct the sp hamiltonian in HF basis
+      dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
+
+    else ! QFAM
+
+      ! construct the sp hamiltonian + pairing fields in HF basis
+      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
+
+    endif
 
     if(fam_verbose > 2) call print_all_fam_spmat()
 
@@ -371,6 +496,11 @@ module fam
     ! therefore compute
     !    (I - T) dH = dH - (T(dH) + dH_free) + dH_free 
     !               = dH - iterate_dH(dH) +  dH_free 
+    ! 
+    ! Input:
+    !    dHsp_flat    : perturbed hamiltonian in HF basis as a flat array
+    ! Output:
+    !    dHspout_flat : (I - T) * dHsp_flat
     !---------------------------------------------------------------------------
 
     implicit none
@@ -394,34 +524,74 @@ module fam
 
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
-    ! Compute the X and Y amplitudes from the FAM master equation
+    ! Compute the X and Y amplitudes from the FAM master equation. 
+    ! In absense of pairing, X, Y, dH, F store ph subblocks and loops are only 
+    ! over ph pairs. In presence of pairing, X, Y, dH and F store qp matrix 
+    ! elements and loops run over the complete qp basis.  
     !---------------------------------------------------------------------------
     implicit none
     complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
-    integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
+    integer       :: i, j, si, si2, N, N2, B, T
 
     if (fam_verbose > 1) print *, "calculate_XY :: update X and Y"
-
 
     X = - (F(:,:,1) + dH(:,:,1))
     Y = - (F(:,:,2) + dH(:,:,2))
 
+
     ! normalise with energy denominator
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      e_h = spenergies(h) 
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved
-$NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
-        e_p = spenergies(p) 
-        if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
+
+    if(pairingtype==0) then ! FAM : difference of particle and hole energy
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = 1, T
+          if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = 1, T
+            X(si+i,si+j) = X(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(si+i,si+j) = Y(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) + CMPLX(omega_fam,smear,KIND=dp) )
+          enddo
+        enddo
+        si = si+T
+      enddo 
+
+    
+    else ! QFAM : sum of two qp energy
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      ! We require two start indices
+      ! si  determines the start of the block in qp-basis of dimension nwt   -> X, Y
+      ! si2 determines the start of the block in qp-basis of dimension 2*nwt -> qpenergies (-Emax,..., -E1, E1,..., Emax)
+      si = 0; si2 = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        do j = 1, T
+          do i = 1, T
+
+            ! fetch qpenergies from second half (si2 + T), i.e. positive qp spectrum 
+
+            X(si+i,si+j) = X(si+i,si+j) / (qpenergies(si2+T+i) + qpenergies(si2+T+j) - CMPLX(omega_fam,smear,KIND=dp) )
+            Y(si+i,si+j) = Y(si+i,si+j) / (qpenergies(si2+T+i) + qpenergies(si2+T+j) + CMPLX(omega_fam,smear,KIND=dp) )
+          enddo
+        enddo
+        si  = si  +   T ! move start index by size of IP block 
+        si2 = si2 + 2*T ! move start index by twice the size of IP block
       enddo
-    enddo
+    endif
+
+    ! TODO: could be optimised by pre-storing the energy denominator and doing a simple 
+    !       elementwise multiplication
+
+    if(fam_verbose > 2) then
+      print * , "||X||",   sum(abs(X(:,:)**2))
+      print * , "||Y||",   sum(abs(Y(:,:)**2))
+    endif
 
   end subroutine calculate_XY
 
@@ -456,7 +626,6 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
 
   end subroutine mix_XY_linear
 
-
   subroutine iniHFdensities()
     !---------------------------------------------------------------------------
     ! initialse the rho and kappa matrices in HF basis as (nwt, nwt) matrices
@@ -468,67 +637,17 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     allocate(rho_pairing(nwt,nwt))
     allocate(kappa_pairing(nwt,nwt))
   
-    rho_pairing = 0
+    rho_pairing   = 0
     kappa_pairing = 0
     
     do i=1,nwt
-      rho_pairing(i,i) = rho_can(i)
+      rho_pairing(i,i) = rho_hf(i)
     enddo
   
   end subroutine iniHFdensities
 
-  subroutine build_perturbed_densities(X, Y, dRs, dRa)
-    !---------------------------------------------------------------------------
-    ! Build the perturbed mean-field densities.
-    !---------------------------------------------------------------------------
-    implicit none
-    complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
-    type(DensityVector), intent(out) :: dRs, dRa
 
-    if (fam_verbose > 1) print *, "build_perturbed_densities :: "
-
-    drho = X + transpose(Y)
-    dkappa = 0
-
-    call densit_offdiag(drho, dkappa, dRs, dRa)
-
-  end subroutine build_perturbed_densities
-
-
-  subroutine build_dH_explicit(R, dRs, dRa)
-    !---------------------------------------------------------------------------
-    ! Build the perturbed single-particle Hamiltonian
-    !---------------------------------------------------------------------------
-    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-
-    implicit none
-    type(DensityVector), intent(in) :: R, dRs, dRa
-    complex(KIND=dp), allocatable :: dHsp(:,:)
-
-    if (fam_verbose > 1) print *, "build_dH_explicit :: "
-
-
-    allocate(dHsp(nwt,nwt))
-
-    ! explicit linearisation of the fields
-    call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
-
-    call combine_potentials(dFs)
-    call combine_potentials(dFa)
-
-    ! construct the sp hamiltonian
-    dHsp = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-!
-   ! get the ph and hp subblocks
-    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
-
-    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-
-
-  end subroutine build_dH_explicit
-
-
- function calc_strength() result (res)
+  function calc_strength() result (res)
     !---------------------------------------------------------------------------
     ! Calculate the strength S(omega,F) and store output in strength and 
     ! strength_complex and return strength
@@ -542,29 +661,57 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     ! note: 
     !  - normalisation of external field may have to be taken into account
     !    S -> S/alpha
+    !  - in case of FAM, F(:,:,1) contains the ph block and F(:,:,2) contains
+    !    the hp block which differ is F if not Hermitian
+    !  - in case of QFAM, F(:,:,1) contains the F20 block in qp basis and F(:,:,2)
+    !    contains the F02 block which differ if F is not Hermitian
     !---------------------------------------------------------------------------
 
     complex(KIND=dp) :: S = 0
     real(KIND=dp) :: res
-    integer :: h, p
-    real(KIND=dp) :: occ_h, occ_p
+    integer :: i, j, si, B, N, N2, T
 
     if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
 
-
     S = 0
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p) 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
-        if(occ_p < 1d-6) cycle
-        S = S + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
-      enddo
-    enddo
 
-$TR S = 2 * S ! Time-reversal factor 2
+
+    if(pairingtype==0) then ! FAM
+      si = 0
+      ! loop over 8 isospin-parity-signature (IPS) block 
+      do B=1,8
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = si+1, si+N
+          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = si+1, si+N
+            S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si = si+N
+      enddo
+    
+    else ! QFAM
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! loop over unique qp pairs, i.e. j < i
+        do j = si+1, si+T
+          do i = j+1, si+T
+             S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si  = si + T 
+      enddo
+
+    endif
+
+    $TR S = 2 * S ! Time-reversal factor 2
+
 
     strength_complex = S 
     strength = - strength_complex%im / pi
@@ -587,7 +734,7 @@ $TR S = 2 * S ! Time-reversal factor 2
 
     complex(KIND=dp), intent(out) :: S_complex(8) 
     real(KIND=dp), intent(out) :: strength(8)
-    integer :: h, p, B, N, si
+    integer :: i, j, B, N, N2, si, T
     real(KIND=dp) :: occ_h, occ_p
 
     if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
@@ -602,22 +749,43 @@ $TR S = 2 * S ! Time-reversal factor 2
     S_complex = 0
     strength = 0
 
-    si = 0
 
-    do B = 1, 8
-      N =  HFBlocks(B) ; if(N.eq.0) cycle
-      do h = si, si+N
-        occ_h = rho_can(h)
-        if(occ_h < 1d-6) cycle
-        do p = si, si+N
-$TR         occ_p = 2.0d0 - rho_can(p) 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
-          if(occ_p < 1d-6) cycle
-          S_complex(B) = S_complex(B) + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
+   if(pairingtype==0) then ! FAM
+      si = 0
+      ! loop over 8 isospin-parity-signature (IPS) block 
+      do B=1,8
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = si+1, si+N
+          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = si+1, si+N
+            S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
         enddo
+        si = si+N
       enddo
-      si = si + N
-    enddo
+
+    
+    else ! QFAM
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! loop over unique qp pairs, i.e. j < i
+        do j = si+1, si+T
+          do i = j+1, si+T
+             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+          enddo
+        enddo
+        si  = si + T 
+      enddo
+
+    endif
+
+
 $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     strength(:) = - S_complex(:)%im / pi
 
@@ -633,6 +801,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
 
   end subroutine calc_strength_decomp
+
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------
@@ -686,7 +855,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
   end subroutine test_convergence
 
 
-  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_ph_hp)
+  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the particle-hole and hole-particle matrix elements of the multipole
     ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
@@ -722,14 +891,14 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
 
     implicit none
-    complex(KIND=dp), allocatable :: f_LK_ph_hp(:,:,:)
     integer, intent(in) :: L, K
     real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
     logical :: ImPart
+    complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_LK_spme(:,:)
       
     allocate(f_LK_spme(nwt,nwt)) 
-    allocate(f_LK_ph_hp(nwt,nwt,2)) 
+    allocate(f_LK_qpme(nwt,nwt,2)) 
 
    
 
@@ -748,19 +917,22 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
 
 
-      ! Multiply the operator by the effective charges 
-      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
-      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
-
       ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
       ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
 
 
       endif
+
+
+      ! Multiply the operator by the effective charges 
+      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
+      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
+
      
       if(fam_verbose > 2) then
         print *, 'f^+_LK'
        call print_spme_complex(f_LK_spme)
+       print *, '||f||²', sum(abs(f_LK_spme)**2)
      endif
 
       ! note: 
@@ -772,12 +944,38 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! TODO: write a general transformation routine from the mesh to any 
       !       single-particle basis
 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    if (pairingtype==0) then ! FAM
       ! Define the external field F by selecting the particle-hole and 
       ! hole-particle subblocks of f_LK by multiplying by their 
       ! occupation, i.e. diagonal elements of rho in the canonical basis
+      call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
 
-    call get_ph_hp_blocks(f_LK_spme, f_LK_ph_hp(:,:,1), f_LK_ph_hp(:,:,2))
+    else ! QFAM
+      
+      ! Define the external field F as the qpme obtained by performing a bogolibov 
+      ! transformation and storing the F^20 anf F^02 comnpnents
+      call transform_sp_to_qp(Bogoliubov, O11sp=f_LK_spme, O20qp=f_LK_qpme(:,:,1), O02qp=f_LK_qpme(:,:,2))
+
+      ! ! Assuming that F is Hermitian, then F20 = F02^*
+      ! f_LK_qpme(:,:,2) = conjg(f_LK_qpme(:,:,1))
+
+      if(fam_verbose > 2) then
+        print *, ' f_LK_qpme(:,:,1)'
+        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
+        print *, ' f_LK_qpme(:,:,2)'
+        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
+      endif
+
+    endif
+
+    if(fam_verbose > 1) then
+
+      print *, '||F(:,:,1)||²', sum(abs(f_LK_qpme(:,:,1))**2)
+      print *, '||F(:,:,2)||²', sum(abs(f_LK_qpme(:,:,2))**2)
+
+    endif
+
 
     deallocate(f_LK_spme)
 
@@ -859,7 +1057,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)
+$TR         occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
 $NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
@@ -898,7 +1096,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)
+$TR         occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
 $NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
@@ -912,6 +1110,384 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! Bogoliubov transformation to the qp basis.
 
   end subroutine get_ph_hp_blocks_real
+
+
+
+  subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle transformation of a generic on 1-body operator 
+    ! O = O20sp + O11sp + O02sp. The function returns the matrix elements in of 
+    ! O in the operator in the QP-basis.
+
+    ! Input:
+    !    Bogo             : Bogoliubov transformation matrix W from sp to qp basis 
+    !                       (2*nwt,2*nwt)
+    !    O20sp (optional) : sp matrix elements of 20 operator component (nwt,nwt)
+    !    O11sp (optional) : sp matrix elements of 11 operator component (nwt,nwt)
+    !    O02sp (optional) : sp matrix elements of 02 operator component (nwt,nwt)
+    ! Output:
+    !    O20qp (optional) : qp matrix elements of 20 operator component (nwt,nwt)
+    !    O11qp (optional) : qp matrix elements of 11 operator component (nwt,nwt)
+    !    O02qp (optional) : qp matrix elements of 02 operator component (nwt,nwt)
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    ! 
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
+    !   
+    ! QP matrix elements are obtained from 
+    ! 
+    !       O20qp = + U^{dagger} o11sp   V^* + U^{dagger} o20sp   U^* 
+    !               - V^{dagger} o02sp^* V^* - V^{dagger} o11sp^T U^*
+    ! 
+    !       O11qp = + U^{dagger} o11sp   U   + U^{dagger} o20sp   V
+    !               - V^{dagger} o02sp^* U   - V^{dagger} o11sp^T V
+    ! 
+    !       O02qp = - V^T        o11sp   U   - V^T        o20sp   V 
+    !               + U^T        o02sp^* U   + U^T        o11sp^T V
+    ! 
+    ! Note that for a hermitian operator O for which o20sp = o02sp^* and 
+    ! o11sp^*=o11sp^T, the O02 component can be obtained trivially from O20
+    ! by complex conjugation
+    !      O20qp^* = + U^T  o11sp^* V + U^T  o20sp^*        U 
+    !                - V^T  o02sp   V - V^T  o11sp^{dagger} U
+    !              = O02qp
+    ! 
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in)               :: Bogo(:,:)
+    complex(KIND=dp), intent(in) , optional :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+    complex(KIND=dp), intent(out), optional :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:)
+    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:), temp(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
+    real(KIND=dp)                 :: Tphase
+
+    if(present(O20qp)) O20qp = 0._dp
+    if(present(O11qp)) O11qp = 0._dp
+    if(present(O02qp)) O02qp = 0._dp
+
+$NTR Tphase = 1.0_dp
+$TR  Tphase = -1.0_dp
+
+    if (fam_verbose > 2) print *, "transform_sp_to_qp"
+
+
+    ! si determines the start of the block in sp-basis of dimension nwt
+    ! sb determines the start of the block in qp-basis of dimension 2*nwt 
+    !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)
+    
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+      if(present(O20sp)) O20b = O20sp(si+1:si+T,si+1:si+T)
+      if(present(O11sp)) O11b = O11sp(si+1:si+T,si+1:si+T)
+      if(present(O02sp)) O02b = O02sp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+      ! print * , 'U : '
+      ! do i=1,T
+      !   print "(99f10.5)",  Ub(i, 1:T)
+      ! enddo
+      
+      ! print * , 'V : '
+      ! do i=1,T
+      !   print "(99f10.5)",  Vb(i, 1:T)
+      ! enddo
+
+      if(present(O20qp)) then
+        if(present(O11sp)) then
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + Tphase * matmul(transpose(Ub),  matmul(          O11b , Vb))
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
+          if (fam_verbose > 2) then
+            temp = + Tphase * matmul(transpose(Ub),  matmul(          O11b , Vb))
+            print * , ' O20 qp term 1 : ', temp(si+1,si+1)
+            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
+            print * , ' O20 qp term 2 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O20sp)) then
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
+            print * , ' O20 qp term 3 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O02sp)) then
+          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Vb))
+          if (fam_verbose > 2) then
+            temp = - matmul(transpose(Vb),  matmul(          O02b , Vb))
+            print * , ' O20 qp term 4 : ', temp(si+1,si+1)
+          endif
+        endif
+      endif 
+
+
+      if(present(O11qp)) then
+        if(present(O11sp)) then
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Ub))
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O11b , Ub))
+            print * , ' O11 qp term 1 : ', temp(si+1,si+1)
+            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
+            print * , ' O11 qp term 2 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O20sp)) then
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Vb))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O20b , Vb))
+            print * , ' O11 qp term 3 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O02sp)) then
+          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O02b , Ub))
+          if (fam_verbose > 2) then
+            temp = - Tphase * matmul(transpose(Vb),  matmul(          O02b , Ub))
+            print * , ' O11 qp term 4 : ', temp(si+1,si+1)
+          endif
+        endif
+      endif
+
+
+      if(present(O02qp)) then
+        if(present(O11sp)) then
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O11b , Ub))
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+          if (fam_verbose > 2) then
+            temp = - Tphase * matmul(transpose(Vb),  matmul(          O11b , Ub))
+            print * , ' O02 qp term 1 : ', temp(si+1,si+1)
+            temp = + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
+            print * , ' O02 qp term 2 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O20sp)) then
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O20b , Vb))
+          if (fam_verbose > 2) then
+            temp = - Tphase * matmul(transpose(Vb),  matmul(          O20b , Vb))
+            print * , ' O02 qp term 3 : ', temp(si+1,si+1)
+          endif
+        endif
+        if(present(O02sp)) then
+          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O02b , Ub))
+          if (fam_verbose > 2) then
+            temp = + matmul(transpose(Ub),  matmul(          O02b , Ub))
+            print * , ' O02 qp term 4 : ', temp(si+1,si+1)
+          endif
+        endif
+      endif 
+
+      si = si +  T
+      sb = sb +2*T
+
+    enddo
+
+    if (fam_verbose > 2) then
+      print *, 'Symmetry : '
+      if(present(O20sp)) print *, '    O20sp = + O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
+      if(present(O02sp)) print *, '    O02sp = + O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
+      if(present(O20qp)) print *, '    O20qp = + O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
+      if(present(O02qp)) print *, '    O02qp = + O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      print *, 'Antisymmetry : '
+      if(present(O20sp)) print *, '    O20sp = - O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
+      if(present(O02sp)) print *, '    O02sp = - O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
+      if(present(O20qp)) print *, '    O20qp = - O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
+      if(present(O02qp)) print *, '    O02qp = - O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      print *, 'Hermiticity : '
+      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
+      if(present(O11sp)) print *, '    O11sp = O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
+      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
+      if(present(O11qp)) print *, '    O11qp = O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      print *, 'Anti-hermiticity : '
+      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = - O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
+      if(present(O11sp)) print *, '    O11sp = - O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
+      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = - O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
+      if(present(O11qp)) print *, '    O11qp = - O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+    endif
+    
+  end subroutine transform_sp_to_qp
+
+
+  subroutine transform_qp_to_sp(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
+    !---------------------------------------------------------------------------
+    ! Performing quasi-particle back transformation of a generic on 1-body operator 
+    ! O = O20qp + O11qp + O02qp. The function returns the matrix elements in of 
+    ! O in the operator in the sp basis.
+
+    ! Input:
+    !    Bogo             : Bogoliubov transformation matrix W from sp to qp basis 
+    !                       (2*nwt,2*nwt)
+    !    O20qp (optional) : qp matrix elements of 20 operator component (nwt,nwt)
+    !    O11qp (optional) : qp matrix elements of 11 operator component (nwt,nwt)
+    !    O02qp (optional) : qp matrix elements of 02 operator component (nwt,nwt)
+    ! Output:
+    !    O20sp (optional) : sp matrix elements of 20 operator component (nwt,nwt)
+    !    O11sp (optional) : sp matrix elements of 11 operator component (nwt,nwt)
+    !    O02sp (optional) : sp matrix elements of 02 operator component (nwt,nwt)
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  
+    ! Bogo contains the bogoliubov transformation W organised in block matrices
+    ! where blocks have twice the size of HFblocks, i.e.
+    ! 
+    !              (  Wb         )                        (  Vb^*   Ub   )
+    !    Bogo  =   (     Wb    : )                Wb  =   (              )
+    !              (        ..Wb )                        (  Ub^*   Vb   )
+    ! 
+    ! Note that the block structure wrt Rz is non-trivial as it is antihermitian
+    ! Hence matrices U and V have block structure in Rz
+    ! 
+    !              (  Ub(++)   0  )                         (   0    Vb(+-) )
+    !       Ub  =  (              )                Vb   =   (               )
+    !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! REMARK : shouldnt this be equivalent to calling the subroutine 
+    !   transform_sp_to_qp() for Bogo^dagger. 
+    !---------------------------------------------------------------------------
+
+
+    implicit none
+    real(KIND=dp), intent(in)               :: Bogo(:,:)
+    complex(KIND=dp), intent(in), optional  :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+    complex(KIND=dp), intent(out), optional :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+
+    real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:), rho(:,:), kappa(:,:)
+    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:)
+    integer                       :: B, N, N2, si, sb, T, i
+    real(KIND=dp)                 :: Tphase
+
+
+    ! initialise Oijsp outputs to zero if they are present
+    if(present(O20sp)) O20sp = 0._dp
+    if(present(O11sp)) O11sp = 0._dp
+    if(present(O02sp)) O02sp = 0._dp
+
+$NTR Tphase = 1.0_dp
+$TR  Tphase = -1.0_dp
+
+    
+    if (fam_verbose > 2) print *, "transform_qp_to_sp"
+
+
+    ! si = O start index for O , sb = start index for bogo (increases twice as fast)
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+      ! get the correct subblock if the present qp operator components
+      if(present(O20qp)) O20b = O20qp(si+1:si+T,si+1:si+T)
+      if(present(O11qp)) O11b = O11qp(si+1:si+T,si+1:si+T)
+      if(present(O02qp)) O02b = O02qp(si+1:si+T,si+1:si+T)
+  
+      if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
+      if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
+      if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
+
+      if(present(O20sp)) then
+        if(present(O11qp)) then
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Vb)))
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - Tphase * matmul(Vb,  matmul(transpose(O11b), transpose(Ub)))
+        endif
+        if(present(O20qp)) then
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O20b , transpose(Ub)))
+        endif
+        if(present(O02qp)) then
+          O20sp(si+1:si+T, si+1:si+T) = O20sp(si+1:si+T, si+1:si+T) - Tphase * matmul(Vb,  matmul(          O02b , transpose(Vb)))
+        endif
+      endif 
+
+
+      if(present(O11sp)) then
+        if(present(O11qp)) then
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O11b , transpose(Ub)))
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(transpose(O11b), transpose(Vb)))
+        endif
+        if(present(O20qp)) then
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) + Tphase * matmul(Ub,  matmul(          O20b , transpose(Vb)))
+        endif
+        if(present(O02qp)) then
+          O11sp(si+1:si+T, si+1:si+T) = O11sp(si+1:si+T, si+1:si+T) - Tphase * matmul(Vb,  matmul(          O02b , transpose(Ub)))
+        endif
+      endif 
+
+
+      if(present(O02sp)) then
+        if(present(O11qp)) then
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - matmul(Vb,  matmul(          O11b , transpose(Ub)))
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + Tphase * matmul(Ub,  matmul(transpose(O11b), transpose(Vb)))
+        endif
+        if(present(O20qp)) then
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) - Tphase * matmul(Vb,  matmul(          O20b , transpose(Vb)))
+        endif
+        if(present(O02qp)) then
+          O02sp(si+1:si+T, si+1:si+T) = O02sp(si+1:si+T, si+1:si+T) + matmul(Ub,  matmul(          O02b , transpose(Ub)))
+        endif
+      endif
+
+      si = si +  T
+      sb = sb +2*T
+
+    enddo
+    
+
+    if (fam_verbose > 2) then
+      print *, 'Symmetry : '
+      if(present(O20sp)) print *, '    O20sp = + O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
+      if(present(O02sp)) print *, '    O02sp = + O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
+      if(present(O20qp)) print *, '    O20qp = + O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
+      if(present(O02qp)) print *, '    O02qp = + O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      print *, 'Antisymmetry : '
+      if(present(O20sp)) print *, '    O20sp = - O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
+      if(present(O02sp)) print *, '    O02sp = - O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
+      if(present(O20qp)) print *, '    O20qp = - O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
+      if(present(O02qp)) print *, '    O02qp = - O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      print *, 'Hermiticity : '
+      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
+      if(present(O11sp)) print *, '    O11sp = O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
+      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
+      if(present(O11qp)) print *, '    O11qp = O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      print *, 'Anti-hermiticity : '
+      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = - O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
+      if(present(O11sp)) print *, '    O11sp = - O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
+      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = - O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
+      if(present(O11qp)) print *, '    O11qp = - O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+    endif
+
+  end subroutine transform_qp_to_sp
 
 
   function Rsq_spme() result (Rsq)
@@ -969,32 +1545,50 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
   subroutine print_all_fam_spmat()
 
     print *, 'X'
-    call print_spme_complex(X)
+    print *, '||X||² = ', sum(abs(X)**2)
+    if (pairingtype==0) then
+      call print_spme_complex(X)
+    else 
+      call print_spme_complex_superblock(X)
+    endif
 
     print *, 'Y'
-    call print_spme_complex(Y)
+    print *, '||Y||² = ', sum(abs(Y)**2)
+    if (pairingtype==0) then
+      call print_spme_complex(Y)
+    else 
+      call print_spme_complex_superblock(Y)
+    endif
 
     print *, 'drho'
-    call print_spme_complex(X + transpose(Y))
+    print *, '||drho||² = ', sum(abs(drho)**2)
+    call print_spme_complex(drho)
 
-!     print *, 'drho_sym'
-!     call print_spme_complex(X + transpose(Y) + transpose(X) + Y)
-!
-!     print *, 'drho_antisym'
-!     call print_spme_complex(X + transpose(Y) - transpose(X) - Y)
+    if (pairingtype.ne.0) then
+      print *, 'dkappa_plus'
+      print *, '||dkappa_plus||² = ', sum(abs(dkappa_plus)**2)
+      call print_spme_complex_superblock(dkappa_plus)
 
+      print *, 'dkappa_minus'
+      print *, '||dkappa_minus||² = ', sum(abs(dkappa_minus)**2)
+      call print_spme_complex_superblock(dkappa_minus)
+    endif
 
     print *, 'dH20'
-    call print_spme_complex(dH(:,:,1))
+    print *, '||dH20||² = ', sum(abs(dH(:,:,1))**2)
+    if (pairingtype==0) then
+      call print_spme_complex(dH(:,:,1))
+    else 
+      call print_spme_complex_superblock(dH(:,:,1))
+    endif
 
     print *, 'dH02'
-    call print_spme_complex(dH(:,:,2))
-
-!     print *, 'F20'
-!     call print_spme_real(F(:,:,1))
-!
-!     print *, 'F02'
-!     call print_spme_real(F(:,:,2))
+    print *, '||dH02||² = ', sum(abs(dH(:,:,2))**2)
+    if (pairingtype==0) then
+      call print_spme_complex(dH(:,:,2))
+    else 
+      call print_spme_complex_superblock(dH(:,:,2))
+    endif
 
   end subroutine
 
@@ -1006,7 +1600,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     si = 0
     do B=1,8
-      N = HFBLocks(B)
+      N = HFBlocks(B)
 
       print *, 'BLOCK', B
       do i=si+1,si+N
@@ -1026,7 +1620,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
     si = 0
     do B=1,8
-      N = HFBLocks(B)
+      N = HFBlocks(B)
 
       print *, 'BLOCK', B
       do i=si+1,si+N
@@ -1038,5 +1632,26 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     print *
     
   end subroutine print_spme_complex
+
+  subroutine print_spme_complex_superblock(A)
+    implicit none
+    complex(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8,2
+
+      N  = HFblocks(B) + HFblocks(B+1) 
+
+      print *, 'BLOCKS ', B ,' & ', B+1
+      do i=si+1,si+N
+        print "(*( '(',g12.5,',',g12.5,')',:))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex_superblock
 
 end module fam

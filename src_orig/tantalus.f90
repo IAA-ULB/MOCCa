@@ -861,9 +861,9 @@ subroutine initialize_all_timers(fam)
       call add_timer('Matrix elements \delta h' , T_spme_perturbed)
       call add_timer('Sym. \delta h'            , T_spme_perturbed_sym)
       call add_timer('Anti \delta h'            , T_spme_perturbed_asym)
+      call add_timer('PP  per. densities'       , T_den_perturbed_pp )
+      call add_timer('Matrix elements \Delta'   , T_spme_perturbed_pp )
    endif
-
-
 
 end subroutine initialize_all_timers
 

@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - master
+      - FAMQRPA
   pull_request:
     branches:
       - master
@@ -780,12 +781,12 @@ jobs:
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
 
-      - name: Run parallel script
+      - name: Run the testing script
         # Actually execute the test (source call to ensure MPIRUN is available)
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P --verbose
 
       - name: Upload test results
         if: success() || failure() # Always upload the code outputs
@@ -798,6 +799,64 @@ jobs:
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
             testing/integration/logs/fam_t0t3.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 90
+
+  fam_linearity:
+    #---------------------------------------------------------------------------
+    # Run the fam_linearity test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    strategy:
+      matrix:
+        COMPILER: [ gfortran, ifx]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX  : LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v4
+        # Download the FAM executable
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run the testing script
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash fam_linearity.sh --verbose ${{ env.SUFFIX }}
+
+      - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fam_linearity.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out.bis
           retention-days: 90
 
   gradient_vs_direct:

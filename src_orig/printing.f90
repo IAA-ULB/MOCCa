@@ -227,7 +227,11 @@ $TR     sumocc = 2*k
     if(allocated(HF_gaps)) deallocate( HF_gaps)  
     !---------------------------------------------------------------------------
     ! Return if we are not doing a HFB calculation
+#if($FAM == 0)
     if(PairingType.ne.2) return
+#else 
+    return ! there is no canonical basis for FAM calculations
+#endif
     !---------------------------------------------------------------------------
     ! Otherwise, print the properties of the canonical basis
     print 13

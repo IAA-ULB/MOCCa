@@ -760,9 +760,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! Construct the density in the Hartree-Fock basis 
     ! (which is generally only used for printing)
     if(pairingtype.eq.2) then
-      rho_hf =  construct_rho_HF(rho_pairing, HFtransfo)
+      rho_hf = construct_rho_HF(rho_pairing, HFtransfo)
     else
-      rho_hf = rho_can/2.0d0
+$TR      rho_hf = rho_can/2.0d0
+$NTR     rho_hf = rho_can
     endif  
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas
