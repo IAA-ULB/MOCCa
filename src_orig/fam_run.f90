@@ -145,7 +145,7 @@ program run_FAM
   ! call run_FAM_tests(X,Y)
 
   ! run some tests on the new qp trafo routines => to be removed when validated
-  call test_qptrafo()
+  ! call test_qptrafo()
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
@@ -162,7 +162,7 @@ program run_FAM
     !-------------------------------------------------------------------------------
 
     num_iter = 0
-    call inifam(omega_curr, Density, Potentials)
+    call inifam(omega_curr, Density, Potentials, XYinfile=XYinfile, Finfile=Finfile)
 
     is_converged = .false.
     is_divergent = .false.

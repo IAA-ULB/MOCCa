@@ -162,7 +162,7 @@ module fam
 
   contains
 
-  subroutine inifam(omega, DensUnper, PotUnper)
+  subroutine inifam(omega, DensUnper, PotUnper, XYinfile, Finfile)
     implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
@@ -177,6 +177,9 @@ module fam
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
     type(PotentialVector), intent(in)  :: PotUnper
+    character(len=*), intent(in)       :: XYinfile, Finfile
+
+
 
     1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -188,7 +191,11 @@ module fam
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the external field F
     if(.not.allocated(F)) then 
-      F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
+      if (Finfile .ne. '') then 
+        F = read_f(Finfile)
+      else
+        F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
+      endif
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -896,6 +903,8 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     logical :: ImPart
     complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_LK_spme(:,:)
+
+    if (fam_verbose > 1) print *, "get_f_LK :: "
       
     allocate(f_LK_spme(nwt,nwt)) 
     allocate(f_LK_qpme(nwt,nwt,2)) 
@@ -950,6 +959,13 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! hole-particle subblocks of f_LK by multiplying by their 
       ! occupation, i.e. diagonal elements of rho in the canonical basis
       call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
+
+      if(fam_verbose > 2) then
+        print *, ' f_LK_ph'
+        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
+        print *, ' f_LK_hp'
+        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
+      endif
 
     else ! QFAM
       
@@ -1392,7 +1408,7 @@ $NTR Tphase = 1.0_dp
 $TR  Tphase = -1.0_dp
 
     
-    if (fam_verbose > 2) print *, "transform_qp_to_sp"
+    if (fam_verbose > 1) print *, "transform_qp_to_sp"
 
 
     ! si = O start index for O , sb = start index for bogo (increases twice as fast)
@@ -1518,6 +1534,89 @@ $TR  Tphase = -1.0_dp
     enddo
 
   end function Rsq_spme
+
+
+  function read_f(Finfile) result(f_qpme)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Read the quasi-particle matrix elements of the external field F20 and F02 
+    ! from file named Finfile. 
+    !
+    ! INPUT:
+    !     Finfile  : filename containing qpme of the external field F20 and F02
+    !
+    ! OUPUT: 
+    !     f_qpme(:,:,:)  : complex qpme of F20 and F02 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! note :
+    !  -  The current version of the xy file written in IO.f90 contains the 
+    !     perturbing filed F at the top of the file, followed by X, Y at several
+    !     frequencies omega FAm was solved for. These different sections in the
+    !     file are seperated by a line
+    !     & omega =     [OMEGA]     [SMEAR]
+    !  -  Also note that all the matrix elements larger than 1e-10 are stored in
+    !     the file, antisymmetry is not exploited. I therefor explicitly
+    !     anti-symmetrise the read in F to avoid noise wrt this symmetry. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
+    implicit none
+    character(len=*), intent(in) :: Finfile
+    complex(KIND=dp), allocatable :: f_qpme(:,:,:)
+    real(dp) :: F20_re, F20_im, F02_re, F02_im
+    integer :: io, m, n, i, j, nblocks, block_count
+    real(dp) :: omega, smear, eff_charge_n, eff_charge_p, ewsr
+    character(len=256) :: line, field_type
+    integer, parameter :: maF20_line = 256
+
+    if (fam_verbose > 1) print *, "read_f :: Finfile=", Finfile
+      
+    allocate(f_qpme(nwt,nwt,2)) 
+    f_qpme = 0
+
+
+
+    ! Open the file
+    open(unit=1, file=Finfile, status='old', iostat=io, action="read")
+    if (io .ne. 0) then
+      print *, 'Error opening file: ', Finfile
+      return
+    endif
+
+    ! Read and print header lines 
+    do i = 1, 13
+      read(1, '(A)') line
+      print *, trim(line)
+    enddo
+    ! to do : could be a good idea to verify pqrqmeters in the header are compatible
+    !         with the one read from stdin 
+
+
+    ! Skip the column names line
+    read(1, '(A)')
+
+    do
+      read(1, '(A)', iostat=io) line
+      if (io < 0) exit  ! End of file
+      if (line(1:1)=='&') exit ! Start of X, Y if any. 
+
+      ! Read sparse matrix data
+      read(line, *) m, n, F20_re, F20_im, F02_re, F02_im
+      ! print *, 'm = ', m, ' n = ', n, ' X = (', F20_re, ', ', F20_im, ') Y = (', F02_re, ', ', F02_im, ')'
+      f_qpme(m,n,1) = dcmplx(F20_re, F20_im)
+      f_qpme(m,n,2) = dcmplx(F02_re, F02_im)
+    enddo
+
+    close(1)
+
+    ! explicitly antisymmetrise
+    f_qpme(:,:,1) = 0.5 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
+    f_qpme(:,:,2) = 0.5 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
+
+    print *, sum(abs(f_qpme(:,:,1))**2)
+    print *, sum(abs(f_qpme(:,:,2))**2)
+
+  end function read_f
 
   function norm_dH(dH) result(res)
     ! abstract template procedure dH -> real required for procedural argument to gmres
