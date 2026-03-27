@@ -142,10 +142,7 @@ program run_FAM
     endif
   endif
   
-  ! call run_FAM_tests(X,Y)
 
-  ! run some tests on the new qp trafo routines => to be removed when validated
-  ! call test_qptrafo()
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
@@ -159,30 +156,78 @@ program run_FAM
 
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
-    !-------------------------------------------------------------------------------
 
     num_iter = 0
-    call inifam(omega_curr, Density, Potentials, XYinfile=XYinfile, Finfile=Finfile)
+    call inifam(omega_curr, Density, Potentials, Finfile)
+
+
+    !-------------------------------------------------------------------------------
+    ! calculate the free response by running one FAM loop starting from dh = 0
+
+    print *, 'Calculate the free response'
+    dH_flat = 0
+    call iterate_dHsp(dH_flat, dH_free_flat)
+    ! this also sets all other quantities like drho, dkappa, X, Y, dH20 to their free value
+
+
+    !-------------------------------------------------------------------------------
+    ! optional : read X and Y from XYinfile if provided
+
+    if (XYinfile .ne. '') then 
+      call read_XY(XYinfile, X, Y)
+      call store_XY_hist()
+
+      strength =  calc_strength()
+      print * , 'strength at initialising X, Y :', strength
+
+      ! perform partial FAM loop to obtain dH from X and Y
+      call partial_FAM_XY_to_dH(X, Y, dH_flat)
+      ! dH_flat serves as the initialisation for the upcoming iterative FAM solvers
+    
+    else 
+      ! If XYinfile is not present, then the free response is used as initalisation
+      ! of dH_flat in the iterative solvers
+
+      dH_flat = dH_free_flat
+
+    endif
+
+    !-------------------------------------------------------------------------------
+    ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+
+    ! Perform all kinds of tests on the quasi-particle transformation
+    ! call test_qptrafo()
+
+    ! Perform all kinds of tests on FAM routines
+    ! call run_FAM_tests(X,Y)
+
 
     is_converged = .false.
     is_divergent = .false.
 
+    !-------------------------------------------------------------------------------
+    ! start the iterative solver unless maxiter = 0 providing the free response. 
     if (fam_mixingscheme == 0 .and. fam_maxiter > 1) then
 
       !---------------------------------------------------------------------------------
-      ! via GMRES on implicit matrix*vector procedure one_minus_T()
+      ! OPTION 0 : GMRES on implicit matrix*vector procedure one_minus_T()
       !---------------------------------------------------------------------------------
 
       call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, fam_precision, norm_dH, ScProd_dH)
       
       fam_verbose = 0
 
-      ! initiliase the GMRES solver, using the free response as the initial guess x0
-      call init_gmres(dH_free_flat)
+      call init_gmres(dH_flat)
+
 
       do iter=1, gmres_itermax
+        !---------------------------------------------------------------------------------
+        ! Perform one GMRES iteration
         call iterate_gmres()
 
+
+        !---------------------------------------------------------------------------------
+        ! test convergenence
         if (gmres_res < gmres_precision) then 
           print 1
           print *, "Hooray! GMRES is converged! "
@@ -200,6 +245,9 @@ program run_FAM
 
       enddo
 
+
+      !---------------------------------------------------------------------------------
+      ! obtain the GMRES solution and perform one last iteration
       call extract_x_gmres()
 
       print *, "One final FAM iteration based on GMRES solution:  "
@@ -213,11 +261,10 @@ program run_FAM
     else if (fam_mixingscheme == 1) then
 
       !---------------------------------------------------------------------------------
-      ! linear mixing while employing iterate_dHsp()
+      ! OPTION 1 : linear mixing while employing iterate_dHsp()
       !---------------------------------------------------------------------------------
 
       ! initialise the sp hamiltonians to the ones of the free response 
-      dH_flat = dH_free_flat
       dH_flat_next = 0
 
       ! Start of the iterations 
@@ -228,9 +275,6 @@ program run_FAM
 
         ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
         call iterate_dHsp(dH_flat, dH_flat_next)
-
-        ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-        ! call run_FAM_tests(X,Y)
 
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat

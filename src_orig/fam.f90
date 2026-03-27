@@ -162,7 +162,7 @@ module fam
 
   contains
 
-  subroutine inifam(omega, DensUnper, PotUnper, XYinfile, Finfile)
+  subroutine inifam(omega, DensUnper, PotUnper, Finfile)
     implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
@@ -177,7 +177,7 @@ module fam
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
     type(PotentialVector), intent(in)  :: PotUnper
-    character(len=*), intent(in)       :: XYinfile, Finfile
+    character(len=*), intent(in)       :: Finfile
 
 
 
@@ -256,17 +256,6 @@ module fam
 
     endif
   
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! calculate free response by iterating FAM once starting from 0
-    ! this also sets X, Y, drho, dkappa etc. to their respective free values
-
-    dH_free_flat = 0
-    call iterate_dHsp(dH_free_flat, dH_free_flat)
-
-    if (fam_verbose > 1) print *, '||dH_free||', sum(abs(dH_free_flat(:))**2)
-
-
   end subroutine inifam
 
 
@@ -395,7 +384,7 @@ module fam
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
       call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
 
-      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 
     else ! QFAM
 
@@ -408,7 +397,7 @@ module fam
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
 
-      print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 
     endif
 
@@ -475,7 +464,7 @@ module fam
       ! construct the sp hamiltonian in HF basis
       dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
+      if (fam_verbose > 0) print 12,  sum(abs(dHspout(:,:,1))**2), 0.0, 0.0
 
     else ! QFAM
 
@@ -484,13 +473,128 @@ module fam
       dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
       dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
 
-      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
+      if (fam_verbose > 0) print 12,  sum(abs(dHspout(:,:,2))**2), sum(abs(dHspout(:,:,1))**2),  sum(abs(dHspout(:,:,3))**2)
 
     endif
 
     if(fam_verbose > 2) call print_all_fam_spmat()
 
   end subroutine iterate_dHsp
+
+
+  subroutine partial_FAM_XY_to_dH(X, Y, dHspout_flat)
+    !---------------------------------------------------------------------------
+    ! Perform a partial FAM loop, starting from X and Y get the induced perturbed
+    ! Hamiltonian
+    ! 
+    ! Input:
+    !    X, Y         :  X Y FAM amplitudes 
+    ! Output:
+    !    dHspout_flat : iterated perturbed hamiltonian in HF basis as a flat array
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    ! Note: 
+    !   In FAM dHsp_flat only contains dh, while in QFAM it stacks dh, ddelta+ and ddelta-
+    ! 
+    !   This function only is almost copy-paste of iterate_dHsp, skipping steps (1) and (2)
+    ! 
+    ! (3) transform XY to sp basis                    => drho, dkappa+/-
+    ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
+    ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
+    ! (6) compute perturbed sp hamiltonian and paring => dh, ddelta+/-
+    !
+    !---------------------------------------------------------------------------
+    
+    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+
+    implicit none
+    complex(KIND=dp), dimension(:,:), intent(in) :: X, Y
+    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+    complex(KIND=dp), pointer :: dHspout(:,:,:)
+
+
+    if (fam_verbose > 1) print *, "partial_FAM_XY_to_dH :: starting partial FAM loop from X and Y"
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Set up the pointer remap
+
+    if (pairingtype==0) then ! FAM
+
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
+
+
+    else ! QFAM
+
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
+      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
+      dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
+
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (3) Obtain perturbed (pairing) density matrices in HF basis
+
+    if (pairingtype==0) then ! FAM
+      drho = X  + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else ! QFAM
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (4) Compute perturbed densities on the mesh
+
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
+
+    if (fam_verbose > 0) then
+      if(pairingtype==0) then
+        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
+      else
+        print 22,  sum(abs(drho)**2), 0.0,  0.0
+      endif
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (5) compute perturbed fields on the mesh
+
+    ! explicit linearisation of the fields
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
+
+    ! We add in all additional contributions to F_I_I that do not 
+    !  result from the Skyrme functional.  
+    call combine_potentials(dFs)
+    call combine_potentials(dFa)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (6) calculate perturbed hamiltonian and pairing in the HF basis
+
+    if (pairingtype==0) then ! FAM
+      
+      ! construct the sp hamiltonian in HF basis
+      dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+    else ! QFAM
+
+      ! construct the sp hamiltonian + pairing fields in HF basis
+      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+
+    endif
+
+    if(fam_verbose > 2) call print_all_fam_spmat()
+
+  end subroutine partial_FAM_XY_to_dH
+
 
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
@@ -607,7 +711,7 @@ module fam
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
     !---------------------------------------------------------------------------
-    if (fam_verbose > 1) print *, "store_XY_hist :: store X and Y in hostory"
+    if (fam_verbose > 1) print *, "store_XY_hist :: store X and Y in history"
 
     ! roll the current index one step forward
     hist_current_idx = modulo(hist_current_idx, hist_max) + 1
@@ -1564,16 +1668,14 @@ $TR  Tphase = -1.0_dp
     character(len=*), intent(in) :: Finfile
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     real(dp) :: F20_re, F20_im, F02_re, F02_im
-    integer :: io, m, n, i, j, nblocks, block_count
-    real(dp) :: omega, smear, eff_charge_n, eff_charge_p, ewsr
-    character(len=256) :: line, field_type
-    integer, parameter :: maF20_line = 256
+    integer :: io, m, n, i
+    character(len=256) :: line
+    integer, parameter :: header_length = 14
 
-    if (fam_verbose > 1) print *, "read_f :: Finfile=", Finfile
+    print *, "Reading F20 and F02 from ", Finfile
       
     allocate(f_qpme(nwt,nwt,2)) 
     f_qpme = 0
-
 
 
     ! Open the file
@@ -1584,21 +1686,17 @@ $TR  Tphase = -1.0_dp
     endif
 
     ! Read and print header lines 
-    do i = 1, 13
+    do i = 1, header_length
       read(1, '(A)') line
-      print *, trim(line)
+      if (fam_verbose > 1) print *, trim(line)
     enddo
     ! to do : could be a good idea to verify pqrqmeters in the header are compatible
     !         with the one read from stdin 
 
-
-    ! Skip the column names line
-    read(1, '(A)')
-
     do
       read(1, '(A)', iostat=io) line
       if (io < 0) exit  ! End of file
-      if (line(1:1)=='&') exit ! Start of X, Y if any. 
+      if (line(1:1)=='&') exit ! End of F and beginning of XY section 
 
       ! Read sparse matrix data
       read(line, *) m, n, F20_re, F20_im, F02_re, F02_im
@@ -1613,10 +1711,127 @@ $TR  Tphase = -1.0_dp
     f_qpme(:,:,1) = 0.5 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
     f_qpme(:,:,2) = 0.5 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
 
-    print *, sum(abs(f_qpme(:,:,1))**2)
-    print *, sum(abs(f_qpme(:,:,2))**2)
+    if(fam_verbose > 1) then
+
+      print *, '||F20||² = ', sum(abs(f_qpme(:,:,1))**2)
+      print *, '||F02||² = ', sum(abs(f_qpme(:,:,2))**2)
+
+    endif
 
   end function read_f
+
+  subroutine read_xy(XYinfile, X, Y)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Read the quasi-particle matrix elements of the external field F20 and F02 
+    ! from file named Finfile. 
+    !
+    ! INPUT:
+    !     XYinfile  : filename containing qpme of X and Y
+    !
+    ! OUPUT: 
+    !     X(:,:)    : complex qpme of X
+    !     Y(:,:)    : complex qpme of Y
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! note :
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
+    implicit none
+    character(len=*), intent(in) :: XYinfile
+    complex(KIND=dp), allocatable :: X(:,:),  Y(:,:)
+    real(dp) :: X_re, X_im, Y_re, Y_im
+    real(dp) :: omega_in, smear_in
+    integer :: io, m, n, i
+    character(len=256) :: line
+    integer, parameter :: header_length = 14
+    logical :: found_block = .false.
+
+    print *, "Reading X and Y from ", XYinfile
+      
+
+    ! Open the file
+    open(unit=1, file=XYinfile, status='old', iostat=io, action="read")
+    if (io .ne. 0) then
+      print *, 'Error opening file: ', XYinfile
+      close(1)
+      return
+    endif
+
+    ! Read and print header lines 
+    do i = 1, header_length
+      read(1, '(A)') line
+      if (fam_verbose > 1) print *, trim(line)
+    enddo
+    ! to do : could be a good idea to verify pqrqmeters in the header are compatible
+    !         with the one read from stdin 
+
+
+    ! look for the block in the XY file starting with the separator line "& omega = [omega] [smear]"
+    do
+      read(1, '(A)', iostat=io) line
+      
+      ! reached end of file
+      if (io < 0) then 
+        print '(A, f8.3, A, f8.3)', 'End of file reached without finding good XY block for omega = ', omega_fam, ' ,smear = ', smear
+        print *, 'Starting FAM solver with XY obtained from free response'
+        close(1)
+        return
+      endif
+      
+      ! If the current line IS NOT a separator line (starting with '&'), then continue reading 
+      if (line(1:1).ne.'&') then
+       cycle 
+
+      ! The current line IS a separator line
+      else
+
+        read(line, '(9X, F10.3, F10.3)') omega_in, smear_in
+
+        ! Check if the separator line announces the XY block with correct frequency and smearing
+        if ( (abs(omega_in - omega_fam) < 1e-6) .and. (abs(smear_in - smear) < 1e-6)) then 
+          ! found the good block
+          found_block = .true.
+          exit
+        else
+          ! wrong block, continue reading
+          cycle
+        endif
+      endif
+    enddo
+
+
+    ! if we found the correct block in the XYinfile, then fill the X and Y
+    if (found_block) then
+      X = 0
+      Y = 0
+      do
+        read(1, '(A)', iostat=io) line
+        if (io < 0) exit  ! End of file
+        if (line(1:1)=='&') exit ! End of XY block 
+
+        ! Read sparse matrix data
+        read(line, *) m, n, X_re, X_im, Y_re, Y_im
+        ! print *, 'm = ', m, ' n = ', n, ' X = (', X_re, ', ', X_im, ') Y = (', Y_re, ', ', Y_im, ')'
+        X(m,n) = dcmplx(X_re, X_im)
+        Y(m,n) = dcmplx(Y_re, Y_im)
+      enddo
+
+      close(1)
+
+      ! explicitly antisymmetrise
+      X(:,:) = 0.5 * (X(:,:) + transpose(X(:,:)))
+      Y(:,:) = 0.5 * (Y(:,:) + transpose(Y(:,:)))
+    endif
+
+    if(fam_verbose > 1) then
+
+      print *, '||X||² = ', sum(abs(X(:,:))**2)
+      print *, '||Y||² = ', sum(abs(Y(:,:))**2)
+
+    endif
+
+  end subroutine read_xy
 
   function norm_dH(dH) result(res)
     ! abstract template procedure dH -> real required for procedural argument to gmres
