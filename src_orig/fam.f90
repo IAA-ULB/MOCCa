@@ -596,6 +596,97 @@ module fam
   end subroutine partial_FAM_XY_to_dH
 
 
+  subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F)
+    !---------------------------------------------------------------------------
+    ! Multiply X and Y by the QRPA matrix by performing one adjusted FAM loop. 
+    ! i.e.
+    !        (E - omega) * X + dH20(X, Y) = - F20
+    !        (E + omega) * Y + dH02(X, Y) = - F02
+    !  
+    ! Input:
+    !    X, Y     :  X Y input amplitudes 
+    !    omega    :  frequency used in the linear response
+    ! Output:
+    !    F20, F02 :  induced external field 
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    !  (1) Compute the induced perturbed hamiltonian dH in the HF basis by calling 
+    !      partial_FAM_XY_to_dH()            =>  dHsp_flat = {dh, ddelta+, ddelta-}
+    !  (2) Transform dHsp to the QP basis    =>  dH20, dH02
+    !  (3) Compute the resulting field F by linear response, i.e. the Eq. above
+    !
+    !---------------------------------------------------------------------------
+    
+    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+
+    implicit none
+    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+    complex(KIND=dp), intent(in) :: omega
+    complex(KIND=dp), intent(out) :: F(:,:,:)
+    complex(KIND=dp), allocatable, target :: dHsp_flat(:)
+    complex(KIND=dp), pointer :: dHsp(:,:,:)
+
+
+    if (fam_verbose > 1) print *, "Multiply_with_QRPAmat :: compute the external field induced by XY"
+
+
+    if(.not. allocated(dHsp_flat)) then
+      if(pairingtype==0) then
+        allocate(dHsp_flat(nwt * nwt))
+      else
+        allocate(dHsp_flat(3 * nwt * nwt))
+      endif
+    endif
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (1) Compute the induced perturbed hamiltonian dH in the HF basis
+    
+    call partial_FAM_XY_to_dH(X, Y, dHsp_flat)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (2) unpack via pointer remap and transfrom dH to the qp basis
+
+    if (pairingtype==0) then ! FAM
+
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
+
+      ! get the ph and hp subblocks of the perturbed sp hamiltonian
+      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
+    else ! QFAM
+
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
+      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
+      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
+
+      ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
+      call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (3) compute induced external field F20 F02
+    
+    call compute_F_from_XYdH(X, Y, dH, omega, F)
+
+
+  end subroutine Multiply_XY_with_QRPAmat
+
+
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
     ! The precedure iterate_dH constitutes an affine transformation 
@@ -705,6 +796,76 @@ module fam
     endif
 
   end subroutine calculate_XY
+
+
+  subroutine compute_F_from_XYdH(X, Y, dH, omega, F)
+    !---------------------------------------------------------------------------
+    ! Calculate the external field F induced by X, Y and dH at frequency omega
+    ! from the linear response equation. 
+    !        F20 = - dH20 -(E - omega) * X 
+    !        F02 = - dH02 -(E + omega) * Y
+    !---------------------------------------------------------------------------
+    implicit none
+    complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
+    complex(KIND=dp), intent(in)  :: X(:,:), Y(:,:) ! X, Y in QP basis
+    complex(KIND=dp), intent(in)  :: omega ! complex frequency
+    complex(KIND=dp), intent(out) :: F(:,:,:) ! induced external field F in QP basis
+
+    integer       :: i, j, si, si2, N, N2, B, T
+
+    if (fam_verbose > 1) print *, "compute_F_from_XYdH ::"
+
+    F = - dH
+
+    if(pairingtype==0) then ! FAM : difference of particle and hole energy
+      si = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+        do j = 1, T
+          if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
+          do i = 1, T
+            F(si+i,si+j,1) = F(si+i,si+j,1) - X(si+i,si+j) * (spenergies(si+i) - spenergies(si+j) - omega )
+            F(si+i,si+j,2) = F(si+i,si+j,2) - Y(si+i,si+j) * (spenergies(si+i) - spenergies(si+j) + omega )
+          enddo
+        enddo
+        si = si+T
+      enddo 
+
+    
+    else ! QFAM : sum of two qp energy
+    
+      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+      ! We require two start indices
+      ! si  determines the start of the block in qp-basis of dimension nwt   -> X, Y
+      ! si2 determines the start of the block in qp-basis of dimension 2*nwt -> qpenergies (-Emax,..., -E1, E1,..., Emax)
+      si = 0; si2 = 0
+      do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+        do j = 1, T
+          do i = 1, T
+
+            ! fetch qpenergies from second half (si2 + T), i.e. positive qp spectrum 
+
+            F(si+i,si+j,1) = F(si+i,si+j,1) - X(si+i,si+j) * (qpenergies(si2+T+i) + qpenergies(si2+T+j) - omega )
+            F(si+i,si+j,2) = F(si+i,si+j,2) - Y(si+i,si+j) * (qpenergies(si2+T+i) + qpenergies(si2+T+j) + omega )
+          enddo
+        enddo
+        si  = si  +   T ! move start index by size of IP block 
+        si2 = si2 + 2*T ! move start index by twice the size of IP block
+      enddo
+    endif
+
+    if(fam_verbose > 2) then
+      print * , "||F20||^2 = ",   sum(abs(F(:,:,1)**2))
+      print * , "||F02||^2 = ",   sum(abs(F(:,:,2)**2))
+    endif
+
+  end subroutine compute_F_from_XYdH
 
 
   subroutine store_XY_hist()
