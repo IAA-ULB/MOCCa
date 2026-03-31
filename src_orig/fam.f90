@@ -439,9 +439,9 @@ module fam
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
-        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
-      else
         print 22,  sum(abs(drho)**2), 0.0,  0.0
+      else
+        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
       endif
     endif
 
@@ -557,9 +557,9 @@ module fam
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
-        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
-      else
         print 22,  sum(abs(drho)**2), 0.0,  0.0
+      else
+        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
       endif
     endif
 

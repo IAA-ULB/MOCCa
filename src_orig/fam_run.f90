@@ -6,7 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_L_Linv
   use fam_testing, only : test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
   use fam_testing, only : test_qptrafo
   use gmres 
@@ -344,6 +344,11 @@ program run_FAM
     if(DENFILE .ne. '') then
       call append_perturbed_denfile(dRs, dRa, DENFILE)
     endif
+
+
+    call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
+
+
 
     omega_curr = omega_curr + omega_step
 
