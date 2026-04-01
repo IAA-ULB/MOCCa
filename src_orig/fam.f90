@@ -147,6 +147,12 @@ module fam
   !   0..hist_max-1 while fortran arrays use a 1-based index. 
   real(KIND=dp) :: fam_precision = 1.0e-5_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
+  ! XYtoF
+  logical :: XYtoF = .false. ! compute F starting from X and Y. (default = .false.)
+  !   This corresponds to the inverse problem of FAM and is mush easier to solve.
+  !   It comes down to reading in X and Y and mutiplying with the QRPA matrix, 
+  !   which can be achieved by ONE partial FAM iteration. 
+  !-----------------------------------------------------------------------------
   ! verbosity
   integer :: fam_verbose = 1
   ! 0: no printing. Used during GMRES as output would be confusing
@@ -266,6 +272,9 @@ module fam
     ! Input:
     !     file_number : channel number of opened file where to read from.
     !                   Optional. If not present, read from STDIN.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note that I have to be careful here with default values. in case the variable 
+    ! name differs from the one in input data, it gets always overwritten
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional :: file_number
     real(KIND=dp) :: omega = -1.0_dp
@@ -274,7 +283,7 @@ module fam
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p
+    &               eff_charge_n, eff_charge_p, XYtoF
 
 
     if(MPI_rank .eq. 0) then
@@ -319,15 +328,19 @@ module fam
     &          '    mixing coef alpha = ', f10.3, /,  &
     &          '    max # iterations = ', i8, /,  &
     &          '    dh convergence   < ', es8.1)
-
+    5 format (' Compute F from X and Y')
 
 
     print 1
     print 2, omega_min, omega_max, omega_step, smear
-    print 3, l, m, eff_charge_n, eff_charge_p
-    if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
-    if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
-
+    if (XYtoF) then
+      print 5
+    else
+      print 3, l, m, eff_charge_n, eff_charge_p
+      if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
+      if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
+    endif
+  
   end subroutine
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
@@ -596,7 +609,7 @@ module fam
   end subroutine partial_FAM_XY_to_dH
 
 
-  subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F)
+  subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F, dHsp_flat_in)
     !---------------------------------------------------------------------------
     ! Multiply X and Y by the QRPA matrix by performing one adjusted FAM loop. 
     ! i.e.
@@ -606,6 +619,7 @@ module fam
     ! Input:
     !    X, Y     :  X Y input amplitudes 
     !    omega    :  frequency used in the linear response
+    !    dHsp_flat_in (optional)  :  flat array of the perturbed hamiltonian in the HF basis 
     ! Output:
     !    F20, F02 :  induced external field 
     ! 
@@ -613,6 +627,7 @@ module fam
     !
     !  (1) Compute the induced perturbed hamiltonian dH in the HF basis by calling 
     !      partial_FAM_XY_to_dH()            =>  dHsp_flat = {dh, ddelta+, ddelta-}
+    !      -> this step gets skipped if dHsp is passed to this routine 
     !  (2) Transform dHsp to the QP basis    =>  dH20, dH02
     !  (3) Compute the resulting field F by linear response, i.e. the Eq. above
     !
@@ -628,27 +643,32 @@ module fam
     complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
     complex(KIND=dp), intent(in) :: omega
     complex(KIND=dp), intent(out) :: F(:,:,:)
+    complex(KIND=dp), optional, intent(in) :: dHsp_flat_in(:)
     complex(KIND=dp), allocatable, target :: dHsp_flat(:)
     complex(KIND=dp), pointer :: dHsp(:,:,:)
 
-
+    fam_verbose = 2
     if (fam_verbose > 1) print *, "Multiply_with_QRPAmat :: compute the external field induced by XY"
 
 
-    if(.not. allocated(dHsp_flat)) then
-      if(pairingtype==0) then
-        allocate(dHsp_flat(nwt * nwt))
-      else
-        allocate(dHsp_flat(3 * nwt * nwt))
-      endif
-    endif
-
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (1) Compute the induced perturbed hamiltonian dH in the HF basis
-    
-    call partial_FAM_XY_to_dH(X, Y, dHsp_flat)
+    ! (1) if not present, compute the induced perturbed hamiltonian dH in the HF basis
 
+    if (.not. present(dHsp_flat_in)) then
+
+      if (.not. allocated(dHsp_flat)) then
+        if(pairingtype==0) then
+          allocate(dHsp_flat(nwt * nwt))
+        else
+          allocate(dHsp_flat(3 * nwt * nwt))
+        endif
+      endif
+
+      call partial_FAM_XY_to_dH(X, Y, dHsp_flat)
+
+    else
+      dHsp_flat = dHsp_flat_in
+    endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (2) unpack via pointer remap and transfrom dH to the qp basis

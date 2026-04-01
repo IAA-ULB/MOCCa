@@ -202,6 +202,26 @@ program run_FAM
     ! call run_FAM_tests(X,Y)
 
 
+    !-------------------------------------------------------------------------------
+    ! if XYtoF, calculate F staring from XY
+
+    if (XYtoF) then
+      ! check if there is an XY input
+      if (XYinfile == '') then
+        print *, "ERROR: Cannot calculate F from XY if no input file XYinfile is provided. Stopping..."
+        stop
+      endif
+
+
+      ! Compute F from XY, passing dH_flat since is already computed with read XY
+      call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
+
+      ! BODGE : set fam_mixingscheme to -1 to skip all iterative FAM solvers
+      fam_mixingscheme = -1
+
+    endif
+
+
     is_converged = .false.
     is_divergent = .false.
 
