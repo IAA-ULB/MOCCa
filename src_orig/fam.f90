@@ -752,7 +752,7 @@ module fam
     implicit none
     complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
-    integer       :: i, j, si, si2, N, N2, B, T
+    integer       :: i, j, si, si2, N, N2, B, T, degeneracy
 
     if (fam_verbose > 1) print *, "calculate_XY :: update X and Y"
 
@@ -763,6 +763,10 @@ module fam
     ! normalise with energy denominator
 
     if(pairingtype==0) then ! FAM : difference of particle and hole energy
+      
+      $TR   degeneracy = 2 ! degeneracy of sp states in case of T conservation
+      $NTR  degeneracy = 1 ! degeneracy of sp states in case of T conservation
+    
       si = 0
       do B=1,8,2
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
@@ -772,6 +776,7 @@ module fam
         do j = 1, T
           if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
           do i = 1, T
+            if(abs(degeneracy - rho_can(si+i)) < 1d-6) cycle  ! skip if i is not a particle state
             X(si+i,si+j) = X(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) - CMPLX(omega_fam,smear,KIND=dp) )
             Y(si+i,si+j) = Y(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) + CMPLX(omega_fam,smear,KIND=dp) )
           enddo
@@ -829,13 +834,17 @@ module fam
     complex(KIND=dp), intent(in)  :: omega ! complex frequency
     complex(KIND=dp), intent(out) :: F(:,:,:) ! induced external field F in QP basis
 
-    integer       :: i, j, si, si2, N, N2, B, T
+    integer       :: i, j, si, si2, N, N2, B, T, degeneracy
 
     if (fam_verbose > 1) print *, "compute_F_from_XYdH ::"
 
     F = - dH
 
     if(pairingtype==0) then ! FAM : difference of particle and hole energy
+
+      $TR   degeneracy = 2 ! degeneracy of sp states in case of T conservation
+      $NTR  degeneracy = 1 ! degeneracy of sp states in case of T conservation
+
       si = 0
       do B=1,8,2
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
@@ -845,6 +854,8 @@ module fam
         do j = 1, T
           if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
           do i = 1, T
+            if(abs(degeneracy - rho_can(si+i)) < 1d-6) cycle  ! skip if i is not a particle state
+
             F(si+i,si+j,1) = F(si+i,si+j,1) - X(si+i,si+j) * (spenergies(si+i) - spenergies(si+j) - omega )
             F(si+i,si+j,2) = F(si+i,si+j,2) - Y(si+i,si+j) * (spenergies(si+i) - spenergies(si+j) + omega )
           enddo
@@ -1886,9 +1897,13 @@ $TR  Tphase = -1.0_dp
 
     close(1)
 
-    ! explicitly antisymmetrise
-    f_qpme(:,:,1) = 0.5 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
-    f_qpme(:,:,2) = 0.5 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
+    if (pairingtype.ne.0) then ! QFAM
+
+      ! explicitly antisymmetrise
+      f_qpme(:,:,1) = 0.5 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
+      f_qpme(:,:,2) = 0.5 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
+
+    endif
 
     if(fam_verbose > 1) then
 
@@ -1997,10 +2012,15 @@ $TR  Tphase = -1.0_dp
       enddo
 
       close(1)
+    endif
+
+    if (pairingtype.ne.0) then ! QFAM
 
       ! explicitly antisymmetrise
-      X(:,:) = 0.5 * (X(:,:) + transpose(X(:,:)))
-      Y(:,:) = 0.5 * (Y(:,:) + transpose(Y(:,:)))
+      X = 0.5 * (X + transpose(X))
+      Y = 0.5 * (Y + transpose(Y))
+
+    
     endif
 
     if(fam_verbose > 1) then
