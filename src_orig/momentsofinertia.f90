@@ -124,8 +124,9 @@ module momentsofinertia
   ! module; defined differently depending on whether we are doing HF,HF+BCS or HFB.
   procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
   !------------------------------------------------------------------------------
-  ! Jz component of the angular momentum calculated on the HF basis
-  real(KIND=dp),allocatable ::  jz(:,:)
+  ! jz component of the angular momentum calculated on the HF basis
+  ! jz INCLUDES the pairing cutoff regularization, while jz_no_cut does not
+  real(KIND=dp),allocatable ::  jz(:,:), jz_no_cut(:,:)
 
 
 contains
@@ -722,8 +723,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 
     !----------------------------------------------------------------------------
     ! Single-particle matrix elements of Jx, Jy, Jz in the array labelled HFBasis
-!    real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
+    ! INCLUDES paring cutoff regulator
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt)
+    ! Same but WITHOUT pairing cutoff
+    real(KIND=dp) :: jx_no_cut(nwt,nwt), jy_no_cut(nwt,nwt)     
     ! Single-particle matrix elements of Jx, Jy, Jz in the canonical basis
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
     !  and WITH the pairing cutoff folded in
@@ -736,7 +739,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 
 
     if (.not.(allocated(jz))) then
-        allocate(jz(nwt, nwt))
+        allocate(jz(nwt, nwt),jz_no_cut(nwt,nwt))
     endif
 
 #if(USE_MPI>0)
@@ -747,6 +750,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     J2 = 0              ; J2_pairing_cut = 0  ; J2_coll = 0
     jx = 0              ; jy = 0              ; jz = 0
     jx2_can = 0.0d0     ; jy2_can = 0.0d0     ; jz2_can = 0.0d0
+    jx_no_cut = 0.0d0   ; jy_no_cut = 0.0d0   ; jz_no_cut = 0.0d0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     designated_rank = -1 
@@ -1017,6 +1021,9 @@ $NTR  enddo
         do i=1,T
           do j=1,T
             cut_cr = rotcut(spenergies(si+i), it) * rotcut(spenergies(si+j), it)
+            jx_no_cut(si+i,si+j) = jx(si+i,si+j) 
+            jy_no_cut(si+i,si+j) = jy(si+i,si+j) 
+            jz_no_cut(si+i,si+j) = jz(si+i,si+j) 
             jx(si+i,si+j) = jx(si+i,si+j) * cut_cr
             jy(si+i,si+j) = jy(si+i,si+j) * cut_cr
             jz(si+i,si+j) = jz(si+i,si+j) * cut_cr
@@ -1044,6 +1051,27 @@ $NTR  enddo
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
              &                     jz(si+1:si+T,si+1:si+T))
+             ! Same but for no-cutoff
+             jx_no_cut(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jx_no_cut(si+1:si+T,si+1:si+T),    &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jx_no_cut(si+1:si+T,si+1:si+T) = &
+             &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jx_no_cut(si+1:si+T,si+1:si+T))
+
+             jy_no_cut(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jy_no_cut(si+1:si+T,si+1:si+T),          &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jy_no_cut(si+1:si+T,si+1:si+T) = &
+             &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jy_no_cut(si+1:si+T,si+1:si+T))
+
+             jz_no_cut(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jz_no_cut(si+1:si+T,si+1:si+T),          &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jz_no_cut(si+1:si+T,si+1:si+T) = &
+             &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jz_no_cut(si+1:si+T,si+1:si+T))
         endif
       endif
       !-------------------------------------------------------------------------
