@@ -140,8 +140,8 @@ contains
 #if($FAM == 1)
     call readfam(file_number)
 
-    if(xyfile == xyinfile) then 
-      print * ,"ERROR : XYfile and XYinfile carry the same name. stopping ..."
+    if(xyfile .ne. '' .and. xyfile == xyinfile) then 
+      print * ,"ERROR : XYfile and XYinfile carry the same name. Stopping ..."
       stop
     endif
 #endif
