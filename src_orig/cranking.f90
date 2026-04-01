@@ -101,7 +101,10 @@ module cranking
  ! TotalAngMom_col:
  !    Total angular momentum in the three Cartesian directions, calculated
  !    by summation of the single-particle contributions WITHOUT the contribution
- !    from the blocked particle
+ !    from the blocked particle. Pairing quasiparticle cutoffs are implicitely
+ !    taken into account
+ ! TotalAngMom_col_no_cut:
+ !    Same as TotalAngMom_col but WITHOUT the pairing quasiparticle cutoffs
  ! AngMomOld:
  !    Values of the total angular momentum at the previous iteration, used for
  !    readjustment of the cranking constraints.
@@ -119,7 +122,7 @@ module cranking
  real(KIND=dp) :: J2_sp(3)      = 0.0_dp, AMBlock(8,3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp, AngMomOld_dens(3)  = 0.0_dp
  real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp, AngMomOld_cut(3)   = 0.0_dp
- real(KIND=dp) :: TotalAngMom_col(3)= 0.0_dp
+ real(KIND=dp) :: TotalAngMom_col(3)= 0.0_dp, TotalAngMom_col_no_cut(3)= 0.0_dp
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -300,7 +303,8 @@ $TR real(KIND=dp) :: trash
       angmomold_cut   = totalangmom_cut
     endif
     ! ... and resetting the current values
-    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0 ; totalangmom_col = 0.0d0
+    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0 
+    totalangmom_col = 0.0d0 ; totalangmom_col_no_cut = 0.0d0 
     J2_sp       = 0.0
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
@@ -319,7 +323,8 @@ $NTR          else
 $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
 $NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
 $NTR            if (allocated(rho_col)) then 
-$NTR               TotalAngMom_col(c) = TotalAngMom_col(c) + sum(jz(:,si+wave)*rho_col(si+wave,:))
+$NTR               TotalAngMom_col(c)        = TotalAngMom_col(c)        + sum(jz(:,si+wave)*rho_col(si+wave,:))
+$NTR               TotalAngMom_col_no_cut(c) = TotalAngMom_col_no_cut(c) + sum(jz_no_cut(:,si+wave)*rho_col(si+wave,:))
 $NTR            endif
 $NTR          endif
 $NTR        enddo
@@ -332,6 +337,7 @@ $NTR
         ! angular momentum is the same as the total one
         if (.not.allocated(rho_col)) then
           TotalAngMom_col = TotalAngMom
+          TotalAngMom_col_no_cut = TotalAngMom
         endif
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
@@ -425,14 +431,14 @@ $TR  real(KIND=dp)                  :: trash
     type(DensityVector), intent(in) :: R
 $NTR    logical           :: found
 
-    1 format (2x,113('_') )
-   10 format (2x,113('-'))
-    2 format (30('-'), ' Angular Momentum (hbar) ',60('-') )
-    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 12x,'Densit. ',12x,'Collec.')
+    1 format (2x,133('_') )
+   10 format (2x,133('-'))
+    2 format (30('-'), ' Angular Momentum (hbar) ',80('-') )
+    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 10x,'Densit. ',10x,'Collec.', 10x,'Coll. no-cut.')
    31 format (15x, 'Densit.(*)',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)', 12x,'Spwfs   ')
-    4 format (3x,'J_',a1,'   ','|', 6f17.10 )
+    4 format (3x,'J_',a1,'   ','|', 7f17.10 )
    41 format (3x,'Size  |', 3f17.10,17x,1f17.10)
-   42 format (3x,'Size  |', 3f17.10,17x,2f17.10)
+   42 format (3x,'Size  |', 3f17.10,17x,3f17.10)
 $NTR    5 format (2x,' _______________________________________________________' )
 $NTR    6 format (3x,'Open spin')
 $NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
@@ -456,7 +462,8 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
         &                CrankEnergy(i), TotalAngMom     (i)
       else
         print 4, dir(i), TotalAngMom(i), CrankValues(i), Omega(i),   &
-        &                CrankEnergy(i), TotalAngMom_dens(i), TotalAngMom_col(i)
+        &                CrankEnergy(i), TotalAngMom_dens(i), TotalAngMom_col(i), &
+        &                TotalAngMom_col_no_cut(i)
       endif
     enddo
     print 1
@@ -465,7 +472,8 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
       &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom**2))
     else
       print 42, sqrt(sum(totalangmom**2)), 0.0, &
-      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2)), sqrt(sum(totalangmom_col**2))
+      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2)), sqrt(sum(totalangmom_col**2)), &
+      &         sqrt(sum(totalangmom_col_no_cut**2))
     endif
     print 10
 

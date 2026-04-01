@@ -112,11 +112,15 @@ module momentsofinertia
   !   = include the pairing cutoff in the definition all matrix
   !     elements of J_{\mu} and then use Eq.(2) WITHOUT using Eq.(3).
   !
-  ! * J2_collective
+  ! * J2_coll
   !   = a "collective" expectation value that is identical to J2_pairing_cut, but
   !     that removes all blocked states from the summations over a and b.
   !
-  real(KIND=dp) ::  J2(3,3), J2_pairing_cut(3,3), J2_coll(3,3)
+  ! * J2_coll_no_cut
+  !   =  a "collective" expectation value that is identical to J2, but
+  !     that removes all blocked states from the summations over a and b.
+  !     Contrary to J2_coll, it does not include the pairing cutoff regulator
+  real(KIND=dp) ::  J2(3,3), J2_pairing_cut(3,3), J2_coll(3,3), J2_coll_no_cut(3,3)
   !                    | |> Isospin index
   !                    |-> Cartesian index
   !-------------------------------------------------------------------------------
@@ -615,7 +619,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     Belyaev(:,3)        = sum(Belyaev(:,1:2),2)
 
     ! Ensure printing is complete 
-    J2_coll   = J2_pairing_cut
+    J2_coll         = J2_pairing_cut
+    J2_coll_no_cut  = J2
     Bely_coll = Belyaev
   end subroutine calcJ2andBelyaev_BCS
 
@@ -719,7 +724,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
     integer       :: locali, localj, ranki, rankj, calc_rank, designated_rank(8)
     integer       :: wave, der_index
-    real(KIND=dp) :: ME(3),  fac, psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
+    real(KIND=dp) :: ME(3),  fac, psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4),ME_no_cut(3)
 
     !----------------------------------------------------------------------------
     ! Single-particle matrix elements of Jx, Jy, Jz in the array labelled HFBasis
@@ -734,7 +739,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     ! Same, but Jx^2, Jy^2 and Jz^2 and only the diagonal elements
     real(KIND=dp) :: jx2_can(nwt), jy2_can(nwt), jz2_can(nwt)
     !---------------------------------------------------------------------------
+    ! Angular momentum calculated in the QP basis WITH pairing regulator
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
+    ! ... and aslo without it
+    real(KIND=dp) :: J20_no_cut(nwt,nwt, 3), J11_no_cut(nwt,nwt,3)
     logical       ::  blocked
 
 
@@ -747,7 +755,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 #endif
 
     Belyaev = 0         ; Bely_coll      = 0
-    J2 = 0              ; J2_pairing_cut = 0  ; J2_coll = 0
+    J2 = 0              ; J2_pairing_cut = 0  ; J2_coll = 0 ; J2_coll_no_cut = 0
     jx = 0              ; jy = 0              ; jz = 0
     jx2_can = 0.0d0     ; jy2_can = 0.0d0     ; jz2_can = 0.0d0
     jx_no_cut = 0.0d0   ; jy_no_cut = 0.0d0   ; jz_no_cut = 0.0d0
@@ -1246,6 +1254,17 @@ $NTR      endif
     call calcJ11(jy,bogoliubov, j11(:,:,2)) 
     call calcJ11(jz,bogoliubov, j11(:,:,3)) 
 
+    ! Same without pairing cutoff
+    ! First, construct J20
+    call calcJ20(jx_no_cut,bogoliubov, j20_no_cut(:,:,1))
+    call calcJ20(jy_no_cut,bogoliubov, j20_no_cut(:,:,2)) 
+    call calcJ20(jz_no_cut,bogoliubov, j20_no_cut(:,:,3)) 
+
+    !Then , construct J11
+    call calcJ11(jx_no_cut,bogoliubov, j11_no_cut(:,:,1)) 
+    call calcJ11(jy_no_cut,bogoliubov, j11_no_cut(:,:,2)) 
+    call calcJ11(jz_no_cut,bogoliubov, j11_no_cut(:,:,3)) 
+
     if(inversetemp .lt. 0) then
       si = 0 ; sb = 0
       do b=1,Blocks,2
@@ -1282,6 +1301,7 @@ $NTR      endif
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
+            ME_no_cut = 0.5 * J20_no_cut(ii,jj,:)**2  * fac
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! J^11 contribution
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1291,8 +1311,10 @@ $NTR      endif
             !       sp-basis summation when the blocked QPS are not ommitted.
             fac=  configmatrix(jjj)*(1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
+            ME_no_cut = ME_no_cut + J11_no_cut(ii,jj,:)**2  * fac
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             J2_coll(:,it) = J2_coll(:,it) + ME      
+            J2_coll_no_cut(:,it) = J2_coll_no_cut(:,it) + ME_no_cut      
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           enddo
         enddo
@@ -1301,6 +1323,8 @@ $NTR      endif
       enddo
 $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two 
       J2_coll(:,3) = sum(J2_coll(:,1:2), 2)
+$TR   J2_coll_no_cut(:,1:2) = 2 * J2_coll_no_cut(:,1:2)   ! Time-reversal factor two 
+      J2_coll_no_cut(:,3) = sum(J2_coll_no_cut(:,1:2), 2)
       
     endif
     !---------------------------------------------------------------------------
@@ -1584,6 +1608,7 @@ $NTR  s = +1
    15 format (' J2_Z  ', 3f15.7)
    16 format (' J2_t  ', 3f15.7)
    17 format ('     <J^2> - <J>^2 (collective)           (hbar^2)')
+   18 format ('     <J^2> - <J>^2 (coll. w.o. cutoff)    (hbar^2)')
 
     print 1
     print 2
@@ -1624,6 +1649,14 @@ $NTR  s = +1
     print 14, J2_coll(2,:)
     print 15, J2_coll(3,:)
     print 16, sum(J2_coll, 1)
+    print *
+    print 18
+    print 3
+    print 13, J2_coll_no_cut(1,:)
+    print 14, J2_coll_no_cut(2,:)
+    print 15, J2_coll_no_cut(3,:)
+    print 16, sum(J2_coll_no_cut, 1)
+    print *
 
   end subroutine PrintMomentsofInertia
 
