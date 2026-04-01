@@ -139,6 +139,11 @@ contains
 
 #if($FAM == 1)
     call readfam(file_number)
+
+    if(xyfile == xyinfile) then 
+      print * ,"ERROR : XYfile and XYinfile carry the same name. stopping ..."
+      stop
+    endif
 #endif
 
     if(present(file_number)) then

@@ -647,9 +647,7 @@ module fam
     complex(KIND=dp), allocatable, target :: dHsp_flat(:)
     complex(KIND=dp), pointer :: dHsp(:,:,:)
 
-    fam_verbose = 2
     if (fam_verbose > 1) print *, "Multiply_with_QRPAmat :: compute the external field induced by XY"
-
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (1) if not present, compute the induced perturbed hamiltonian dH in the HF basis
@@ -1954,7 +1952,7 @@ $TR  Tphase = -1.0_dp
       
       ! reached end of file
       if (io < 0) then 
-        print '(A, f8.3, A, f8.3)', 'End of file reached without finding good XY block for omega = ', omega_fam, ' ,smear = ', smear
+        print '(A, f8.3, A, f8.3)', 'End of file reached without finding good XY block for omega = ', omega_fam, ', smear = ', smear
         print *, 'Starting FAM solver with XY obtained from free response'
         close(1)
         return

@@ -427,12 +427,10 @@ contains
 
     print * , '||Fin||^2 = ', sum(abs(F))
 
-
     call Multiply_XY_with_QRPAmat(X, Y, omega, Fout)
 
     print * , '||Fout||^2 = ', sum(abs(Fout))
-
-    print * , '|| (Fin-Fout)||^2 = ',  sum(abs(F - Fout))
+    print * , '||(Fin-Fout)||^2 = ',  sum(abs(F - Fout))
 
 
   end subroutine test_L_Linv

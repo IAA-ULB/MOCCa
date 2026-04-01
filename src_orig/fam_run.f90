@@ -366,7 +366,7 @@ program run_FAM
     endif
 
 
-    call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
+    ! call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
 
 
 
