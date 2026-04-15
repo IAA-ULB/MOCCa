@@ -123,7 +123,7 @@ module fam
   ! - same remark as dH(:,:,:)        | | '-> 1 : ph/20 or 2 : hp/02 component 
   !                                   | '-> sp/qp index
   !                                   '-> sp/qp index 
-  integer :: l, m ! anuglar momentum and projection quantum number of the multipole moment
+  integer :: l = -1, m = -1 ! anuglar momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
   !-----------------------------------------------------------------------------
