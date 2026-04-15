@@ -1300,40 +1300,55 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     ! m_1(F) = int_0^inf dE E S(E, F). 
     ! Expressions are taken from N. Hinohara PRC 91, 044323 (2015)
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: ewsr
-    type(Moment), pointer  :: moment_ptr
+    real(KIND=dp) :: ewsr, kappa
+    type(Moment), pointer  :: moment_ptr, r2_ptr
 
     ewsr = 0
 
-    ! isovector perturbations
-    if(eff_charge_n .ne. eff_charge_p) then
-      print *, 'NOT IMPLEMENTED: only isoscalar pertubations are implemented for now'
-      ! this would require an enhancement factor kappa
-      return
-    endif
+    if (fam_verbose > 1) print *, "calc_EWSR :: "
 
-    ! isoscalar monopole
+    ! l = 0, monopole
     if(l == 0) then
-      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
-      ewsr =  4.0 * eff_charge_p**2 * hbm(1) * sum(moment_ptr%Value)
-      ! note that moment_ptr%Value contains a factor A 
+      
+      if (fam_verbose > 1) print *, "monopole"
+      
+      r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
+      ewsr = 4.0 * hbm(1) * (eff_charge_n**2 * r2_ptr%Value(1) + eff_charge_p**2 * r2_ptr%Value(2) )
+      ! note that r2_ptr%Value contains a factor N (or Z)
+      
+    ! l = 2, m = 0, axial quadrupole
+    else if(l == 2 .and. m==0) then
+      
+      if (fam_verbose > 1) print *, "axial quadrupole"
 
-    ! isoscalar quadrupole
-    else if(l == 2) then
-      moment_ptr => FindMoment(-2,0,.false.) ! pointer to <r_ch^2>
-      ewsr = (5.0 / (2.0 * pi)) * eff_charge_p**2 * hbm(1) * sum(moment_ptr%Value)
-      ! note that moment_ptr%Value contains a factor A 
+      ! Ony implemented for axial nuclei, return 0 if beta22 > 0.1 
+      moment_ptr => FindMoment(2,2,.false.) ! pointer to <Q_22>
+      if (moment_ptr%beta(4) > 0.1) then
+        print *, 'NOT IMPLEMENTED: quadrupole EWSR assumes axial shape '
+        return
+      endif
 
-
-      ! deformation correction, still to be worked out for more general shapes. 
-      print *, 'INCOMPLETE: deformation correction for EWSR assumes axial shape '
-
-      ! For axial nuclei, correction with mass quadruple deformation beta20
+    
+      r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
       moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20>
-      ewsr = ewsr * (1 + sqrt(5./(4.*pi)) * moment_ptr%beta(4))
+
+      ewsr = (5.0 / (2.0 * pi)) * hbm(1) * ( &
+        &   eff_charge_n**2 * r2_ptr%Value(1) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(1)) &
+        & + eff_charge_p**2 * r2_ptr%Value(2) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(2))  )
+      ! note that r2_ptr%Value contains a factor N (or Z)
+
+      ! isovector perturbations => multiply by enhancement factor kappa
+      if(eff_charge_n .ne. eff_charge_p) then
+
+        kappa = 0
+        ewsr = ewsr * (1. + kappa )
+
+        if (fam_verbose > 1) print *, "enhancement factor kappa = ", kappa
+
+      endif
 
     else 
-      print *, 'NOT IMPLEMENTED: only monopole (l=0) and quadrupole (l=2) EWSR implemented for now'
+      print *, 'NOT IMPLEMENTED: only monopole (l=0) and axial quadrupole (l=2, m=0) EWSR implemented for now'
       return
     endif
 
