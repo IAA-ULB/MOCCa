@@ -110,7 +110,7 @@ program run_FAM
   
   !---------------------------------------------------------------------------------
   ! Evaluate the energy weighted sum rule
-  ewsr = calc_EWSR()
+  ewsr = calc_EWSR(Density)
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file

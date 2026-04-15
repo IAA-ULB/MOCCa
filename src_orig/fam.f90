@@ -1292,21 +1292,29 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
   end function
 
 
-  function calc_EWSR() result (ewsr)
+  function calc_EWSR(R) result (ewsr)
     !---------------------------------------------------------------------------
     ! Compute the energy weighted sum rule from a ground-state 
     ! expectation value. When Thouless' theorem is applicable, then this value 
     ! should equal the first-moment of the strength function, i.e.
     ! m_1(F) = int_0^inf dE E S(E, F). 
     ! Expressions are taken from N. Hinohara PRC 91, 044323 (2015)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! notes:
+    !   - presently only implemented for ISM, IVM, ISQ20, IVQ20
+    !   - for IV responses, an enhancement factor kappa is included
+    !     -> note that for IV perturbations, effective charges are often defined 
+    !        in such a way that eff_ch_n = - eff_ch_p is only approximately true
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: ewsr, kappa
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp) :: ewsr, kappa, Ctau0, Ctau1
     type(Moment), pointer  :: moment_ptr, r2_ptr
 
     ewsr = 0
 
-    if (fam_verbose > 1) print *, "calc_EWSR :: "
+    if (fam_verbose > 1) print *, "calc_EWSR :: calculate the energy-weighted sum rule m1"
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - -
     ! l = 0, monopole
     if(l == 0) then
       
@@ -1315,7 +1323,8 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
       ewsr = 4.0 * hbm(1) * (eff_charge_n**2 * r2_ptr%Value(1) + eff_charge_p**2 * r2_ptr%Value(2) )
       ! note that r2_ptr%Value contains a factor N (or Z)
-      
+     
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! l = 2, m = 0, axial quadrupole
     else if(l == 2 .and. m==0) then
       
@@ -1337,23 +1346,61 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
         & + eff_charge_p**2 * r2_ptr%Value(2) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(2))  )
       ! note that r2_ptr%Value contains a factor N (or Z)
 
-      ! isovector perturbations => multiply by enhancement factor kappa
-      if(eff_charge_n .ne. eff_charge_p) then
-
-        kappa = 0
-        ewsr = ewsr * (1. + kappa )
-
-        if (fam_verbose > 1) print *, "enhancement factor kappa = ", kappa
-
-      endif
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! any other l, m
     else 
       print *, 'NOT IMPLEMENTED: only monopole (l=0) and axial quadrupole (l=2, m=0) EWSR implemented for now'
       return
     endif
 
 
-    print *, "Energy weighted sum rule : m1 = ", ewsr
+    !--------------------------------------------------------------
+    ! include enhancement factor kappa for isovector pertubations
+    !--------------------------------------------------------------
+
+    if(eff_charge_n .ne. eff_charge_p) then
+
+      ! Coupling constant of E_D_I_I_D_Nm_Nm, ['0', '0'] (aka C^tau_0)
+      Ctau0 = +1.0/2.0*Cc(t1,x1,+1,0,0)+1.0/2.0*Cc(t2,x2,-1,0,0) 
+
+      ! Coupling constant of E_D_I_I_D_Nm_Nm, ['1', '1'] (aka C^tau_1)
+      Ctau1 = +1.0/2.0*Cc(t1,x1,+1,0,1)+1.0/2.0*Cc(t2,x2,-1,0,1) 
+
+
+      ! init kappa as the common part = 4 (C^tau_0 - C^tau_1) * (2m/hbar^2)
+      kappa = 4.0 * (Ctau0 - Ctau1) / hbm(1) 
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! l = 0, monopole
+      if(l == 0) then
+
+        kappa = kappa / sum(r2_ptr%Value)
+        ! note that sum(r2_ptr%Value) contains a factor A
+        
+        ! integral over the mesh of (x^2+y^2+z^2) * rho_n * rho_p
+        kappa = kappa * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+              
+        
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! l = 2, m = 0, axial quadrupole
+      else if(l == 2 .and. m==0) then
+
+        kappa = kappa / (2. * sum(r2_ptr%Value) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(4)))
+        ! note that sum(r2_ptr%Value) contains a factor A
+
+        ! integral over the mesh of (x^2+y^2+ 4*z^2) * rho_n * rho_p
+        kappa = kappa *  sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+        
+      endif
+      
+      if (fam_verbose > 1) print *, "enhancement factor kappa = ", kappa
+
+      ! multiply sumrule with the enhancement factor 
+      ewsr = ewsr * (1. + kappa )
+
+    endif
+
+    print *, "Energy-weighted sum rule : m1 = ", ewsr
 
   end function
 
