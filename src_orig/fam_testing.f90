@@ -1086,10 +1086,12 @@ contains
     !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
     ! enddo
 
-    print *, '||F20|| - 2*||Fph|| = ', sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
+    print *, '||F20|| - 2*||Fph|| = ', &
+         & sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
-    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)|| since the trivial Bogolibov trafo can reorder sp states'
-    
+    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
+         &  'since the trivial Bogolibov trafo can reorder sp states'
+
   end subroutine test_qptrafo
 
 

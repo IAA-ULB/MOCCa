@@ -823,7 +823,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
                         # Note: this will ONLY work if pairing terms are of the simple form (pairing density) * (pairing density)^*
                         #       i.e. one cannot have EDF terms with different pairing densities!
                         dic['EXPR_PERT'] = dic['EXPR_PERT'] + ' * 0.5d0' + ts.field_calc_den_pert.substitute(dic)
-                        print (densities[j], j,i, dic['EXPR_PERT'])
+                        #print (densities[j], j,i, dic['EXPR_PERT'])
                       else:
                         dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den_pert.substitute(dic)
 

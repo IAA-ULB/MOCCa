@@ -76,7 +76,7 @@ program run_FAM
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
 
-  if(.false.) then
+  if(pairingtype.eq.0) then
     !----------------------------------------------------------------------------------  
     ! Perform an explicit diagonalisation of the single-particle hamiltonian 
     !  to ensure a "clean" start for FAM-RPA calculations
@@ -93,6 +93,9 @@ program run_FAM
     if(store_derivatives) call deriveHF() ! and update derivatives
     ! diagonalisation done; now recalculate other quantities
     call SolvePairing(pairingscheme, ifail)
+    ! ... make sure the full density matrix gets repopulated!
+    if (pairingtype .eq. 0) call iniHFdensities()
+
     Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
     Potentials  = calcPotentials(Density)
   endif 

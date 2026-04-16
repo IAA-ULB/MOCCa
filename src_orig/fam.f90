@@ -634,8 +634,8 @@ module fam
     implicit none
     integer :: i
       
-    allocate(rho_pairing(nwt,nwt))
-    allocate(kappa_pairing(nwt,nwt))
+    if(.not.allocated(rho_pairing)) allocate(rho_pairing(nwt,nwt))
+    if(.not.allocated(kappa_pairing)) allocate(kappa_pairing(nwt,nwt))
   
     rho_pairing   = 0
     kappa_pairing = 0
@@ -645,7 +645,6 @@ module fam
     enddo
   
   end subroutine iniHFdensities
-
 
   function calc_strength() result (res)
     !---------------------------------------------------------------------------
@@ -1309,29 +1308,76 @@ $TR  Tphase = -1.0_dp
 
     if (fam_verbose > 2) then
       print *, 'Symmetry : '
-      if(present(O20sp)) print *, '    O20sp = + O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
-      if(present(O02sp)) print *, '    O02sp = + O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
-      if(present(O20qp)) print *, '    O20qp = + O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
-      if(present(O02qp)) print *, '    O02qp = + O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      if(present(O20sp)) then
+         print *, '    O20sp = + O20sp^T   : satisfied up to',  &
+              & sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
+      endif
+      if(present(O02sp)) then
+         print *, '    O02sp = + O02sp^T   : satisfied up to',  &
+              & sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
+      endif
+      if(present(O20qp)) then
+         print *, '    O20qp = + O20qp^T   : satisfied up to',  &
+              & sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
+      endif
+      if(present(O02qp)) then
+         print *, '    O02qp = + O02qp^T   : satisfied up to',  &
+              & sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      endif
       print *, 'Antisymmetry : '
-      if(present(O20sp)) print *, '    O20sp = - O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
-      if(present(O02sp)) print *, '    O02sp = - O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
-      if(present(O20qp)) print *, '    O20qp = - O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
-      if(present(O02qp)) print *, '    O02qp = - O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      if(present(O20sp)) then
+         print *, '    O20sp = - O20sp^T   : satisfied up to',  &
+              & sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
+      endif
+      if(present(O02sp)) then
+         print *, '    O02sp = - O02sp^T   : satisfied up to',  &
+              & sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
+      endif
+      if(present(O20qp)) then
+         print *, '    O20qp = - O20qp^T   : satisfied up to',  &
+              & sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
+      endif
+      if(present(O02qp)) then
+         print *, '    O02qp = - O02qp^T   : satisfied up to',  &
+              & sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      endif
       print *, 'Hermiticity : '
-      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
-      if(present(O11sp)) print *, '    O11sp = O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
-      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
-      if(present(O11qp)) print *, '    O11qp = O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      if(present(O20sp) .and. present(O02sp)) then
+         print *, '    O20sp = O02sp*   : satisfied up to', &
+              & sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
+      endif
+      if(present(O11sp)) then
+         print *, '    O11sp = O11sp^T^*   : satisfied up to', &
+              & sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
+      endif
+      if(present(O20qp) .and. present(O02qp)) then
+         print *, '    O20qp = O02qp*   : satisfied up to', &
+              & sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
+      endif
+      if(present(O11qp)) then
+         print *, '    O11qp = O11qp^T^*   : satisfied up to', &
+              & sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      endif
       print *, 'Anti-hermiticity : '
-      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = - O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
-      if(present(O11sp)) print *, '    O11sp = - O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
-      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = - O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
-      if(present(O11qp)) print *, '    O11qp = - O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+      if(present(O20sp) .and. present(O02sp)) then
+         print *, '    O20sp = - O02sp*   : satisfied up to', &
+              & sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
+      endif
+      if(present(O11sp)) then
+         print *, '    O11sp = - O11sp^T^*   : satisfied up to', &
+              & sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
+      endif
+      if(present(O20qp) .and. present(O02qp)) then
+         print *, '    O20qp = - O02qp*   : satisfied up to',  &
+              & sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
+      endif
+      if(present(O11qp)) then
+         print *, '    O11qp = - O11qp^T^*   : satisfied up to', &
+              & sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+      endif
     endif
-    
-  end subroutine transform_sp_to_qp
 
+  end subroutine transform_sp_to_qp
 
   subroutine transform_qp_to_sp(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
     !---------------------------------------------------------------------------
@@ -1466,25 +1512,73 @@ $TR  Tphase = -1.0_dp
 
     if (fam_verbose > 2) then
       print *, 'Symmetry : '
-      if(present(O20sp)) print *, '    O20sp = + O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
-      if(present(O02sp)) print *, '    O02sp = + O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
-      if(present(O20qp)) print *, '    O20qp = + O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
-      if(present(O02qp)) print *, '    O02qp = + O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      if(present(O20sp)) then
+         print *, '    O20sp = + O20sp^T   : satisfied up to',&
+              & sum(abs(O20sp(:,:) - transpose(O20sp(:,:))))
+      endif
+      if(present(O02sp)) then
+         print *, '    O02sp = + O02sp^T   : satisfied up to',&
+              &  sum(abs(O02sp(:,:) - transpose(O02sp(:,:))))
+      endif
+      if(present(O20qp)) then
+         print *, '    O20qp = + O20qp^T   : satisfied up to',&
+              &  sum(abs(O20qp(:,:) - transpose(O20qp(:,:))))
+      endif
+      if(present(O02qp)) then
+         print *, '    O02qp = + O02qp^T   : satisfied up to',&
+              &  sum(abs(O02qp(:,:) - transpose(O02qp(:,:))))
+      endif
       print *, 'Antisymmetry : '
-      if(present(O20sp)) print *, '    O20sp = - O20sp^T   : satisfied up to',  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
-      if(present(O02sp)) print *, '    O02sp = - O02sp^T   : satisfied up to',  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
-      if(present(O20qp)) print *, '    O20qp = - O20qp^T   : satisfied up to',  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
-      if(present(O02qp)) print *, '    O02qp = - O02qp^T   : satisfied up to',  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      if(present(O20sp)) then
+         print *, '    O20sp = - O20sp^T   : satisfied up to',&
+              &  sum(abs(O20sp(:,:) + transpose(O20sp(:,:))))
+      endif
+      if(present(O02sp)) then
+         print *, '    O02sp = - O02sp^T   : satisfied up to',&
+              &  sum(abs(O02sp(:,:) + transpose(O02sp(:,:))))
+      endif
+      if(present(O20qp)) then
+         print *, '    O20qp = - O20qp^T   : satisfied up to',&
+              &  sum(abs(O20qp(:,:) + transpose(O20qp(:,:))))
+      endif
+      if(present(O02qp)) then
+         print *, '    O02qp = - O02qp^T   : satisfied up to',&
+              &  sum(abs(O02qp(:,:) + transpose(O02qp(:,:))))
+      endif
       print *, 'Hermiticity : '
-      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
-      if(present(O11sp)) print *, '    O11sp = O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
-      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
-      if(present(O11qp)) print *, '    O11qp = O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      if(present(O20sp) .and. present(O02sp)) then
+         print *, '    O20sp = O02sp*   : satisfied up to',&
+              &  sum(abs(O20sp(:,:) - conjg(O02sp(:,:))))
+      endif
+      if(present(O11sp)) then
+         print *, '    O11sp = O11sp^T^*   : satisfied up to',&
+              &  sum(abs(O11sp(:,:) - conjg(transpose(O11sp(:,:)))))
+      endif
+      if(present(O20qp) .and. present(O02qp)) then
+         print *, '    O20qp = O02qp*   : satisfied up to',&
+              &  sum(abs(O20qp(:,:) - conjg(O02qp(:,:))))
+      endif
+      if(present(O11qp)) then
+         print *, '    O11qp = O11qp^T^*   : satisfied up to',&
+              &  sum(abs(O11qp(:,:) - conjg(transpose(O11qp(:,:)))))
+      endif
       print *, 'Anti-hermiticity : '
-      if(present(O20sp) .and. present(O02sp)) print *, '    O20sp = - O02sp*   : satisfied up to',  sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
-      if(present(O11sp)) print *, '    O11sp = - O11sp^T^*   : satisfied up to',  sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
-      if(present(O20qp) .and. present(O02qp)) print *, '    O20qp = - O02qp*   : satisfied up to',  sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
-      if(present(O11qp)) print *, '    O11qp = - O11qp^T^*   : satisfied up to',  sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+      if(present(O20sp) .and. present(O02sp)) then
+         print *, '    O20sp = - O02sp*   : satisfied up to',&
+              &  sum(abs(O20sp(:,:) + conjg(O02sp(:,:))))
+      endif
+      if(present(O11sp)) then
+         print *, '    O11sp = - O11sp^T^*   : satisfied up to',&
+              &  sum(abs(O11sp(:,:) + conjg(transpose(O11sp(:,:)))))
+      endif
+      if(present(O20qp) .and. present(O02qp)) then
+         print *, '    O20qp = - O02qp*   : satisfied up to',&
+              &  sum(abs(O20qp(:,:) + conjg(O02qp(:,:))))
+      endif
+      if(present(O11qp)) then
+         print *, '    O11qp = - O11qp^T^*   : satisfied up to',&
+              &  sum(abs(O11qp(:,:) + conjg(transpose(O11qp(:,:)))))
+      endif
     endif
 
   end subroutine transform_qp_to_sp

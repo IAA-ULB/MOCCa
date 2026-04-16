@@ -768,7 +768,6 @@ function densit_offdiag_restricted(rho, kappa) result(R)
   kappa_plus_temp  = kappa
   kappa_minus_temp = 0.0d0
 
-  print *, 'RHo', rho_temp(1,1), rho_can(1)
   call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
   ! Combine the correct densities
   R = Rs + R_pp_plus
