@@ -327,6 +327,15 @@ get_neck_stdout (){
     echo ${neck[5]}                              # echo the last result
 }
 
+# Function to extract strength components from .fam file
+extract_strength_components() {
+    local file="$1"
+    # Extract S_complex_re (4th column) and S_complex_im (5th column)
+    # Use LC_NUMERIC to ensure proper handling of scientific notation
+    # Print both real and imaginary parts separated by space
+    LC_NUMERIC="en_US.UTF-8" awk 'NR>0 {if($1 ~ /^[+-]?[0-9]/) {printf "%.8f %.8f", $4, $5; exit}}' "$file"
+}
+
 check_convergence() {
 #
 # Check if Tantalus has converged by looking for "Converged" in the STDOUT
@@ -360,7 +369,7 @@ difference=$(echo "$1 - $2" | bc )
 difference=${difference#-}
 # Use the bc calculator again to compare the difference to a tolerance
 if [ 1 -eq "$(echo "$difference < $3 " | bc)" ]
-then 
+then
  return 0 # explicit returns instead of exits to hand control back
 else
  return 1
