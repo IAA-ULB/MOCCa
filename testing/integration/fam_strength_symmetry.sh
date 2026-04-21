@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 #--------------------------------------------------------------------------------
-# Verify that the isoscalar monopole response obtained in (Q)FAM calculations
+# Verify that the isoscalar quadrupole response obtained in (Q)FAM calculations
 # satisfies
 #    S(-\omega,+\eta) = S^*(+\omega,+\eta)
 #    S(+\omega,-\eta) = S^*(+\omega,+\eta)
@@ -87,7 +87,7 @@ Estimateparams=.false.
 &scfiteration
 /
 &wfs
-nwn = 14, nwp = 14
+nwn = 28, nwp = 28
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -132,7 +132,7 @@ freezeiter=1000
 &scfiteration
 /
 &wfs
-nwn = 14, nwp = 14
+nwn = 28, nwp = 28
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -175,7 +175,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 14, nwp = 14
+nwn = 28, nwp = 28
 /
 &IO
 InputFilename='mf_hfb.wf'
@@ -197,7 +197,7 @@ fam_precision=1e-8
 EOF
 
 #Redefine famoutfile to keep all logs
-famoutfile=fam_strength_symmetry.${args[2]}.om=${args[3]}.et=${args[4]}.${args[0]}.${args[1]}.fam.omega=$omega.$smear.out
+famoutfile=../logs/fam_strength_symmetry.${args[2]}.om=${args[3]}.eta=${args[4]}.${args[0]}.${args[1]}.fam.omega=$omega.$smear.out
 
 # Run the calculation
 ./$exefam < qfam.data > $famoutfile
