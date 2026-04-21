@@ -19,6 +19,7 @@ module fam
   ! 
   ! TR  : $TR
   ! NTR : $NTR
+  ! TAUPRESENT : $TAUPRESENT
   !==============================================================================
 
   use densities
@@ -1358,6 +1359,9 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     ! include enhancement factor kappa for isovector pertubations
     !--------------------------------------------------------------
 
+    ! skip if Ctau0 and Ctau1 are not present (e.g. in LO functionals)
+#if( $TAUPRESENT )
+
     if(eff_charge_n .ne. eff_charge_p) then
 
       ! Coupling constant of E_D_I_I_D_Nm_Nm, ['0', '0'] (aka C^tau_0)
@@ -1399,6 +1403,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ewsr = ewsr * (1. + kappa )
 
     endif
+#endif 
 
     print *, "Energy-weighted sum rule : m1 = ", ewsr
 

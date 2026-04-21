@@ -174,6 +174,8 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     """
     from src_heph.heph_functional import derivative_order
     from src_heph.heph_substitute import substitute
+    from src_heph.heph_densities  import Densities_needed
+
     
     global derivative_order
 
@@ -200,6 +202,22 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
       dic['FAM'] = 1
     else:
       dic['FAM'] = 0
+
+
+    #PD: $TAUPRESENT required to prepocess fam.py
+    if('D_Nm_Nm' not in Densities_needed):
+      if('D_N_N' not in Densities_needed):
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = '!'
+        dic['TAUPRESENT'] = 0
+      else:
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = ' '
+        dic['TAUPRESENT'] = 1
+    else:
+      dic['TAUSCALAR']    = ' '
+      dic['TAUTENSOR']    = '!'
+      dic['TAUPRESENT']   = 1
 
     if(not dry_run):    
         substitute(src+fname, target+fname, dic)
