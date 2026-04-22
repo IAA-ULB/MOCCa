@@ -1980,24 +1980,24 @@ subroutine print_boxsize_check(R)
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
   
-!  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
-!  
-!  print 1
-!  print 11
-!  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
-!  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
-!  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
-!$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
+  
+  print 1
+  print 11
+  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
-!  if(pairingtype .ne. 0) then
-!    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
+  if(pairingtype .ne. 0) then
+    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
 
-!    print 12
-!    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
-!    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
-!    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
-!$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
-!  endif
+    print 12
+    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
+  endif
   
 end subroutine print_boxsize_check
 
