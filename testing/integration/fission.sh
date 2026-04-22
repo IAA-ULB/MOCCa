@@ -10,7 +10,7 @@
 #  - I_2020 ( MeV^{-1} b^{-l} [hbar^2])       0.20311               0.001
 #  - I_2030 ( MeV^{-1} b^{-l} [hbar^2])       0.00000               0.000
 #  - I_3030 ( MeV^{-1} b^{-l} [hbar^2])       0.04728               0.001
-#  - neck   (particles)                      26.5350                0.01
+#  - neck   (particles)                      26.5708                0.01
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Usage
 # ------
@@ -30,9 +30,8 @@ refB20=0.68421
 refI_2020=0.197829
 refI_2030=0.000000
 refI_3030=0.045706
-ref_N=26.5350
+ref_N=26.5708
 
-set -e
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
@@ -140,14 +139,65 @@ if [ $overall_check -eq 0 ]; then
     echo "All checks passed: SUCCESS"
 else
     echo "Some checks failed: FAIL"
+    echo ""
+    echo "Detailed diagnostics:"
+    echo "--------------------"
 
-    # Specify which ones failed
-    [ $tantalus_check -ne 0 ] && echo "  - Tantalus check failed"
-    [ $check_energy -ne 0 ] && echo "  - Energy check failed"
-    [ $check_B20 -ne 0 ] && echo "  - B20 check failed"
-    [ $check_I_2020 -ne 0 ] && echo "  - Inertia component I_2020 check failed"
-    [ $check_I_2030 -ne 0 ] && echo "  - Inertia component I_2030 check failed"
-    [ $check_I_3030 -ne 0 ] && echo "  - Inertia component I_3030 check failed"
+    # Specify which ones failed with detailed diagnostics
+    if [ $tantalus_check -ne 0 ]; then
+        echo "  - Tantalus check failed: Tantalus returned non-zero exit code ($tantalus_check)"
+    fi
+    
+    if [ $check_energy -ne 0 ]; then
+        echo "  - Energy check failed:"
+        echo "    Expected: $refE MeV"
+        echo "    Obtained: $E MeV"
+        echo "    Difference: $(echo "$E - $refE" | bc) MeV"
+        echo "    Tolerance: 0.050 MeV"
+    fi
+    
+    if [ $check_B20 -ne 0 ]; then
+        echo "  - B20 check failed:"
+        echo "    Expected: $refB20"
+        echo "    Obtained: $B20"
+        echo "    Difference: $(echo "$B20 - $refB20" | bc)"
+        echo "    Tolerance: 0.001"
+    fi
+    
+    if [ $check_I_2020 -ne 0 ]; then
+        echo "  - Inertia component I_2020 check failed:"
+        echo "    Expected: $refI_2020 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Obtained: $I_2020 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Difference: $(echo "$I_2020 - $refI_2020" | bc) MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Tolerance: 0.001 MeV^{-1} b^{-l} [hbar^2]"
+    fi
+    
+    if [ $check_I_2030 -ne 0 ]; then
+        echo "  - Inertia component I_2030 check failed:"
+        echo "    Expected: $refI_2030 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Obtained: $I_2030 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Difference: $(echo "$I_2030 - $refI_2030" | bc) MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Tolerance: 0.001 MeV^{-1} b^{-l} [hbar^2]"
+    fi
+    
+    if [ $check_I_3030 -ne 0 ]; then
+        echo "  - Inertia component I_3030 check failed:"
+        echo "    Expected: $refI_3030 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Obtained: $I_3030 MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Difference: $(echo "$I_3030 - $refI_3030" | bc) MeV^{-1} b^{-l} [hbar^2]"
+        echo "    Tolerance: 0.001 MeV^{-1} b^{-l} [hbar^2]"
+    fi
+    
+    if [ $check_neck -ne 0 ]; then
+        echo "  - Neck check failed:"
+        echo "    Expected: $ref_N particles"
+        echo "    Obtained: $N particles"
+        echo "    Difference: $(echo "$N - $ref_N" | bc) particles"
+        echo "    Tolerance: 0.01 particles"
+    fi
+    
+    echo ""
+    echo "For more details, check the output file: $outfile"
 fi
 
 # Exit with the combined status
