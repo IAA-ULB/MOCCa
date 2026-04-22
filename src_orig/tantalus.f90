@@ -270,11 +270,11 @@ contains
 
       ! Only calculate the fields that have not been read from either a
       ! wavefunction file or a potential file.
-      if (allocated(potentials_read%F_I_I)) then
-         potentials = calcPotentials(Density, potentials_read)
+      if(allocated(potentials_read%F_I_I) .and. potentials_from_file) then
+        potentials = calcPotentials(Density, potentials_read)
       else
-         potentials = calcPotentials(Density)
-      end if
+        potentials = calcPotentials(Density)
+      endif
 
       call setBelyaevProcedure()
       !---------------------------------------------------------------------------
