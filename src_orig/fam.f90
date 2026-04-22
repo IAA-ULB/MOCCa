@@ -1311,8 +1311,9 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     !     * G_LGSB accounts for local-gauge-symmetry breaking effects. 
     !      /!\ : G_LGSB is currenlty NOT implemented
     !            the EDF param is thus assumed to respect LGS
-    !   - Presently only implemented for monopole (L=0,K=0) and axial quadruole 
-    !     perturbations (L=2, K=0). 
+    !   - Presently only implemented for monopole (L=0,K=0) and quadruole 
+    !     perturbations (L=2, K=0) and (L=2, K=2), in fact it is for 
+    !     Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2).  
     !   - Isoscalar(vector) character of the perturbation is dealt with via the 
     !     effective charges. While for isoscalar both are positive and 
     !     approximately equal, for isovector effective charges differ in sign but 
@@ -1341,7 +1342,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     ! l = 2, m = 0, axial quadrupole
     else if(l == 2 .and. m==0) then
       
-      if (fam_verbose > 1) print *, "axial quadrupole"
+      if (fam_verbose > 1) print *, "quadrupole Q20"
 
       ! Ony implemented for axial nuclei, return 0 if beta22 > 0.1 
       moment_ptr => FindMoment(2,2,.false.) ! pointer to <Q_22>
@@ -1357,6 +1358,28 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       m1kin = (5.0 / (2.0 * pi)) * hbm(1) * ( &
         &   eff_charge_n**2 * r2_ptr%Value(1) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(1)) &
         & + eff_charge_p**2 * r2_ptr%Value(2) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(2))  )
+      ! note that r2_ptr%Value contains a factor N (or Z)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! l = 2, m = 2, quadrupole
+    else if(l == 2 .and. m==2) then
+      
+      if (fam_verbose > 1) print *, "quadrupole Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2)"
+
+      ! Ony implemented for axial nuclei, return 0 if beta22 > 0.1 
+      moment_ptr => FindMoment(2,2,.false.) ! pointer to <Q_22>
+      if (moment_ptr%beta(4) > 0.1) then
+        print *, 'NOT IMPLEMENTED: quadrupole EWSR assumes axial shape '
+        return
+      endif
+
+      r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
+      moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20> 
+      ! I know this seems suspicious but actually do need beta_20 to calculate the sumrule for Q22
+
+      m1kin = (5.0 / (2.0 * pi)) * hbm(1) * ( &
+        &   eff_charge_n**2 * r2_ptr%Value(1) * (1. - sqrt(5./(16.*pi)) * moment_ptr%beta(1)) &
+        & + eff_charge_p**2 * r2_ptr%Value(2) * (1. - sqrt(5./(16.*pi)) * moment_ptr%beta(2))  )
       ! note that r2_ptr%Value contains a factor N (or Z)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1391,14 +1414,25 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
         if(l == 0) then
           
           ! integral over the mesh of (x^2 + y^2 + z^2) * rho_n * rho_p
-          kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+          kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
+            &                       * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
         
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! l = 2, m = 0, axial quadrupole
+        ! l = 2, m = 0, axial quadrupole Q20
         else if(l == 2 .and. m==0) then
 
           ! integral over the mesh of (x^2 + y^2 + 4*z^2) * rho_n * rho_p
-          kappa = kappa *  (5.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+          kappa = kappa * (5.0 / (4.0 * pi) ) &
+            &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) &
+            &            * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! l = 2, m = 2, quadrupole Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2)
+        else if(l == 2 .and. m==2) then
+
+          ! integral over the mesh of (x^2 + y^2) * rho_n * rho_p
+          kappa = kappa * (15.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
+            &                                          * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
           
         endif
           
