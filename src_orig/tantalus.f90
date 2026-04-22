@@ -271,7 +271,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
     ! Only calculate the fields that have not been read from either a
     ! wavefunction file or a potential file.
-    if(allocated(potentials_read%F_I_I)) then
+    if(allocated(potentials_read%F_I_I) .and. potentials_from_file) then
       potentials = calcPotentials(Density, potentials_read)
     else
       potentials = calcPotentials(Density)
