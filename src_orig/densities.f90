@@ -1959,6 +1959,9 @@ $PBROKEN $TR  enddo
 
 end function CompNablaMelements
 
+#if($FAM == 0) 
+! We don't define this routine for FAM calculations because the pointer remapping
+! does not play nice with the complex-valued densities.
 subroutine print_boxsize_check(R)
   !-----------------------------------------------------------------------------
   ! Print the maximum values of the densities D_I_I and DP_I_I at the edges of 
@@ -1979,7 +1982,7 @@ subroutine print_boxsize_check(R)
 
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
-  
+
   rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
   
   print 1
@@ -1998,8 +2001,8 @@ $PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
     print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
 $PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
   endif
-  
 end subroutine print_boxsize_check
+#endif 
 
 #if(USE_HDF5>0 && $FAM == 0) 
 ! There is no need to write densities to file in a FAM code

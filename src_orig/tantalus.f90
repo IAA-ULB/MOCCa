@@ -709,7 +709,10 @@ contains
       !-----------------------------------------------------------------------------
       use pairing, only: printpairing
       use moments, only: printallmoments
-      use densities, only: print_boxsize_check, density
+      use densities, only: density
+#if($FAM == 0)
+      use densities, only: print_boxsize_check
+#endif
       use momentsofinertia, only: printMomentsOfInertia
       use printing, only: printqps, print_adv_spwf_properties, printspwfs
       use cranking, only: printcranking
@@ -742,7 +745,9 @@ contains
 #endif
          call printallmoments
 #if(PASTA == 0)
+#if($FAM == 0)
          call print_boxsize_check(Density)
+#endif
          call printmomentsofinertia
          call printcranking(Density)
 #endif
