@@ -515,7 +515,7 @@ $TR     sumocc = 2*k
     integer, intent(in) :: B  
 
     1  format ('Block ', i1, ':  P=',a1,'1',2x,  a8)
-    2  format ( '  N      Eqp       f_n         disp     |   U   V'&
+    2  format ( '  N      Eqp       f_n         disp     |   U   V', &
     &           '    sum u^2 sum v^2 |   B  P', '  ov_TR |' &
     &            ,4x,'JxT',4x,'JyT',4x,'Jz')
     3  format (110 ('_'))

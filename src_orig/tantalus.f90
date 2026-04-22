@@ -475,6 +475,8 @@ subroutine ReachForWaterAndFood()
         endif
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
+        ! ..... else print a summary
+        call printsummary(iter)
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
 
@@ -509,8 +511,6 @@ subroutine ReachForWaterAndFood()
               call printEnergy()
             endif
         elseif(MPI_RANK.eq.0) then
-             ! ..... else print a summary
-            call printsummary(iter)
         endif
 
         !-----------------------------------------------------------------------
