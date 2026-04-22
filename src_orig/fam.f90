@@ -1337,6 +1337,15 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
       m1kin = 4.0 * hbm(1) * (eff_charge_n**2 * r2_ptr%Value(1) + eff_charge_p**2 * r2_ptr%Value(2) )
       ! note that r2_ptr%Value contains a factor N (or Z)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! l = 1  dipole (same for m=0 and m=1)
+    else if(l == 1) then
+      
+      if (fam_verbose > 1) print *, "dipole"
+
+      m1kin = (3.0 / (4.0 * pi)) * hbm(1) * ( Neutrons * eff_charge_n**2  + Protons *eff_charge_p**2 ) 
      
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! l = 2, m = 0, axial quadrupole
@@ -1413,15 +1422,22 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
         ! l = 0, monopole
         if(l == 0) then
           
-          ! integral over the mesh of (x^2 + y^2 + z^2) * rho_n * rho_p
+          ! integral over the mesh of 4 (x^2 + y^2 + z^2) * rho_n * rho_p
           kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
             &                       * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! l = 1  dipole (same for m=0 and m=1)
+        else if(l == 1) then
+
+          ! integral over the mesh of 3/(4pi) rho_n * rho_p
+          kappa = kappa * (3.0 / (4.0 * pi)) * sum(R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
         
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 0, axial quadrupole Q20
         else if(l == 2 .and. m==0) then
 
-          ! integral over the mesh of (x^2 + y^2 + 4*z^2) * rho_n * rho_p
+          ! integral over the mesh of 5/(4pi) (x^2 + y^2 + 4*z^2) * rho_n * rho_p
           kappa = kappa * (5.0 / (4.0 * pi) ) &
             &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) &
             &            * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
@@ -1430,7 +1446,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
         ! l = 2, m = 2, quadrupole Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2)
         else if(l == 2 .and. m==2) then
 
-          ! integral over the mesh of (x^2 + y^2) * rho_n * rho_p
+          ! integral over the mesh of 15/(4pi) (x^2 + y^2) * rho_n * rho_p
           kappa = kappa * (15.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
             &                                          * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
           
