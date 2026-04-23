@@ -403,8 +403,10 @@ module fam
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-$TR       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2),  O02sp=-dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
-$NTR       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+$TR   call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=-dHsp(:,:,3), &
+$TR   &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+$NTR  call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), &
+$NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
 
       print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 

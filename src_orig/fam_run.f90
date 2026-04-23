@@ -8,7 +8,7 @@ program run_FAM
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
   use fam_testing, only : test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
-  use fam_testing, only : test_qptrafo
+  use fam_testing, only : test_qptransfo
   use gmres 
   use timing
 
