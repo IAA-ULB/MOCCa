@@ -353,6 +353,10 @@ else
 fi
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Clean up the test environment
+teardown_test_env
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Final summary
 if [ "$sym1_pass" = true ] && [ "$sym2_pass" = true ] && [ "$sym3_pass" = true ]; then
     echo ""
