@@ -144,11 +144,9 @@ program run_FAM
       allocate(dH_flat_next(3 * nwt * nwt))
     endif
   endif
-  
-  ! call run_FAM_tests(X,Y)
 
-  ! run some tests on the new qp trafo routines => to be removed when validated
-  call test_qptrafo()
+  if(unit_test) call run_FAM_tests(X,Y) ! Note: contains a stop statement!
+
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 

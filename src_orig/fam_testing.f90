@@ -25,7 +25,7 @@ contains
     !   None
     !---------------------------------------------------------------------------------
 
-    1 format ("Test = ", a20, " Success = ", i4)
+    1 format ("Test = ", a40, " Success = ", i4)
     9 format (" ------- Start of the FAM testing routines -------")
     complex(KIND=dp), intent(in), allocatable :: X(:,:), Y(:,:)
     integer :: ifail
@@ -33,6 +33,12 @@ contains
 
     print 9
     print *
+
+    ! run some tests on the new qp trafo routines => to be removed when validated
+    call test_qptransfo(ifail)
+    print 1, 'SP<->QP transformations'
+
+
     call test_HFMatrices_me(ifail)
     print 1, 'SPHAMIL_ME', ifail
 
@@ -41,8 +47,8 @@ contains
 
     !call test_potentials(X,Y,ifail)
     ! Attention: this testing routine has serious side effects on the state of the program.
-    call test_densit_offdiag(ifail)
-    print 1, 'DENSIT_OFFDIAG', ifail
+    !call test_densit_offdiag(ifail)
+    !print 1, 'DENSIT_OFFDIAG', ifail
 
     stop
   end subroutine run_FAM_tests
@@ -158,7 +164,14 @@ contains
     ifail = 0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (i) Ordinary mean-field-like calculation
-    R  = densit(rho_can, kappa_pairing)
+
+    ! We have to be careful - a QFAM calculation does not by default construct the 
+    !   canonical basis, but the mean-field routine densit requires it.  
+    allocate(candPsi  (nx*ny*nz, 3,4,nwt)) ! first order
+    allocate(canddPsi (nx*ny*nz, 6,4,nwt)) ! full tensor second order
+    call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+
+    R = densit(rho_can, kappa_pairing)
     F = calcpotentials(R)
 
     ! Important: apply_sphamil requires that the potentials in F are NOT combined!
@@ -180,18 +193,17 @@ contains
     enddo
 
     ! Calculation of the pairing gaps
-    stabfactor = 0
-    call calcHFBgaps(FermiEnergy, stabfactor, F)
-    delta_orig = HFBGaps
+    if(pairingtype.eq.2) then
+      stabfactor = 0
+      call calcHFBgaps(FermiEnergy, stabfactor, F)
+      delta_orig = HFBGaps
+    endif 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (ii) FAM-like calculation
     allocate(drho(nwt,nwt)) ; drho = 0.0d0
-    drho = 0.0d0
-    if(pairingtype.ne.0) then
-      allocate(dkappa_plus(nwt,nwt))  ; dkappa_plus  = 0.0d0
-      allocate(dkappa_minus(nwt,nwt)) ; dkappa_minus = 0.0d0
-    endif
+    allocate(dkappa_plus(nwt,nwt))  ; dkappa_plus  = 0.0d0
+    allocate(dkappa_minus(nwt,nwt)) ; dkappa_minus = 0.0d0
     ! Calculate all relevant densities and potentials WITHOUT perturbation (drho = 0), 
     ! mostly to allocate/intialize potentials that should be zero
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)     
@@ -205,7 +217,7 @@ contains
     ! Calculate the pairing gaps
     delta_me = calc_delta_me(HFpsi, HFdpsi, HFddpsi, F, .false.)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (iii)Check result and print output if needed
+    ! (iii) Check result and print output if needed
     si = 0
     do B = 1,8
       N = HFBlocks(B); if(N.eq.0) cycle
@@ -213,6 +225,7 @@ contains
       dev       = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
       print *
       print *, 'BLOCK B=', B
+      print *, "Maximal value of     h = ", maxval(abs(sphamil_orig(si+1:si+N, si+1:si+N)))
       print *, "Maximal deviation of h = ", maxval(dev)
       if(maxval(dev)>1e-10) then
         ifail = 1
@@ -234,32 +247,35 @@ contains
       si = si + N
     enddo
 
-    si = 0
-    do B= 1,8,2
-      N = HFBlocks(B); N2 = HFBlocks(B+1); T = N + N2; if(T.eq.0) cycle
-      dev_gaps  = abs(delta_orig(si+1:si+T, si+1:si+T)   - delta_me(si+1:si+T, si+1:si+T))
-      print *
-      print *, 'BLOCKs B=', B, B+1
-      print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
-      if(maxval(dev_gaps)>1e-10) then
-        ifail = 1 
-        print *, '------ Original calculation -------'
-        do i=1,T
-          print ('(99f10.3)'), DBLE(delta_orig(si+i, si+1:si+T))
-        enddo
-        print *, '------ FAM-like calculation -------'
-        do i=1,T
-          print ('(99f10.3)'), DBLE(delta_me(si+i, si+1:si+T))
-        enddo
+    if(pairingtype.eq.2) then
+      si = 0
+      do B= 1,8,2
+        N = HFBlocks(B); N2 = HFBlocks(B+1); T = N + N2; if(T.eq.0) cycle
+        dev_gaps  = abs(delta_orig(si+1:si+T, si+1:si+T)   - delta_me(si+1:si+T, si+1:si+T))
         print *
-        print *, '------ difference           -------'
-        do i=1,T
-          print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
-        enddo
-        print *
-      endif
-      si = si + T
-    enddo
+        print *, 'BLOCKs B=', B, B+1
+        print *, "Maximal value of Delta = ", maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
+        print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
+        if(maxval(dev_gaps)>1e-10) then
+          ifail = 1 
+          print *, '------ Original calculation -------'
+          do i=1,T
+            print ('(99f10.3)'), DBLE(delta_orig(si+i, si+1:si+T))
+          enddo
+          print *, '------ FAM-like calculation -------'
+          do i=1,T
+            print ('(99f10.3)'), DBLE(delta_me(si+i, si+1:si+T))
+          enddo
+          print *
+          print *, '------ difference           -------'
+          do i=1,T
+            print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
+          enddo
+          print *
+        endif
+        si = si + T
+      enddo
+    endif
   end subroutine test_HFmatrices_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)
@@ -766,21 +782,36 @@ contains
 
   end function
 
-
-  subroutine test_qptrafo()
+  subroutine test_qptransfo(ifail)
     !---------------------------------------------------------------------------
-    ! test the new qp trafo routines
+    ! Perform several tests for the SP->QP and QP-> SP transformation routines.
+    ! TODO: DOCUMENT!
+    !
+    ! Test 1
+    ! Test 2 
+    ! Test 3 
+    ! Test 4 => attention, assumes vanishing pairing for protons
+    !
+    ! Input:
+    !   None 
+    ! Output:
+    !   ifail: integer, 0 => success
+    !                   1 => failure 
     !---------------------------------------------------------------------------
+    integer, intent(out) :: ifail
 
-   
     complex(KIND=dp), allocatable :: identity(:,:)
     complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Rph(:,:,:)
 
-    real(KIND=dp), allocatable :: N20(:,:), N11(:,:), gaps(:,:)
-    complex(KIND=dp), allocatable ::  N20new(:,:), N11new(:,:)
+    real(KIND=dp), allocatable    :: N20(:,:), N11(:,:), gaps(:,:)
+    complex(KIND=dp), allocatable :: N20new(:,:), N11new(:,:)
+    real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
+    complex(KIND=dp), allocatable :: Hqp(:,:,:)
+    real                          :: normH11, normH20_explicit, normH02_explicit,normH11_explicit
 
-    integer :: i, si, T
-      
+    integer :: i, si, T, sb, N, N2, B
+   
+    ifail  = 0
 
     if(pairingtype==0) then
       print *, 'PairingType = 0 => HF :: Cannot perform QP trafo test. Printing ph matrix elements'
@@ -806,7 +837,6 @@ contains
       ! enddo
 
       ! print '(99f10.5)', rho_can(nwn+1:nwn+T)
-
       return
     endif
 
@@ -815,8 +845,6 @@ contains
     ! 1. some test for the particle number operator, comparing to existing routines
 
     print * , 'TEST 1 : comparing to exising routines for the particle number operator'
-
-
     ! construct the spme of the particle-number operator = identity 
     allocate(identity(nwt,nwt)) 
     identity = 0.0
@@ -888,21 +916,19 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 1. some test for the particle number operator, comparing to existing routines
-
     print * , 'TEST 1bis : comparing to exising routines for the sp hamiltonian'
 
     ! transform to qpme N20
-    call transform_sp_to_qp(Bogoliubov, O11sp=dcmplx(sphamil), O20qp=N20new, O11qp=N11new)
-
-    allocate(gaps(nwn,nwn)) 
-    gaps = 0
-
+    call transform_sp_to_qp(Bogoliubov, O11sp=dcmplx(sphamil), &
+$NTR    &                                   O20sp=dcmplx(HFBGaps), O02sp=+dcmplx(HFBGaps), &
+$TR    &                                    O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
+    &                                   O20qp=N20new, O11qp=N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
-    N20 = calcH20(Bogoliubov, sphamil(1:nwn,1:nwn), gaps, HFblocks(1:4))
+    N20 = calcH20(Bogoliubov, sphamil(1:nwn,1:nwn), HFBgaps(1:nwn, 1:nwn), HFblocks(1:4))
 
     ! get qpme of N11 from existing routine, for the neutron channel
-    N11 = calcH11(Bogoliubov, sphamil(1:nwn,1:nwn), gaps, HFblocks(1:4))
+    N11 = calcH11(Bogoliubov, sphamil(1:nwn,1:nwn), HFBgaps(1:nwn, 1:nwn), HFblocks(1:4))
 
     print *, 'H20 (new routine) : BLOCK 1 & 2'
     T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
@@ -995,6 +1021,7 @@ contains
     !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
     ! enddo
     print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
+    print *, ' ||F02 (sp) - F02 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,3) - Rspback(:,:,3)))
 
 
     ! print *, 'F11 (sp) : BLOCK 1 & 2'
@@ -1079,20 +1106,99 @@ contains
     print *, '2x||Fph|| = ', 2. * sum(abs(Rph(:, :,1) * Rph(:, :,1)))
 
     
-    ! call print_spme_complex( Rph(:,:,1))
+    !all print_spme_complex( Rph(:,:,1))
     
-    ! print *, 'Fph_ia : BLOCK 5 & 6'
-    ! do i=si+1,si+T
-    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
-    ! enddo
+    !print *, 'Fph_ia : BLOCK 5 & 6'
+    !do i=si+1,si+T
+    !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
+    !enddo!
+
+    !print *, 'F20 : BLOCK 5 & 6'
+    !do i=si+1,si+T
+    !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
+    !enddo
+
 
     print *, '||F20|| - 2*||Fph|| = ', &
          & sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
     print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
-         &  'since the trivial Bogolibov trafo can reorder sp states'
+         &  'since the trivial Bogoliubov trafo can reorder sp states'
 
-  end subroutine test_qptrafo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! *. test whether the sp->qp transformation diagonalizes the HFB Hamiltonian
+    print * , 'TEST 5'
+    ! Construct the HFB Hamiltonian in the sp space
+    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt))
+    sb = 0; si = 0
+    Hsp = 0.0
+    do B=1,8,2 
+      N  = HFBlocks(B)
+      N2 = HFBlocks(B+1)
+      T  = N + N2
+
+      Hsp(sb  +1:sb+  T,sb  +1:sb+  T) =  sphamil(si+1:si+T,si+1:si+T)
+      Hsp(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sphamil(si+1:si+T,si+1:si+T)
+      Hsp(sb+T+1:sb+2*T,sb  +1:sb+  T) = -HFBGaps(si+1:si+T,si+1:si+T)
+      Hsp(sb  +1:sb+  T,sb+T+1:sb+2*T) = +HFBGaps(si+1:si+T,si+1:si+T)
+    
+      si = si +   T
+      sb = sb + 2*T 
+    enddo 
+    Hqp_explicit = matmul(transpose(Bogoliubov), matmul(Hsp,Bogoliubov))
+
+    normH20_explicit = 0
+    normH02_explicit = 0
+    normH11_explicit = 0
+    sb = 0
+    do B=1,8,2 
+      N  = HFBlocks(B)
+      N2 = HFBlocks(B+1)
+      T  = N + N2
+
+      normH11_explicit = normH11_explicit + sum(abs(Hqp_explicit(sb  +1:sb  +T,sb  +1:sb+  T)))
+      normH20_explicit = normH20_explicit + sum(abs(Hqp_explicit(sb  +1:sb  +T,sb+T+1:sb+2*T)))
+      normH02_explicit = normH02_explicit + sum(abs(Hqp_explicit(sb+T+1:sb+2*T,sb  +1:sb+  T)))
+
+      sb = sb + 2*T 
+    enddo 
+
+    print *, '-------------------------------------------------------'
+    print *, 'Matrix multiplication; wrong if T conserved!'
+    print *, '|| H_11 ||_explicit = ', normH11_explicit
+    print *, '|| H_20 ||_explicit = ', normH20_explicit
+    print *, '|| H_02 ||_explicit = ', normH02_explicit
+
+    allocate(Hqp(nwt,nwt,3))
+    print *, '-------------------------------------------------------'
+    print *, 'Convention 1: O20sp = \Delta, O02sp = \Delta'
+    call transform_sp_to_qp(Bogoliubov, O11sp=DCMPLX(sphamil), &
+    &                                   O20sp=DCMPLX(HFBgaps), &
+    &                                   O02sp=DCMPLX(HFBGaps), &
+    &                                   O20qp=Hqp(:,:,1),      & 
+    &                                   O11qp=Hqp(:,:,2), O02qp=Hqp(:,:,3))
+
+    normH11 = 0   
+    print *, '|| H11 || ', sum(abs(Hqp(:,:,2)))
+    print *, '|| H20 || ', sum(abs(Hqp(:,:,1)))
+    print *, '|| H02 || ', sum(abs(Hqp(:,:,3)))
+
+    print *, 'Convention 2: O20sp = \Delta, O02sp =-\Delta'
+    call transform_sp_to_qp(Bogoliubov, O11sp=DCMPLX(sphamil), &
+    &                                   O20sp=DCMPLX(HFBgaps), &
+    &                                   O02sp=-DCMPLX(HFBGaps), &
+    &                                   O20qp=Hqp(:,:,1),      & 
+    &                                   O11qp=Hqp(:,:,2), O02qp=Hqp(:,:,3))
+
+    normH11 = 0   
+    print *, '|| H11 || ', sum(abs(Hqp(:,:,2)))
+    print *, '|| H20 || ', sum(abs(Hqp(:,:,1)))
+    print *, '|| H02 || ', sum(abs(Hqp(:,:,3)))
+    print *, '-------------------------------------------------------'
+
+    !---------------------------------------------------------------------------
+
+  end subroutine test_qptransfo
 
 
   subroutine test_linearity_T()

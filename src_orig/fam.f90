@@ -154,6 +154,10 @@ module fam
   !    (default)
   ! 2: printing all function calls. Useful for debugging. 
   ! 3: printing all sp matrices at each iteration. Useful for debugging. 
+  !-----------------------------------------------------------------------------
+  ! Run the unit tests on start-up; this will not result in a FAM calculation!
+  logical :: unit_test = .false.
+
 
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
@@ -278,7 +282,7 @@ module fam
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p
+    &               eff_charge_n, eff_charge_p, unit_test
 
 
     if(MPI_rank .eq. 0) then
@@ -399,7 +403,8 @@ module fam
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-      call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+$TR       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2),  O02sp=-dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+$NTR       call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
 
       print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 
@@ -434,6 +439,7 @@ module fam
       dkappa_minus = 0
     else ! QFAM
       call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+$TR   dkappa_minus = - dkappa_minus
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1110,25 +1116,44 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
   end subroutine get_ph_hp_blocks_real
 
-
-
   subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
     !---------------------------------------------------------------------------
-    ! Performing quasi-particle transformation of a generic on 1-body operator 
-    ! O = O20sp + O11sp + O02sp. The function returns the matrix elements in of 
-    ! O in the operator in the QP-basis.
-
+    ! Performing quasi-particle transformation of a 1-body operator that 
+    ! does not have to be 
+    !  (i)   purely particle-hole or particle-particle / hole-hole 
+    !  (ii)  hermitian 
+    ! 
+    ! Its generic form is schematically 
+    !               O = o20sp + o11sp + o02sp. 
+    ! 
+    ! The function returns the matrix elements in of O in the operator in the 
+    ! quasiparticle basis associated with the Bogoliubov transformation Bogo.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Important notes:
+    !  - inputs not specified are assumed to be zero. 
+    !  - outputs not specified are not calculated, but do not necessarily vanish.
+    !  - this routine works for REAL-valued Bogoliubov transformations...
+    !  - ... but complex-valued operator matrix elements
+    !  - this routine assumes that O is compatible with the symmetries of run!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !    Bogo             : Bogoliubov transformation matrix W from sp to qp basis 
     !                       (2*nwt,2*nwt)
     !    O20sp (optional) : sp matrix elements of 20 operator component (nwt,nwt)
     !    O11sp (optional) : sp matrix elements of 11 operator component (nwt,nwt)
     !    O02sp (optional) : sp matrix elements of 02 operator component (nwt,nwt)
+    !  
+    !    Important convention:  TODO 
+    ! 
+    !
+    !
     ! Output:
     !    O20qp (optional) : qp matrix elements of 20 operator component (nwt,nwt)
     !    O11qp (optional) : qp matrix elements of 11 operator component (nwt,nwt)
     !    O02qp (optional) : qp matrix elements of 02 operator component (nwt,nwt)
-    ! 
+    !
+    !    Important reminder:  TODO
+    !   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !  
     ! Bogo contains the bogoliubov transformation W organised in block matrices
@@ -1145,33 +1170,31 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     !       Ub  =  (              )                Vb   =   (               )
     !              (   0   Ub(--) )                         (  Vb(-+)   0   ) 
     !   
-    ! QP matrix elements are obtained from 
+    ! The expressions for the QP matrix elements are 
     ! 
-    !       O20qp = + U^{dagger} o11sp   V^* + U^{dagger} o20sp   U^* 
-    !               - V^{dagger} o02sp^* V^* - V^{dagger} o11sp^T U^*
+    !       O20qp = + T * U^{dagger} o11sp   V^* + U^{dagger} o20sp   U^* 
+    !               - T * V^{dagger} o02sp^* V^* - V^{dagger} o11sp^T U^*
     ! 
-    !       O11qp = + U^{dagger} o11sp   U   + U^{dagger} o20sp   V
-    !               - V^{dagger} o02sp^* U   - V^{dagger} o11sp^T V
+    !       O11qp = + U^{dagger} o11sp   U   +     U^{dagger} o20sp   V
+    !               - V^{dagger} o02sp^* U   -     V^{dagger} o11sp^T V
     ! 
-    !       O02qp = - V^T        o11sp   U   - V^T        o20sp   V 
-    !               + U^T        o02sp^* U   + U^T        o11sp^T V
+    !       O02qp = - T * V^T    o11sp   U   - T * V^T        o20sp   V 
+    !               +     U^T    o02sp^* U   +     U^T        o11sp^T V
     ! 
-    ! Note that for a hermitian operator O for which o20sp = o02sp^* and 
-    ! o11sp^*=o11sp^T, the O02 component can be obtained trivially from O20
-    ! by complex conjugation
-    !      O20qp^* = + U^T  o11sp^* V + U^T  o20sp^*        U 
-    !                - V^T  o02sp   V - V^T  o11sp^{dagger} U
-    !              = O02qp
+    ! If time-reversal is not leveraged in the code, then T = 1 and these 
+    !  expressions can be interpreted straightforwardly in terms of the full 
+    !  matrices.
     ! 
+    ! If time-reversal is not leveraged, then T = -1 and these expressions 
+    !  tackle the objects stored in the code - i.e. NOT the full matrices.
     !---------------------------------------------------------------------------
-
-    implicit none
-    real(KIND=dp), intent(in)               :: Bogo(:,:)
-    complex(KIND=dp), intent(in) , optional :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
-    complex(KIND=dp), intent(out), optional :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+    real(KIND=dp), intent(in)                       :: Bogo(:,:)
+    complex(KIND=dp), intent(in) , optional, target :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+    complex(KIND=dp), intent(out), optional, target :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
 
     real(KIND=dp), allocatable    :: Ub(:,:), Vb(:,:)
-    complex(KIND=dp), allocatable :: O20b(:,:), O11b(:,:), O02b(:,:), temp(:,:)
+    complex(KIND=dp), pointer     :: O20b(:,:), O11b(:,:), O02b(:,:)
+    complex(KIND=dp), pointer     :: O20b_qp(:,:), O11b_qp(:,:), O02b_qp(:,:)
     integer                       :: B, N, N2, si, sb, T, i
     real(KIND=dp)                 :: Tphase
 
@@ -1187,8 +1210,7 @@ $TR  Tphase = -1.0_dp
 
     ! si determines the start of the block in sp-basis of dimension nwt
     ! sb determines the start of the block in qp-basis of dimension 2*nwt 
-    !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)
-    
+    !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)   
     si = 0 ; sb = 0
     do B=1,8,2
       N  = HFblocks(B)    ; if(N.eq.0) cycle 
@@ -1200,110 +1222,66 @@ $TR  Tphase = -1.0_dp
       Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
-      if(present(O20sp)) O20b = O20sp(si+1:si+T,si+1:si+T)
-      if(present(O11sp)) O11b = O11sp(si+1:si+T,si+1:si+T)
-      if(present(O02sp)) O02b = O02sp(si+1:si+T,si+1:si+T)
-  
+      ! Pointers to make the equations below more compact
+      if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
+      if(present(O11sp)) O11b => O11sp(si+1:si+T,si+1:si+T)
+      if(present(O02sp)) O02b => O02sp(si+1:si+T,si+1:si+T)
+
+      if(present(O20qp)) O20b_qp => O20qp(si+1:si+T,si+1:si+T)
+      if(present(O11qp)) O11b_qp => O11qp(si+1:si+T,si+1:si+T)
+      if(present(O02qp)) O02b_qp => O02qp(si+1:si+T,si+1:si+T)
+
       if (fam_verbose > 2) print '(A, I3, I3, A, I5)', 'Blocks: ', B, B+1, ' with size', T
       if (fam_verbose > 2) print '(A, F10.2)',  '||U||^2 = ', sum(Ub(:,:) * Ub(:,:))
       if (fam_verbose > 2) print '(A, F10.2)',  '||V||^2 = ', sum(Vb(:,:) * Vb(:,:))
 
-      ! print * , 'U : '
-      ! do i=1,T
-      !   print "(99f10.5)",  Ub(i, 1:T)
-      ! enddo
-      
-      ! print * , 'V : '
-      ! do i=1,T
-      !   print "(99f10.5)",  Vb(i, 1:T)
-      ! enddo
-
+      !  O20qp = + T * U^{dagger} o11sp   V^* + U^{dagger} o20sp   U^* 
+      !          - T * V^{dagger} o02sp^* V^* - V^{dagger} o11sp^T U^*
       if(present(O20qp)) then
         if(present(O11sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + Tphase * matmul(transpose(Ub),  matmul(          O11b , Vb))
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
-          if (fam_verbose > 2) then
-            temp = + Tphase * matmul(transpose(Ub),  matmul(          O11b , Vb))
-            print * , ' O20 qp term 1 : ', temp(si+1,si+1)
-            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Ub))
-            print * , ' O20 qp term 2 : ', temp(si+1,si+1)
-          endif
+          O20b_qp = O20b_qp + Tphase * matmul(transpose(Ub),  matmul(          O11b , Vb))  ! + T * U^{dagger} o11sp   V^*
+          O20b_qp = O20b_qp -          matmul(transpose(Vb),  matmul(transpose(O11b), Ub))  ! -     V^{dagger} o11sp^T U^*
         endif
         if(present(O20sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
-          if (fam_verbose > 2) then
-            temp = + matmul(transpose(Ub),  matmul(          O20b , Ub)) 
-            print * , ' O20 qp term 3 : ', temp(si+1,si+1)
-          endif
+          O20b_qp = O20b_qp +           matmul(transpose(Ub),  matmul(          O20b , Ub)) ! +     U^{dagger} o20sp   U^*
         endif
         if(present(O02sp)) then
-          O20qp(si+1:si+T, si+1:si+T) = O20qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(          O02b , Vb))
-          if (fam_verbose > 2) then
-            temp = - matmul(transpose(Vb),  matmul(          O02b , Vb))
-            print * , ' O20 qp term 4 : ', temp(si+1,si+1)
-          endif
+          O20b_qp = O20b_qp - Tphase *  matmul(transpose(Vb),  matmul(          O02b , Vb)) ! - T * V^{dagger} o02sp^* V^*
         endif
       endif 
 
-
+      !       O11qp = + U^{dagger} o11sp   U   + U^{dagger} o20sp   V
+      !               - V^{dagger} o02sp^* U   - V^{dagger} o11sp^T V
       if(present(O11qp)) then
         if(present(O11sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O11b , Ub))
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
-          if (fam_verbose > 2) then
-            temp = + matmul(transpose(Ub),  matmul(          O11b , Ub))
-            print * , ' O11 qp term 1 : ', temp(si+1,si+1)
-            temp = - matmul(transpose(Vb),  matmul(transpose(O11b), Vb))
-            print * , ' O11 qp term 2 : ', temp(si+1,si+1)
-          endif
+          O11b_qp = O11b_qp + matmul(transpose(Ub),  matmul(          O11b , Ub)) ! + U^{dagger} o11sp   U
+          O11b_qp = O11b_qp - matmul(transpose(Vb),  matmul(transpose(O11b), Vb)) ! - V^{dagger} o11sp^T V
         endif
         if(present(O20sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O20b , Vb))
-          if (fam_verbose > 2) then
-            temp = + matmul(transpose(Ub),  matmul(          O20b , Vb))
-            print * , ' O11 qp term 3 : ', temp(si+1,si+1)
-          endif
+          O11b_qp = O11b_qp + matmul(transpose(Ub),  matmul(          O20b , Vb)) ! + U^{dagger} o20sp   V
         endif
         if(present(O02sp)) then
-          O11qp(si+1:si+T, si+1:si+T) = O11qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O02b , Ub))
-          if (fam_verbose > 2) then
-            temp = - Tphase * matmul(transpose(Vb),  matmul(          O02b , Ub))
-            print * , ' O11 qp term 4 : ', temp(si+1,si+1)
-          endif
+          O11b_qp = O11b_qp - matmul(transpose(Vb),  matmul(          O02b , Ub)) ! - V^{dagger} o02sp   U
         endif
       endif
 
-
+      !       O02qp = - T * V^T        o11sp   U   - T * V^T        o20sp   V 
+      !               + U^T        o02sp^* U   + U^T        o11sp^T V
       if(present(O02qp)) then
         if(present(O11sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O11b , Ub))
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
-          if (fam_verbose > 2) then
-            temp = - Tphase * matmul(transpose(Vb),  matmul(          O11b , Ub))
-            print * , ' O02 qp term 1 : ', temp(si+1,si+1)
-            temp = + matmul(transpose(Ub),  matmul(transpose(O11b), Vb))
-            print * , ' O02 qp term 2 : ', temp(si+1,si+1)
-          endif
+          O02b_qp = O02b_qp - Tphase * matmul(transpose(Vb),  matmul(          O11b , Ub)) ! - T * V^T        o11sp   U
+          O02b_qp = O02b_qp +          matmul(transpose(Ub),  matmul(transpose(O11b), Vb)) ! +     U^T        o11sp^T V
         endif
         if(present(O20sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) - Tphase * matmul(transpose(Vb),  matmul(          O20b , Vb))
-          if (fam_verbose > 2) then
-            temp = - Tphase * matmul(transpose(Vb),  matmul(          O20b , Vb))
-            print * , ' O02 qp term 3 : ', temp(si+1,si+1)
-          endif
+          O02b_qp = O02b_qp - Tphase * matmul(transpose(Vb),  matmul(          O20b , Vb)) ! - T * V^T        o20sp   V 
         endif
         if(present(O02sp)) then
-          O02qp(si+1:si+T, si+1:si+T) = O02qp(si+1:si+T, si+1:si+T) + matmul(transpose(Ub),  matmul(          O02b , Ub))
-          if (fam_verbose > 2) then
-            temp = + matmul(transpose(Ub),  matmul(          O02b , Ub))
-            print * , ' O02 qp term 4 : ', temp(si+1,si+1)
-          endif
+          O02b_qp = O02b_qp +          matmul(transpose(Ub),  matmul(          O02b , Ub)) ! +     U^T        o02sp^* U
         endif
       endif 
 
       si = si +  T
       sb = sb +2*T
-
     enddo
 
     if (fam_verbose > 2) then
