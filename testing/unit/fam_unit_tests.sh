@@ -1,26 +1,17 @@
 #!/usr/bin/env sh
 #-------------------------------------------------------------------------------
-# Perform mean-field + linear response calculations of Ti22 with t0t3 in a
-# minimal box with different self-consistent symmetry options and check that
-# the resulting monopole strengths are identical.
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# This script tests:
-#  Quantity                              Target                     Tolerance
-#  --------                              ------                     ---------
-#  Monopole strength                     [result of EXE-T]          1e-6
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#
+# Run the unit tests of the FAM solver for a 18O nucleus in a minimal box.
+#  These tests (and their success conditions) are defined in the Fortran code.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_unit_test.sh [EXESUFFIX] [--pairing HF|HFB] [--parameterisation PARAM] [--nw NW] [-v/--verbose]
+#   bash fam_unit_test.sh [EXESUFFIX] [--pairing HF|HFB] [--parameterisation PARAM] [--nw NW]
 #
 # where
-# - EXESUFFIX     : maximally symmetric executable
-# -- pairing      : specifies the pairing type (HF or HFB, default: HFB)
-# --parameterisation : specifies the parameterization (default: t0t3)
-# --nw           : specifies the number of wavefunctions (default: 20)
-# -v or --verbose : print the values which are compared.
+# EXESUFFIX           : executable to use
+# -- pairing          : specifies the pairing type (HF or HFB, default: HFB)
+# -- parameterisation : specifies the parameterization (default: t0t3)
+# -- nw               : specifies the number of wavefunctions (default: 15)
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -28,21 +19,15 @@
 # Reference commit hash: c44b9e6a4b6173a87afcce8c73a175bb05e12182
 #-------------------------------------------------------------------------------
 # Initialize verbose mode as false by default
-verbose=false
 pairing="HFB"  # Default value
 parameterisation="t0t3"  # Default value
-nw=20  # Default value for number of wavefunctions
+nw=15  # Default value for number of wavefunctions
 
 # Temporary array to hold arguments
 args=()
 
-# Parse all arguments for -v or --verbose or --pairing
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -v|--verbose)
-      verbose=true
-      shift
-      ;;
     --pairing)
       shift
       if [[ "$1" == "HF" || "$1" == "HFB" ]]; then
@@ -80,7 +65,7 @@ done
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_units_tests" "${args[0]}" "${args[0]}" "$parameterisation"
+setup_test_env_fam "fam_unit_tests" "${args[0]}" "${args[0]}" "$parameterisation"
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
 
@@ -125,6 +110,9 @@ EOF
 ./$exe < mf.data > $mfoutfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
+if [ $tantalus_check -ne 0 ]; then
+    echo "ERROR: Mean-field calculation failed with exit status $tantalus_check"
+fi
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2) Run a calculation that freezes the potentials just to get a
@@ -214,8 +202,26 @@ unit_test=.true.
 EOF
 
 # Run the calculation
-./$exefam < fam.data | tee $famoutfile
+./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
+if [ $fam_check -ne 0 ]; then
+    echo "ERROR: FAM calculation failed with exit status $fam_check"
+fi
 
 teardown_test_env
+
+# Return overall exit status - fail if any calculation failed
+exit_status=0
+if [ $tantalus_check -ne 0 ] || [ $fam_check -ne 0 ]; then
+    exit_status=1
+fi
+
+echo ""
+echo "========= Test Summary ========"
+echo "Mean-field exit status : $tantalus_check"
+echo "FAM unit tests status  : $fam_check"
+echo "Overall exit status    : $exit_status"
+echo "==============================="
+
+exit $exit_status

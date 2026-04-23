@@ -16,31 +16,44 @@ module fam_testing
 implicit none
 
 contains
+
   subroutine run_FAM_tests(X,Y)
     !---------------------------------------------------------------------------------
     ! Catch-all routine to run all predefined unit tests for FAM routines.
+    !  Notes
+    !   - this routine assumes all of the setup to start iterating has been done!
+    !   - some of these tests dramatically change the state of the code, which is why
+    !     the end of this routine features a call to exit
+    !   - the code returns an exit status (0/1) to allow for this to be part of the
+    !     MOCCa testing framework
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   X, Y : forward- and backward amplitudes to start testing perturbed quantities.
+    !          can be either RPA or QRPA amplitudes, depending on pairingtype
     ! Output:
     !   None
+    !
+    ! - Exit status!
+    !
     !---------------------------------------------------------------------------------
 
-    1 format ("Test = ", a40, " Success = ", i4)
-    9 format (" ------- Start of the FAM testing routines -------")
+    1 format ("Test = ", a30, " Success = ", i4)
+    9 format (" --------------------- Start of the FAM testing routines ---------------------")
+   10 format (" --------------------- End of the FAM testing routines -----------------------")
+   11 format (" Summary of results ")
+   12 format (" All tests passed! ")
+   13 format (" Some tests failed! ")
     complex(KIND=dp), intent(in), allocatable :: X(:,:), Y(:,:)
-    integer :: ifail
+    integer :: ifail_sp_qp, ifail_HFme, ifail
 
 
     print 9
     print *
 
     ! run some tests on the new qp trafo routines => to be removed when validated
-    call test_qptransfo(ifail)
-    print 1, 'SP<->QP transformations'
+    call test_qptransfo(ifail_sp_qp)
+    call test_HFMatrices_me(ifail_HFme)
 
-
-    call test_HFMatrices_me(ifail)
-    print 1, 'SPHAMIL_ME', ifail
 
     ! call test_potentials(X,Y,ifail)
     ! print 1, 'potentials', ifail
@@ -50,7 +63,16 @@ contains
     !call test_densit_offdiag(ifail)
     !print 1, 'DENSIT_OFFDIAG', ifail
 
-    stop
+    print 10
+    print 11
+    print 1, 'SP<->QP transformations', ifail_sp_qp
+    print 1, 'SPHAMIL_ME', ifail_HFme
+
+    ifail = max(ifail_sp_qp, ifail_HFme)
+    if(ifail.eq.0) print 12
+    if(ifail.eq.1) print 13
+    call exit(ifail)
+
   end subroutine run_FAM_tests
 !
   subroutine test_potentials(X,Y,ifail)
@@ -465,8 +487,6 @@ contains
 !
 !   end subroutine build_dH_findiff
 
-
-
   subroutine test_gmres()
     !---------------------------------------------------------------------------
     ! Simply test for gmres: solve small linear problem
@@ -551,11 +571,7 @@ contains
     print *, 'res : ', gmres_res
     print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
 
-
-
   end subroutine test_gmres
-
-
 
   subroutine multiply_by_A(x_in, x_out)
 
@@ -785,17 +801,21 @@ contains
   subroutine test_qptransfo(ifail)
     !---------------------------------------------------------------------------
     ! Perform several tests for the SP->QP and QP-> SP transformation routines.
-    ! TODO: DOCUMENT!
     !
-    ! Test 1
-    ! Test 2 
-    ! Test 3 
-    ! Test 4 => attention, assumes vanishing pairing for protons
+    ! 1: Compare the transformation of N to existing routines
+    ! 2: Compare the transformation of H to naive [W^{\dagger} H W]
+    !     Only active when time-reversal is broken!
+    ! 3: Unitarity - (SP->QP)(QP-SP) is identity (for H)
+    ! 4: Symmetry properties of the resulting SPME and QPME
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Potential upgrades
+    !  - extend check 3 to an ARBITRARY one-body operator with random me
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   None 
     ! Output:
-    !   ifail: integer, 0 => success
+    !   ifail: integer, 0 => success for any of the tests
     !                   1 => failure 
     !---------------------------------------------------------------------------
     integer, intent(out) :: ifail
@@ -803,49 +823,33 @@ contains
     complex(KIND=dp), allocatable :: identity(:,:)
     complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Rph(:,:,:)
 
-    real(KIND=dp), allocatable    :: N20(:,:), N11(:,:), gaps(:,:)
-    complex(KIND=dp), allocatable :: N20new(:,:), N11new(:,:)
-    real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
+    real(KIND=dp), allocatable    :: N20(:,:), N11(:,:), H20(:,:), H11(:,:)
+    complex(KIND=dp), allocatable :: N20new(:,:), N11new(:,:), H20new(:,:), H11new(:,:)
+    complex(KIND=dp), allocatable :: H20back(:,:), H11back(:,:), H02back(:,:)
+$NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     complex(KIND=dp), allocatable :: Hqp(:,:,:)
-    real                          :: normH11, normH20_explicit, normH02_explicit,normH11_explicit
+    real(KIND=dp) :: ME_check(4)
 
     integer :: i, si, T, sb, N, N2, B
    
+  1 format (100('-'))
+  2 format ('Test ', i2, ' : ', a40)
+ 99 format (25('-'), ' Transformation routines (sp -> qp and qp -> sp) ', 25('-') )
+
     ifail  = 0
 
+    print 99
     if(pairingtype==0) then
-      print *, 'PairingType = 0 => HF :: Cannot perform QP trafo test. Printing ph matrix elements'
-      
-      allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
-  
-      ! define Rsp as the spme of r^2
-      Rsp(:,:,1) = 0
-      Rsp(:,:,2) = Rsq_spme()
-      Rsp(:,:,3) = 0
-
-      allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-      Rph = 0
-
-      call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
-      
-      print *, '||Fph (proton)||', sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
-      ! call print_spme_complex( Rph(:,:,1))
-      ! print *, 'Fph_ia : BLOCK 5 & 6'
-      ! T = HFblocks(5)+HFblocks(6)
-      ! do i=nwn+1,nwn+T
-      !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,nwn+1:nwn+T,1)
-      ! enddo
-
-      ! print '(99f10.5)', rho_can(nwn+1:nwn+T)
-      return
+      print *, 'PairingType = 0 => HF :: Cannot perform QPtransfo test.'
     endif
 
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 1. some test for the particle number operator, comparing to existing routines
+    ! 1. Compare the transformation of the particle number operator N to
+    !        existing routines
+    print 2, 1, ' Number operator N '
+    print *
 
-    print * , 'TEST 1 : comparing to exising routines for the particle number operator'
-    ! construct the spme of the particle-number operator = identity 
+    ! construct the spme of the particle-number operator = identity
     allocate(identity(nwt,nwt)) 
     identity = 0.0
 
@@ -854,350 +858,220 @@ contains
       identity(i, i) = 1.0
     end do
 
+    allocate(N20(nwt,nwt)   , N11(nwt,nwt))    ; N20    = 0.0d0 ; N11    = 0.0d0
+    allocate(N20new(nwt,nwt), N11new(nwt,nwt)) ; N20new = 0.0d0 ; N11new = 0.0d0
 
     ! transform to qpme N20
-    allocate(N20new(nwt,nwt)) 
-    allocate(N11new(nwt,nwt)) 
     call transform_sp_to_qp(Bogoliubov, O11sp=identity, O20qp=N20new, O11qp=N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
-    N20 = calcN20(Bogoliubov, HFblocks(1:4))
+    N20(    1:nwn,    1:nwn) = calcN20(Bogoliubov(      1:2*nwn,      1:2*nwn), HFblocks(1:4))
+    N20(nwn+1:nwt,nwn+1:nwt) = calcN20(Bogoliubov(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8))
 
     ! get qpme of N11 from existing routine, for the neutron channel
-    N11 = calcN11(Bogoliubov, HFblocks(1:4))
+    N11(    1:nwn,    1:nwn) = calcN11(Bogoliubov(      1:2*nwn,      1:2*nwn), HFblocks(1:4))
+    N11(nwn+1:nwt,nwn+1:nwt) = calcN11(Bogoliubov(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8))
 
-    ! print *, 'N20 (new routine) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T)
-    ! enddo
+    print '(a50, 2es15.4)', ' ||N20(existing routine)||, || N20(new)|| = ', sum(abs(N20)), sum(abs(N20new))
+    print '(a50, 2es15.4)', ' ||N11(existing routine)||, || N11(new)|| = ', sum(abs(N20)), sum(abs(N20new))
+    print '(a50, es15.4)', ' ||N20(existing routine) - N20(new)|| = ', sum(abs(N20 - N20new))
+    print '(a50, es15.4)', ' ||N11(existing routine) - N11(new)|| = ', sum(abs(N11 - N11new))
 
-
-    ! print *, 'N20 (existing routine) : BLOCK 1 & 2'
-    ! do i=1,T
-    !   print "(99f10.5)",  N20(i, 1:T)
-    ! enddo
-
-    ! print *, 'diff '
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
-    ! enddo
-
-    
-    print *, ' ||N20(existing routine) - N20(new)|| = ', &
-    & sum(abs(N20(:,:) - N20new(1:nwn,1:nwn)))
-
-
-
-    ! print *, 'N11 (new routine) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T)
-    ! enddo
-
-
-    ! print *, 'N11 (existing routine) : BLOCK 1 & 2'
-    ! do i=1,T
-    !   print "(99f10.5)",  N11(i, 1:T)
-    ! enddo
-
-    ! print *, 'diff '
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
-    ! enddo
-
-
-    
-    print *, ' ||N11(existing routine) - N11(new)|| = ', &
-    & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
-
-
+    if(sum(abs(N20 - N20new)) > 1e-10 .or. sum(abs(N11 - N11new)) > 1e-10) then
+      print *, 'FAILURE!'
+      ifail = 1
+    else
+      print *, 'SUCCESS!'
+    endif
+    print 1
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 1. some test for the particle number operator, comparing to existing routines
-    print * , 'TEST 1bis : comparing to exising routines for the sp hamiltonian'
+    ! 2. Compare the matrix multiplication of the HFB Hamiltonian with the
+    print 2, 2, ' HFB Hamiltonian H'
+$TR     print *, 'Test not valid when T is conserved'
+    allocate(H20(nwt,nwt)    , H11(nwt,nwt))    ; H20    = 0.0d0 ; H11    = 0.0d0
+    allocate(H20new(nwt,nwt) , H11new(nwt,nwt)) ; H20new = 0.0d0 ; H11new = 0.0d0
+$NTR    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt)) ; Hsp = 0.0d0
 
-    ! transform to qpme N20
+    ! transform to the quasiparticle representation of H
     call transform_sp_to_qp(Bogoliubov, O11sp=dcmplx(sphamil), &
-$NTR    &                                   O20sp=dcmplx(HFBGaps), O02sp=+dcmplx(HFBGaps), &
-$TR    &                                    O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
-    &                                   O20qp=N20new, O11qp=N11new)
+$NTR &                                  O20sp=dcmplx(HFBGaps), O02sp=+dcmplx(HFBGaps), &
+$TR  &                                  O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
+     &                                  O20qp=H20new, O11qp=H11new)
 
-    ! get qpme of N20 from existing routine, for the neutron channel
-    N20 = calcH20(Bogoliubov, sphamil(1:nwn,1:nwn), HFBgaps(1:nwn, 1:nwn), HFblocks(1:4))
+$NTR    ! Construct the HFB Hamiltonian in the sp space
+$NTR    ! Note: we DO NOT use calcH20 and calcH11; these rely on a different memory layout
+$NTR    Hsp = 0.0
 
-    ! get qpme of N11 from existing routine, for the neutron channel
-    N11 = calcH11(Bogoliubov, sphamil(1:nwn,1:nwn), HFBgaps(1:nwn, 1:nwn), HFblocks(1:4))
+$NTR    sb = 0; si = 0
+$NTR    do B=1,8,2
+$NTR      N  = HFBlocks(B)
+$NTR      N2 = HFBlocks(B+1)
+$NTR      T  = N + N2
 
-    print *, 'H20 (new routine) : BLOCK 1 & 2'
-    T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N20new(i, 1:T)
-    ! enddo
+$NTR      Hsp(sb  +1:sb+  T,sb  +1:sb+  T) =  sphamil(si+1:si+T,si+1:si+T)
+$NTR      Hsp(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sphamil(si+1:si+T,si+1:si+T)
+$NTR      Hsp(sb+T+1:sb+2*T,sb  +1:sb+  T) = -HFBGaps(si+1:si+T,si+1:si+T)
+$NTR      Hsp(sb  +1:sb+  T,sb+T+1:sb+2*T) = +HFBGaps(si+1:si+T,si+1:si+T)
 
+$NTR      si = si +   T
+$NTR      sb = sb + 2*T
+$NTR    enddo
+$NTR    ! Actual brute matrix multiplication : this is not correct when T is conserved
+$NTR    ! as the array Bogoliubov does not contain the whole transformation
+$NTR    Hqp_explicit = matmul(transpose(Bogoliubov), matmul(Hsp,Bogoliubov))
+$NTR    sb = 0; si = 0
+$NTR    do B=1,8,2
+$NTR      N  = HFBlocks(B)
+$NTR      N2 = HFBlocks(B+1)
+$NTR      T  = N + N2
 
-    ! print *, 'H20 (existing routine) : BLOCK 1 & 2'
-    ! do i=1,T
-    !   print "(99g10.5)",  N20(i, 1:T)
-    ! enddo
+$NTR      H11(si+1:si+T, si+1:si+T) = Hqp_explicit(sb+1:sb+T,sb  +1:sb+  T)
+$NTR      H20(si+1:si+T, si+1:si+T) = Hqp_explicit(sb+1:sb+T,sb+T+1:sb+2*T)
 
-    ! print *, 'diff '
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N20new(i, 1:T) - N20(i, 1:T)
-    ! enddo
+$NTR      si = si +   T
+$NTR      sb = sb + 2*T
+$NTR    enddo
 
-    
-    print *, ' ||H20(existing routine) - H20(new)|| = ', &
-    & sum(abs(N20(:,:) - N20new(1:nwn,1:nwn)))
+$NTR    print '(a50, 2es15.4)', ' ||H20(matmul)||   || H20(new)|| =', sum(abs(H20)), sum(abs(H20new))
+$NTR    print '(a50, es15.4)',  ' ||H20(matmul)|| - || H20(new)|| =', sum(abs(H20)) - sum(abs(H20new))
+$NTR    print '(a50, 2es15.4)', ' ||H11(matmul)||   || H11(new)|| =', sum(abs(H11)), sum(abs(H11new))
+$NTR    print '(a50, es15.4)',  ' ||H11(matmul)|| - || H11(new)|| =', sum(abs(H11)) - sum(abs(H11new))
+$NTR    print *
+$NTR    print *, 'Note : we do not check || Hmn - Hmnnew || because the QP reordering is not trivial.'
+$NTR    print *, 'This means that this test is not sensitive to a global sign.'
+$NTR    print *
 
-
-
-    ! print *, 'H11 (new routine) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N11new(i, 1:T)
-    ! enddo
-
-
-    ! print *, 'H11 (existing routine) : BLOCK 1 & 2'
-    ! do i=1,T
-    !   print "(99g10.5)",  N11(i, 1:T)
-    ! enddo
-
-    ! print *, 'diff '
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',g10.5,',',g10.5,')',:))",  N11new(i, 1:T) - N11(i, 1:T)
-    ! enddo
-
-
-    
-    print *, ' ||H11(existing routine) - H11(new)|| = ', &
-    & sum(abs(N11(:,:) - N11new(1:nwn,1:nwn)))
-
-
-
+    if(sum(abs(H20)) - sum(abs(H20new)) > 1e-10 .or. sum(abs(H11)) - sum(abs(H11new)) > 1e-10) then
+      print *, 'FAILURE!'
+      ifail = 1
+    else
+      print *, 'SUCCESS!'
+    endif
+    print 1
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 2. test unitarity by going from forth and back Bogo trafo: sp -> qp -> sp
-    ! for the operator Rsq 
+    ! 3. Unitarity test for H
+    print 2, 3, ' Unitarity of (SP->QP)(QP->SP) for H'
+    print *
+    allocate(H20back(nwt,nwt), H11back(nwt,nwt), H02back(nwt,nwt))
 
-    print * , 'TEST 2 : perform forth and back Bogo trafo for Rsq: spme -> qpme -> spme'
+$TR call transform_qp_to_sp(Bogoliubov, O11qp=H11new , O20qp=H20new , O02qp=-H20new, &
+$TR &                                   O11sp=H11back, O20sp=H20back, O02sp= H02back)
 
-    allocate(Rsp(nwt,nwt,3))     ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
-    allocate(Rqp(nwt,nwt,3))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-    allocate(Rspback(nwt,nwt,3)) ! contains the spme of a one-body operator F: f20_pq, f11_pq, f02_pq
+$NTR call transform_qp_to_sp(Bogoliubov, O11qp=H11new, O20qp=H20new  , O02qp=H20new, &
+$NTR &                                   O11sp=H11back, O20sp=H20back, O02sp=H02back)
 
-    ! define Rsp as the spme of r^2
-    Rsp(:,:,1) = 0
-    Rsp(:,:,2) = Rsq_spme()
-    Rsp(:,:,3) = 0
+    print *, ' ||   h   - h     (sp->qp->sp)|| = ',  sum(abs( sphamil - H11back))
+    print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
 
-    ! call transform_sp_to_qp(Bogoliubov, Rsp(:,:,1), Rsp(:,:,2), Rsp(:,:,3), Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3))
-    call transform_sp_to_qp(Bogoliubov, O11sp=Rsp(:,:,2), O20qp=Rqp(:,:,1), O11qp=Rqp(:,:,2), O02qp=Rqp(:,:,3))
-
-    ! get qpme of F 
-    ! no need to name the optional arguments if all are used 
-    call transform_qp_to_sp(Bogoliubov, Rqp(:,:,1),  Rqp(:,:,2),  Rqp(:,:,3), Rspback(:,:,1), Rspback(:,:,2), Rspback(:,:,3))
-
-
-    ! print *, 'F20 (sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 1)
-    ! enddo
-
-    ! print *, 'F20 (qp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 1)
-    ! enddo
-
-   
-    ! print *, 'F20 (sp->qp->sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 1)
-    ! enddo
-    print *, ' ||F20 (sp) - F20 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,1) - Rspback(:,:,1)))
-    print *, ' ||F02 (sp) - F02 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,3) - Rspback(:,:,3)))
-
-
-    ! print *, 'F11 (sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rsp(i,1:T, 2)
-    ! enddo
-
-    ! print *, 'F11 (qp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rqp(i, 1:T, 2)
-    ! enddo
-
-   
-    ! print *, 'F11 (sp->qp->sp) : BLOCK 1 & 2'
-    ! T = HFblocks(1) + HFblocks(2) ! size of block1 + block2
-    ! do  i=1,T
-    !   print "(*( '(',f10.5,',',f10.5,')',:))",  Rspback(i, 1:T, 2)
-    ! enddo
-    print *, ' ||F11 (sp) - F11 (sp->qp->sp)|| = ',  sum(abs(Rsp(:,:,2) - Rspback(:,:,2)))
-
-
+    if(      sum(abs(sphamil - H11back))  > 1e-10 &
+    &   .or. sum(abs(HFBgaps - H20back))  > 1e-10 &
+    &   .or. sum(abs(HFBgaps + H02back))  > 1e-10) then
+      print *, 'FAILURE!'
+      ifail = 1
+    else
+      print *, 'SUCCESS!'
+    endif
+    print 1
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 3. test symmetry properties of the qpme
+    ! 5. test symmetry properties of the qpme
+    print 2, 4, ' Symmetry properties of the SP and QP me'
+    print *
+    print * , '    SP ME    '
+    print *,  ' ----------- '
+    ! H20_sp and H02_sp should be related; H11 should be symmetric
+    ME_check(1) = sum(abs(H11back - transpose(H11back)))
+$NTR    ME_check(2) = sum(abs( H20back - H02back))
+$TR     ME_check(2) = sum(abs( H20back + H02back))
 
-    print * , 'TEST 3 : perform symmetry checks on Rsq qpme'
-    
-    print *, '(anti)Symmetry : '
-    print *, '    R20_ab = -R20_ba   : satisfied up to',  sum(abs(Rqp(:,:,1) + transpose(Rqp(:,:,1))))
-    print *, '    R02_ab = -R02_ba   : satisfied up to',  sum(abs(Rqp(:,:,3) + transpose(Rqp(:,:,3))))
-    print *, '    R20_ab = +R20_ba   : satisfied up to',  sum(abs(Rqp(:,:,1) - transpose(Rqp(:,:,1))))
-    print *, '    R02_ab = +R02_ba   : satisfied up to',  sum(abs(Rqp(:,:,3) - transpose(Rqp(:,:,3))))
-    print *, 'Hermiticity : '
-    print *, '    R11_ab =  R11_ba^* : satisfied up to',  sum(abs(Rqp(:,:,2) - conjg(transpose(Rqp(:,:,2)))))
-    print *, '    R20_ab =  R02_ab^* : satisfied up to',  sum(abs(Rqp(:,:,1) - conjg(Rqp(:,:,3))))
-    print *, '    R20_ab = -R02_ab^* : satisfied up to',  sum(abs(Rqp(:,:,1) + conjg(Rqp(:,:,3))))
+    print '(a50, 2es15.4)', ' || H11sp (sp->qp->sp) - H11sp^T (sp->qp->sp) || = ', ME_check(1)
+$NTR    print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) - H02sp   (sp->qp->sp) || = ',  ME_check(2)
+$TR     print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) + H02sp   (sp->qp->sp) || = ',  ME_check(2)
 
+    print *
+    print * , '    QP ME    '
+    print *,  ' ----------- '
 
+    ! H20_qp and H02_qp should be (anti)symmetric if T is conserved (broken)
+    ME_check(3) = sum(abs(H11new - transpose(H11new)))
+$NTR ME_check(4) = sum(abs( H20new + transpose(H20new)))
+$TR  ME_check(4) = sum(abs( H20new - transpose(H20new)))
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
-    ! Note that this is a bit tricky since the previous routines used in absence of pairing 
-    ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
-    ! true here since even in a trivial Bogo, indexing of the states can be altered
+    print '(a50, 2es15.4)', '    H11_ab = +H11_ba   : satisfied up to', ME_check(3)
+$NTR  print '(a50, 2es15.4)', '    H20_ab = -H20_ba   : satisfied up to',  ME_check(4)
+$TR   print '(a50, 2es15.4)', '    H20_ab = +H20_ba   : satisfied up to',  ME_check(4)
 
-    print * , 'TEST 4 : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
+    if(any(ME_check > 1e-10)) then
+      print *, 'FAILURE!'
+      ifail = 1
+    else
+      print *, 'SUCCESS!'
+    endif
+    print 1
 
-    ! print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
-
-    ! print *, 'f11_pq : BLOCK 5 & 6'
-    ! si =  nwn ! start index of block 5
-    ! T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
-
-    ! do i=si+1,si+T
-    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
-    ! enddo
-
-
-    
-    ! print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
-
-    ! print *, 'F20_k1k2 : BLOCK 5 & 6'
-    ! do i=si+1,si+T
-    !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
-    ! enddo
-
-
-    allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-    Rph = 0
-
-
-    ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from 
-    ! the existing particle hole getters. 
-    call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
-
-
-    ! print *, '2x||Fph (proton)||', 2.*sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
-
-    print *, '  ||f11|| = ', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
-    print *, '  ||F20|| = ', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
-    print *, '2x||Fph|| = ', 2. * sum(abs(Rph(:, :,1) * Rph(:, :,1)))
-
-    
-    !all print_spme_complex( Rph(:,:,1))
-    
-    !print *, 'Fph_ia : BLOCK 5 & 6'
-    !do i=si+1,si+T
-    !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
-    !enddo!
-
-    !print *, 'F20 : BLOCK 5 & 6'
-    !do i=si+1,si+T
-    !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
-    !enddo
-
-
-    print *, '||F20|| - 2*||Fph|| = ', &
-         & sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
-    print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
-    print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
-         &  'since the trivial Bogoliubov trafo can reorder sp states'
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! *. test whether the sp->qp transformation diagonalizes the HFB Hamiltonian
-    print * , 'TEST 5'
-    ! Construct the HFB Hamiltonian in the sp space
-    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt))
-    sb = 0; si = 0
-    Hsp = 0.0
-    do B=1,8,2 
-      N  = HFBlocks(B)
-      N2 = HFBlocks(B+1)
-      T  = N + N2
-
-      Hsp(sb  +1:sb+  T,sb  +1:sb+  T) =  sphamil(si+1:si+T,si+1:si+T)
-      Hsp(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sphamil(si+1:si+T,si+1:si+T)
-      Hsp(sb+T+1:sb+2*T,sb  +1:sb+  T) = -HFBGaps(si+1:si+T,si+1:si+T)
-      Hsp(sb  +1:sb+  T,sb+T+1:sb+2*T) = +HFBGaps(si+1:si+T,si+1:si+T)
-    
-      si = si +   T
-      sb = sb + 2*T 
-    enddo 
-    Hqp_explicit = matmul(transpose(Bogoliubov), matmul(Hsp,Bogoliubov))
-
-    normH20_explicit = 0
-    normH02_explicit = 0
-    normH11_explicit = 0
-    sb = 0
-    do B=1,8,2 
-      N  = HFBlocks(B)
-      N2 = HFBlocks(B+1)
-      T  = N + N2
-
-      normH11_explicit = normH11_explicit + sum(abs(Hqp_explicit(sb  +1:sb  +T,sb  +1:sb+  T)))
-      normH20_explicit = normH20_explicit + sum(abs(Hqp_explicit(sb  +1:sb  +T,sb+T+1:sb+2*T)))
-      normH02_explicit = normH02_explicit + sum(abs(Hqp_explicit(sb+T+1:sb+2*T,sb  +1:sb+  T)))
-
-      sb = sb + 2*T 
-    enddo 
-
-    print *, '-------------------------------------------------------'
-    print *, 'Matrix multiplication; wrong if T conserved!'
-    print *, '|| H_11 ||_explicit = ', normH11_explicit
-    print *, '|| H_20 ||_explicit = ', normH20_explicit
-    print *, '|| H_02 ||_explicit = ', normH02_explicit
-
-    allocate(Hqp(nwt,nwt,3))
-    print *, '-------------------------------------------------------'
-    print *, 'Convention 1: O20sp = \Delta, O02sp = \Delta'
-    call transform_sp_to_qp(Bogoliubov, O11sp=DCMPLX(sphamil), &
-    &                                   O20sp=DCMPLX(HFBgaps), &
-    &                                   O02sp=DCMPLX(HFBGaps), &
-    &                                   O20qp=Hqp(:,:,1),      & 
-    &                                   O11qp=Hqp(:,:,2), O02qp=Hqp(:,:,3))
-
-    normH11 = 0   
-    print *, '|| H11 || ', sum(abs(Hqp(:,:,2)))
-    print *, '|| H20 || ', sum(abs(Hqp(:,:,1)))
-    print *, '|| H02 || ', sum(abs(Hqp(:,:,3)))
-
-    print *, 'Convention 2: O20sp = \Delta, O02sp =-\Delta'
-    call transform_sp_to_qp(Bogoliubov, O11sp=DCMPLX(sphamil), &
-    &                                   O20sp=DCMPLX(HFBgaps), &
-    &                                   O02sp=-DCMPLX(HFBGaps), &
-    &                                   O20qp=Hqp(:,:,1),      & 
-    &                                   O11qp=Hqp(:,:,2), O02qp=Hqp(:,:,3))
-
-    normH11 = 0   
-    print *, '|| H11 || ', sum(abs(Hqp(:,:,2)))
-    print *, '|| H20 || ', sum(abs(Hqp(:,:,1)))
-    print *, '|| H02 || ', sum(abs(Hqp(:,:,3)))
-    print *, '-------------------------------------------------------'
-
-    !---------------------------------------------------------------------------
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! BELOW : Old test by P. Demol which used to work in the case of vanishing proton pairing
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
+!     ! Note that this is a bit tricky since the previous routines used in absence of pairing
+!     ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
+!     ! true here since even in a trivial Bogo, indexing of the states can be altered
+!
+!     print * , 'TEST 4 : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
+!
+!     ! print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
+!
+!     ! print *, 'f11_pq : BLOCK 5 & 6'
+!     ! si =  nwn ! start index of block 5
+!     ! T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
+!
+!     ! do i=si+1,si+T
+!     !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
+!     ! enddo
+!
+!
+!
+!     ! print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
+!
+!     ! print *, 'F20_k1k2 : BLOCK 5 & 6'
+!     ! do i=si+1,si+T
+!     !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
+!     ! enddo
+!
+!
+!     allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
+!     Rph = 0
+!
+!
+!     ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from
+!     ! the existing particle hole getters.
+!     call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
+!
+!
+!     ! print *, '2x||Fph (proton)||', 2.*sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
+!
+!     print *, '  ||f11|| = ', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
+!     print *, '  ||F20|| = ', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
+!     print *, '2x||Fph|| = ', 2. * sum(abs(Rph(:, :,1) * Rph(:, :,1)))
+!
+!
+!     !all print_spme_complex( Rph(:,:,1))
+!
+!     !print *, 'Fph_ia : BLOCK 5 & 6'
+!     !do i=si+1,si+T
+!     !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
+!     !enddo!
+!
+!     !print *, 'F20 : BLOCK 5 & 6'
+!     !do i=si+1,si+T
+!     !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
+!     !enddo
+!
+!
+!     print *, '||F20|| - 2*||Fph|| = ', &
+!          & sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
+!     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
+!     print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
+!          &  'since the trivial Bogoliubov trafo can reorder sp states'
   end subroutine test_qptransfo
 
 

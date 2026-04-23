@@ -13,7 +13,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash qfam_symmetry.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose]
+#   bash fam_symmetry.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose]
 #
 # where
 # - EXESUFFIX     : maximally symmetric executable
