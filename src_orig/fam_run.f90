@@ -237,7 +237,7 @@ program run_FAM
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
         !---------------------------------------------------------------------------------
-        ! test convergenence
+        ! test convergence
 
         ! Exit the loop if convergence is achieved.
         if (iter > 1) then ! at least two iterations to be able to compare

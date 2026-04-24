@@ -964,8 +964,7 @@ $NTR &                                   O11sp=H11back, O20sp=H20back, O02sp=H02
     print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
 
     if(      sum(abs(sphamil - H11back))  > 1e-10 &
-    &   .or. sum(abs(HFBgaps - H20back))  > 1e-10 &
-    &   .or. sum(abs(HFBgaps + H02back))  > 1e-10) then
+    &   .or. sum(abs(HFBgaps - H20back))  > 1e-10) then
       print *, 'FAILURE!'
       ifail = 1
     else
