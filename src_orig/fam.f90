@@ -148,7 +148,7 @@ module fam
   real(KIND=dp) :: fam_precision = 1.0e-5_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
-  integer :: fam_verbose = 1
+  integer :: fam_verbose = 3
   ! 0: no printing. Used during GMRES as output would be confusing
   ! 1: limited printing. Used in the final FAM iteration once GMRES is converged
   !    (default)
@@ -248,7 +248,7 @@ module fam
     if(.not.allocated(drho)) then 
       allocate(drho(nwt,nwt))
       allocate(dkappa_plus(nwt,nwt), dkappa_minus(nwt,nwt))
-      ! todo : do not allocate dkappa in asbence of pairing
+      ! todo : do not allocate dkappa in absence of pairing
       !        this requires to modify densit_offdiag to optional arguments
 
     endif
@@ -412,6 +412,9 @@ $NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
 
     endif
 
+    print *, ' FAM MATRICES BEFORE X/Y UPDATE'
+    if(fam_verbose > 2) call print_all_fam_spmat()
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (2) compute X and Y amplitudes from linear response equation
    
@@ -481,16 +484,46 @@ $TR   dkappa_minus = - dkappa_minus
     else ! QFAM
 
       ! construct the sp hamiltonian + pairing fields in HF basis
-      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
-      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+$TR      dHspout(:,:,1) = -calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.) ! unexplained minus sign
+$TR      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+$TR      dHspout(:,:,3) = -calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)! unexplained minus sign
+
+$NTR      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+$NTR      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+$NTR      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
 
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
 
     endif
 
+    print *, ' FAM MATRICES AFTER X/Y update'
     if(fam_verbose > 2) call print_all_fam_spmat()
 
+    print *, 'OUTPUT of dHSP_iterate'
+    if(fam_verbose > 2) then
+       print *, 'dh'
+       print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,2))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,2))
+       endif
+       print *, 'dDelta+'
+       print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,1))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,1))
+       endif
+       print *, 'dDelta-'
+       print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,3))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,3))
+       endif
+
+    endif
   end subroutine iterate_dHsp
 
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
@@ -699,8 +732,7 @@ $TR   dkappa_minus = - dkappa_minus
       enddo
     
     else ! QFAM
-    
-      ! loop over 4 isospin-parity (IP) block (signature unresolved)
+     ! loop over 4 isospin-parity (IP) block (signature unresolved)
       si = 0
       do B=1,8,2
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
@@ -782,14 +814,17 @@ $TR   dkappa_minus = - dkappa_minus
         N2 = HFblocks(B+1)
         T = N + N2
         ! loop over unique qp pairs, i.e. j < i
+        print *, B, B+1
         do j = si+1, si+T
-          do i = j+1, si+T
-             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
-          enddo
+          do i = si+1,si+T
+             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) &
+                  &                      + conjg(F(i,j,2)) * Y(i,j)
+         enddo
         enddo
-        si  = si + T 
+        print *
+        si  = si + T
+              S_complex(B) = S_complex(B) / 2.0d0
       enddo
-
     endif
 
 
@@ -895,10 +930,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     !     compensated as X -> alpha X , Y -> alpha Y, dh -> alpha * dh, ..., and 
     !     S -> alpha^2 S
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-
-    implicit none
-    integer, intent(in) :: L, K
+    integer, intent(in)       :: L, K
     real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
     logical :: ImPart
     complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
@@ -940,6 +972,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
         print *, 'f^+_LK'
        call print_spme_complex(f_LK_spme)
        print *, '||f||²', sum(abs(f_LK_spme)**2)
+       call print_spme_complex_superblock(f_LK_spme)
      endif
 
       ! note: 
@@ -1130,6 +1163,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! 
     ! The function returns the matrix elements in of O in the operator in the 
     ! quasiparticle basis associated with the Bogoliubov transformation Bogo.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Important notes:
     !  - inputs not specified are assumed to be zero. 
@@ -1204,11 +1238,10 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     if(present(O11qp)) O11qp = 0._dp
     if(present(O02qp)) O02qp = 0._dp
 
-$NTR Tphase = 1.0_dp
+$NTR Tphase = +1.0_dp
 $TR  Tphase = -1.0_dp
 
     if (fam_verbose > 2) print *, "transform_sp_to_qp"
-
 
     ! si determines the start of the block in sp-basis of dimension nwt
     ! sb determines the start of the block in qp-basis of dimension 2*nwt 
@@ -1223,6 +1256,17 @@ $TR  Tphase = -1.0_dp
       ! and the matrix multiplications memory-local
       Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+     !  print *, 'U', B, B+1
+     !  do i=1,T
+     !     print ('(99f10.3)'), Ub(i,1:T)
+     !  enddo
+     !  print *
+     ! print *, 'V', B, B+1
+     !  do i=1,T
+     !     print ('(99f10.3)'), Vb(i,1:T)
+     !  enddo
+     !  print *
 
       ! Pointers to make the equations below more compact
       if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
@@ -1245,10 +1289,10 @@ $TR  Tphase = -1.0_dp
           O20b_qp = O20b_qp -          matmul(transpose(Vb),  matmul(transpose(O11b), Ub))  ! -     V^{dagger} o11sp^T U^*
         endif
         if(present(O20sp)) then
-          O20b_qp = O20b_qp +           matmul(transpose(Ub),  matmul(          O20b , Ub)) ! +     U^{dagger} o20sp   U^*
+          O20b_qp = O20b_qp +          matmul(transpose(Ub),  matmul(          O20b , Ub)) ! +     U^{dagger} o20sp   U^*
         endif
         if(present(O02sp)) then
-          O20b_qp = O20b_qp - Tphase *  matmul(transpose(Vb),  matmul(          O02b , Vb)) ! - T * V^{dagger} o02sp^* V^*
+          O20b_qp = O20b_qp - Tphase * matmul(transpose(Vb),  matmul(          O02b , Vb)) ! - T * V^{dagger} o02sp^* V^*
         endif
       endif 
 
@@ -1636,6 +1680,20 @@ $TR  Tphase = -1.0_dp
 
     print *, 'drho'
     print *, '||drho||² = ', sum(abs(drho)**2)
+    call print_spme_complex(drho)
+
+    if (pairingtype.ne.0) then
+      print *, 'dkappa_plus'
+      print *, '||dkappa_plus||² = ', sum(abs(dkappa_plus)**2)
+      call print_spme_complex_superblock(dkappa_plus)
+
+      print *, 'dkappa_minus'
+      print *, '||dkappa_minus||² = ', sum(abs(dkappa_minus)**2)
+      call print_spme_complex_superblock(dkappa_minus)
+    endif
+
+    print *, 'dh'
+    print *, '||h||² = ', sum(abs(drho)**2)
     call print_spme_complex(drho)
 
     if (pairingtype.ne.0) then

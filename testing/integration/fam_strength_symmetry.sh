@@ -164,7 +164,7 @@ neutrons=10, protons=8
 nx=8, ny=8, nz=8, dx=0.8
 /
 &func
-name_param='t0t3'
+name_param="${args[1]}"
 /
 &pairing
 type="${args[2]}"
