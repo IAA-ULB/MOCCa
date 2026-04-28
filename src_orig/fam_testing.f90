@@ -37,7 +37,7 @@ contains
     !               = 1 => tests failed
     !---------------------------------------------------------------------------------
 
-    1 format ("Test = ", a30, " Success = ", i4)
+    1 format ("Test = ", a40, " Success = ", i4)
     9 format (" --------------------- Start of the FAM testing routines ---------------------")
    10 format (" --------------------- End of the FAM testing routines -----------------------")
    11 format (" Summary of results ")
@@ -56,8 +56,8 @@ contains
     print 10
     print 11
     print 1, 'SP<->QP transformations'        , ifail_sp_qp
-    print 1, 'Matrix elements of h and \Delta', ifail_HFme
     print 1, 'Linearisation of potentials'    , ifail_potentials
+    print 1, 'Matrix elements of h and \Delta', ifail_HFme
 
     ifail = max(ifail_sp_qp, ifail_HFme, ifail_potentials)
     if(ifail.eq.0) print 12
@@ -70,6 +70,9 @@ contains
     !------------------------------------------------------------------------
     ! This subroutines tests
     !
+    !
+    ! TODO: use Hephaestos to generalize this test to more potentials!
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !  None 
@@ -79,12 +82,22 @@ contains
     integer, intent(out)          :: ifail
     complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:), dH(:,:,:)
     real(KIND=dp)                 :: eta
+    logical                       :: check
 
     type(DensityVector)           :: R, dRa, dRs, dR_pp_plus, dR_pp_minus
     type(PotentialVector)         :: F, dFs, dFa, Fnew, dF_pp_minus, dF_pp_plus
 
     integer :: i
 
+    ifail = 0
+
+  1 format (100('-'))
+  2 format (30x, ' | FAM(r) - finite difference(r) | < ')
+ 99 format (25('-'), ' Testing potentials ', 25('-') )
+
+    print 99
+    print *
+    print 2
     ! We have to be careful - a QFAM calculation does not by default construct the 
     !   canonical basis, but the mean-field routine densit requires it. 
     if(.not.allocated(canDpsi)) then
@@ -123,72 +136,130 @@ $TR   dkappa_minus = - dkappa_minus
     &                                 dFs, dFa, dF_pp_plus, dF_pp_minus)
 
     ! small perturbation factor
-    eta = 1e-8
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    eta = 1d-8
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 1. Test a perturbation of the symmetric part of the particle-hole perturbation
-
-    print * 
+    print *
     Fnew    = calcpotentials(R + eta*dRs) + (-1.0d0) * F
-    call print_deviations('F_I_I  -     symmetric', dFs%F_I_I       , Fnew%F_I_I/eta)
 
-    call print_deviations('F_I_SX -     symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
-    call print_deviations('F_I_SY -     symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
-    call print_deviations('F_I_SZ -     symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
+    ! The perturbation of F_I_I is typically the hardest because of the density dependent term
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_I  - symmetric', dFs%F_I_I       , Fnew%F_I_I/eta,        &
+        & pairing=.false., tol=1d-3))
 
-    ! call print_deviations('G_I_NX -     symmetric', dFs%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
-    ! call print_deviations('G_I_NY -     symmetric', dFs%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
-    ! call print_deviations('G_I_NZ -     symmetric', dFs%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SX - symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta, &
+        & pairing=.false., tol=1d-9))
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SY - symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta, &
+        & pairing=.false., tol=1d-9))
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SZ - symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta, &
+        & pairing=.false., tol=1d-9))
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -* 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*
     ! 2. Test a perturbation of the antisymmetric part of the particle-hole perturbation
-    Fnew    = calcpotentials(R + eta*dRa) + (-1.0d0) * F
-    call print_deviations('F_I_I  - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta)
+    Fnew  = calcpotentials(R + eta*dRa) + (-1.0d0) * F
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_I - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta, &
+        & pairing=.false., tol=1d-3))
 
-    call print_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
-    call print_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
-    call print_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
-
-    ! call print_deviations('G_I_NX - antisymmetric', dFa%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
-    ! call print_deviations('G_I_NY - antisymmetric', dFa%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
-    ! call print_deviations('G_I_NZ - antisymmetric', dFa%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
-
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta, &
+        & pairing=.false., tol=1d-9))
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta, &
+        & pairing=.false., tol=1d-9))
+    ifail = max(ifail, &
+        & check_findiff_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta, &
+        & pairing=.false., tol=1d-9))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -* 
-    ! 3. Test a perturbation of the antisymmetric part of the particle-hole perturbation
-    Fnew    = calcpotentials(R + eta*DR_pp_plus) + (-1.0d0) * F
-    call print_deviations('FP_I_I  - plus', DF_pp_plus%FP_I_I, Fnew%FP_I_I/eta)
-    Fnew    = calcpotentials(R + eta*DR_pp_minus) + (-1.0d0) * F
-    call print_deviations('FP_I_I  - minus', DF_pp_minus%FP_I_I, Fnew%FP_I_I/eta)
+    ! 3. Test the perturbed pairing potentials
+    Fnew  = calcpotentials(R + eta*DR_pp_plus) + (-1.0d0) * F
+    ifail = max(ifail, &
+        & check_findiff_deviations('FP_I_I  - plus' , DF_pp_plus%FP_I_I,  Fnew%FP_I_I/eta, &
+        & pairing=.true.,tol=5d-7))
 
+    Fnew  = calcpotentials(R + eta*DR_pp_minus) + (-1.0d0) * F
+    ifail = max(ifail, &
+        & check_findiff_deviations('FP_I_I  - minus', DF_pp_minus%FP_I_I, Fnew%FP_I_I/eta, &
+        & pairing=.true.,tol=5d-7))
+
+    print 1
     print *
   end subroutine test_potentials
 
-  subroutine print_deviations(name, ref, findiff)
+  function check_findiff_deviations(name, ref, findiff, pairing, tol) result(ifail)
     !-----------------------------------------------------------------------
-    ! TODO: describe
+    ! Test that the potentials (ref, findiff) are equal, i.e.
     !
+    !     | ref - f*findiff | < tol everywhere on the mesh
+    !
+    ! with f = 1 for a normal potential and f = 2 for a pairing potential.
+    !
+    ! The use-case of this routine is
+    !       ref     =  potential calculated through FAM
+    !       findiff =  potential calculated through the finite differencing
+    !                  of the mean-field routine with explicitly perturbed
+    !                  densities
+    !
+    ! Technical note: there is an additional factor of two that needs to be
+    !   corrected for when dealing with pairing potentials. The reason is
+    !   that the meanfield routine calc_potentials does not differentiate
+    !   between \tilde{F} and \tilde{F}^*; i.e. perturbing \kappa corresponds
+    !   to perturbing BOTH \tilde{F} AND \tilde{F}^*.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !    name   : string, used for printing
+    !    ref    : first potential, probably a linear response potential
+    !    findiff: potential obtained through finite differencing
+    !    pairing: logical, whether it is a pairing potential or not
+    !    tol    : real, tolerance to test
+    ! Output :
+    !    check  : logical, whether the test passed
     !-----------------------------------------------------------------------
     character(len=*), intent(in) :: name
+    real(KIND=dp), intent(in)    :: tol
     complex(KIND=dp), intent(in) :: ref(:,:), findiff(:,:)
-    integer :: i
+    logical, intent(in)          :: pairing
+    logical                      :: check
+    real(KIND=dp)                :: factor
+    integer :: i, ifail
 
-    print *, name, ' real part - maxval = ', maxval(abs(DBLE(ref)))
-    print *, '-------------------------'
-    do i=1,nx
-      print ('(i3, 2f10.3, 2es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), &
-      &                                   DBLE(ref(i,1))- DBLE(findiff(i,1)), &
-      &                                   DBLE(findiff(i,1)) / DBLE(ref(i,1))  
-    enddo
-    print *
-    print *, name, ' imaginary part - maxval = ', maxval(abs(IMAG(ref)))
-    print *, '-------------------------'
-    do i=1,nx
-      print ('(i3, 2f10.3, 2es12.3)'), i, IMAG(ref(i,1)), IMAG(findiff(i,1)), &
-      &                                                   IMAG(ref(i,1)) - IMAG(findiff(i,1)) , & 
-      &                                                   IMAG(findiff(i,1)) / IMAG(ref(i,1)) 
-    enddo
-    print *
+    factor = 1
+    if(pairing) factor = 0.5d0
+    check = .true.
+    if( maxval(abs(ref - factor * findiff)) > tol ) check = .false.
 
-  end subroutine print_deviations
+    if(.not. check) then
+       print *, ' ------------------------------------------------------'
+       print *, ' Comparison failed for ', name
+       print *, ' Printing neutron values along the x-axis at j = k =1 '
+       print *, name, ' real part - maxval = ', maxval(abs(DBLE(ref)))
+       print *, '-------------------------'
+       do i=1,nx
+          print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), &
+               &                             DBLE(ref(i,1))- factor*DBLE(findiff(i,1))
+       enddo
+       print *
+       print *, name, ' imaginary part - maxval = ', maxval(abs(IMAG(ref)))
+       print *, '-------------------------'
+       do i=1,nx
+          print ('(i3, 2f10.3, es12.3)'), i, IMAG(ref(i,1)), factor*IMAG(findiff(i,1)), &
+               &                             IMAG(ref(i,1)) - factor*IMAG(findiff(i,1))
+       enddo
+       print *, ' ------------------------------------------------------'
+       print *
+    else
+       print ('(a40,  1e15.3," < ", 1e15.3 )'), name,  maxval(abs(ref - factor * findiff)), tol
+    endif
+
+    if (check) then
+      ifail = 0
+    else
+      ifail = 1
+    endif
+  end function check_findiff_deviations
 
   subroutine test_HFmatrices_me(ifail)
     !--------------------------------------------------------------------------------------
@@ -314,7 +385,7 @@ $TR   dkappa_minus = - dkappa_minus
         print *, 'BLOCKs B=', B, B+1
         print *, "Maximal value of Delta = ", maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
         print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
-        !if(maxval(dev_gaps)>1e-10) then
+        if(maxval(dev_gaps)>1e-10) then
           ifail = 1 
           print *, '------ Original calculation -------'
           do i=1,T
@@ -330,7 +401,7 @@ $TR   dkappa_minus = - dkappa_minus
             print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
           enddo
           print *
-        !endif
+        endif
         si = si + T
       enddo
     endif
