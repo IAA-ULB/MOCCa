@@ -17,24 +17,24 @@ implicit none
 
 contains
 
-  subroutine run_FAM_tests(X,Y)
+  subroutine run_FAM_tests()
     !---------------------------------------------------------------------------------
     ! Catch-all routine to run all predefined unit tests for FAM routines.
+    !
     !  Notes
-    !   - this routine assumes all of the setup to start iterating has been done!
+    !   - this routine assumes all of the setup to start FAM iterations has been done!
     !   - some of these tests dramatically change the state of the code, which is why
     !     the end of this routine features a call to exit
     !   - the code returns an exit status (0/1) to allow for this to be part of the
     !     MOCCa testing framework
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !   X, Y : forward- and backward amplitudes to start testing perturbed quantities.
-    !          can be either RPA or QRPA amplitudes, depending on pairingtype
+    !  None
     ! Output:
     !   None
     !
-    ! - Exit status!
-    !
+    ! - Exit status = 0 => everything okay!
+    !               = 1 => tests failed
     !---------------------------------------------------------------------------------
 
     1 format ("Test = ", a30, " Success = ", i4)
@@ -43,48 +43,41 @@ contains
    11 format (" Summary of results ")
    12 format (" All tests passed! ")
    13 format (" Some tests failed! ")
-    complex(KIND=dp), intent(in), allocatable :: X(:,:), Y(:,:)
-    integer :: ifail_sp_qp, ifail_HFme, ifail
 
+    integer :: ifail_sp_qp, ifail_HFme, ifail_potentials, ifail
 
     print 9
     print *
 
-    ! run some tests on the new qp trafo routines => to be removed when validated
     call test_qptransfo(ifail_sp_qp)
+    call test_potentials(ifail_potentials)
     call test_HFMatrices_me(ifail_HFme)
-
-
-    ! call test_potentials(X,Y,ifail)
-    ! print 1, 'potentials', ifail
-
-    !call test_potentials(X,Y,ifail)
-    ! Attention: this testing routine has serious side effects on the state of the program.
-    !call test_densit_offdiag(ifail)
-    !print 1, 'DENSIT_OFFDIAG', ifail
 
     print 10
     print 11
-    print 1, 'SP<->QP transformations', ifail_sp_qp
-    print 1, 'SPHAMIL_ME', ifail_HFme
+    print 1, 'SP<->QP transformations'        , ifail_sp_qp
+    print 1, 'Matrix elements of h and \Delta', ifail_HFme
+    print 1, 'Linearisation of potentials'    , ifail_potentials
 
-    ifail = max(ifail_sp_qp, ifail_HFme)
+    ifail = max(ifail_sp_qp, ifail_HFme, ifail_potentials)
     if(ifail.eq.0) print 12
     if(ifail.eq.1) print 13
     call exit(ifail)
 
   end subroutine run_FAM_tests
 !
-  subroutine test_potentials(X,Y,ifail)
+  subroutine test_potentials(ifail)
     !------------------------------------------------------------------------
-    ! TODO: describe
+    ! This subroutines tests
     !
-    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  None 
+    ! Output:
+    !  ifail: 0 if all tests passed, 1 otherwise
     !------------------------------------------------------------------------
     integer, intent(out)          :: ifail
-    complex(KIND=dp), allocatable, intent(in)  :: X(:,:), Y(:,:)
-
-    complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:), sphamil_me(:,:)
+    complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:), dH(:,:,:)
     real(KIND=dp)                 :: eta
 
     type(DensityVector)           :: R, dRa, dRs, dR_pp_plus, dR_pp_minus
@@ -92,44 +85,81 @@ contains
 
     integer :: i
 
+    ! We have to be careful - a QFAM calculation does not by default construct the 
+    !   canonical basis, but the mean-field routine densit requires it. 
+    if(.not.allocated(canDpsi)) then
+      allocate(candPsi  (nx*ny*nz, 3,4,nwt)) ! first order
+      allocate(canddPsi (nx*ny*nz, 6,4,nwt)) ! full tensor second order
+      call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+    endif 
 
-    allocate(drho(nwt,nwt))
-    drho = 0.0d0
-    drho = X + transpose(Y)
+    ! Construct the perturbed density and anomalous density matrices 
+    if(.not.allocated(drho))        allocate(drho(nwt,nwt))
+    if(.not.allocated(dkappa_plus)) allocate(dkappa_plus(nwt,nwt), dkappa_minus(nwt,nwt))
 
-    R       = densit(rho_can, kappa_pairing)
-    dRs     = densit_offdiag_ph_symmetric(drho)
-    dRa     = densit_offdiag_ph_antisymmetric(drho)
+    ! Set up free response X and Y amplitudes
+    allocate(dH(  nwt,  nwt, 2)) 
+    dH = 0.0d0
+    call calculate_XY(dH)
 
-    F       = calcpotentials(R)
-    call calc_perturbed_potentials(R,dRs,dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
+    ! Calculate the perturbed normal and anomalous density matrix
+    if (pairingtype==0) then ! FAM
+      drho = X  + transpose(Y)
+      dkappa_plus  = 0  
+      dkappa_minus = 0
+    else ! QFAM
+      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+$TR   dkappa_minus = - dkappa_minus
+    endif
 
-    eta = 0.000001
+    ! Construct the densities 
+    R       = densit(rho_can, kappa_pairing)                                          ! mean-field densities
+
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, DRs, DRa, DR_pp_plus, DR_pp_minus)  ! perturbed densities
+
+    ! Construct the potentials 
+    F       = calcpotentials(R)                                               ! mean-field values
+    call calc_perturbed_potentials(R, dRs, dRa, dR_pp_plus, dR_pp_minus, &    ! perturbed values
+    &                                 dFs, dFa, dF_pp_plus, dF_pp_minus)
+
+    ! small perturbation factor
+    eta = 1e-8
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 1. Test a perturbation of the symmetric part of the particle-hole perturbation
+
+    print * 
     Fnew    = calcpotentials(R + eta*dRs) + (-1.0d0) * F
-    ! call print_deviations('F_I_I  -     symmetric', dFs%F_I_I       , Fnew%F_I_I/eta)
+    call print_deviations('F_I_I  -     symmetric', dFs%F_I_I       , Fnew%F_I_I/eta)
 
-    ! call print_deviations('F_I_SX -     symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
-    ! call print_deviations('F_I_SY -     symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
-    ! call print_deviations('F_I_SZ -     symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
+    call print_deviations('F_I_SX -     symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
+    call print_deviations('F_I_SY -     symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
+    call print_deviations('F_I_SZ -     symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
 
     ! call print_deviations('G_I_NX -     symmetric', dFs%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
     ! call print_deviations('G_I_NY -     symmetric', dFs%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
     ! call print_deviations('G_I_NZ -     symmetric', dFs%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
 
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -* 
+    ! 2. Test a perturbation of the antisymmetric part of the particle-hole perturbation
     Fnew    = calcpotentials(R + eta*dRa) + (-1.0d0) * F
-    ! call print_deviations('F_I_I  - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta)
+    call print_deviations('F_I_I  - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta)
 
-    ! call print_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
-    ! call print_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
-    ! call print_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
+    call print_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
+    call print_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
+    call print_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
 
     ! call print_deviations('G_I_NX - antisymmetric', dFa%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
     ! call print_deviations('G_I_NY - antisymmetric', dFa%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
     ! call print_deviations('G_I_NZ - antisymmetric', dFa%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
 
-    print *
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -* 
+    ! 3. Test a perturbation of the antisymmetric part of the particle-hole perturbation
+    Fnew    = calcpotentials(R + eta*DR_pp_plus) + (-1.0d0) * F
+    call print_deviations('FP_I_I  - plus', DF_pp_plus%FP_I_I, Fnew%FP_I_I/eta)
+    Fnew    = calcpotentials(R + eta*DR_pp_minus) + (-1.0d0) * F
+    call print_deviations('FP_I_I  - minus', DF_pp_minus%FP_I_I, Fnew%FP_I_I/eta)
 
+    print *
   end subroutine test_potentials
 
   subroutine print_deviations(name, ref, findiff)
@@ -141,16 +171,20 @@ contains
     complex(KIND=dp), intent(in) :: ref(:,:), findiff(:,:)
     integer :: i
 
-    print *, name, ' real part:'
+    print *, name, ' real part - maxval = ', maxval(abs(DBLE(ref)))
     print *, '-------------------------'
     do i=1,nx
-      print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), DBLE(ref(i,1))- DBLE(findiff(i,1))
+      print ('(i3, 2f10.3, 2es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), &
+      &                                   DBLE(ref(i,1))- DBLE(findiff(i,1)), &
+      &                                   DBLE(findiff(i,1)) / DBLE(ref(i,1))  
     enddo
     print *
-    print *, name, ' imaginary part:'
+    print *, name, ' imaginary part - maxval = ', maxval(abs(IMAG(ref)))
     print *, '-------------------------'
     do i=1,nx
-      print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), DBLE(ref(i,1))- DBLE(findiff(i,1))
+      print ('(i3, 2f10.3, 2es12.3)'), i, IMAG(ref(i,1)), IMAG(findiff(i,1)), &
+      &                                                   IMAG(ref(i,1)) - IMAG(findiff(i,1)) , & 
+      &                                                   IMAG(findiff(i,1)) / IMAG(ref(i,1)) 
     enddo
     print *
 
@@ -188,10 +222,12 @@ contains
     ! (i) Ordinary mean-field-like calculation
 
     ! We have to be careful - a QFAM calculation does not by default construct the 
-    !   canonical basis, but the mean-field routine densit requires it.  
-    allocate(candPsi  (nx*ny*nz, 3,4,nwt)) ! first order
-    allocate(canddPsi (nx*ny*nz, 6,4,nwt)) ! full tensor second order
-    call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+    !   canonical basis, but the mean-field routine densit requires it.
+    if(.not. allocated(candPsi)) then 
+      allocate(candPsi  (nx*ny*nz, 3,4,nwt)) ! first order
+      allocate(canddPsi (nx*ny*nz, 6,4,nwt)) ! full tensor second order
+      call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+    endif 
 
     R = densit(rho_can, kappa_pairing)
     F = calcpotentials(R)
@@ -278,7 +314,7 @@ contains
         print *, 'BLOCKs B=', B, B+1
         print *, "Maximal value of Delta = ", maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
         print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
-        if(maxval(dev_gaps)>1e-10) then
+        !if(maxval(dev_gaps)>1e-10) then
           ifail = 1 
           print *, '------ Original calculation -------'
           do i=1,T
@@ -294,7 +330,7 @@ contains
             print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
           enddo
           print *
-        endif
+        !endif
         si = si + T
       enddo
     endif

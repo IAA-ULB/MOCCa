@@ -1151,6 +1151,124 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
   end subroutine get_ph_hp_blocks_real
 
+   subroutine transform_sp_to_qp_wr(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
+      !---------------------------------------------------------------------------
+      !
+      ! Convention: the matrix representation of an operator that is bilinear in
+      !  fermionic annihilation/creation operators is
+      !
+      !    O = 1/2 ( c^dagger c ) ( o^11  o^20   ) ( c         )
+      !                           ( o^02 -o^11,T ) ( c^\dagger )
+      !
+      ! where the {c, c^{\dagger}} can be particle or quasiparticle operators.
+      ! Note that there are no signs nor complex conjugations for o^20 or o^02!
+      ! If O is hermitian, then we have that
+      !    -  o^{11} = o^{11, \dagger}
+      !    -  o^{02} = - o^{20,*}
+      !
+      !---------------------------------------------------------------------------
+      real(KIND=dp), intent(in)                       :: Bogo(:, :)
+      complex(KIND=dp), intent(in), optional, target  :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
+      complex(KIND=dp), intent(out), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
+
+      real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
+      complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
+      complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
+      integer                       :: B, N, N2, si, sb, T, i
+      real(KIND=dp)                 :: Tphase
+
+      if (present(O20qp)) O20qp = 0._dp
+      if (present(O11qp)) O11qp = 0._dp
+      if (present(O02qp)) O02qp = 0._dp
+
+$NTR  Tphase = +1.0_dp
+$TR   Tphase = -1.0_dp
+
+      ! si determines the start of the block in sp-basis of dimension nwt
+      ! sb determines the start of the block in qp-basis of dimension 2*nwt 
+      !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)   
+      si = 0 ; sb = 0
+      do B=1,8,2
+         N  = HFblocks(B)    ; if(N.eq.0) cycle 
+         N2 = HFblocks(B+1)
+         T = N + N2
+   
+         ! Getting the U and V out to make the formulas explicit
+         ! and the matrix multiplications memory-local
+         Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+         Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+         ! Pointers to make the equations below more compact
+         if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
+         if(present(O11sp)) O11b => O11sp(si+1:si+T,si+1:si+T)
+         if(present(O02sp)) O02b => O02sp(si+1:si+T,si+1:si+T)
+
+         if(present(O20qp)) O20b_qp => O20qp(si+1:si+T,si+1:si+T)
+         if(present(O11qp)) O11b_qp => O11qp(si+1:si+T,si+1:si+T)
+         if(present(O02qp)) O02b_qp => O02qp(si+1:si+T,si+1:si+T)
+
+         if(present(O11qp)) then
+            if(present(O11sp)) then 
+               O11b_qp = O11b_qp + matmul(transpose(Ub),matmul(          O11b , Ub)) ! + U^\dagger O^11   U
+               O11b_qp = O11b_qp - matmul(transpose(Vb),matmul(transpose(O11b), Vb)) ! - V^\dagger O^11,T V
+            endif 
+            if(present(O20sp)) then 
+               O11b_qp = O11b_qp + matmul(transpose(Ub),matmul(          O20b , Vb)) ! + U^\dagger O^20   V 
+            endif 
+            if(present(O02sp)) then 
+               O11b_qp = O11b_qp + matmul(transpose(Vb),matmul(          O02b , Ub)) ! + V^\dagger O^02   U
+            endif 
+         endif 
+
+         if(present(O20qp)) then 
+            if(present(O11sp)) then 
+               O20b_qp = O20b_qp + matmul(transpose(Ub),matmul(          O11b , Vb)) ! + U^\dagger O^11   V^*
+               O20b_qp = O20b_qp - matmul(transpose(Vb),matmul(transpose(O11b), Ub)) ! - V^\dagger O^11,T U^*
+            endif 
+            if(present(O20sp)) then 
+               O20b_qp = O20b_qp + matmul(transpose(Ub),matmul(          O20b , Ub)) ! + U^\dagger O^20   U^*
+            endif 
+            if(present(O02sp)) then 
+               O20b_qp = O20b_qp + matmul(transpose(Vb),matmul(          O02b , Vb)) ! + V^\dagger O^02   V^*
+            endif
+         endif 
+
+         if(present(O02qp)) then
+            if(present(O11sp)) then 
+               O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O11b , Ub)) ! + V^T       O^11   U
+               O02b_qp = O02b_qp - matmul(transpose(Ub),matmul(transpose(O11b), Vb)) ! - U^T       O^02   U
+            endif
+            if(present(O20sp)) then 
+               O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O20b , Vb)) ! + V^T       O^20   V
+            endif 
+            if(present(O02sp)) then 
+               O02b_qp = O02b_qp + matmul(transpose(Ub),matmul(          O02b , Ub)) ! + U^T       O^02   U
+            endif
+         endif 
+
+         si = si +  T
+         sb = sb +2*T      
+      enddo 
+
+   end subroutine transform_sp_to_qp_wr
+
+   subroutine transform_qp_to_sp_wr(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
+      !
+      !
+      !
+      !
+      real(KIND=dp), intent(in)                       :: Bogo(:, :)
+      complex(KIND=dp), intent(in), optional, target  :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
+      complex(KIND=dp), intent(out), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
+
+      real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
+      complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
+      complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
+      integer                       :: B, N, N2, si, sb, T, i
+      real(KIND=dp)                 :: Tphase
+
+   end subroutine transform_qp_to_sp_wr
+
   subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
     !---------------------------------------------------------------------------
     ! Performing quasi-particle transformation of a 1-body operator that 

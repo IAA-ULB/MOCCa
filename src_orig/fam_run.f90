@@ -145,8 +145,6 @@ program run_FAM
     endif
   endif
 
-  if(unit_test) call run_FAM_tests(X,Y) ! Note: contains a stop statement!
-
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
@@ -164,6 +162,8 @@ program run_FAM
 
     num_iter = 0
     call inifam(omega_curr, Density, Potentials)
+
+    if(unit_test) call run_FAM_tests() ! Note: contains a stop statement!
 
     is_converged = .false.
     is_divergent = .false.
@@ -229,9 +229,6 @@ program run_FAM
 
         ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
         call iterate_dHsp(dH_flat, dH_flat_next)
-
-        ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-        ! call run_FAM_tests(X,Y)
 
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
