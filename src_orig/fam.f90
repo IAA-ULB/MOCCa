@@ -1236,7 +1236,7 @@ $TR   Tphase = -1.0_dp
          if(present(O02qp)) then
             if(present(O11sp)) then 
                O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O11b , Ub)) ! + V^T       O^11   U
-               O02b_qp = O02b_qp - matmul(transpose(Ub),matmul(transpose(O11b), Vb)) ! - U^T       O^02   U
+               O02b_qp = O02b_qp - matmul(transpose(Ub),matmul(transpose(O11b), Vb)) ! - U^T       O^11,T U
             endif
             if(present(O20sp)) then 
                O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O20b , Vb)) ! + V^T       O^20   V
@@ -1253,19 +1253,90 @@ $TR   Tphase = -1.0_dp
    end subroutine transform_sp_to_qp_wr
 
    subroutine transform_qp_to_sp_wr(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
-      !
-      !
-      !
-      !
-      real(KIND=dp), intent(in)                       :: Bogo(:, :)
-      complex(KIND=dp), intent(in), optional, target  :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
-      complex(KIND=dp), intent(out), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
+    !-----------------------------------------------------------------------------
+    !
+    ! Important points
+    !   - symmetry properties of the operators
+    !   - conventions 
+    !   - assumptions regarding quantities
+    !-----------------------------------------------------------------------------
+    real(KIND=dp), intent(in)                       :: Bogo(:, :)
+    complex(KIND=dp), intent(in ), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
+    complex(KIND=dp), intent(out), optional, target :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
 
-      real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-      complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
-      complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
-      integer                       :: B, N, N2, si, sb, T, i
-      real(KIND=dp)                 :: Tphase
+    real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
+    complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
+    complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
+    integer                       :: B, N, N2, si, sb, T, i
+    real(KIND=dp)                 :: Tphase
+
+   ! initialise the single-particle matrix elements to zero if they are present
+    if(present(O20sp)) O20sp = 0._dp
+    if(present(O11sp)) O11sp = 0._dp
+    if(present(O02sp)) O02sp = 0._dp
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFblocks(B)    ; if(N.eq.0) cycle 
+      N2 = HFblocks(B+1)
+      T = N + N2
+  
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+      ! Pointers to make the equations below more compact
+      if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
+      if(present(O11sp)) O11b => O11sp(si+1:si+T,si+1:si+T)
+      if(present(O02sp)) O02b => O02sp(si+1:si+T,si+1:si+T)
+
+      if(present(O20qp)) O20b_qp => O20qp(si+1:si+T,si+1:si+T)
+      if(present(O11qp)) O11b_qp => O11qp(si+1:si+T,si+1:si+T)
+      if(present(O02qp)) O02b_qp => O02qp(si+1:si+T,si+1:si+T)
+
+      if(present(O11sp)) then 
+        if(present(O11qp)) then 
+          O11b = O11b + matmul( Ub, matmul(           O11b_qp , transpose(Ub))) ! + U   O^{11}   U^{\dagger}
+          O11b = O11b - matmul( Vb, matmul( transpose(O11b_qp), transpose(Vb))) ! - V^* O^{11},T V^{\dagger}
+        endif 
+        if(present(O20qp)) then 
+          O11b = O11b + matmul( Ub, matmul(           O20b_qp , transpose(Vb))) ! + U   O^{20}   V^{\dagger}
+        endif 
+        if(present(O02qp)) then 
+          O11b = O11b + matmul( Vb, matmul(           O02b_qp , transpose(Ub))) ! + V^* O^{02}   U^{\dagger}
+        endif 
+      endif 
+
+      if(present(O20sp)) then 
+        if(present(O11qp)) then 
+          O20b = O20b + matmul( Ub, matmul(           O11b_qp , transpose(Vb))) ! + U   O^{11}   V^{\dagger}
+          O20b = O20b - matmul( Vb, matmul( transpose(O11b_qp), transpose(Ub))) ! - V^* O^{11},T U^{\dagger} 
+        endif 
+        if(present(O20qp)) then 
+          O20b = O20b + matmul( Ub, matmul(           O20b_qp , transpose(Ub))) ! + U   O^{20}   U^T
+        endif 
+        if(present(O02qp)) then 
+          O20b = O20b + matmul( Vb, matmul(           O02b_qp , transpose(Vb))) ! + V^* O^{20}   V^{\dagger}
+        endif 
+      endif 
+
+      if(present(O02sp)) then 
+        if(present(O11qp)) then 
+          O02b = O02b + matmul( Vb, matmul(           O11b_qp , transpose(Ub))) ! + V   O^{11}   U^{\dagger} 
+          O02b = O02b - matmul( Ub, matmul( transpose(O11b_qp), transpose(Vb))) ! - U^* O^{11},T V^T
+        endif 
+        if(present(O20qp)) then 
+          O02b = O02b + matmul( Vb, matmul(           O20b_qp , transpose(Vb))) ! + V   O^{20}   V^T
+        endif
+        if(present(O02qp)) then 
+          O02b = O02b + matmul( Ub, matmul(           O02b_qp , transpose(Ub))) ! + U^* O^{20}   U^{\dagger}
+        endif
+      endif
+
+      si = si +  T
+      sb = sb +2*T
+    enddo
 
    end subroutine transform_qp_to_sp_wr
 

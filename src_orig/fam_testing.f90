@@ -92,12 +92,10 @@ contains
     ifail = 0
 
   1 format (100('-'))
-  2 format (30x, ' | FAM(r) - finite difference(r) | < ')
- 99 format (25('-'), ' Testing potentials ', 25('-') )
+ 99 format (45('-'), ' Testing potentials ', 45('-') )
 
     print 99
     print *
-    print 2
     ! We have to be careful - a QFAM calculation does not by default construct the 
     !   canonical basis, but the mean-field routine densit requires it. 
     if(.not.allocated(canDpsi)) then
@@ -121,7 +119,7 @@ contains
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+      call transform_qp_to_sp_wr(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
 $TR   dkappa_minus = - dkappa_minus
     endif
 
@@ -930,12 +928,19 @@ $TR   dkappa_minus = - dkappa_minus
     complex(KIND=dp), allocatable :: identity(:,:)
     complex(KIND=dp), allocatable :: Rsp(:,:,:), Rspback(:,:,:), Rqp(:,:,:),  Rph(:,:,:)
 
-    real(KIND=dp), allocatable    :: N20(:,:), N11(:,:), H20(:,:), H11(:,:)
-    complex(KIND=dp), allocatable :: N20new(:,:), N11new(:,:), H20new(:,:), H11new(:,:)
+    real(KIND=dp), allocatable    :: N20(:,:), N11(:,:), H20(:,:), H11(:,:), H02(:,:)
+    complex(KIND=dp), allocatable :: N20new(:,:), N11new(:,:), H20new(:,:), H11new(:,:), H02new(:,:)
     complex(KIND=dp), allocatable :: H20back(:,:), H11back(:,:), H02back(:,:)
 $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     complex(KIND=dp), allocatable :: Hqp(:,:,:)
-    real(KIND=dp) :: ME_check(4)
+
+    ! Allocate random matrices and temporary arrays for random numbers
+    complex(KIND=dp), allocatable :: O20sp(:,:), O11sp(:,:), O02sp(:,:)
+    complex(KIND=dp), allocatable :: O20qp(:,:), O11qp(:,:), O02qp(:,:)
+    complex(KIND=dp), allocatable :: O20sp_back(:,:), O11sp_back(:,:), O02sp_back(:,:)
+    real(KIND=dp), allocatable :: rand_real(:,:), rand_imag(:,:)
+
+    real(KIND=dp) :: ME_check(5)
 
     integer :: i, si, T, sb, N, N2, B
    
@@ -969,7 +974,7 @@ $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     allocate(N20new(nwt,nwt), N11new(nwt,nwt)) ; N20new = 0.0d0 ; N11new = 0.0d0
 
     ! transform to qpme N20
-    call transform_sp_to_qp(Bogoliubov, O11sp=identity, O20qp=N20new, O11qp=N11new)
+    call transform_sp_to_qp_wr(Bogoliubov, O11sp=identity, O20qp=N20new, O11qp=N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
     N20(    1:nwn,    1:nwn) = calcN20(Bogoliubov(      1:2*nwn,      1:2*nwn), HFblocks(1:4))
@@ -997,13 +1002,13 @@ $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
 $TR     print *, 'Test not valid when T is conserved'
     allocate(H20(nwt,nwt)    , H11(nwt,nwt))    ; H20    = 0.0d0 ; H11    = 0.0d0
     allocate(H20new(nwt,nwt) , H11new(nwt,nwt)) ; H20new = 0.0d0 ; H11new = 0.0d0
+    allocate(H02(nwt,nwt)    , H02new(nwt,nwt)) ; H02new = 0.0d0
 $NTR    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt)) ; Hsp = 0.0d0
 
     ! transform to the quasiparticle representation of H
-    call transform_sp_to_qp(Bogoliubov, O11sp=dcmplx(sphamil), &
-$NTR &                                  O20sp=dcmplx(HFBGaps), O02sp=+dcmplx(HFBGaps), &
-$TR  &                                  O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
-     &                                  O20qp=H20new, O11qp=H11new)
+    call transform_sp_to_qp_wr(Bogoliubov, O11sp=dcmplx(sphamil), &
+    &                                  O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
+    &                                  O20qp=H20new, O11qp=H11new, O02qp=H02new)
 
 $NTR    ! Construct the HFB Hamiltonian in the sp space
 $NTR    ! Note: we DO NOT use calcH20 and calcH11; these rely on a different memory layout
@@ -1034,6 +1039,7 @@ $NTR      T  = N + N2
 
 $NTR      H11(si+1:si+T, si+1:si+T) = Hqp_explicit(sb+1:sb+T,sb  +1:sb+  T)
 $NTR      H20(si+1:si+T, si+1:si+T) = Hqp_explicit(sb+1:sb+T,sb+T+1:sb+2*T)
+$NTR      H02(si+1:si+T, si+1:si+T) = Hqp_explicit(sb+T+1:sb+2*T,sb+1:sb+T)
 
 $NTR      si = si +   T
 $NTR      sb = sb + 2*T
@@ -1043,6 +1049,8 @@ $NTR    print '(a50, 2es15.4)', ' ||H20(matmul)||   || H20(new)|| =', sum(abs(H2
 $NTR    print '(a50, es15.4)',  ' ||H20(matmul)|| - || H20(new)|| =', sum(abs(H20)) - sum(abs(H20new))
 $NTR    print '(a50, 2es15.4)', ' ||H11(matmul)||   || H11(new)|| =', sum(abs(H11)), sum(abs(H11new))
 $NTR    print '(a50, es15.4)',  ' ||H11(matmul)|| - || H11(new)|| =', sum(abs(H11)) - sum(abs(H11new))
+$NTR    print '(a50, 2es15.4)', ' ||H02(matmul)||   || H02(new)|| =', sum(abs(H02)), sum(abs(H02new))
+$NTR    print '(a50, es15.4)',  ' ||H02(matmul)|| - || H02(new)|| =', sum(abs(H02)) - sum(abs(H02new))
 $NTR    print *
 $NTR    print *, 'Note : we do not check || Hmn - Hmnnew || because the QP reordering is not trivial.'
 $NTR    print *, 'This means that this test is not sensitive to a global sign.'
@@ -1061,11 +1069,8 @@ $NTR    print *
     print *
     allocate(H20back(nwt,nwt), H11back(nwt,nwt), H02back(nwt,nwt))
 
-$TR call transform_qp_to_sp(Bogoliubov, O11qp=H11new , O20qp=H20new , O02qp=-H20new, &
-$TR &                                   O11sp=H11back, O20sp=H20back, O02sp= H02back)
-
-$NTR call transform_qp_to_sp(Bogoliubov, O11qp=H11new, O20qp=H20new  , O02qp=H20new, &
-$NTR &                                   O11sp=H11back, O20sp=H20back, O02sp=H02back)
+    call transform_qp_to_sp_wr(Bogoliubov, O11qp=H11new , O20qp=H20new , O02qp=-H20new, &
+    &                                   O11sp=H11back, O20sp=H20back, O02sp= H02back)
 
     print *, ' ||   h   - h     (sp->qp->sp)|| = ',  sum(abs( sphamil - H11back))
     print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
@@ -1086,12 +1091,10 @@ $NTR &                                   O11sp=H11back, O20sp=H20back, O02sp=H02
     print *,  ' ----------- '
     ! H20_sp and H02_sp should be related; H11 should be symmetric
     ME_check(1) = sum(abs(H11back - transpose(H11back)))
-$NTR    ME_check(2) = sum(abs( H20back - H02back))
-$TR     ME_check(2) = sum(abs( H20back + H02back))
+    ME_check(2) = sum(abs( H20back + H02back))
 
     print '(a50, 2es15.4)', ' || H11sp (sp->qp->sp) - H11sp^T (sp->qp->sp) || = ', ME_check(1)
-$NTR    print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) - H02sp   (sp->qp->sp) || = ',  ME_check(2)
-$TR     print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) + H02sp   (sp->qp->sp) || = ',  ME_check(2)
+    print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) + H02sp   (sp->qp->sp) || = ',  ME_check(2)
 
     print *
     print * , '    QP ME    '
@@ -1101,10 +1104,14 @@ $TR     print '(a50, 2es15.4)', ' || H20sp (sp->qp->sp) + H02sp   (sp->qp->sp) |
     ME_check(3) = sum(abs(H11new - transpose(H11new)))
 $NTR ME_check(4) = sum(abs( H20new + transpose(H20new)))
 $TR  ME_check(4) = sum(abs( H20new - transpose(H20new)))
+$NTR ME_check(5) = sum(abs( H02new + transpose(H02new)))
+$TR  ME_check(5) = sum(abs( H02new - transpose(H02new)))
 
     print '(a50, 2es15.4)', '    H11_ab = +H11_ba   : satisfied up to', ME_check(3)
 $NTR  print '(a50, 2es15.4)', '    H20_ab = -H20_ba   : satisfied up to',  ME_check(4)
 $TR   print '(a50, 2es15.4)', '    H20_ab = +H20_ba   : satisfied up to',  ME_check(4)
+$NTR  print '(a50, 2es15.4)', '    H02_ab = -H02_ba   : satisfied up to',  ME_check(5)
+$TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_check(5)
 
     if(any(ME_check > 1e-10)) then
       print *, 'FAILURE!'
@@ -1178,6 +1185,96 @@ $TR   print '(a50, 2es15.4)', '    H20_ab = +H20_ba   : satisfied up to',  ME_ch
 !     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
 !     print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
 !          &  'since the trivial Bogoliubov trafo can reorder sp states'
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 5. Test that transform_sp_to_qp_wr and transform_qp_to_sp_wr are inverses
+    print 2, 5, ' Inverse property: (QP->SP)(SP->QP) = identity'
+    print *
+
+    allocate(O20sp(nwt,nwt), O11sp(nwt,nwt), O02sp(nwt,nwt))
+    allocate(O20qp(nwt,nwt), O11qp(nwt,nwt), O02qp(nwt,nwt))
+    allocate(O20sp_back(nwt,nwt), O11sp_back(nwt,nwt), O02sp_back(nwt,nwt))
+
+    ! Initialize to zero
+    O20sp = 0.0_dp; O11sp = 0.0_dp; O02sp = 0.0_dp
+
+    ! Seed the random number generator
+    call random_seed()
+
+    ! Fill matrices with random complex values, block by block
+    ! The transformation routines work block-by-block based on HFBlocks
+    si = 0
+    do B=1,8,2
+      N = HFBlocks(B); if(N.eq.0) cycle
+      N2 = HFBlocks(B+1)
+      T = N + N2
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Fill blocks of O11sp
+      allocate(rand_real(N,N), rand_imag(N,N))
+      call random_number(rand_real); call random_number(rand_imag)
+      O11sp(si  +1:si+N,si+1:si+N) = dcmplx(rand_real, rand_imag)
+      !O11sp(si  +1:si+N,si+1:si+N) = sphamil(si  +1:si+N,si+1:si+N)
+      deallocate(rand_real, rand_imag)
+
+      if(N2 .ne. 0) then
+        allocate(rand_real(N2,N2), rand_imag(N2,N2))
+        call random_number(rand_real); call random_number(rand_imag)
+        O11sp(si+N+1:si+T,si+N+1:si+T) = dcmplx(rand_real, rand_imag)
+        !O11sp(si+N+1:si+T,si+N+1:si+T) = sphamil(si+N+1:si+T,si+N+1:si+T)
+        deallocate(rand_real, rand_imag)
+      endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Fill blocks of O20sp
+      allocate(rand_real(T,T), rand_imag(T,T))
+      call random_number(rand_real); call random_number(rand_imag)
+      O20sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+      O20sp(si+N+1:si+T,si  +1:si+N) = - transpose(O20sp(si  +1:si+N,si+N+1:si+T))
+      deallocate(rand_real, rand_imag)
+      
+      ! Fill blocks of O02sp
+      allocate(rand_real(T,T), rand_imag(T,T))
+      call random_number(rand_real);  call random_number(rand_imag)
+$NTR  O02sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+      deallocate(rand_real, rand_imag)
+      O02sp(si+N+1:si+T,si+1:si+N) = - transpose(O02sp(si+1:si+N,si+N+1:si+T))          
+
+      si = si + T
+    enddo
+
+    ! Transform to QP space
+    call transform_sp_to_qp_wr(Bogoliubov, O20sp=O20sp, O11sp=O11sp, O02sp=O02sp, &
+                             &                 O20qp=O20qp, O11qp=O11qp, O02qp=O02qp)
+
+    ! Transform back to SP space
+    call transform_qp_to_sp_wr(Bogoliubov, O20qp=O20qp, O11qp=O11qp, O02qp=O02qp, &
+                             &                 O20sp=O20sp_back, O11sp=O11sp_back, O02sp=O02sp_back)
+
+    !si = 0
+    !do B=1,8,2
+    !  print *
+    !  do i=1, T 
+    !      print ('(99f5.1)'), O11sp(si+i,si+1:si+T) - O11sp_back(si+i,si+1:si+T)
+    !  enddo 
+    !  si = si + T
+    !enddo
+                             
+    ! Check the differences
+    print '(a50, es15.4)', ' || O20sp - (qp->sp->qp) O20sp || = ', sum(abs(O20sp - O20sp_back))
+    print '(a50, es15.4)', ' || O11sp - (qp->sp->qp) O11sp || = ', sum(abs(O11sp - O11sp_back))
+    print '(a50, es15.4)', ' || O02sp - (qp->sp->qp) O02sp || = ', sum(abs(O02sp - O02sp_back))
+
+    if(      sum(abs(O20sp - O20sp_back)) > 1e-10 &
+    & .or. sum(abs(O11sp - O11sp_back)) > 1e-10 &
+    & .or. sum(abs(O02sp - O02sp_back)) > 1e-10) then
+      print *, 'FAILURE!'
+      ifail = 1
+    else
+      print *, 'SUCCESS!'
+    endif
+    print 1
+
+    ! Clean up
+    deallocate(O20sp, O11sp, O02sp, O20qp, O11qp, O02qp, O20sp_back, O11sp_back, O02sp_back)
   end subroutine test_qptransfo
 
 
