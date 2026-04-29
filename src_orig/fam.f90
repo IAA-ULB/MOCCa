@@ -148,7 +148,7 @@ module fam
   real(KIND=dp) :: fam_precision = 1.0e-5_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
-  integer :: fam_verbose = 3
+  integer :: fam_verbose = 1
   ! 0: no printing. Used during GMRES as output would be confusing
   ! 1: limited printing. Used in the final FAM iteration once GMRES is converged
   !    (default)
