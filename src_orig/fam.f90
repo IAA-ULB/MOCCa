@@ -738,9 +738,12 @@ $NTR      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus,
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
         N2 = HFblocks(B+1)
         T = N + N2
-        ! loop over unique qp pairs, i.e. j < i
+        ! Loop over all possible pairs (i,j)
+        ! Note: we do not leverage symmetry here - the representation
+        !  of the matrices F,X,Y in memory depends on the the conservation
+        !  or breaking of T
         do j = si+1, si+T
-          do i = j+1, si+T
+          do i = si+1, si+T
              S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
           enddo
         enddo
@@ -748,12 +751,12 @@ $NTR      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus,
       enddo
 
     endif
-
+    S = 0.5 * S
     $TR S = 2 * S ! Time-reversal factor 2
 
 
     strength_complex = S 
-    strength = - strength_complex%im / pi
+    strength = - IMAG(strength_complex) / pi
 
     ! return the strength
     res = strength
@@ -813,23 +816,26 @@ $NTR      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus,
         N  = HFblocks(B)    ; if(N.eq.0) cycle 
         N2 = HFblocks(B+1)
         T = N + N2
-        ! loop over unique qp pairs, i.e. j < i
-        print *, B, B+1
-        do j = si+1, si+T
+        ! Loop over all possible combinations of (i,j)
+        ! - - - - - - - - - - - - - - - - - - -
+        ! Note: we do not leverage symmetry here - the representation
+        !  of the matrices F,X,Y in memory depends on the the conservation
+        !  or breaking of T
+        do j = si+1,si+T
           do i = si+1,si+T
              S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) &
                   &                      + conjg(F(i,j,2)) * Y(i,j)
          enddo
         enddo
         print *
+        S_complex(B) = S_complex(B) / 2.0d0
+
         si  = si + T
-              S_complex(B) = S_complex(B) / 2.0d0
       enddo
     endif
 
-
 $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
-    strength(:) = - S_complex(:)%im / pi
+    strength(:) = - IMAG(S_complex(:)) / pi
 
     if (fam_verbose > 0) then
       print *, 'Decomposed strength : '
@@ -839,11 +845,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
       print * , 'S_tot : ', sum(strength(:))
     endif
-
-
-
   end subroutine calc_strength_decomp
-
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------

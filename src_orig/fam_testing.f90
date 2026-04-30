@@ -263,8 +263,7 @@ $TR   dkappa_minus = - dkappa_minus
     !--------------------------------------------------------------------------------------
     ! Test whether the matrix elements of the single-particle Hamiltonian and the pairing 
     ! gaps in the HF basis when calculated in two different ways. For this purpose, we first
-    ! calculate the densities and potentials as usual in a mean-field code, and then
-    ! use 
+    ! calculate the densities and potentials as usual in a mean-field code, and then use
     ! 
     ! (i)  apply_sphamil + calc_gaps: standard mean-field procedure
     !
@@ -512,15 +511,6 @@ $TR   dkappa_minus = - dkappa_minus
     do it=1,2
         maxdev(1,it) = maxval(abs(Density%D_I_I(:,it)    - R_transformed%D_I_I  (:,it)))
         maxdev(2,it) = maxval(abs(Density%DP_I_I(:,it)   - R_pp_transformed%DP_I_I  (:,it)))
-
-        !do i=1,nx
-        !  print ('(i4,6es15.7)'), i, Density%D_I_I(i,it), R_transformed%D_I_I(i,it), &
-        !  &                             Density%D_I_I(i,it) - R_transformed%D_I_I(i,it)
-        !  print ('(i4,6es15.7)'), i, Density%DP_I_I(i,it), R_pp_transformed%DP_I_I(i,it), &
-        !  &                             Density%DP_I_I(i,it) - R_pp_transformed%DP_I_I(i,it)
-        !enddo
-        !maxdev(2,it) = maxval(abs(Density%D_Nm_Nm(:,it) - R_transformed%D_Nm_Nm(:,it)))
-        !maxdev(3,it) = maxval(abs(Density%C_I_Ns(:,:,:,it) - R_transformed%C_I_Ns(:,:,:,it)))
     enddo
 
     if(any(maxdev .gt. 1e-10)) then
@@ -543,7 +533,6 @@ $TR   dkappa_minus = - dkappa_minus
     !call mixup_rhokappa(rho_test, kappa_test, transfo)
 
   end subroutine test_densit_offdiag
-!
 !
 !   subroutine build_dH_findiff(RUnper, dRs, dRa, eta)
 !     !---------------------------------------------------------------------------
@@ -795,9 +784,7 @@ $TR   dkappa_minus = - dkappa_minus
 
     print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_explicit - x_out) ** 2 ))
 
-
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Test my GMRES routine to solve Ax = b iteratively
 
     call alloc_gmres(affine_as_linear, x_free, 100, 6, 1e-6_dp, norm_2, ScalProd)
@@ -912,6 +899,8 @@ $TR   dkappa_minus = - dkappa_minus
     !     Only active when time-reversal is broken!
     ! 3: Unitarity - (SP->QP)(QP-SP) is identity (for H)
     ! 4: Symmetry properties of the resulting SPME and QPME
+    ! 5: Unitarity - (SP->QP)(QP-SP) is identity for arbitrary (fermionic)
+    !       operator matrix (with complex matrix elements)
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Potential upgrades
