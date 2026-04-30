@@ -1153,129 +1153,257 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
   end subroutine get_ph_hp_blocks_real
 
-   subroutine transform_sp_to_qp_wr(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
-      !---------------------------------------------------------------------------
-      !
-      ! Convention: the matrix representation of an operator that is bilinear in
-      !  fermionic annihilation/creation operators is
-      !
-      !    O = 1/2 ( c^dagger c ) ( o^11  o^20   ) ( c         )
-      !                           ( o^02 -o^11,T ) ( c^\dagger )
-      !
-      ! where the {c, c^{\dagger}} can be particle or quasiparticle operators.
-      ! Note that there are no signs nor complex conjugations for o^20 or o^02!
-      ! If O is hermitian, then we have that
-      !    -  o^{11} = o^{11, \dagger}
-      !    -  o^{02} = - o^{20,*}
-      !
-      !---------------------------------------------------------------------------
-      real(KIND=dp), intent(in)                       :: Bogo(:, :)
-      complex(KIND=dp), intent(in), optional, target  :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
-      complex(KIND=dp), intent(out), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
+  subroutine transform_sp_to_qp_wr(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
+    !---------------------------------------------------------------------------
+    ! Transform a matrix representation of an operator from the single-particle
+    ! to the quasiparticle basis. This routine assumes that the Bogoliubov 
+    ! transformation is real and that the operator commutes with time-reversal, 
+    ! parity, and z-signature.
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! Conventions: 
+    !  1. the matrix representation of an operator that is bilinear in
+    !     fermionic annihilation/creation operators is
+    !
+    !        O = 1/2 ( c^dagger c ) ( o^TL  o^TR   ) ( c         )
+    !                               ( o^BL -o^TL,T ) ( c^\dagger )
+    !
+    !     where the {c, c^{\dagger}} can be particle or quasiparticle operators.
+    !     The nomenclature of the variables is the following 
+    !       TL = top left 
+    !       TR = top right
+    !       BL = bottom left
+    !
+    !     This convention is ALMOST the same as the standard operator notation
+    !       O^TL =  O^11
+    !       O^TR =  O^20 
+    !       O^BL = -O^02   <---- sneaky minus sign 
+    !
+    !     If O is hermitian, then we have that
+    !       ->  o^{TL} = + o^{TL, \dagger}
+    !         ->  o^{BL} = - o^{TR,*}
+    !       but this is not true in general.
+    ! 
+    ! 2. when time-reversal is explicitly conserved, the represented submatrices
+    !     are halved; in that case, the matrices take the following form:
+    ! 
+    !       O^{TL} = ( O^{TL} 0      )   
+    !                ( 0      O^{TL} )                       
+    !     
+    !       O^{TR} = ( 0      O^{TR} ) 
+    !                (-O^{TR} 0      )
+    ! 
+    !       O^{BL} = ( 0      O^{BL} )
+    !                (-O^{BL} 0      )
+    !
+    !     This is the labelling this routine adopts, i.e. the inputs concern 
+    !     the top-left part of O^{TL} and the top-right parts of both O^{TR} 
+    !     O^{BL}.
+    !
+    ! If these conventions do not appear natural to you, realize they have 
+    ! been adopted to make the useage of this routines straightforward; i.e. 
+    ! the user should not worry about (possibly symmetry-dependent) signs in 
+    ! the inputs of this routine.
+    ! 
+    ! With these conventions, the formulas are 
+    ! 
+    !   O^{TL}_qp =     U^{\dagger} O^{TL} V^*  +     U^\dagger   O^{TR}   V 
+    !             + \xi V^{\dagger} O^{BL} U    -     V^{\dagger} O^{TL,T} V   
+    !
+    !   O^{TR}_qp = \xi U^{\dagger} O^{TL} V^*  +     U^{\dagger} O^{TR}   U^*
+    !             +     V^{\dagger} O^{BL} V    -     V^{\dagger} O^{TL,T} U^*  
+    !    
+    !   O^{BL}_qp =     V^T         O^{TL} U    +     V^T         O^{TR}   V 
+    !             +     U^T         O^{BL} U    - \xi U^T         O^{TL}   V
+    !  where \xi = +1(-1) is time-reversal is broken(converved).     
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input: 
+    ! - Bogo: Bogoliubov transformation matrix
+    ! - OTRsp, OTLsp, OBLsp: complex 2D arrays 
+    !                        matrix elements in single-particle space 
+    ! Output:
+    ! - OTRqp, OTLqp, OBLqp: complex 2D arrays 
+    !                        matrix elements in quasiparticle space
+    !---------------------------------------------------------------------------     
+    real(KIND=dp), intent(in)                       :: Bogo(:, :)
+    complex(KIND=dp), intent(in), optional, target  :: OTRsp(:, :), OTLsp(:, :), OBLsp(:, :)
+    complex(KIND=dp), intent(out), optional, target :: OTRqp(:, :), OTLqp(:, :), OBLqp(:, :)
 
-      real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-      complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
-      complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
-      integer                       :: B, N, N2, si, sb, T, i
-      real(KIND=dp)                 :: Tphase
+    complex(KIND=dp), pointer     :: OTR_sp_p(:, :), OTL_sp_p(:, :), OBL_sp_p(:, :)
+    complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
-      if (present(O20qp)) O20qp = 0._dp
-      if (present(O11qp)) O11qp = 0._dp
-      if (present(O02qp)) O02qp = 0._dp
+    real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
+    integer                       :: B, N, N2, si, sb, T, i
+    real(KIND=dp)                 :: Tphase
 
-$NTR  Tphase = +1.0_dp
-$TR   Tphase = -1.0_dp
+    if (present(OTRqp)) OTRqp = 0._dp
+    if (present(OTLqp)) OTLqp = 0._dp
+    if (present(OBLqp)) OBLqp = 0._dp
 
-      ! si determines the start of the block in sp-basis of dimension nwt
-      ! sb determines the start of the block in qp-basis of dimension 2*nwt 
-      !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)   
-      si = 0 ; sb = 0
-      do B=1,8,2
-         N  = HFblocks(B)    ; if(N.eq.0) cycle 
-         N2 = HFblocks(B+1)
-         T = N + N2
-   
-         ! Getting the U and V out to make the formulas explicit
-         ! and the matrix multiplications memory-local
-         Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
-         Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+$NTR Tphase = +1.0_dp
+$TR  Tphase = -1.0_dp
 
-         ! Pointers to make the equations below more compact
-         if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
-         if(present(O11sp)) O11b => O11sp(si+1:si+T,si+1:si+T)
-         if(present(O02sp)) O02b => O02sp(si+1:si+T,si+1:si+T)
+    ! si determines the start of the block in sp-basis of dimension nwt
+    ! sb determines the start of the block in qp-basis of dimension 2*nwt 
+    !   -> Bogo contains all HFB eigenvectors ordered with increasing QPE (-Emax,..., -E1, E1,..., Emax)   
+    si = 0 ; sb = 0
+    do B=1,8,2
+        N  = HFblocks(B)    ; if(N.eq.0) cycle 
+        N2 = HFblocks(B+1)
+        T = N + N2
+  
+        ! Getting the U and V out to make the formulas explicit
+        ! and the matrix multiplications memory-local
+        Ub = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+        Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
-         if(present(O20qp)) O20b_qp => O20qp(si+1:si+T,si+1:si+T)
-         if(present(O11qp)) O11b_qp => O11qp(si+1:si+T,si+1:si+T)
-         if(present(O02qp)) O02b_qp => O02qp(si+1:si+T,si+1:si+T)
+        ! Pointers to make the equations below more compact
+        if(present(OTRsp)) OTR_sp_p => OTRsp(si+1:si+T,si+1:si+T)
+        if(present(OTLsp)) OTL_sp_p => OTLsp(si+1:si+T,si+1:si+T)
+        if(present(OBLsp)) OBL_sp_p => OBLsp(si+1:si+T,si+1:si+T)
 
-         if(present(O11qp)) then
-            if(present(O11sp)) then 
-               O11b_qp = O11b_qp + matmul(transpose(Ub),matmul(          O11b , Ub)) ! + U^\dagger O^11   U
-               O11b_qp = O11b_qp - matmul(transpose(Vb),matmul(transpose(O11b), Vb)) ! - V^\dagger O^11,T V
-            endif 
-            if(present(O20sp)) then 
-               O11b_qp = O11b_qp + matmul(transpose(Ub),matmul(          O20b , Vb)) ! + U^\dagger O^20   V 
-            endif 
-            if(present(O02sp)) then 
-               O11b_qp = O11b_qp + matmul(transpose(Vb),matmul(          O02b , Ub)) ! + V^\dagger O^02   U
-            endif 
-         endif 
+        if(present(OTRqp)) OTR_qp_p => OTRqp(si+1:si+T,si+1:si+T)
+        if(present(OTLqp)) OTL_qp_p => OTLqp(si+1:si+T,si+1:si+T)
+        if(present(OBLqp)) OBL_qp_p => OBLqp(si+1:si+T,si+1:si+T)
 
-         if(present(O20qp)) then 
-            if(present(O11sp)) then 
-               O20b_qp = O20b_qp + matmul(transpose(Ub),matmul(          O11b , Vb)) ! + U^\dagger O^11   V^*
-               O20b_qp = O20b_qp - matmul(transpose(Vb),matmul(transpose(O11b), Ub)) ! - V^\dagger O^11,T U^*
-            endif 
-            if(present(O20sp)) then 
-               O20b_qp = O20b_qp + matmul(transpose(Ub),matmul(          O20b , Ub)) ! + U^\dagger O^20   U^*
-            endif 
-            if(present(O02sp)) then 
-               O20b_qp = O20b_qp + matmul(transpose(Vb),matmul(          O02b , Vb)) ! + V^\dagger O^02   V^*
-            endif
-         endif 
+        if(present(OTLqp)) then
+          if(present(OTLsp)) then 
+              OTL_qp_p = OTL_qp_p +          matmul(transpose(Ub),matmul(          OTL_sp_p , Ub)) ! + U^\dagger O^11   U
+              OTL_qp_p = OTL_qp_p -          matmul(transpose(Vb),matmul(transpose(OTL_sp_p), Vb)) ! - V^\dagger O^11,T V
+          endif 
+          if(present(OTRsp)) then 
+              OTL_qp_p = OTL_qp_p +          matmul(transpose(Ub),matmul(          OTR_sp_p , Vb)) ! + U^\dagger O^20   V 
+          endif 
+          if(present(OBLsp)) then 
+              OTL_qp_p = OTL_qp_p + Tphase * matmul(transpose(Vb),matmul(          OBL_sp_p , Ub)) ! + V^\dagger O^02   U
+          endif 
+        endif 
 
-         if(present(O02qp)) then
-            if(present(O11sp)) then 
-               O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O11b , Ub)) ! + V^T       O^11   U
-               O02b_qp = O02b_qp - matmul(transpose(Ub),matmul(transpose(O11b), Vb)) ! - U^T       O^11,T U
-            endif
-            if(present(O20sp)) then 
-               O02b_qp = O02b_qp + matmul(transpose(Vb),matmul(          O20b , Vb)) ! + V^T       O^20   V
-            endif 
-            if(present(O02sp)) then 
-               O02b_qp = O02b_qp + matmul(transpose(Ub),matmul(          O02b , Ub)) ! + U^T       O^02   U
-            endif
-         endif 
+        if(present(OTRqp)) then 
+          if(present(OTLsp)) then 
+              OTR_qp_p = OTR_qp_p + Tphase * matmul(transpose(Ub),matmul(          OTL_sp_p , Vb)) ! + U^\dagger O^11   V^*
+              OTR_qp_p = OTR_qp_p -          matmul(transpose(Vb),matmul(transpose(OTL_sp_p), Ub)) ! - V^\dagger O^11,T U^*
+          endif 
+          if(present(OTRsp)) then 
+              OTR_qp_p = OTR_qp_p +          matmul(transpose(Ub),matmul(          OTR_sp_p , Ub)) ! + U^\dagger O^20   U^*
+          endif 
+          if(present(OBLsp)) then 
+              OTR_qp_p = OTR_qp_p +          matmul(transpose(Vb),matmul(          OBL_sp_p , Vb)) ! + V^\dagger O^02   V^*
+          endif
+        endif 
 
-         si = si +  T
-         sb = sb +2*T      
-      enddo 
+        if(present(OBLqp)) then
+          if(present(OTLsp)) then 
+              OBL_qp_p = OBL_qp_p +          matmul(transpose(Vb),matmul(          OTL_sp_p , Ub)) ! + V^T       O^11   U
+              OBL_qp_p = OBL_qp_p - Tphase * matmul(transpose(Ub),matmul(transpose(OTL_sp_p), Vb)) ! - U^T       O^11,T U
+          endif
+          if(present(OTRsp)) then 
+              OBL_qp_p = OBL_qp_p +          matmul(transpose(Vb),matmul(          OTR_sp_p , Vb)) ! + V^T       O^20   V
+          endif 
+          if(present(OBLsp)) then 
+              OBL_qp_p = OBL_qp_p +          matmul(transpose(Ub),matmul(          OBL_sp_p , Ub)) ! + U^T       O^02   U
+          endif
+        endif 
+
+        si = si +  T
+        sb = sb +2*T      
+    enddo 
 
    end subroutine transform_sp_to_qp_wr
 
-   subroutine transform_qp_to_sp_wr(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
-    !-----------------------------------------------------------------------------
+   subroutine transform_qp_to_sp_wr(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
+    !---------------------------------------------------------------------------
+    ! Transform a matrix representation of an operator from the quasiparticle
+    ! to the single basis. This routine assumes that the Bogoliubov 
+    ! transformation is real and that the operator commutes with time-reversal, 
+    ! parity, and z-signature.
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
-    ! Important points
-    !   - symmetry properties of the operators
-    !   - conventions 
-    !   - assumptions regarding quantities
-    !-----------------------------------------------------------------------------
+    ! Conventions: 
+    !  1. the matrix representation of an operator that is bilinear in
+    !     fermionic annihilation/creation operators is
+    !
+    !        O = 1/2 ( c^dagger c ) ( o^TL  o^TR   ) ( c         )
+    !                               ( o^BL -o^TL,T ) ( c^\dagger )
+    !
+    !     where the {c, c^{\dagger}} can be particle or quasiparticle operators.
+    !     The nomenclature of the variables is the following 
+    !       TL = top left 
+    !       TR = top right
+    !       BL = bottom left
+    !
+    !     This convention is ALMOST the same as the standard operator notation
+    !       O^TL =  O^11
+    !       O^TR =  O^20 
+    !       O^BL = -O^02   <---- sneaky minus sign 
+    !
+    !     If O is hermitian, then we have that
+    !       ->  o^{TL} = + o^{TL, \dagger}
+    !         ->  o^{BL} = - o^{TR,*}
+    !       but this is not true in general.
+    ! 
+    ! 2. when time-reversal is explicitly conserved, the represented submatrices
+    !     are halved; in that case, the matrices take the following form:
+    ! 
+    !       O^{TL} = ( O^{TL} 0      )   
+    !                ( 0      O^{TL} )                       
+    !     
+    !       O^{TR} = ( 0      O^{TR} ) 
+    !                (-O^{TR} 0      )
+    ! 
+    !       O^{BL} = ( 0      O^{BL} )
+    !                (-O^{BL} 0      )
+    !
+    !     This is the labelling this routine adopts, i.e. the inputs concern 
+    !     the top-left part of O^{TL} and the top-right parts of both O^{TR} 
+    !     O^{BL}.
+    !
+    ! If these conventions do not appear natural to you, realize they have 
+    ! been adopted to make the useage of this routines straightforward; i.e. 
+    ! the user should not worry about (possibly symmetry-dependent) signs in 
+    ! the inputs of this routine.
+    ! 
+    ! With these conventions, the formulas are 
+    ! 
+    !   O^{TL} =     U   O^{TL}_qp U^{\dagger} + \xi U   O^{TR}_qp   U^{\dagger}
+    !          +     V^* O^{BL}_qp U^{\dagger} -     V^* O^{TL,T}_qp V 
+    !
+    !   O^{TR} =     U   O^{TL}_qp U^T         +     U   O^{TR}_qp   U^T 
+    !          +     V^* O^{BL}_qp U^\dagger   - \xi V^* O^{TL,T}_qp U^\dagger 
+    !
+    !   O^{BL} = \xi V   O^{TL}_qp U^{\dagger} +     V   O^{TR}_qp   V^T 
+    !          +     U^* O^{BL}_qp U^{\dagger} -     U^* O^{TL,T}_qp U^T
+    ! 
+    !  where \xi = +1(-1) is time-reversal is broken(converved).     ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input: 
+    ! - Bogo: Bogoliubov transformation matrix
+    ! - OTRqp, OTLqp, OBLqp: complex 2D arrays 
+    !                        matrix elements in quasiparticle space 
+    ! Output:
+    ! - OTRsp, OTLsp, OBLsp: complex 2D arrays 
+    !                        matrix elements in single-particle space
+    !---------------------------------------------------------------------------   
     real(KIND=dp), intent(in)                       :: Bogo(:, :)
-    complex(KIND=dp), intent(in ), optional, target :: O20qp(:, :), O11qp(:, :), O02qp(:, :)
-    complex(KIND=dp), intent(out), optional, target :: O20sp(:, :), O11sp(:, :), O02sp(:, :)
+    complex(KIND=dp), intent(in ), optional, target :: OTRqp(:, :), OTLqp(:, :), OBLqp(:, :)
+    complex(KIND=dp), intent(out), optional, target :: OTRsp(:, :), OTLsp(:, :), OBLsp(:, :)
+
+    complex(KIND=dp), pointer     :: OTR_sp_p(:, :), OTL_sp_p(:, :), OBL_sp_p(:, :)
+    complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-    complex(KIND=dp), pointer     :: O20b(:, :), O11b(:, :), O02b(:, :)
-    complex(KIND=dp), pointer     :: O20b_qp(:, :), O11b_qp(:, :), O02b_qp(:, :)
     integer                       :: B, N, N2, si, sb, T, i
     real(KIND=dp)                 :: Tphase
 
    ! initialise the single-particle matrix elements to zero if they are present
-    if(present(O20sp)) O20sp = 0._dp
-    if(present(O11sp)) O11sp = 0._dp
-    if(present(O02sp)) O02sp = 0._dp
+    if(present(OTRsp)) OTRsp = 0._dp
+    if(present(OTLsp)) OTLsp = 0._dp
+    if(present(OBLsp)) OBLsp = 0._dp
+
+$NTR  Tphase = +1.0_dp
+$TR   Tphase = -1.0_dp
 
     si = 0 ; sb = 0
     do B=1,8,2
@@ -1289,50 +1417,50 @@ $TR   Tphase = -1.0_dp
       Vb = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
       ! Pointers to make the equations below more compact
-      if(present(O20sp)) O20b => O20sp(si+1:si+T,si+1:si+T)
-      if(present(O11sp)) O11b => O11sp(si+1:si+T,si+1:si+T)
-      if(present(O02sp)) O02b => O02sp(si+1:si+T,si+1:si+T)
+      if(present(OTRsp)) OTR_sp_p => OTRsp(si+1:si+T,si+1:si+T)
+      if(present(OTLsp)) OTL_sp_p => OTLsp(si+1:si+T,si+1:si+T)
+      if(present(OBLsp)) OBL_sp_p => OBLsp(si+1:si+T,si+1:si+T)
 
-      if(present(O20qp)) O20b_qp => O20qp(si+1:si+T,si+1:si+T)
-      if(present(O11qp)) O11b_qp => O11qp(si+1:si+T,si+1:si+T)
-      if(present(O02qp)) O02b_qp => O02qp(si+1:si+T,si+1:si+T)
+      if(present(OTRqp)) OTR_qp_p => OTRqp(si+1:si+T,si+1:si+T)
+      if(present(OTLqp)) OTL_qp_p => OTLqp(si+1:si+T,si+1:si+T)
+      if(present(OBLqp)) OBL_qp_p => OBLqp(si+1:si+T,si+1:si+T)
 
-      if(present(O11sp)) then 
-        if(present(O11qp)) then 
-          O11b = O11b + matmul( Ub, matmul(           O11b_qp , transpose(Ub))) ! + U   O^{11}   U^{\dagger}
-          O11b = O11b - matmul( Vb, matmul( transpose(O11b_qp), transpose(Vb))) ! - V^* O^{11},T V^{\dagger}
+      if(present(OTLsp)) then 
+        if(present(OTLqp)) then 
+          OTL_sp_p = OTL_sp_p +          matmul( Ub, matmul(           OTL_qp_p , transpose(Ub))) ! + U   O^{11}   U^{\dagger}
+          OTL_sp_p = OTL_sp_p -          matmul( Vb, matmul( transpose(OTL_qp_p), transpose(Vb))) ! - V^* O^{11},T V^{\dagger}
         endif 
-        if(present(O20qp)) then 
-          O11b = O11b + matmul( Ub, matmul(           O20b_qp , transpose(Vb))) ! + U   O^{20}   V^{\dagger}
+        if(present(OTRqp)) then 
+          OTL_sp_p = OTL_sp_p + Tphase * matmul( Ub, matmul(           OTR_qp_p , transpose(Vb))) ! + U   O^{20}   V^{\dagger}
         endif 
-        if(present(O02qp)) then 
-          O11b = O11b + matmul( Vb, matmul(           O02b_qp , transpose(Ub))) ! + V^* O^{02}   U^{\dagger}
+        if(present(OBLqp)) then 
+          OTL_sp_p = OTL_sp_p +          matmul( Vb, matmul(           OBL_qp_p , transpose(Ub))) ! + V^* O^{02}   U^{\dagger}
         endif 
       endif 
 
-      if(present(O20sp)) then 
-        if(present(O11qp)) then 
-          O20b = O20b + matmul( Ub, matmul(           O11b_qp , transpose(Vb))) ! + U   O^{11}   V^{\dagger}
-          O20b = O20b - matmul( Vb, matmul( transpose(O11b_qp), transpose(Ub))) ! - V^* O^{11},T U^{\dagger} 
+      if(present(OTRsp)) then 
+        if(present(OTLqp)) then 
+          OTR_sp_p = OTR_sp_p +          matmul( Ub, matmul(           OTL_qp_p , transpose(Vb))) ! + U   O^{11}   V^{\dagger}
+          OTR_sp_p = OTR_sp_p - Tphase * matmul( Vb, matmul( transpose(OTL_qp_p), transpose(Ub))) ! - V^* O^{11},T U^{\dagger} 
         endif 
-        if(present(O20qp)) then 
-          O20b = O20b + matmul( Ub, matmul(           O20b_qp , transpose(Ub))) ! + U   O^{20}   U^T
+        if(present(OTRqp)) then 
+          OTR_sp_p = OTR_sp_p +          matmul( Ub, matmul(           OTR_qp_p , transpose(Ub))) ! + U   O^{20}   U^T
         endif 
-        if(present(O02qp)) then 
-          O20b = O20b + matmul( Vb, matmul(           O02b_qp , transpose(Vb))) ! + V^* O^{20}   V^{\dagger}
+        if(present(OBLqp)) then 
+          OTR_sp_p = OTR_sp_p +          matmul( Vb, matmul(           OBL_qp_p , transpose(Vb))) ! + V^* O^{20}   V^{\dagger}
         endif 
       endif 
 
-      if(present(O02sp)) then 
-        if(present(O11qp)) then 
-          O02b = O02b + matmul( Vb, matmul(           O11b_qp , transpose(Ub))) ! + V   O^{11}   U^{\dagger} 
-          O02b = O02b - matmul( Ub, matmul( transpose(O11b_qp), transpose(Vb))) ! - U^* O^{11},T V^T
+      if(present(OBLsp)) then 
+        if(present(OTLqp)) then 
+          OBL_sp_p = OBL_sp_p + Tphase * matmul( Vb, matmul(           OTL_qp_p , transpose(Ub))) ! + V   O^{11}   U^{\dagger} 
+          OBL_sp_p = OBL_sp_p -          matmul( Ub, matmul( transpose(OTL_qp_p), transpose(Vb))) ! - U^* O^{11},T V^T
         endif 
-        if(present(O20qp)) then 
-          O02b = O02b + matmul( Vb, matmul(           O20b_qp , transpose(Vb))) ! + V   O^{20}   V^T
+        if(present(OTRqp)) then 
+          OBL_sp_p = OBL_sp_p +          matmul( Vb, matmul(           OTR_qp_p , transpose(Vb))) ! + V   O^{20}   V^T
         endif
-        if(present(O02qp)) then 
-          O02b = O02b + matmul( Ub, matmul(           O02b_qp , transpose(Ub))) ! + U^* O^{20}   U^{\dagger}
+        if(present(OBLqp)) then 
+          OBL_sp_p = OBL_sp_p +          matmul( Ub, matmul(           OBL_qp_p , transpose(Ub))) ! + U^* O^{20}   U^{\dagger}
         endif
       endif
 

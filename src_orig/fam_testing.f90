@@ -119,7 +119,7 @@ contains
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-      call transform_qp_to_sp_wr(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+      call transform_qp_to_sp_wr(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 $TR   dkappa_minus = - dkappa_minus
     endif
 
@@ -963,7 +963,7 @@ $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     allocate(N20new(nwt,nwt), N11new(nwt,nwt)) ; N20new = 0.0d0 ; N11new = 0.0d0
 
     ! transform to qpme N20
-    call transform_sp_to_qp_wr(Bogoliubov, O11sp=identity, O20qp=N20new, O11qp=N11new)
+    call transform_sp_to_qp_wr(Bogoliubov, OTLsp=identity, OTRqp=N20new, OTLqp=N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
     N20(    1:nwn,    1:nwn) = calcN20(Bogoliubov(      1:2*nwn,      1:2*nwn), HFblocks(1:4))
@@ -995,9 +995,9 @@ $TR     print *, 'Test not valid when T is conserved'
 $NTR    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt)) ; Hsp = 0.0d0
 
     ! transform to the quasiparticle representation of H
-    call transform_sp_to_qp_wr(Bogoliubov, O11sp=dcmplx(sphamil), &
-    &                                  O20sp=dcmplx(HFBGaps), O02sp=-dcmplx(HFBGaps), &
-    &                                  O20qp=H20new, O11qp=H11new, O02qp=H02new)
+    call transform_sp_to_qp_wr(Bogoliubov, OTLsp=dcmplx(sphamil), &
+    &                                  OTRsp=dcmplx(HFBGaps), OBLsp=-dcmplx(HFBGaps), &
+    &                                  OTRqp=H20new, OTLqp=H11new, OBLqp=H02new)
 
 $NTR    ! Construct the HFB Hamiltonian in the sp space
 $NTR    ! Note: we DO NOT use calcH20 and calcH11; these rely on a different memory layout
@@ -1058,8 +1058,8 @@ $NTR    print *
     print *
     allocate(H20back(nwt,nwt), H11back(nwt,nwt), H02back(nwt,nwt))
 
-    call transform_qp_to_sp_wr(Bogoliubov, O11qp=H11new , O20qp=H20new , O02qp=-H20new, &
-    &                                   O11sp=H11back, O20sp=H20back, O02sp= H02back)
+    call transform_qp_to_sp_wr(Bogoliubov, OTLqp=H11new , OTRqp=H20new , OBLqp= H02new, &
+    &                                      OTLsp=H11back, OTRsp=H20back, OBLsp= H02back)
 
     print *, ' ||   h   - h     (sp->qp->sp)|| = ',  sum(abs( sphamil - H11back))
     print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
@@ -1177,6 +1177,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 5. Test that transform_sp_to_qp_wr and transform_qp_to_sp_wr are inverses
     print 2, 5, ' Inverse property: (QP->SP)(SP->QP) = identity'
+    print *,    ' ... for (fermionic) random matrix'
     print *
 
     allocate(O20sp(nwt,nwt), O11sp(nwt,nwt), O02sp(nwt,nwt))
@@ -1202,57 +1203,46 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
       allocate(rand_real(N,N), rand_imag(N,N))
       call random_number(rand_real); call random_number(rand_imag)
       O11sp(si  +1:si+N,si+1:si+N) = dcmplx(rand_real, rand_imag)
-      !O11sp(si  +1:si+N,si+1:si+N) = sphamil(si  +1:si+N,si+1:si+N)
       deallocate(rand_real, rand_imag)
 
       if(N2 .ne. 0) then
         allocate(rand_real(N2,N2), rand_imag(N2,N2))
         call random_number(rand_real); call random_number(rand_imag)
         O11sp(si+N+1:si+T,si+N+1:si+T) = dcmplx(rand_real, rand_imag)
-        !O11sp(si+N+1:si+T,si+N+1:si+T) = sphamil(si+N+1:si+T,si+N+1:si+T)
         deallocate(rand_real, rand_imag)
       endif 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Fill blocks of O20sp
+      ! Fill blocks of O20sp - but respect fermionic antisymmetry
       allocate(rand_real(T,T), rand_imag(T,T))
       call random_number(rand_real); call random_number(rand_imag)
-      O20sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
-      O20sp(si+N+1:si+T,si  +1:si+N) = - transpose(O20sp(si  +1:si+N,si+N+1:si+T))
+!      O20sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+!      O20sp(si+N+1:si+T,si  +1:si+N) = - transpose(O20sp(si  +1:si+N,si+N+1:si+T))
       deallocate(rand_real, rand_imag)
       
-      ! Fill blocks of O02sp
+      ! Fill blocks of O02sp - but respect fermionic antisymmetry
       allocate(rand_real(T,T), rand_imag(T,T))
       call random_number(rand_real);  call random_number(rand_imag)
-$NTR  O02sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+!     O02sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+!     O02sp(si+N+1:si+T,si  +1:si+N) = - transpose(O02sp(si+1:si+N,si+N+1:si+T))          
       deallocate(rand_real, rand_imag)
-      O02sp(si+N+1:si+T,si+1:si+N) = - transpose(O02sp(si+1:si+N,si+N+1:si+T))          
 
       si = si + T
     enddo
 
     ! Transform to QP space
-    call transform_sp_to_qp_wr(Bogoliubov, O20sp=O20sp, O11sp=O11sp, O02sp=O02sp, &
-                             &                 O20qp=O20qp, O11qp=O11qp, O02qp=O02qp)
+    call transform_sp_to_qp_wr(Bogoliubov, OTRsp=O20sp, OTLsp=O11sp, OBLsp=O02sp, &
+                             &             OTRqp=O20qp, OTLqp=O11qp, OBLqp=O02qp)
 
     ! Transform back to SP space
-    call transform_qp_to_sp_wr(Bogoliubov, O20qp=O20qp, O11qp=O11qp, O02qp=O02qp, &
-                             &                 O20sp=O20sp_back, O11sp=O11sp_back, O02sp=O02sp_back)
-
-    !si = 0
-    !do B=1,8,2
-    !  print *
-    !  do i=1, T 
-    !      print ('(99f5.1)'), O11sp(si+i,si+1:si+T) - O11sp_back(si+i,si+1:si+T)
-    !  enddo 
-    !  si = si + T
-    !enddo
+    call transform_qp_to_sp_wr(Bogoliubov, OTRqp=O20qp,      OTLqp=O11qp,      OBLqp=O02qp, &
+                             &             OTRsp=O20sp_back, OTLsp=O11sp_back, OBLsp=O02sp_back)
                              
     ! Check the differences
     print '(a50, es15.4)', ' || O20sp - (qp->sp->qp) O20sp || = ', sum(abs(O20sp - O20sp_back))
     print '(a50, es15.4)', ' || O11sp - (qp->sp->qp) O11sp || = ', sum(abs(O11sp - O11sp_back))
     print '(a50, es15.4)', ' || O02sp - (qp->sp->qp) O02sp || = ', sum(abs(O02sp - O02sp_back))
 
-    if(      sum(abs(O20sp - O20sp_back)) > 1e-10 &
+    if(    sum(abs(O20sp - O20sp_back)) > 1e-10 &
     & .or. sum(abs(O11sp - O11sp_back)) > 1e-10 &
     & .or. sum(abs(O02sp - O02sp_back)) > 1e-10) then
       print *, 'FAILURE!'
