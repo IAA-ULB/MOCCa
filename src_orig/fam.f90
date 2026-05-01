@@ -122,8 +122,12 @@ module fam
   !                                   | | |    qp (QFAM) basis, size (nwt,nwt,2)
   ! - same remark as dH(:,:,:)        | | '-> 1 : ph/20 or 2 : hp/02 component 
   !                                   | '-> sp/qp index
-  !                                   '-> sp/qp index 
-  integer :: l, m ! anuglar momentum and projection quantum number of the multipole moment
+  !                                   '-> sp/qp index
+  ! Type of perturbing operator
+  !   'multipole'       = multipole moment Q_{\ell m}
+  !   'particle number' = particle number operator N
+  character(len=20) :: operator_type = 'multipole'
+  integer :: l, m ! angular momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
   !-----------------------------------------------------------------------------
@@ -167,7 +171,6 @@ module fam
   contains
 
   subroutine inifam(omega, DensUnper, PotUnper)
-    implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
     ! densities, fields and strength are computed from the free response, i.e. one 
@@ -191,8 +194,17 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the external field F
-    if(.not.allocated(F)) then 
-      F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
+    if(.not.allocated(F)) then
+      select case(trim(to_lower(operator_type)))
+         ! lower to make the selection case insensitive
+         ! trim to not bother about string length and possible trailing spaces
+      case('multipole')
+         F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
+      case('particle number')
+         F = get_N(eff_charge_n, eff_charge_p)
+      case DEFAULT
+         call stp('Unrecognized operator_type!')
+      end select
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -282,8 +294,7 @@ module fam
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p, unit_test
-
+    &               eff_charge_n, eff_charge_p, unit_test, operator_type
 
     if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -960,9 +971,12 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
       ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
       ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
-
-
       endif
+
+    ! TODO: refactor this; selecting particle-hole or quasiparticle parts
+    !       of the perturbing operator and (ii) multiplying by effective charges
+    !       is independent on our particular choice of perturbing operator and can
+    !       thus be made universal...
 
 
       ! Multiply the operator by the effective charges 
@@ -981,12 +995,6 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
       !   alpha converting the units of the perturbation to MeV, and eventually 
       !   devides the obtained strength by alpha. 
-
-
-      ! TODO: write a general transformation routine from the mesh to any 
-      !       single-particle basis
-
-
     if (pairingtype==0) then ! FAM
       ! Define the external field F by selecting the particle-hole and 
       ! hole-particle subblocks of f_LK by multiplying by their 
@@ -1021,8 +1029,41 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
     deallocate(f_LK_spme)
 
-  end function
+  end function get_F_LK
 
+  function get_N(eff_e_n, eff_e_p) result(Nqpme)
+    !
+    ! TODO: document
+    !
+
+    real(KIND=dp), intent(in)     :: eff_e_n, eff_e_p
+    complex(KIND=dp), allocatable :: Nqpme(:,:,:), Nspme(:,:)
+    integer                       :: i
+
+    allocate(Nspme(nwt,nwt))
+    allocate(Nqpme(nwt,nwt,2))
+
+    ! Build the single-particle matrix elements of N
+    Nspme = 0.0d0
+    do i=1,nwt
+       Nspme(i,i) = 1.0d0
+    enddo
+
+    ! Multiply by effective charges
+    Nspme(1:nwn,1:nwn)   = eff_e_n * Nspme(1:nwn,1:nwn)
+    Nspme(nwn+1:,nwn+1:) = eff_e_p * Nspme(nwn+1:,nwn+1:)
+
+    if (pairingtype==0) then ! FAM
+      call get_ph_hp_blocks(Nspme, Nqpme(:,:,1), Nqpme(:,:,2))
+    else ! QFAM
+      call transform_sp_to_qp(Bogoliubov, O11sp=Nspme, &
+           &                  O20qp=Nqpme(:,:,1), O02qp=Nqpme(:,:,2))
+    endif
+
+    print *, '||F(:,:,1)||²', sum(abs(Nqpme(:,:,1))**2)
+    print *, '||F(:,:,2)||²', sum(abs(Nqpme(:,:,2))**2)
+
+  end function get_N
 
   function calc_EWSR() result (ewsr)
     !---------------------------------------------------------------------------
