@@ -119,7 +119,7 @@ contains
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-      call transform_qp_to_sp_wr(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 $TR   dkappa_minus = - dkappa_minus
     endif
 
@@ -963,7 +963,7 @@ $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     allocate(N20new(nwt,nwt), N11new(nwt,nwt)) ; N20new = 0.0d0 ; N11new = 0.0d0
 
     ! transform to qpme N20
-    call transform_sp_to_qp_wr(Bogoliubov, OTLsp=identity, OTRqp=N20new, OTLqp=N11new)
+    call transform_sp_to_qp(Bogoliubov, OTLsp=identity, OTRqp=N20new, OTLqp=N11new)
 
     ! get qpme of N20 from existing routine, for the neutron channel
     N20(    1:nwn,    1:nwn) = calcN20(Bogoliubov(      1:2*nwn,      1:2*nwn), HFblocks(1:4))
@@ -995,7 +995,7 @@ $TR     print *, 'Test not valid when T is conserved'
 $NTR    allocate(Hsp(2*nwt,2*nwt), Hqp_explicit(2*nwt,2*nwt)) ; Hsp = 0.0d0
 
     ! transform to the quasiparticle representation of H
-    call transform_sp_to_qp_wr(Bogoliubov, OTLsp=dcmplx(sphamil), &
+    call transform_sp_to_qp(Bogoliubov, OTLsp=dcmplx(sphamil), &
     &                                  OTRsp=dcmplx(HFBGaps), OBLsp=-dcmplx(HFBGaps), &
     &                                  OTRqp=H20new, OTLqp=H11new, OBLqp=H02new)
 
@@ -1058,8 +1058,8 @@ $NTR    print *
     print *
     allocate(H20back(nwt,nwt), H11back(nwt,nwt), H02back(nwt,nwt))
 
-    call transform_qp_to_sp_wr(Bogoliubov, OTLqp=H11new , OTRqp=H20new , OBLqp= H02new, &
-    &                                      OTLsp=H11back, OTRsp=H20back, OBLsp= H02back)
+    call transform_qp_to_sp(Bogoliubov, OTLqp=H11new , OTRqp=H20new , OBLqp= H02new, &
+    &                                   OTLsp=H11back, OTRsp=H20back, OBLsp= H02back)
 
     print *, ' ||   h   - h     (sp->qp->sp)|| = ',  sum(abs( sphamil - H11back))
     print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
@@ -1230,12 +1230,12 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     enddo
 
     ! Transform to QP space
-    call transform_sp_to_qp_wr(Bogoliubov, OTRsp=O20sp, OTLsp=O11sp, OBLsp=O02sp, &
-                             &             OTRqp=O20qp, OTLqp=O11qp, OBLqp=O02qp)
+    call transform_sp_to_qp(Bogoliubov, OTRsp=O20sp, OTLsp=O11sp, OBLsp=O02sp, &
+                           &             OTRqp=O20qp, OTLqp=O11qp, OBLqp=O02qp)
 
     ! Transform back to SP space
-    call transform_qp_to_sp_wr(Bogoliubov, OTRqp=O20qp,      OTLqp=O11qp,      OBLqp=O02qp, &
-                             &             OTRsp=O20sp_back, OTLsp=O11sp_back, OBLsp=O02sp_back)
+    call transform_qp_to_sp(Bogoliubov, OTRqp=O20qp,      OTLqp=O11qp,      OBLqp=O02qp, &
+                           &             OTRsp=O20sp_back, OTLsp=O11sp_back, OBLsp=O02sp_back)
                              
     ! Check the differences
     print '(a50, es15.4)', ' || O20sp - (qp->sp->qp) O20sp || = ', sum(abs(O20sp - O20sp_back))
@@ -1524,10 +1524,10 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
   end subroutine
 
   subroutine iterate_partial_dHsp(dHsp_flat, dHspout_flat, dRs, dRa, dFs, dFa)
-    !---------------------------------------------------------------------------
-    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
-    ! (in HF basis), which contain dh and ddelta (in the QFAM).
-    !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------
+   ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
+   ! (in HF basis), which contain dh and ddelta (in the QFAM).
+   !---------------------------------------------------------------------------
     1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
     2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
     3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
@@ -1537,7 +1537,6 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
     complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
-
 
     type(DensityVector), intent(out):: dRs, dRa
     type(DensityVector)             :: dR_pp_plus, dR_pp_minus ! temporary placeholders for this particular HF routine
@@ -1576,7 +1575,8 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
       dkappa_plus  = 0  
       dkappa_minus = 0
     else 
-      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+!      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
 
     ! Compute perturbed densities on the mesh
@@ -1591,7 +1591,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
-    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)!
 
   end subroutine iterate_partial_dHsp
 

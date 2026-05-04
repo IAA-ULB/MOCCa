@@ -403,13 +403,16 @@ module fam
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-$TR   call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=-dHsp(:,:,3), &
-$TR   &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
-$NTR  call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), &
-$NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+!$TR   call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=-dHsp(:,:,3), &
+!$TR   &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+!$NTR  call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), &
+!$NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
+
+
+      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp= dHsp(:,:,3), &
+      &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))
 
       print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
-
     endif
 
     print *, ' FAM MATRICES BEFORE X/Y UPDATE'
@@ -443,8 +446,10 @@ $NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
-$TR   dkappa_minus = - dkappa_minus
+!      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
+!$TR   dkappa_minus = - dkappa_minus
+      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, &
+      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -997,10 +1002,9 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       
       ! Define the external field F as the qpme obtained by performing a bogolibov 
       ! transformation and storing the F^20 anf F^02 comnpnents
-      call transform_sp_to_qp(Bogoliubov, O11sp=f_LK_spme, O20qp=f_LK_qpme(:,:,1), O02qp=f_LK_qpme(:,:,2))
-
-      ! ! Assuming that F is Hermitian, then F20 = F02^*
-      ! f_LK_qpme(:,:,2) = conjg(f_LK_qpme(:,:,1))
+!      call transform_sp_to_qp(Bogoliubov, O11sp=f_LK_spme, O20qp=f_LK_qpme(:,:,1), O02qp=f_LK_qpme(:,:,2))
+      call transform_sp_to_qp(Bogoliubov, OTLsp=f_LK_spme, &                                ! Input 
+      &                                   OTRqp=f_LK_qpme(:,:,1), OBLqp=f_LK_qpme(:,:,2))   ! Output
 
       if(fam_verbose > 2) then
         print *, ' f_LK_qpme(:,:,1)'
@@ -1153,7 +1157,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
   end subroutine get_ph_hp_blocks_real
 
-  subroutine transform_sp_to_qp_wr(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
+  subroutine transform_sp_to_qp(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
     !---------------------------------------------------------------------------
     ! Transform a matrix representation of an operator from the single-particle
     ! to the quasiparticle basis. This routine assumes that the Bogoliubov 
@@ -1310,9 +1314,9 @@ $TR  Tphase = -1.0_dp
         sb = sb +2*T      
     enddo 
 
-   end subroutine transform_sp_to_qp_wr
+   end subroutine transform_sp_to_qp
 
-   subroutine transform_qp_to_sp_wr(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
+   subroutine transform_qp_to_sp(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
     !---------------------------------------------------------------------------
     ! Transform a matrix representation of an operator from the quasiparticle
     ! to the single basis. This routine assumes that the Bogoliubov 
@@ -1468,9 +1472,9 @@ $TR   Tphase = -1.0_dp
       sb = sb +2*T
     enddo
 
-   end subroutine transform_qp_to_sp_wr
+  end subroutine transform_qp_to_sp
 
-  subroutine transform_sp_to_qp(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
+  subroutine transform_sp_to_qp_pd(Bogo, O20sp, O11sp, O02sp, O20qp, O11qp, O02qp)
     !---------------------------------------------------------------------------
     ! Performing quasi-particle transformation of a 1-body operator that 
     ! does not have to be 
@@ -1720,9 +1724,9 @@ $TR  Tphase = -1.0_dp
       endif
     endif
 
-  end subroutine transform_sp_to_qp
+  end subroutine transform_sp_to_qp_pd
 
-  subroutine transform_qp_to_sp(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
+  subroutine transform_qp_to_sp_pd(Bogo, O20qp, O11qp, O02qp, O20sp, O11sp, O02sp)
     !---------------------------------------------------------------------------
     ! Performing quasi-particle back transformation of a generic on 1-body operator 
     ! O = O20qp + O11qp + O02qp. The function returns the matrix elements in of 
@@ -1924,7 +1928,7 @@ $TR  Tphase = -1.0_dp
       endif
     endif
 
-  end subroutine transform_qp_to_sp
+  end subroutine transform_qp_to_sp_pd
 
 
   function Rsq_spme() result (Rsq)
