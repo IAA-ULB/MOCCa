@@ -71,7 +71,7 @@ source ../functions.sh
 
 
 # Set up
-setup_test_env_fam "fam_sc_symmetry" "${args[0]}" "${args[0]}" "$parameterisation"
+setup_test_env_fam "fam_sc_symmetry.$pairing" "${args[0]}" "${args[0]}" "$parameterisation"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -219,7 +219,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-T FAM calculation
-setup_test_env_fam "fam_sc_symmetry" "${args[0]}" "${args[1]}" "$parameterisation"
+setup_test_env_fam "fam_sc_symmetry.$pairing" "${args[0]}" "${args[1]}" "$parameterisation"
 cp ../mf.wf .
 
 # Create runtime data
@@ -274,7 +274,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-P FAM calculation
-setup_test_env_fam "fam_sc_symmetry" "${args[0]}" "${args[2]}" "$parameterisation"
+setup_test_env_fam "fam_sc_symmetry.$pairing" "${args[0]}" "${args[2]}" "$parameterisation"
 cp ../mf.wf .
 
 # Create runtime data

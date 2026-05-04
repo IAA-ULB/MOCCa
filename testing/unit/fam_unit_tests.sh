@@ -202,7 +202,7 @@ unit_test=.true.
 EOF
 
 # Run the calculation
-./$exefam < fam.data | tee $famoutfile
+./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
 if [ $fam_check -ne 0 ]; then
