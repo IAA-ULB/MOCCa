@@ -152,7 +152,7 @@ module fam
   real(KIND=dp) :: fam_precision = 1.0e-5_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
-  integer :: fam_verbose = 1
+  integer :: fam_verbose = 3
   ! 0: no printing. Used during GMRES as output would be confusing
   ! 1: limited printing. Used in the final FAM iteration once GMRES is converged
   !    (default)
@@ -414,14 +414,9 @@ module fam
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-!$TR   call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=-dHsp(:,:,3), &
-!$TR   &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
-!$NTR  call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp= dHsp(:,:,3), &
-!$NTR  &                                   O20qp=dH(:,:,1), O02qp=dH(:,:,2))
-
-
-      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp= dHsp(:,:,3), &
+      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), &
       &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))
+      dH(:,:,2) = TRANSPOSE(dH(:,:,2))
 
       print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
     endif
@@ -457,10 +452,13 @@ module fam
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-!      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
-!$TR   dkappa_minus = - dkappa_minus
-      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, &
+      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
       &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      dkappa_minus = - CONJG(dkappa_minus)
+      ! Attention: the perturbed density matrix is 
+      !
+      !   (   0     X   )
+      !   (   Y^T   0   )
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -478,10 +476,8 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (5) compute perturbed fields on the mesh
-
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
-
     ! We add in all additional contributions to F_I_I that do not 
     !  result from the Skyrme functional.  
     call combine_potentials(dFs)
@@ -489,7 +485,6 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (6) calculate perturbed hamiltonian and pairing in the HF basis
-
     if (pairingtype==0) then ! FAM
       
       ! construct the sp hamiltonian in HF basis
@@ -498,16 +493,13 @@ module fam
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
 
     else ! QFAM
-
       ! construct the sp hamiltonian + pairing fields in HF basis
-$TR      dHspout(:,:,1) = -calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.) ! unexplained minus sign
-$TR      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-$TR      dHspout(:,:,3) = -calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)! unexplained minus sign
+      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
+      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
 
-$NTR      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
-$NTR      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-$NTR      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
-
+      dHspout(:,:,3) = - CONJG(dHspout(:,:,3))
+      ! This needs to be here, or the GMRES DOES NOT WORK!
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
 
     endif
@@ -1009,10 +1001,11 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     else ! QFAM
       
       ! Define the external field F as the qpme obtained by performing a bogolibov 
-      ! transformation and storing the F^20 anf F^02 comnpnents
-!      call transform_sp_to_qp(Bogoliubov, O11sp=f_LK_spme, O20qp=f_LK_qpme(:,:,1), O02qp=f_LK_qpme(:,:,2))
+      ! transformation and storing the F^20 anf F^02 components
       call transform_sp_to_qp(Bogoliubov, OTLsp=f_LK_spme, &                                ! Input 
       &                                   OTRqp=f_LK_qpme(:,:,1), OBLqp=f_LK_qpme(:,:,2))   ! Output
+      ! Attention: the output of this routine is not F^{02,T}
+      f_LK_qpme(:,:,2) = TRANSPOSE(f_LK_qpme(:,:,2))
 
       if(fam_verbose > 2) then
         print *, ' f_LK_qpme(:,:,1)'
@@ -1060,10 +1053,9 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     if (pairingtype==0) then ! FAM
       call get_ph_hp_blocks(Nspme, Nqpme(:,:,1), Nqpme(:,:,2))
     else ! QFAM
-      !call transform_sp_to_qp(Bogoliubov, O11sp=Nspme, &
-      !     &                  O20qp=Nqpme(:,:,1), O02qp=Nqpme(:,:,2))
       call transform_sp_to_qp(Bogoliubov, OTLsp=Nspme, &
            &                  OTRqp=Nqpme(:,:,1), OBLqp=Nqpme(:,:,2))
+      Nqpme(:,:,2) = TRANSPOSE(Nqpme(:,:,2))
     endif
 
     print *, '||F(:,:,1)||²', sum(abs(Nqpme(:,:,1))**2)

@@ -193,6 +193,7 @@ l=2
 m=0
 maxiter=$(if [ "$free" = true ]; then echo "0"; else echo "30"; fi)
 fam_precision=1e-8
+!mixingscheme=1
 /
 EOF
 

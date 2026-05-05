@@ -197,8 +197,8 @@ famfile='N.fam'
 &fam
 omega_min=-1.0
 omega_max=1.0
-omega_step=0.1
-smear=0.00
+omega_step=0.25
+smear=0.25
 !l=0
 !m=0
 operator_type='particle number'
