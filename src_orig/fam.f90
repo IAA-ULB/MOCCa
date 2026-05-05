@@ -1060,8 +1060,10 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     if (pairingtype==0) then ! FAM
       call get_ph_hp_blocks(Nspme, Nqpme(:,:,1), Nqpme(:,:,2))
     else ! QFAM
-      call transform_sp_to_qp(Bogoliubov, O11sp=Nspme, &
-           &                  O20qp=Nqpme(:,:,1), O02qp=Nqpme(:,:,2))
+      !call transform_sp_to_qp(Bogoliubov, O11sp=Nspme, &
+      !     &                  O20qp=Nqpme(:,:,1), O02qp=Nqpme(:,:,2))
+      call transform_sp_to_qp(Bogoliubov, OTLsp=Nspme, &
+           &                  OTRqp=Nqpme(:,:,1), OBLqp=Nqpme(:,:,2))
     endif
 
     print *, '||F(:,:,1)||²', sum(abs(Nqpme(:,:,1))**2)

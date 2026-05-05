@@ -1,24 +1,24 @@
 #!/usr/bin/env sh
 #-------------------------------------------------------------------------------
-# Perform mean-field + linear response calculations of Ti22 with t0t3 in a
-# minimal box with different self-consistent symmetry options and check that
-# the resulting monopole strengths are identical.
+# Perform HFB + linear response calculations of Ti42 with t0t3 and check
+# that the proton number particle operator is the momentum of a zero-mode, i.e.
+# that the
+#     S(N_p, \omega) = 0      if \omega != 0
+#                    = - M_n  if \omega  = 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
-#  Monopole strength                     [result of EXE-T]          1e-6
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_symmetry.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose]
+#   bash fam_pairing_zero_mode.sh [EXESUFFIX] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose]
 #
 # where
 # - EXESUFFIX     : maximally symmetric executable
-# - EXESUFFIX_T   : time-reversal breaking executable
-# - EXESUFFIX_P   : parity breaking executable
 # -- pairing      : specifies the pairing type (HF or HFB, default: HFB)
 # --parameterisation : specifies the parameterization (default: t0t3)
 # -v or --verbose : print the values which are compared.
@@ -26,7 +26,7 @@
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : W. Ryssens [wouter.ryssens@ulb.be]
-# Reference commit hash: c44b9e6a4b6173a87afcce8c73a175bb05e12182
+# Reference commit hash:
 #-------------------------------------------------------------------------------
 # Initialize verbose mode as false by default
 verbose=false
@@ -35,7 +35,6 @@ parameterisation="t0t3"  # Default value
 
 # Temporary array to hold arguments
 args=()
-set -v
 
 # Parse all arguments for -v or --verbose or --pairing
 while [[ $# -gt 0 ]]; do
@@ -84,7 +83,7 @@ neutrons=20, protons=22
 energy_prec=1e-16
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=12, ny=12, nz=12, dx=1.2
 /
 &func
 name_param='$parameterisation'
@@ -94,13 +93,13 @@ type="$pairing"
 /
 &evolution
 maxiter=1000
-dt=0.0209, momentum=0.5746
-Estimateparams=.false.
+!dt=0.0180, momentum=0.6
+!Estimateparams=.false.
 /
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 30, nwp = 30
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -128,7 +127,7 @@ neutrons=20, protons=22
 energy_prec=1e-20
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=12, ny=12, nz=12, dx=1.2
 /
 &func
 name_param='$parameterisation'
@@ -145,7 +144,7 @@ freezeiter=1000
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 30, nwp = 30
 osc_freq = 0.2, 0.2, 0.18
 /
 &IO
@@ -169,7 +168,7 @@ cat << EOF > fam.data
 neutrons=20, protons=22
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=12, ny=12, nz=12, dx=1.2
 /
 &func
 name_param='$parameterisation'
@@ -183,13 +182,13 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 30, nwp = 30
 /
 &IO
 InputFilename='mf.wf'
 OutputFilename='trash'
 allowtransform=.true.
-famfile='S_20.fam'
+famfile='N.fam'
 /
 &MomentParam
 /
