@@ -664,7 +664,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: tag_overlaps(:)
+    integer                    :: i
+    real(KIND=dp), allocatable :: tag_overlaps(:), sphamil_diag(:,:)
 
     call start_timer(T_pairing)
  
@@ -741,24 +742,37 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         ! Precompute the overlaps between the HF-basis states and the tagging spwf
         tag_overlaps = calculate_tag_overlaps()
       endif
+
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       select case(scheme)
       case( 0)
-        call solvepairing_HFB_direct(  &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        ! Technical note: when constraints are active, feeding the entire 
+        !     single-particle hamiltonian into the direct diagonalisation
+        !     solver can be really detrimental to convergence. Hence we take 
+        !     road travelled by EV8/CR8 and the older codes and feed the
+        !     routine only with the diagonal part. At convergence -- provided 
+        !      diag_sphamil == .true. -- this is of course equivalent.
+        if(.not.allocated(sphamil_diag)) allocate(sphamil_diag(nwt,nwt))
+        sphamil_diag = 0.0d0
+        do i = 1, nwt
+          sphamil_diag(i,i) = sphamil(i,i)
+        enddo
+
+        call solvepairing_HFB_direct( sphamil_diag,                            &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,          &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, partner_qps, partner_overlaps, HFBmix, tag_overlaps,  &
         &   ifail)
       case(+1)
-        call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
+        call solvepairing_HFB_gradient( sphamil,                               &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &   .true. , 1, HFBmix, ifail, rho_col, kappa_col)
       case(-1)
-        call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
+        call solvepairing_HFB_gradient( sphamil,                               &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &  .false., 1,HFBmix, ifail, rho_col, kappa_col)
@@ -767,9 +781,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! Construct the density in the Hartree-Fock basis 
     ! (which is generally only used for printing)
     if(pairingtype.eq.2) then
-      rho_hf =  construct_rho_HF(rho_pairing, HFtransfo)
+      rho_hf = construct_rho_HF(rho_pairing, HFtransfo)
     else
-      rho_hf = rho_can/2.0d0
+$TR      rho_hf = rho_can/2.0d0
+$NTR     rho_hf = rho_can
     endif  
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas

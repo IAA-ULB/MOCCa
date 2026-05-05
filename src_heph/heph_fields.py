@@ -816,7 +816,16 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
                     if (i != j):
                       dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den.substitute(dic)
                     else:
-                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den_pert.substitute(dic)
+                      if('P' in densities[j]):
+                        # Extraordinary dirty trick: if we pick a pairing density to vary, we add an extra factor
+                        #   0.5 in order to offset the double-counting.
+                        #
+                        # Note: this will ONLY work if pairing terms are of the simple form (pairing density) * (pairing density)^*
+                        #       i.e. one cannot have EDF terms with different pairing densities!
+                        dic['EXPR_PERT'] = dic['EXPR_PERT'] + ' * 0.5d0' + ts.field_calc_den_pert.substitute(dic)
+                        #print (densities[j], j,i, dic['EXPR_PERT'])
+                      else:
+                        dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den_pert.substitute(dic)
 
                   # Increment the starting point of indices
                   lastorder = lastorder + OrderOfDen(dic['DENSITY'])

@@ -17,6 +17,18 @@ where
 This page will list release notes for all releases that increment at least the minor version, but 
 not the patch version.
 
+## v0.4.0 - FAMQRPA 
+  Major new feature: full implementation of linear response functionality with pairing (P. Demol) 
+  Notable changes from v0.3.1-0.3.9
+  - v0.3.9: exact folding with Gaussian charge factors (L. Gonzalez)
+  - v0.3.8: new building framework, significantly enhanced compilation speed when developing (W. Ryssens)
+  - v0.3.7: a collection of small changes (multiple authors)
+  - v0.3.6: sum rules infrastructure (P. Demol)
+  - v0.3.5: a collection of small bugfixes (W. Ryssens)
+  - v0.3.4: official jump off for the MOCCaPy project 
+  - v0.3.3: FAMRPA operational (P. Demol)
+  - v0.3.1: Implementation of vibrational correction from a collective Hamiltonian (L. Gonzalez)
+
 ## v0.3.0 - long-awaited merges 
   - merging of the `difficult-merge' pasta AND fam branches into master
   - support for reading and writing HDF5 files

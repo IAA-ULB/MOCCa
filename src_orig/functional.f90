@@ -263,11 +263,9 @@ contains
     ! coefficients, that are to be executed by all MPI ranks
     call calcedfcoefs()
 
-#if( $FAM == 0)
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
     delta_action_HFB => delta_action
-#endif
  end subroutine readfunctional
 
  subroutine calcedfcoefs()
@@ -710,7 +708,7 @@ end function multiply_potentialvector
       Kinetic = CompKinetic_density(Rin)
     endif
 #else 
-    Kinetic = CompKinetic_spwfs()
+    Kinetic = CompKinetic_spwfs() 
 #endif
 
     ! COM correction
@@ -934,9 +932,13 @@ $PRINT
 #if(USE_MPI>0)
     integer          :: mpi_err
 #endif
+#if($FAM==1)
+    integer          :: wave_2, B, N, si
+#endif 
 
-    ! Kinetic Energy
     Kinetic = 0.0_dp
+#if($FAM == 0)
+    ! Kinetic Energy
     do wave=1,nwt_local              ! local spwf index
         wave_global = spwf_map(wave) ! global spwf index
 
@@ -955,6 +957,35 @@ $PRINT
         enddo
         Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
     enddo
+#else
+    ! Nondiagonal sum for FAM
+    si = 0
+    do B=1,8
+      N = HFBLocks(B); if(N.eq.0) cycle 
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it = 1
+      if(B.ge.5) it = 2
+
+      do wave=si+1,si+N 
+        do wave_2=si+1,si+N
+          Inproduct = 0.0_dp
+          do k=1,4
+            do i=1,mv
+              Inproduct = Inproduct + HFPsi(i,k,wave_2) *  &
+              &  ( HFddPsi(i,1,k,wave) + &
+              &    HFddPsi(i,4,k,wave) + &
+              &    HFddPsi(i,6,k,wave))
+            enddo
+          enddo          
+          Kinetic(it)= Kinetic(it) + rho_pairing(wave, wave_2)*Inproduct
+        enddo
+      enddo
+      si = si + N
+    enddo
+$TR  Kinetic = 2 * Kinetic ! Time-reversal factor 2
+#endif
+
 #if(USE_MPI > 0)
     ! Sum the contributions across all MPI ranks
     call MPI_ALLREDUCE(MPI_IN_PLACE, Kinetic, 2, MPI_REAL8, MPI_SUM,           &
@@ -1524,7 +1555,8 @@ $CALCPOTENTIALS
   end function calcPotentials
 
 #if($FAM == 1)
-  subroutine calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
+  subroutine calc_perturbed_potentials(  R, dRs, dRa, dR_pp_plus, dR_pp_minus, &
+  &                                         dFs, dFa, dF_pp_plus, dF_pp_minus)
     !---------------------------------------------------------------------------
     ! Calculate the linearised response of the potentials (dFs, dFa) around
     ! a set of mean-field densities (R) that are affected by perturbations
@@ -1543,27 +1575,33 @@ $CALCPOTENTIALS
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   R   : density-vector containing the mean-field densities
-    !   dRs : density-vector containing the symmetric perturbing densities
-    !   dRa : density-vector containing the antisymmetric perturbing densities
+    !   dRs : density-vector containing the symmetric perturbing particle-hole densities
+    !   dRa : density-vector containing the antisymmetric perturbing particle-hole densities
+    !   dR_pp_plus : density-vector containing the perturbing particle-particle densities deduced from kappa
+    !   dR_pp_minus: density-vector containing the perturbing particle-particle densities deduced from kappa^*
     !
     ! Output:
     !   dFs : potential-vector containing the symmetric part of the linearised
     !         response of the mean-field potentials
     !   dFa : potential-vector containing the antisymmetric part of the linearised
     !         response of the mean-field potentials
+    !   dF_pp_plus : potential-vector containing the linearised response of the pp potentials with kappa
+    !   dF_pp_minus: potential-vector containing the linearised response of the pp potentials with kappa^*
+    ! 
     !---------------------------------------------------------------------------
     use CoulombMod, only : solve_coulomb_linear_response
 
-    type (DensityVector), intent(in) :: R, dRs, dRa
-    type (PotentialVector)           :: dFs, dFa
+    type (DensityVector), intent(in) :: R, dRs, dRa, dR_pp_plus, dR_pp_minus
+    type (PotentialVector)           :: dFs, dFa, dF_pp_plus, dF_pp_minus
     
-    dFs  = calc_perturbed_potentials_oneoff(R,dRs)
-    dFa  = calc_perturbed_potentials_oneoff(R,dRa)
+    dFs  = calc_perturbed_potentials_oneoff(R,dRs)  ! perturbation of symmetric ph potentials
+    dFa  = calc_perturbed_potentials_oneoff(R,dRa)  ! perturbation of antisymmetric ph potentials
 
-    !print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
-    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
-    !print *, 'SOLVING ANTISYMMETRIC PART'
-    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
+    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)          ! Coulomb response to symmetric ph densities
+    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)  ! Coulomb response to antisymmetric ph densities
+
+    dF_pp_plus  = calc_perturbed_potentials_oneoff(R,dR_pp_plus) ! perturbation of pp potentials with kappa
+    dF_pp_minus = calc_perturbed_potentials_oneoff(R,dR_pp_minus)! perturbation of pp potentials with kappa^*
 
     !call print_maxval('F_I_I', dFs%F_I_I, dFa%F_I_I)
     !call print_maxval('F_Nm_Nm', dFs%F_Nm_Nm, dFa%F_Nm_Nm)
@@ -2189,11 +2227,34 @@ $N3DELTA                   & dddpsi,   &
 $SYMDELTA                  & sx,sy,sz, &
 &                                         iso, onthefly, F) result(deltapsi)
     !---------------------------------------------------------------------------
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    ! ----------
+    !         psi :
+    !           spwf to act on with delta
+    !  d/dd/dddpsi :
+    !           arrays containing the first, second and third derivatives
+    !           of the spwf. 
+    ! sx/sy/sz :
+    !           signs under reflection symmetry for this particular spwf
+    !           not referenced when onthefly = .false.
+    ! iso :
+    !   isospin of the spwf: +1 for protons, -1 for neutrons
     !
     ! onthefly:
     !   Logical indicating if the derivatives need to be calculated before
     !   applying delta. If false, the derivatives are passed in. If True, the
     !   derivatives are not passed in and need to be calculated.
+    !   NOT IMPLEMENTED YET 
+    !
+    ! F :
+    !   potentialvector containing the pairing fields
+    !
+    ! Output:
+    ! --------
+    !   deltapsi :
+    !     delta | psi >
     !---------------------------------------------------------------------------
     logical, intent(in)               :: onthefly 
     integer, intent(in)               :: iso
@@ -2219,9 +2280,7 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
       call stp('On the fly calculation of derivatives in delta_action not implemented.')
     endif
     !---------------------------------------------------------------------------
-    ! Zero the action of Delta.
-    ! This is the place to include contributions to the pairing that should
-    ! be coded manually
+    ! Start by zeroing the array
     allocate(deltapsi(mv,4))
     deltapsi = 0.0
 
@@ -2238,18 +2297,28 @@ $PAIRINGACTION
     use wavefunctions
     use moments
 
-    integer       :: wave
+    integer       :: wave, wave2
     real(KIND=dp) :: spwfenergy, e_rear
 
     ! Start by summing the single-particle energies
     spwfenergy = 0
-    do wave=1,nwt
-        if(pairingtype.lt.2) then
-          spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
-        else
-          spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
-        endif
-    enddo
+    if(pairingtype.lt.2) then
+      do wave=1,nwt
+        spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
+      enddo
+    elseif(allocated(canenergies)) then
+      do wave=1,nwt
+        spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
+      enddo
+    else 
+      ! Safeguard case
+      do wave=1,nwt 
+        do wave2=1,nwt 
+          spwfenergy = spwfenergy + rho_pairing(wave,wave2) * sphamil(wave2,wave)
+        enddo
+      enddo
+$TR   spwfenergy = 2 * spwfenergy      
+    endif
     !
     spwfenergy = 0.5 * spwfenergy
 

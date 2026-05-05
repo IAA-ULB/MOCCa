@@ -11,7 +11,7 @@ from src_heph.heph_symmetries  import *
 from string                    import Template
 
 
-def ProcessWavefunctions(fname, src, target, so, dry_run=False):
+def ProcessWavefunctions(fname, src, target, so, fam_active, dry_run=False):
   """    
   Process the wavefunctions.f90 file of the Fortran code.       
     
@@ -106,6 +106,11 @@ def ProcessWavefunctions(fname, src, target, so, dry_run=False):
       dic['PCON']    = ' '
       dic['PBROKEN'] = '!'
 
+  if( fam_active ):
+    dic['FAM']    = '1'
+  else:
+    dic['FAM']    = '0'
+      
   if(not dry_run):
     substitute(src+fname, target+fname, dic)  
 

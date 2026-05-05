@@ -60,6 +60,10 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
+  ! Flag governing the reading of potentials from file
+  ! If .true.  => attempt to read the potentials from file and use them
+  !               to start iterating
+  logical             :: potentials_from_file = .true.
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
@@ -68,7 +72,6 @@ implicit none
   integer             :: checkpointiter = 0  
 
   logical                       :: passed_block_test = .true.
-
 
 contains
 
@@ -167,7 +170,8 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia
+    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia,     &
+    &           potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -215,7 +219,9 @@ contains
 
     call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
-#endif  
+    call MPI_Bcast(potentials_from_file, 1            , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
   
 #if(USE_MPI == 0) 
   if(N_inertia .lt. 4) then
@@ -275,16 +281,17 @@ contains
     &          '  outputfilename =', a32)
     
   101 format ( ' Information obtained from file ')  
-  102 format ( '      - version number          : ', i5)  
- 1021 format ( '      - param. used on file     : ', 20a)
-  103 format ( '      - Bogoliubov transfo read?: ', l5)  
- 1031 format ( '      - Bogoliubov transfo used?: ', l5)  
-  104 format ( '      - Blocking type           : ', i5)
-  105 format ( '      - Blocknumber             : ', i5)
-  106 format ( '      - Block indices           : ', 10i4)
-  107 format ( '      - Block lowest            : ', 10a2)
-  108 format ( '      - Passed blocking test    : ', l5)
-    
+  102 format ( '      - version number            : ', i5)
+ 1021 format ( '      - param. used on file       : ', 20a)
+  103 format ( '      - Bogoliubov transfo read?  : ', l5)
+ 1031 format ( '      - Bogoliubov transfo used?  : ', l5)
+  104 format ( '      - Blocking type             : ', i5)
+  105 format ( '      - Blocknumber               : ', i5)
+  106 format ( '      - Block indices             : ', 10i4)
+  107 format ( '      - Block lowest              : ', 10a2)
+  108 format ( '      - Passed blocking test      : ', l5)
+  109 format ( '      - Potentials read from file : ', l5)
+
    11 format ( ' Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a80, / &
              & '    DEN file       = ', a80, / &
@@ -355,6 +362,8 @@ contains
             print 107, fileblocklowest
         end select
         print 108, passed_block_test
+
+        print 109, potentials_from_file
       endif 
 
       print 112, checkpointiter
@@ -1862,8 +1871,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     ! as well as the perturbing operator F. 
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
-    ! The complex matrices X_ph Y_ph are written in a sparse format as 
-    !    p    h    X_ph%re   X_ph%im     Y_ph%re   Y_ph%im
+    ! The complex matrices X_mn Y_mn are written in a sparse format as 
+    !    m    n    X_mn%re   X_mn%im     Y_mn%re   Y_mn%im
     ! The file is appended for each FAM frequency, different blocks seperated by 
     ! a single line:
     !   & omega = [omega]  [smear]
@@ -1881,7 +1890,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &          '#    proton eff charge  = ', f10.3, ' e')
 
     2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
-    3 format('#', 5x, 'p', 6x, 'h',14x, 'X(/F)_ph_re', 14x, 'X(/F)_ph_im', 14x, 'Y(/F)_ph_re', 14x, 'Y(/F)_ph_im') 
+    3 format('#', 5x, 'm', 6x, 'n',14x, 'X(/F)_mn_re', 14x, 'X(/F)_mn_im', 14x, 'Y(/F)_mn_re', 14x, 'Y(/F)_mn_im') 
 
 
     open(1,file=fname, iostat=io)
@@ -1902,11 +1911,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine init_xy_file
 
 
-  subroutine append_xy_file(fname, O_ph, O_hp)
+  subroutine append_xy_file(fname, O20, O02)
     use fam
     character(len=*), intent(in)           :: fname
-    complex(KIND=dp), intent(in), optional :: O_ph(:,:), O_hp(:,:)
-    integer                                :: io, h, p
+    complex(KIND=dp), intent(in), optional :: O20(:,:), O02(:,:)
+    integer                                :: io, mu, nu
 
     1 format ( '& omega = ', f10.3, f10.3) 
     2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
@@ -1920,11 +1929,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     endif
     
 
-    if (present(O_ph)) then
-      do h = 1, nwt
-        do p = 1, nwt
-          ! if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
-            write(1, fmt=2) p, h, O_ph(p,h)%re, O_ph(p,h)%im, O_hp(p,h)%re, O_hp(p,h)%im
+    if (present(O20) .and. present(O02)) then
+      do nu = 1, nwt
+        do mu = 1, nwt
+          ! if(abs(O20(mu,nu)) > 1e-10 .or. abs(O02(mu,nu)) > 1e-10) then
+            write(1, fmt=2) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
           ! end if
         enddo
       enddo
@@ -1932,10 +1941,10 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     else
       write(1, fmt=1) omega_fam, smear
 
-      do h = 1, nwt
-        do p = 1, nwt
-          ! if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
-            write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
+      do nu = 1, nwt
+        do mu = 1, nwt
+          ! if(abs(X(mu,nu)) > 1e-10 .or. abs(Y(mu,nu)) > 1e-10) then
+            write(1, fmt=2) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
           ! end if
         enddo
       enddo

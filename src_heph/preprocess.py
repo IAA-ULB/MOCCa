@@ -88,7 +88,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         if(fname=='derivatives.f90'):
             ProcessDerivatives(fname, src, target, so, dry_run)
         if(fname=='wavefunctions.f90'):
-            ProcessWavefunctions(fname, src, target, so, dry_run)             
+            ProcessWavefunctions(fname, src, target, so, fam_active, dry_run)             
         if(fname=='parameterization.f90'):
             ProcessParameterization(fname, src, target, dry_run)                    
         if(fname=='functional.f90'):
