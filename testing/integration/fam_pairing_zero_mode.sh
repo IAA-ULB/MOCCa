@@ -83,7 +83,7 @@ neutrons=20, protons=22
 energy_prec=1e-16
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.2
+nx=8, ny=8, nz=8, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -99,7 +99,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 30, nwp = 30
+nwn = 40, nwp = 40
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -127,7 +127,7 @@ neutrons=20, protons=22
 energy_prec=1e-20
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.2
+nx=8, ny=8, nz=8, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -144,7 +144,7 @@ freezeiter=1000
 &scfiteration
 /
 &wfs
-nwn = 30, nwp = 30
+nwn = 40, nwp = 40
 osc_freq = 0.2, 0.2, 0.18
 /
 &IO
@@ -157,7 +157,7 @@ allowtransform=.true.
 &Cranking
 /
 EOF
-./$exe < mf.data > $mfoutfile.bis
+#./$exe < mf.data > $mfoutfile.bis
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO FAM calculation
@@ -168,7 +168,7 @@ cat << EOF > fam.data
 neutrons=20, protons=22
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.2
+nx=8, ny=8, nz=8, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -182,7 +182,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 30, nwp = 30
+nwn = 40, nwp = 40
 /
 &IO
 InputFilename='mf.wf'
@@ -195,15 +195,16 @@ famfile='N.fam'
 &Cranking
 /
 &fam
-omega_min=-1.0
-omega_max=1.0
+omega_min=-1.5
+omega_max=+1.5
 omega_step=0.25
-smear=0.25
+smear=0.0
 !l=0
 !m=0
 operator_type='particle number'
 maxiter=30
-fam_precision=1e-8
+maxhist=31
+fam_precision=1e-15
 eff_charge_n=0.0
 /
 EOF

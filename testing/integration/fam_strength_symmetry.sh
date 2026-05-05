@@ -67,11 +67,11 @@ setup_test_env_fam "fam_strength_symmetry.${args[2]}.om=${args[3]}.eta=${args[4]
 # Create runtime data
 cat << EOF > mf.data
 &nucleus
-neutrons=10, protons=8
+neutrons=10, protons=10
 energy_prec=1e-16
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=8, ny=8, nz=8, dx=1.2
 /
 &func
 name_param="${args[1]}"
@@ -80,7 +80,7 @@ name_param="${args[1]}"
 type="${args[2]}"
 /
 &evolution
-maxiter=100
+maxiter=1000
 dt=0.0209, momentum=0.5746
 Estimateparams=.false.
 /
@@ -111,11 +111,11 @@ tantalus_check=$?
 #     robust set of virtual states
 cat << EOF > mf.data
 &nucleus
-neutrons=10, protons=8
+neutrons=10, protons=10
 energy_prec=1e-20
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=8, ny=8, nz=8, dx=1.2
 /
 &func
 name_param="${args[1]}"
@@ -158,10 +158,10 @@ do
 # Create runtime data
 cat << EOF > qfam.data
 &nucleus
-neutrons=10, protons=8
+neutrons=10, protons=10
 /
 &mesh
-nx=8, ny=8, nz=8, dx=0.8
+nx=8, ny=8, nz=8, dx=1.2
 /
 &func
 name_param="${args[1]}"
