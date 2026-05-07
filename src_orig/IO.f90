@@ -1366,7 +1366,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     character(len=*), intent(in) :: fname
     integer                      :: io, i,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
+    real(KIND=dp)                :: Jx_sp, Jy_sp, Jz_sp, JJ_sp
+    real(KIND=dp)                :: Spinx, Spiny, Spinz, P
  
     1 format(2i5, 10f10.4)
     2 format("# Neutron spwfs")
@@ -1396,13 +1397,13 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       wave = neutronorder(i)
       P = P_hf(wave)
 
-      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
-      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
-      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
-      JJ = HF_JJ(wave)
+      Jx_sp = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy_sp = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz_sp = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
+      JJ_sp = HF_JJ(wave)
 
       write(1, fmt=1) wave, -1, p, rho_HF(wave), spenergies(wave),   & 
-      &               Jx, Jy,Jz, JJ, Spinx, Spiny, Spinz
+      &               Jx_sp, Jy_sp,Jz_sp, JJ_sp, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1411,13 +1412,13 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       wave =  protonorder(i)
       P = P_hf(wave)
 
-      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
-      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
-      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
-      JJ = HF_JJ(wave)
+      Jx_sp = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy_sp = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz_sp = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
+      JJ_sp = HF_JJ(wave)
 
       write(1, fmt=1) wave, +1, p, rho_HF(wave), spenergies(wave), & 
-      &                Jx, Jy,Jz,JJ,Spinx,Spiny,Spinz
+      &                Jx_sp, Jy_sp,Jz_sp,JJ_sp,Spinx,Spiny,Spinz
     enddo
     close(1)
   end subroutine write_sp_info
@@ -1464,7 +1465,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     character(len=*), intent(in) :: fname
     integer                      :: io, i, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
+    real(KIND=dp)                :: Jx_sp, Jy_sp, Jz_sp, JJ_sp, Spinx, Spiny, Spinz, P
  
     1 format(2i5, 10f10.4)
     2 format("# Neutron spwfs")
@@ -1495,13 +1496,13 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       wave = neutronorder(i)    
       P = P_can(wave)
 
-      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
-      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
-      JJ = can_JJ(wave)
+      Jx_sp = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy_sp = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz_sp = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ_sp = can_JJ(wave)
 
-      write(1, fmt=1) wave, -1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ, Spinx, Spiny, Spinz
+      write(1, fmt=1) wave, -1, p, rho_can(wave), canenergies(wave), &
+           &          Jx_sp, Jy_sp,Jz_sp, JJ_sp, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1510,13 +1511,13 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       wave =  protonorder(i)
       P = P_can(wave)
 
-      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
-      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
-      JJ = can_JJ(wave)
+      Jx_sp = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy_sp = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz_sp = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ_sp = can_JJ(wave)
 
-      write(1, fmt=1) wave, +1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ, Spinx, Spiny, Spinz
+      write(1, fmt=1) wave, +1, p, rho_can(wave), canenergies(wave), &
+           &          Jx_sp, Jy_sp, Jz_sp, JJ_sp, Spinx, Spiny, Spinz
     enddo
     close(1)
   end subroutine write_sp_info_can

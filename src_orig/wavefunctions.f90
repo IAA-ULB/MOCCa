@@ -220,10 +220,10 @@ module wavefunctions
  !   - r^2 
  logical :: print_adv_spwf_properties = .false.
  !------------------------------------------------------------------------------
- ! Angular momentum properties of the spwfs in
+ ! Angular momentum expectation values of the spwfs in
  !  (a) the Hartree-Fock basis                       :   HF_[...]
  !  (b) the canonical basis                          :  can_[...]
- ! "Ordinary" Jx, Jy, Jz 
+ ! "Ordinary" Jx, Jy, Jz
  real(KIND=dp), allocatable :: hf_J(:,:), can_J(:,:)
  ! Squared   Jx^2, Jy^2, Jz^2
  real(KIND=dp), allocatable :: HF_J2(:,:), can_J2(:,:)
@@ -241,6 +241,11 @@ module wavefunctions
  real(KIND=dp), allocatable :: hf_STR(:,:) , can_STR(:,:)
  real(KIND=dp), allocatable :: hf_STI(:,:) , can_STI(:,:)
  !------------------------------------------------------------------------------
+ ! Full set of single-particle matrix elements of Jx/y/z in the HF-basis array
+ !  with and WITHOUT pairing cutoff folded in
+ real(KIND=dp),allocatable ::  jx(:,:), jx_no_cut(:,:)
+ real(KIND=dp),allocatable ::  jy(:,:), jy_no_cut(:,:)
+ real(KIND=dp),allocatable ::  jz(:,:), jz_no_cut(:,:)
  !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
