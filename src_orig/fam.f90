@@ -528,8 +528,8 @@ module fam
       !                   - calculation of pairing gap matrix element is off by 1/2
       !
       ! For now, we just multiply here by 2!
-      dHspout(:,:,1) = 2.0d0 * dHspout(:,:,1)
-      dHspout(:,:,3) = 2.0d0 * dHspout(:,:,3)
+      !dHspout(:,:,1) = 2.0d0 * dHspout(:,:,1)
+      !dHspout(:,:,3) = 2.0d0 * dHspout(:,:,3)
 
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
     endif

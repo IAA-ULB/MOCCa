@@ -1215,7 +1215,12 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                         elif complex_component == +0:
                             Expression = Expression + ta.Sph_sum_real.substitute(dic) + '\n\n'
                     else:
-                        # Calculation for the pairing matrix
+                        # Calculation for the matrix of pairing gaps
+                        #
+                        # HACK
+                        # - - - - -
+                        dic['WEIGHT'] = ' 2.0d0 * ' + dic['WEIGHT']
+                        #
                         if complex_component == +1:
                             Expression = Expression + ta.Delta_sum_realpart.substitute(dic) + '\n\n'
                         elif complex_component == -1:
