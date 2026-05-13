@@ -143,51 +143,51 @@ $TR   dkappa_minus = - dkappa_minus
     ! The perturbation of F_I_I is typically the hardest because of the density dependent term
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_I  - symmetric', dFs%F_I_I       , Fnew%F_I_I/eta,        &
-        & pairing=.false., tol=1d-3))
+        & tol=1d-3))
 
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SX - symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SY - symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SZ - symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*
     ! 2. Test a perturbation of the antisymmetric part of the particle-hole perturbation
     Fnew  = calcpotentials(R + eta*dRa) + (-1.0d0) * F
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_I - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta, &
-        & pairing=.false., tol=1d-3))
+        & tol=1d-3))
 
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
     ifail = max(ifail, &
         & check_findiff_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta, &
-        & pairing=.false., tol=1d-9))
+        & tol=1d-9))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -* 
     ! 3. Test the perturbed pairing potentials
     Fnew  = calcpotentials(R + eta*DR_pp_plus) + (-1.0d0) * F
     ifail = max(ifail, &
         & check_findiff_deviations('FP_I_I  - plus' , DF_pp_plus%FP_I_I,  Fnew%FP_I_I/eta, &
-        & pairing=.true.,tol=5d-7))
+        & tol=5d-7))
 
     Fnew  = calcpotentials(R + eta*DR_pp_minus) + (-1.0d0) * F
     ifail = max(ifail, &
         & check_findiff_deviations('FP_I_I  - minus', DF_pp_minus%FP_I_I, Fnew%FP_I_I/eta, &
-        & pairing=.true.,tol=5d-7))
+        & tol=5d-7))
 
     print 1
     print *
   end subroutine test_potentials
 
-  function check_findiff_deviations(name, ref, findiff, pairing, tol) result(ifail)
+  function check_findiff_deviations(name, ref, findiff, tol) result(ifail)
     !-----------------------------------------------------------------------
     ! Test that the potentials (ref, findiff) are equal, i.e.
     !
@@ -201,11 +201,6 @@ $TR   dkappa_minus = - dkappa_minus
     !                  of the mean-field routine with explicitly perturbed
     !                  densities
     !
-    ! Technical note: there is an additional factor of two that needs to be
-    !   corrected for when dealing with pairing potentials. The reason is
-    !   that the meanfield routine calc_potentials does not differentiate
-    !   between \tilde{F} and \tilde{F}^*; i.e. perturbing \kappa corresponds
-    !   to perturbing BOTH \tilde{F} AND \tilde{F}^*.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !    name   : string, used for printing
@@ -219,15 +214,11 @@ $TR   dkappa_minus = - dkappa_minus
     character(len=*), intent(in) :: name
     real(KIND=dp), intent(in)    :: tol
     complex(KIND=dp), intent(in) :: ref(:,:), findiff(:,:)
-    logical, intent(in)          :: pairing
     logical                      :: check
-    real(KIND=dp)                :: factor
     integer :: i, ifail
 
-    factor = 1
-    if(pairing) factor = 0.5d0
     check = .true.
-    if( maxval(abs(ref - factor * findiff)) > tol ) check = .false.
+    if( maxval(abs(ref - findiff)) > tol ) check = .false.
 
     if(.not. check) then
        print *, ' ------------------------------------------------------'
@@ -237,19 +228,19 @@ $TR   dkappa_minus = - dkappa_minus
        print *, '-------------------------'
        do i=1,nx
           print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), &
-               &                             DBLE(ref(i,1))- factor*DBLE(findiff(i,1))
+               &                             DBLE(ref(i,1))- DBLE(findiff(i,1))
        enddo
        print *
        print *, name, ' imaginary part - maxval = ', maxval(abs(IMAG(ref)))
        print *, '-------------------------'
        do i=1,nx
-          print ('(i3, 2f10.3, es12.3)'), i, IMAG(ref(i,1)), factor*IMAG(findiff(i,1)), &
-               &                             IMAG(ref(i,1)) - factor*IMAG(findiff(i,1))
+          print ('(i3, 2f10.3, es12.3)'), i, IMAG(ref(i,1)), IMAG(findiff(i,1)), &
+               &                             IMAG(ref(i,1)) -IMAG(findiff(i,1))
        enddo
        print *, ' ------------------------------------------------------'
        print *
     else
-       print ('(a40,  1e15.3," < ", 1e15.3 )'), name,  maxval(abs(ref - factor * findiff)), tol
+       print ('(a40,  1e15.3," < ", 1e15.3 )'), name,  maxval(abs(ref - findiff)), tol
     endif
 
     if (check) then
