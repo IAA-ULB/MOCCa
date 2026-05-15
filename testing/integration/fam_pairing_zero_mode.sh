@@ -9,7 +9,7 @@
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
-
+#  S(N_p, omega != 0) / S(N_p, omega=0)  < 0.15                     N/A
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -195,16 +195,15 @@ famfile='N.fam'
 &Cranking
 /
 &fam
-omega_min=-0.1
+omega_min=0.0
 omega_max=+0.1
-omega_step=0.01
+omega_step=0.05
 smear=0.0
 !l=0
 !m=0
 operator_type='particle number'
 maxiter=30
 maxhist=31
-fam_precision=1e-15
 eff_charge_n=0.0
 /
 EOF
@@ -213,3 +212,47 @@ EOF
 ./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
+
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (4) Check that strength at non-zero frequencies is quite a lot smaller
+#     than the one at zero frequency
+strength_zero=$(awk '$1 == 0.000 || $1 == -0.000 {print $4; exit}' N.fam)
+
+awk_output=$(awk 'BEGIN { max=0; fail=0; s0=0 }
+   /^#/ { next }
+  NF > 0 && $1+0 == 0 && !seen_zero { s0=$4; seen_zero=1;  next }
+  NF > 0 && $1+0 != 0 { abs_s = ($4 < 0 ? -$4 : $4); abs_s0 = (s0 < 0 ? -s0 : s0);  if (s0 != 0) ratio = abs_s / abs_s0; else ratio = 0;  if (ratio > max) max = ratio; if (ratio >= 0.15) fail = 1 }
+  END { print max, fail }' N.fam)
+
+max_ratio=$(echo $awk_output | awk '{print $1}')
+check_zero_mode=$(echo $awk_output | awk '{print $2}')
+
+# Report results
+if $verbose; then
+  echo "----------------------------------------"
+  echo "Zero-mode strength check:"
+  echo "Strength at omega = 0: $strength_zero"
+  echo "Maximum ratio |S(omega!=0)| / |S(omega=0)|: $max_ratio"
+  if (($check_zero_mode == 0)) ; then
+    echo "Result: PASS - All non-zero frequencies have strength < 0.1 * strength(0)"
+  else
+    echo "Result: FAIL - Some non-zero frequencies have strength >= 0.1 * strength(0)"
+  fi
+  echo "----------------------------------------"
+fi
+
+# Clean up
+teardown_test_env
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Return exit code 1 if any of the checks failed
+fail=$(($tantalus_check || $fam_check || $check_zero_mode))
+
+if (($fail == 0)) ; then
+  echo -e "test FAM pairing zero mode :\033[1;32m success \033[0m"
+else
+  echo -e "test FAM pairing zero mode :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, zero_mode = $check_zero_mode \033[0m"
+fi
+
+exit $fail

@@ -1162,3 +1162,75 @@ jobs:
             testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX_T }}.fam.out
             testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX_P }}.fam.out
           retention-days: 90
+
+  fam_pairing_zero_mode:
+    # Check that the strength has the proper symmetry properties
+    runs-on: self-hosted
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    strategy:
+      matrix:
+        CONFIG  : [ LO, NLO]
+        COMPILER: [ gfortran ]
+        include :
+          - CONFIG: LO
+            PARAM : t0t3
+          - CONFIG: NLO
+            PARAM : SLy4
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable
+        with:
+          name: Tantalus.${{ env.SUFFIX_T }}
+          path: exec/
+
+      # Download the FAM executables
+      - uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - uses: actions/download-artifact@v7
+        # Download the FAM executable
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+
+      - name: Run the testing script (several times!)
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX }}   --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX_T }} --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+
+      - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_strength_symmetry.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.fam.out
+          retention-days: 90
