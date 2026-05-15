@@ -195,9 +195,9 @@ famfile='N.fam'
 &Cranking
 /
 &fam
-omega_min=-1.5
-omega_max=+1.5
-omega_step=0.25
+omega_min=-0.1
+omega_max=+0.1
+omega_step=0.01
 smear=0.0
 !l=0
 !m=0
