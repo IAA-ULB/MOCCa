@@ -44,35 +44,41 @@ contains
    12 format (" All tests passed! ")
    13 format (" Some tests failed! ")
 
-    integer :: ifail_sp_qp, ifail_HFme, ifail_potentials, ifail
+    integer :: ifail_sp_qp, ifail_HFme, ifail_potentials, ifail_linearity, ifail
 
     print 9
     print *
 
-    call test_qptransfo(ifail_sp_qp)
-    call test_potentials(ifail_potentials)
-    call test_HFMatrices_me(ifail_HFme)
-
     print 10
     print 11
-    print 1, 'SP<->QP transformations'        , ifail_sp_qp
-    print 1, 'Linearisation of potentials'    , ifail_potentials
-    print 1, 'Matrix elements of h and \Delta', ifail_HFme
 
+    if(PairingType .eq. 2) then
+      call test_qptransfo(ifail_sp_qp)
+      print 1, 'SP<->QP transformations'      , ifail_sp_qp
+    endif
+    call test_potentials(ifail_potentials)
+    print 1, 'Linearisation of potentials'    , ifail_potentials
+    call test_HFmatrices_me(ifail_HFme)
+    print 1, 'Matrix elements of h and \Delta', ifail_HFme
+    call test_linearity_T(ifail_linearity)
+    print 1, 'Linearity of FAM iteration'     , ifail_linearity
+
+  
     ifail = max(ifail_sp_qp, ifail_HFme, ifail_potentials)
     if(ifail.eq.0) print 12
     if(ifail.eq.1) print 13
     call exit(ifail)
 
   end subroutine run_FAM_tests
-!
+
   subroutine test_potentials(ifail)
     !------------------------------------------------------------------------
-    ! This subroutines tests
+    ! This subroutines tests the linearisation of the potentials
     !
-    !
-    ! TODO: use Hephaestos to generalize this test to more potentials!
-    !
+    ! TODO: 
+    !  - use Hephaestos to generalize this test to more potentials!
+    !  - document this routine 
+    ! 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !  None 
@@ -119,13 +125,13 @@ contains
       dkappa_plus  = 0  
       dkappa_minus = 0
     else ! QFAM
-      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y,                                  & ! input 
+      &                                   OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)   ! output
 $TR   dkappa_minus = - dkappa_minus
     endif
 
     ! Construct the densities 
-    R       = densit(rho_can, kappa_pairing)                                          ! mean-field densities
-
+    R       = densit(rho_can, kappa_pairing)                                                 ! mean-field densities
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, DRs, DRa, DR_pp_plus, DR_pp_minus)  ! perturbed densities
 
     ! Construct the potentials 
@@ -276,7 +282,12 @@ $TR   dkappa_minus = - dkappa_minus
     type(PotentialVector)         :: dFs, dFa, F, dF_pp_minus, dF_pp_plus
     type(DensityVector)           :: R, dRs, dRa, R_pp_plus, R_pp_minus, dR_pp_plus, dR_pp_minus
 
+  1 format (100('-'))
+ 99 format (25('-'), ' Matrix elements of h and Delta ', 25('-') )
+
     ifail = 0
+    print 99
+    print *
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (i) Ordinary mean-field-like calculation
 
@@ -335,17 +346,19 @@ $TR   dkappa_minus = - dkappa_minus
     delta_me = calc_delta_me(HFpsi, HFdpsi, HFddpsi, F, .false.)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (iii) Check result and print output if needed
+    print *
+    print *, 'Checking single-particle Hamiltonian matrix elements'
+    print 1
     si = 0
     do B = 1,8
       N = HFBlocks(B); if(N.eq.0) cycle
       ! The element-wise deviation
-      dev       = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
-      print *
-      print *, 'BLOCK B=', B
-      print *, "Maximal value of     h = ", maxval(abs(sphamil_orig(si+1:si+N, si+1:si+N)))
-      print *, "Maximal deviation of h = ", maxval(dev)
+      dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
+      print ('(a15, i2, a20, es15.4)'), 'Block B = ', B, ' Max |h| = ', maxval(abs(sphamil_orig(si+1:si+N, si+1:si+N)))
+      print ('(a15, i2, a20, es15.4)'), 'Block B = ', B, ' Max dev = ', maxval(dev)
       if(maxval(dev)>1e-10) then
         ifail = 1
+        print *
         print *, '------ Original calculation -------'
         do i=1,N
           print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
@@ -359,22 +372,23 @@ $TR   dkappa_minus = - dkappa_minus
         do i=1,N
           print ('(99es10.2)'), dev(i, 1:N)
         enddo
-        print *
       endif
       si = si + N
     enddo
 
     if(pairingtype.eq.2) then
+      print *
+      print *, 'Checking pairing gap matrix elements'
+      print 1
       si = 0
       do B= 1,8,2
         N = HFBlocks(B); N2 = HFBlocks(B+1); T = N + N2; if(T.eq.0) cycle
-        dev_gaps  = abs(delta_orig(si+1:si+T, si+1:si+T)   - delta_me(si+1:si+T, si+1:si+T))
-        print *
-        print *, 'BLOCKs B=', B, B+1
-        print *, "Maximal value of Delta = ", maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
-        print *, "Maximal deviation of Delta = ", maxval(dev_gaps)
+        dev_gaps = abs(delta_orig(si+1:si+T, si+1:si+T) - delta_me(si+1:si+T, si+1:si+T))
+        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, ' Max |Delta| = ', maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
+        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, ' Max dev = ', maxval(dev_gaps)
         if(maxval(dev_gaps)>1e-10) then
-          ifail = 1 
+          ifail = 1
+          print *
           print *, '------ Original calculation -------'
           do i=1,T
             print ('(99f10.3)'), DBLE(delta_orig(si+i, si+1:si+T))
@@ -388,11 +402,11 @@ $TR   dkappa_minus = - dkappa_minus
           do i=1,T
             print ('(99es10.2)'), DBLE(dev_gaps(i, 1:T))
           enddo
-          print *
         endif
         si = si + T
       enddo
     endif
+    print 1
   end subroutine test_HFmatrices_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)
@@ -524,53 +538,6 @@ $TR   dkappa_minus = - dkappa_minus
     !call mixup_rhokappa(rho_test, kappa_test, transfo)
 
   end subroutine test_densit_offdiag
-!
-!   subroutine build_dH_findiff(RUnper, dRs, dRa, eta)
-!     !---------------------------------------------------------------------------
-!     ! Build the perturbed single-particle Hamiltonian using finite difference
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! NOT OPERATIONAL
-!     !   -> use build_dH_explicit() instead.
-!     !
-!     ! Notes:
-!     !    This function is not operational at this point but is kept for potential
-!     !    test in the future. In particular, it would allow to test
-!     !    calc_perturbed_potentials.
-!     !---------------------------------------------------------------------------
-!
-!     1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-!
-!     implicit none
-!     type(DensityVector), intent(in) :: RUnper, dRs, dRa
-!     real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
-!     type(PotentialVector)           :: Fs, Fa
-!     complex(KIND=dp), allocatable      :: HPert(:,:)
-!
-!     print *, "build perturbed Hamiltonian using finite difference"
-!
-!     allocate(HPert(nwt,nwt))
-!
-!     ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation,
-!     ! from the total perturbed densit, i.e. static mean-field + perturbation
-!
-!     ! call calcPotentials(RUnper + eta * dRs, eta * dRa, Fs, Fa)
-!     ! => presently missing. /!\
-!
-!     call combine_potentials(Fs)
-!
-!     ! construct the sp hamiltonian
-!     HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs,  Fa, .false.)
-!
-!     ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
-!     HPert = HPert - Hunper
-!     ! ... and devide by small parameter eta
-!     HPert = HPert / eta
-!
-!     call get_ph_hp_blocks(HPert, dH(:,:,1), dH(:,:,2))
-!
-!     print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-!
-!   end subroutine build_dH_findiff
 
   subroutine test_gmres()
     !---------------------------------------------------------------------------
@@ -687,7 +654,6 @@ $TR   dkappa_minus = - dkappa_minus
     x_out = matmul(A, x_in)
 
   end subroutine multiply_by_A
-
 
   subroutine test_gmres_affine()
     !---------------------------------------------------------------------------
@@ -1101,71 +1067,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     endif
     print 1
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! BELOW : Old test by P. Demol which used to work in the case of vanishing proton pairing
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! *. test whether F20 reduced to ph elements when the bogoliubov trafo is trivial
-!     ! Note that this is a bit tricky since the previous routines used in absence of pairing
-!     ! get the occupations from rho_can which is diag(rho_hf) in that case but this in no longer
-!     ! true here since even in a trivial Bogo, indexing of the states can be altered
-!
-!     print * , 'TEST 4 : check if zero-pairing limit of qp trafo: isolating to (ph,hp,pp,hh) blocks '
-!
-!     ! print *, '||f11 (proton)||', sum(abs(Rsp(nwn+1:nwt, nwn+1:nwt,2) * Rsp(nwn+1:nwt, nwn+1:nwt,2)))
-!
-!     ! print *, 'f11_pq : BLOCK 5 & 6'
-!     ! si =  nwn ! start index of block 5
-!     ! T = HFblocks(5) + HFblocks(6) ! size of block5 + block6
-!
-!     ! do i=si+1,si+T
-!     !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rsp(i,si+1:si+T,2)
-!     ! enddo
-!
-!
-!
-!     ! print *, '||F20 (proton)||', sum(abs(Rqp(nwn+1:nwt, nwn+1:nwt,1) * Rqp(nwn+1:nwt, nwn+1:nwt,1)))
-!
-!     ! print *, 'F20_k1k2 : BLOCK 5 & 6'
-!     ! do i=si+1,si+T
-!     !   print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
-!     ! enddo
-!
-!
-!     allocate(Rph(nwt,nwt,2))     ! contains the qpme of a one-body operator F: F20_k1k2 and F11_k1k2
-!     Rph = 0
-!
-!
-!     ! assuming the bogo trafo is trivial in the proton block, the same result should be recovered from
-!     ! the existing particle hole getters.
-!     call get_ph_hp_blocks(Rsp(:,:,2), Rph(:,:,1), Rph(:,:,2))
-!
-!
-!     ! print *, '2x||Fph (proton)||', 2.*sum(abs(Rph(nwn+1:nwt, nwn+1:nwt,1) * Rph(nwn+1:nwt, nwn+1:nwt,1)))
-!
-!     print *, '  ||f11|| = ', sum(abs(Rsp(:, :,2) * Rsp(:, :,2)))
-!     print *, '  ||F20|| = ', sum(abs(Rqp(:, :,1) * Rqp(:, :,1)))
-!     print *, '2x||Fph|| = ', 2. * sum(abs(Rph(:, :,1) * Rph(:, :,1)))
-!
-!
-!     !all print_spme_complex( Rph(:,:,1))
-!
-!     !print *, 'Fph_ia : BLOCK 5 & 6'
-!     !do i=si+1,si+T
-!     !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rph(i,si+1:si+T,1)
-!     !enddo!
-!
-!     !print *, 'F20 : BLOCK 5 & 6'
-!     !do i=si+1,si+T
-!     !  print "(*( '(',g12.5,',',g12.5,')',:))",  Rqp(i,si+1:si+T,1)
-!     !enddo
-!
-!
-!     print *, '||F20|| - 2*||Fph|| = ', &
-!          & sum(abs(Rqp(1:nwt, 1:nwt,1) * Rqp(1:nwt, 1:nwt,1))) - 2 * sum(abs(Rph(1:nwt, 1:nwt,1) * Rph(1:nwt, 1:nwt,1)))
-!     print *, 'Note the factor 2 originating from the fact that F20_k1k2 = fph_ai - fhp_ia'
-!     print *, 'Also note that one can not simply evaluate ||F20 - (Fph - Fhp)||', &
-!          &  'since the trivial Bogoliubov trafo can reorder sp states'
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 5. Test that transform_sp_to_qp_wr and transform_qp_to_sp_wr are inverses
     print 2, 5, ' Inverse property: (QP->SP)(SP->QP) = identity'
     print *,    ' ... for (fermionic) random matrix'
@@ -1247,15 +1149,20 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     deallocate(O20sp, O11sp, O02sp, O20qp, O11qp, O02qp, O20sp_back, O11sp_back, O02sp_back)
   end subroutine test_qptransfo
 
-
-  subroutine test_linearity_T()
+  subroutine test_linearity_T(ifail)
+    !--------------------------------------------------------------------------------------
     ! Test a complete FAM iteration is an affine transformation by calling iterate_dH on 
     ! a chosen linear combination a * dHa + b*dHb. One expects that
     ! FAM(a * dHa + b *dHb) = T(a * dHa + b * dHb) + dH_free
     !                       = a * T(dHa) + b * T(dHb) + dH_free
     ! such that
     ! FAM(a * dHa + b *dHb) - dH_free = a * (FAM(dHa) - dH_free) + b * (FAM(dHb) - dH_free)
-
+    !
+    !
+    ! OUTPUT:
+    !   ifail : integer
+    !           0 if succesful, 1 if failed
+    !--------------------------------------------------------------------------------------
     implicit none
     complex(KIND=dp), allocatable :: dHa(:), dHa_iter(:)
     complex(KIND=dp), allocatable :: dHb(:), dHb_iter(:)
@@ -1263,21 +1170,31 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     real(KIND=dp),    allocatable :: rand_real(:), rand_imag(:)
     complex(KIND=dp), allocatable :: dH_free(:)
     complex(KIND=dp)              :: a, b
-    integer                       :: i,j
+    integer                       :: i,j, allocsize
+    integer, intent(out)          :: ifail 
     real                          :: diff_from_lin
 
+  1 format (100('-'))
+ 99 format (25('-'), ' Linearity test of FAM iteration ', 25('-') )
 
-    allocate(dHa(nwt*nwt))
-    allocate(dHa_iter(nwt*nwt))
-    allocate(dHb(nwt*nwt))
-    allocate(dHb_iter(nwt*nwt))
-    allocate(dHlincomb(nwt*nwt))
-    allocate(dHlincomb_iter(nwt*nwt))
-    allocate(rand_real(nwt*nwt))
-    allocate(rand_imag(nwt*nwt))
-    allocate(dH_free(nwt*nwt))
+    ifail = 0
+    print 99
+    print *
 
-
+    if(pairingtype.ne.2) then
+      allocsize = nwt*nwt
+    else 
+      allocsize = 3*nwt*nwt ! QRPA matrices are larger
+    endif 
+    allocate(dHa(allocsize))
+    allocate(dHa_iter(allocsize))
+    allocate(dHb(allocsize))
+    allocate(dHb_iter(allocsize))
+    allocate(dHlincomb(allocsize))
+    allocate(dHlincomb_iter(allocsize))
+    allocate(rand_real(allocsize))
+    allocate(rand_imag(allocsize))
+    allocate(dH_free(allocsize))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! get dH_free
 
@@ -1295,13 +1212,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     call random_number(rand_imag)
 
     ! Combine into complex matrix
-    dHa = 0
-    do i = 1, nwt
-        do j = 1, nwt
-            dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-        end do
-    end do
-
+    dHa = DCMPLX(rand_real, rand_imag)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! define dHb as random dcmplx matrix
 
@@ -1310,14 +1221,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     call random_number(rand_imag)
 
     ! Combine into complex matrix
-    dHb = 0
-    do i = 1, nwt
-        do j = 1, nwt
-            dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-        end do
-    end do
-
-
+    dHb = DCMPLX(rand_real, rand_imag)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! dHlincomb as some linear combination of dHa and dHb
     
@@ -1325,21 +1229,13 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     b = dcmplx(-2.0_dp, 0.5_dp) ! some random C scalar
     
     dHlincomb = a * dHa + b * dHb
-
-    print * , "||dHa|| = ", norm_2(dHa)
-    print * , "||dHb|| = ", norm_2(dHb)
-    print * , "||dHlincomb|| = ", norm_2(dHlincomb)
-
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
 
     call iterate_dHsp(dHa, dHa_iter)
     call iterate_dHsp(dHb, dHb_iter)
     call iterate_dHsp(dHlincomb, dHlincomb_iter)
-
-    print * , "||FAM(dHa)|| = ", norm_2(dHa_iter)
-    print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
-    print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! subtract the free response 
@@ -1348,243 +1244,15 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     dHb_iter = dHb_iter - dH_free
     dHlincomb_iter = dHlincomb_iter - dH_free
 
-    print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
-    print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
-
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! verify linarity of T and hence affinity of FAM
-
     diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
-    print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
+    print ('(a80, es15.4)'), '|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ', diff_from_lin
+    print ('(a40, es15.4)'), 'FAM iteration is affine up to precision: ', diff_from_lin
 
-    print *, "the FAM iteration iterate_dHsp is an affine transformation upto a precision of ", diff_from_lin
+    if(diff_from_lin > 1e-10) ifail = 1
+    print 1
 
-
-  end subroutine
-
-  subroutine test_linearity_FAM_coulomb()
-
-    implicit none
-
-    complex(KIND=dp), allocatable :: dHa(:), dHa_iter(:), dH_free(:)
-    complex(KIND=dp), allocatable :: dHb(:), dHb_iter(:)
-    complex(KIND=dp), allocatable :: dHlincomb(:), dHlincomb_iter(:)
-    real(KIND=dp),    allocatable :: rand_real(:), rand_imag(:)
-    type(potentialvector)         :: dFsym_a, dFsym_b, dFanti_a, dFanti_b, dFsym_lc, dFanti_lc, dFsym_free, dFanti_free
-    type(densityvector)           :: dRsym_a, dRsym_b, dRanti_a, dRanti_b, dRsym_lc, dRanti_lc, dRsym_free, dRanti_free
-    complex(KIND=dp)              :: a, b
-    integer                       :: i,j
-    real(KIND=dp)                 :: diff_from_lin_direct, diff_from_lin_exch, diff_from_lin
-
-
-    allocate(dHa(nwt*nwt))
-    allocate(dHa_iter(nwt*nwt))
-    allocate(dHb(nwt*nwt))
-    allocate(dHb_iter(nwt*nwt))
-    allocate(dHlincomb(nwt*nwt))
-    allocate(dHlincomb_iter(nwt*nwt))
-    allocate(rand_real(nwt*nwt))
-    allocate(rand_imag(nwt*nwt))
-    allocate(dH_free(nwt*nwt))
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! get dH_free
-    dH_free = 0
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! define dHa as random dcmplx matrix
-
-    ! Seed the random number generator
-    call random_seed()
-
-    ! Generate random real and imaginary parts
-    call random_number(rand_real)
-    call random_number(rand_imag)
-
-    ! Combine into complex matrix
-    dHa = 0
-    do i = 1, nwt
-        do j = 1, nwt
-            dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-        end do
-    end do
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! define dHb as random dcmplx matrix
-
-    ! Generate random real and imaginary parts
-    call random_number(rand_real)
-    call random_number(rand_imag)
-
-    ! Combine into complex matrix
-    dHb = 0
-    do i = 1, nwt
-        do j = 1, nwt
-            dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-        end do
-    end do
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! dHlincomb as some linear combination of dHa and dHb
-    a = dcmplx(0.0_dp, 1.0_dp) ! some random C scalar
-    b = dcmplx(1.0_dp, 0.0_dp) ! some random C scalar
-
-    dHlincomb = a * dHa + b * dHb
-
-    print * , "||dHa|| = ", norm_2(dHa)
-    print * , "||dHb|| = ", norm_2(dHb)
-    print * , "||dHlincomb|| = ", norm_2(dHlincomb)
-    print * , "||CHECK|| = ", norm_2(dHlincomb - a * dHa - b * dHb)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
-    call iterate_partial_dHsp(dH_free, dH_free         , dRsym_free, dRanti_free, dFsym_free, dFanti_free)
-    call iterate_partial_dHsp(dHa, dHa_iter            , dRsym_a , dRanti_a , dFsym_a , dFanti_a)
-    call iterate_partial_dHsp(dHb, dHb_iter            , dRsym_b , dRanti_b , dFsym_b , dFanti_b)
-    call iterate_partial_dHsp(dHlincomb, dHlincomb_iter, dRsym_lc, dRanti_lc, dFsym_lc, dFanti_lc)
-!
-!     print * , "||FAM(dHa)|| = ", norm_2(dHa_iter)
-!     print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
-!     print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
-
-    dRsym_a  = dRsym_a    + (-1.0d0)* dRsym_free
-    dRsym_b  = dRsym_b    + (-1.0d0)* dRsym_free
-    dRsym_lc = dRsym_lc   + (-1.0d0)* dRsym_free
-    
-    dRanti_a  = dRanti_a  + (-1.0d0)* dRanti_free
-    dRanti_b  = dRanti_b  + (-1.0d0)* dRanti_free
-    dRanti_lc = dRanti_lc + (-1.0d0)* dRanti_free
-
-    dFsym_a  = dFsym_a    + (-1.0d0)* dFsym_free
-    dFsym_b  = dFsym_b    + (-1.0d0)* dFsym_free
-    dFsym_lc = dFsym_lc   + (-1.0d0)* dFsym_free
-
-    dFanti_a  = dFanti_a  + (-1.0d0)* dFanti_free
-    dFanti_b  = dFanti_b  + (-1.0d0)* dFanti_free
-    dFanti_lc = dFanti_lc + (-1.0d0)* dFanti_free
-
-    
-    ! symmetric parts
-    print *, ' PROTON  DENSITIES'
-    diff_from_lin = sum( ABS (a * dRsym_a%D_I_I(:,2) + b* dRsym_b%D_I_I(:,2) - dRsym_lc%D_I_I(:,2))**2 )
-    print *, 'SYMMETRIC, REAL', diff_from_lin
-    diff_from_lin = sum( ABS (a * dRanti_a%D_I_I(:,2) + b* dRanti_b%D_I_I(:,2) - dRanti_lc%D_I_I(:,2))**2 )
-    print *, 'ANTISYMMETRIC, REAL', diff_from_lin
-
-    print *, ' CHARGE DENSITIES'
-    diff_from_lin = sum( DBLE (a * dRsym_a%chargedensity + b* dRsym_b%chargedensity - dRsym_lc%chargedensity)**2 )
-    print *, 'SYMMETRIC, REAL', diff_from_lin
-    diff_from_lin = sum( AIMAG (a * dRsym_a%chargedensity + b* dRsym_b%chargedensity - dRsym_lc%chargedensity)**2 )
-    print *, 'SYMMETRIC, IMAG', diff_from_lin
-    diff_from_lin = sum( abs (a * dRanti_a%chargedensity + b* dRanti_b%chargedensity - dRanti_lc%chargedensity)**2 )
-    print *, 'ANTISYMMETRIC', diff_from_lin
-    print *, 'POTENTIALS'
-    diff_from_lin_direct = &
-    & sum( abs (a * dFsym_a%Coulombpotential  + b* dFsym_b%Coulombpotential  - dFsym_lc%Coulombpotential)**2 )
-    diff_from_lin_exch   = &
-    & sum( abs (a * dFsym_a%Exchangepotential + b* dFsym_b%Exchangepotential - dFsym_lc%Exchangepotential)**2 )
-     print *, 'SYMMETRIC, DIRECT ', diff_from_lin_direct
-     print *, 'SYMMETRIC, EXCHANGE', diff_from_lin_exch
-    diff_from_lin_direct = &
-    & sum( abs (a * dFanti_a%Coulombpotential  + b* dFanti_b%Coulombpotential  - dFanti_lc%Coulombpotential)**2 )
-    diff_from_lin_exch   = &
-    & sum( abs (a * dFanti_a%Exchangepotential + b* dFanti_b%Exchangepotential - dFanti_lc%Exchangepotential)**2 )
-     print *, 'ANTISYMMETRIC, DIRECT ', diff_from_lin_direct
-     print *, 'ANTISYMMETRIC, EXCHANGE', diff_from_lin_exch
-
-     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     ! subtract the free response
-
-     dHa_iter = dHa_iter - dH_free
-     dHb_iter = dHb_iter - dH_free
-     dHlincomb_iter = dHlincomb_iter - dH_free
-
-     print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
-     print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
-
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! verify linarity of T and hence affinity of FAM
-
-     diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
-     print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
-
-     print *, "the FAM iteration iterate_dHsp is an affine transformation upto a precision of ", diff_from_lin
-     stop
-
-  end subroutine
-
-  subroutine iterate_partial_dHsp(dHsp_flat, dHspout_flat, dRs, dRa, dFs, dFa)
-   !---------------------------------------------------------------------------
-   ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
-   ! (in HF basis), which contain dh and ddelta (in the QFAM).
-   !---------------------------------------------------------------------------
-    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-    2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
-
-    implicit none
-    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
-    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
-
-    complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
-
-    type(DensityVector), intent(out):: dRs, dRa
-    type(DensityVector)             :: dR_pp_plus, dR_pp_minus ! temporary placeholders for this particular HF routine
-    type(PotentialVector), intent(out):: dFs, dFa
-    integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p
-
-    if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
-
-
-    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
-    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
-    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
-
-    ! get the ph and hp subblocks
-    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
-
-    ! calculate X and Y from the perturbed dH
-    call calculate_XY(dH)
-
-    if (fam_verbose>0) then
-      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
-      print 3, l,m, omega_fam,  calc_strength()
-    endif
-
-    ! Apply simple linear mixing of X and Y.
-    ! call mix_XY_linear(lin_mix_coeff)
-    ! -> this may be skipped when using GMRES
-
-    !call store_XY_hist()
-
-    ! From X & Y, calculate perturbed (pairing) density matrices in HF basis 
-    if (pairingtype==0) then 
-      drho = X  + transpose(Y)
-      dkappa_plus  = 0  
-      dkappa_minus = 0
-    else 
-!      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
-      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=Y, OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
-    endif
-
-    ! Compute perturbed densities on the mesh
-    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
-
-    ! explicit linearisation of the fields
-    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_minus, dF_pp_plus)
-
-    ! We add in all additional contributions to F_I_I that do not
-    !  result from the Skyrme functional.
-    call combine_potentials(dFs)
-    call combine_potentials(dFa)
-
-    ! construct the sp hamiltonian
-    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)!
-
-  end subroutine iterate_partial_dHsp
-
+  end subroutine test_linearity_T
 
 end module fam_testing
