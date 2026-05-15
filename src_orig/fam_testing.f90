@@ -29,7 +29,7 @@ contains
     !     MOCCa testing framework
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !  None
+    !   None
     ! Output:
     !   None
     !
@@ -1078,7 +1078,8 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     allocate(O20sp_back(nwt,nwt), O11sp_back(nwt,nwt), O02sp_back(nwt,nwt))
 
     ! Initialize to zero
-    O20sp = 0.0_dp; O11sp = 0.0_dp; O02sp = 0.0_dp
+    O20sp      = 0.0_dp; O11sp      = 0.0_dp; O02sp      = 0.0_dp
+    O20sp_back = 0.0_dp; O11sp_back = 0.0_dp; O02sp_back = 0.0_dp
 
     ! Seed the random number generator
     call random_seed()
@@ -1108,15 +1109,25 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
       ! Fill blocks of O20sp - but respect fermionic antisymmetry
       allocate(rand_real(T,T), rand_imag(T,T))
       call random_number(rand_real); call random_number(rand_imag)
-!      O20sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
-!      O20sp(si+N+1:si+T,si  +1:si+N) = - transpose(O20sp(si  +1:si+N,si+N+1:si+T))
+      if(N2 .ne. 0) then
+        O20sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+        O20sp(si+N+1:si+T,si  +1:si+N) = - transpose(O20sp(si  +1:si+N,si+N+1:si+T))
+      else
+        O20sp(si  +1:si+N,si  +1:si+N) = dcmplx(rand_real, rand_imag) 
+        O20sp(si  +1:si+N,si  +1:si+N) = O20sp(si  +1:si+N,si  +1:si+N) + transpose(O20sp(si  +1:si+N,si  +1:si+N))
+      endif
       deallocate(rand_real, rand_imag)
       
       ! Fill blocks of O02sp - but respect fermionic antisymmetry
       allocate(rand_real(T,T), rand_imag(T,T))
       call random_number(rand_real);  call random_number(rand_imag)
-!     O02sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
-!     O02sp(si+N+1:si+T,si  +1:si+N) = - transpose(O02sp(si+1:si+N,si+N+1:si+T))          
+      if(N2.ne.0) then
+        O02sp(si  +1:si+N,si+N+1:si+T) = dcmplx(rand_real(1:N,N+1:T), rand_imag(1:N,N+1:T)) 
+        O02sp(si+N+1:si+T,si  +1:si+N) = - transpose(O02sp(si+1:si+N,si+N+1:si+T))
+      else 
+        O02sp(si  +1:si+N,si  +1:si+N) = dcmplx(rand_real, rand_imag)
+        O02sp(si  +1:si+N,si  +1:si+N) = O02sp(si  +1:si+N,si  +1:si+N) + transpose(O02sp(si  +1:si+N,si  +1:si+N))
+      endif
       deallocate(rand_real, rand_imag)
 
       si = si + T
@@ -1124,16 +1135,55 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
 
     ! Transform to QP space
     call transform_sp_to_qp(Bogoliubov, OTRsp=O20sp, OTLsp=O11sp, OBLsp=O02sp, &
-                           &             OTRqp=O20qp, OTLqp=O11qp, OBLqp=O02qp)
+                           &            OTRqp=O20qp, OTLqp=O11qp, OBLqp=O02qp)
+
+    !si = 0
+    !do B=1,2,2
+    !  N = HFBlocks(B); if(N.eq.0) cycle
+    !  N2 = HFBlocks(B+1)
+    !  T = N + N2!!
+
+    !  print *, 'B = ', B , 'O20qp'
+    !  do i=1,T
+    !    print "(*( '(',g12.2,',',g12.2,')',:))", O20qp(si+i,si+1:si+T)
+    !  enddo
+    !  si = si + T
+    !enddo 
 
     ! Transform back to SP space
     call transform_qp_to_sp(Bogoliubov, OTRqp=O20qp,      OTLqp=O11qp,      OBLqp=O02qp, &
-                           &             OTRsp=O20sp_back, OTLsp=O11sp_back, OBLsp=O02sp_back)
-                             
+                           &            OTRsp=O20sp_back, OTLsp=O11sp_back, OBLsp=O02sp_back)
+
     ! Check the differences
+    print '("Maxval(|O20sp|)",es15.4)', maxval(abs(O20sp))
+    print '("Maxval(|O11sp|)",es15.4)', maxval(abs(O11sp))
+    print '("Maxval(|O02sp|)",es15.4)', maxval(abs(O02sp))
     print '(a50, es15.4)', ' || O20sp - (qp->sp->qp) O20sp || = ', sum(abs(O20sp - O20sp_back))
     print '(a50, es15.4)', ' || O11sp - (qp->sp->qp) O11sp || = ', sum(abs(O11sp - O11sp_back))
     print '(a50, es15.4)', ' || O02sp - (qp->sp->qp) O02sp || = ', sum(abs(O02sp - O02sp_back))
+
+    !si = 0
+    !do B=1,2,2
+    !  N = HFBlocks(B); if(N.eq.0) cycle
+    !  N2 = HFBlocks(B+1)
+    !  T = N + N2!
+!
+!      print *, 'DEV', sum(abs(O20sp(si+1:si+T,si+1:si+T) - O20sp_back(si+1:si+T,si+1:si+T)))
+!      print *, 'B = ', B , 'O20sp'
+!      do i=1,T
+!        print "(*( '(',g12.2,',',g12.2,')',:))", O20sp(si+i,si+1:si+T)
+!      enddo
+!      print *, 'B = ', B , 'O20sp_back'
+!      do i=1,T
+!        print "(*( '(',g12.2,',',g12.2,')',:))", O20sp_back(si+i,si+1:si+T)
+!      enddo
+!      print *, 'B = ', B , 'diff'
+!      do i=1,T
+!        print "(*( '(',g12.2,',',g12.2,')',:))", O20sp(si+i,si+1:si+T)- O20sp_back(si+i,si+1:si+T)
+!      enddo
+!      print *
+!      si = si + T
+!    enddo 
 
     if(    sum(abs(O20sp - O20sp_back)) > 1e-10 &
     & .or. sum(abs(O11sp - O11sp_back)) > 1e-10 &

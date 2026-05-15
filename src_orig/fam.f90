@@ -419,17 +419,30 @@ module fam
       !    dH(:,:,1) = ddelta+ = dH20
       !    dH(:,:,2) = dh      = dH11
       !    dH(:,:,3) = ddelta- = dH02 
+      ! TODO: this comment does not reflect reality
       dHsp   (1:nwt,1:nwt,1:3) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & !input 
+      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & ! input 
       &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))                        ! output
       ! Attention: 1. there is NO (-CONJG) operation for dHsp(:,:,3), because we expect
       !               -\delta \Delta^- as input to this routine!
       !            2. there IS a transpose operation for dH(:,:,2); the routine spits out the
       !               'bottom left' block of the full matrix, which is \delta H^{02, T}!
       dH(:,:,2) = TRANSPOSE(dH(:,:,2))
+
+      !print *, 'dDelta+'
+      !call print_spme_complex_superblock(dHsp(:,:,1))
+      !print *, 'Dh'
+      !call print_spme_complex_superblock(dHsp(:,:,2))
+      !print *, 'dDelta-'
+      !call print_spme_complex_superblock(dHsp(:,:,3))
+
+      !print *, 'H20'
+      !call print_spme_complex_superblock(dH(:,:,1))
+      !print *, 'H02'
+      !call print_spme_complex_superblock(dH(:,:,2))
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -452,7 +465,6 @@ module fam
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (3) Obtain perturbed (pairing) density matrices in HF basis
-
     if (pairingtype==0) then ! FAM
       drho = X  + transpose(Y)
       dkappa_plus  = 0  
@@ -460,7 +472,7 @@ module fam
     else                     ! QFAM
       call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
       &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
-      dkappa_minus = - CONJG(dkappa_minus)
+      dkappa_minus = TRANSPOSE(CONJG(dkappa_minus))
       ! Attention:
       !  1. the perturbed density matrix is
       !
@@ -476,6 +488,11 @@ module fam
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (4) Compute perturbed densities on the mesh
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
+
+    ! TODO: use this to bugfix signs
+    !do i=1, nx 
+    !  print ('(99f10.3)'), dR_pp_plus%DP_I_I(i,2), dR_pp_minus%DP_I_I(i,2)
+    !enddo 
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
@@ -517,6 +534,8 @@ module fam
       !    For reasons I don't quite grasp, fails if this is not done this way.
       dHspout(:,:,3) = - CONJG(dHspout(:,:,3))
 
+      ! .... mystery sign for \dDelta'+...
+$TR   dHspout(:,:,1) = -       dHspout(:,:,1)
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
     endif
 
