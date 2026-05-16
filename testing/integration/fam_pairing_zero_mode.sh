@@ -1,15 +1,14 @@
 #!/usr/bin/env sh
 #-------------------------------------------------------------------------------
 # Perform HFB + linear response calculations of Ti42 with t0t3 and check
-# that the proton number particle operator is the momentum of a zero-mode, i.e.
-# that the
-#     S(N_p, \omega) = 0      if \omega != 0
-#                    = - M_n  if \omega  = 0
+# that the proton number particle operator is the momentum of a zero-mode.
+# Fits a zero-mode model and verifies the fitted frequency components are small.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
-#  S(N_p, omega != 0) / S(N_p, omega=0)  < 0.15                     N/A
+#  Zero-mode omega_r (popt[1])            0 MeV                      0.1 MeV
+#  Zero-mode omega_i (popt[2])            0 MeV                      0.1 MeV
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -69,7 +68,6 @@ done
 # Basic starting point of all testing scripts
 source ../functions.sh
 
-
 # Set up
 setup_test_env_fam "fam_pairing_zero_mode" "${args[0]}" "${args[0]}" "$parameterisation"
 
@@ -99,7 +97,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 60, nwp = 60
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -144,7 +142,7 @@ freezeiter=1000
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 60, nwp = 60
 osc_freq = 0.2, 0.2, 0.18
 /
 &IO
@@ -157,7 +155,7 @@ allowtransform=.true.
 &Cranking
 /
 EOF
-#./$exe < mf.data > $mfoutfile.bis
+./$exe < mf.data > $mfoutfile.bis
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO FAM calculation
@@ -182,7 +180,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 40, nwp = 40
+nwn = 60, nwp = 60
 /
 &IO
 InputFilename='mf.wf'
@@ -197,7 +195,7 @@ famfile='N.fam'
 &fam
 omega_min=0.0
 omega_max=+0.1
-omega_step=0.05
+omega_step=0.01
 smear=0.0
 !l=0
 !m=0
@@ -217,27 +215,46 @@ fam_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Check that strength at non-zero frequencies is quite a lot smaller
 #     than the one at zero frequency
-strength_zero=$(awk '$1 == 0.000 || $1 == -0.000 {print $4; exit}' N.fam)
+#
+# Quick inline python script
+cat << EOF > analyse.py
+import numpy as np
+from scipy.optimize import curve_fit
 
-awk_output=$(awk 'BEGIN { max=0; fail=0; s0=0 }
-   /^#/ { next }
-  NF > 0 && $1+0 == 0 && !seen_zero { s0=$4; seen_zero=1;  next }
-  NF > 0 && $1+0 != 0 { abs_s = ($4 < 0 ? -$4 : $4); abs_s0 = (s0 < 0 ? -s0 : s0);  if (s0 != 0) ratio = abs_s / abs_s0; else ratio = 0;  if (ratio > max) max = ratio; if (ratio >= 0.15) fail = 1 }
-  END { print max, fail }' N.fam)
+def zero_mode(omega, M, omega_ng_r, omega_ng_i):
+    omega_ng_sq = (omega_ng_r**2 - omega_ng_i**2) + 2j * omega_ng_r * omega_ng_i
+    denominator = omega**2 - omega_ng_sq
+    # Avoid division by zero near pole
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f = M * omega_ng_sq / denominator
+    return f.real
 
-max_ratio=$(echo $awk_output | awk '{print $1}')
-check_zero_mode=$(echo $awk_output | awk '{print $2}')
+dat = np.loadtxt("N.fam")
+popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[-1.225, 0.0, 0.01])
+
+if np.abs(popt[1]) > 0.1 or np.abs(popt[2]) > 0.1:
+    ifail = 1
+else:
+    ifail = 0
+
+# Print results for bash to capture: omega_r omega_i ifail
+print(f"{popt[1]} {popt[2]} {ifail}")
+EOF
+
+# Run python script and capture all three outputs
+read omega_r omega_i ifail <<< $(python analyse.py)
 
 # Report results
 if $verbose; then
   echo "----------------------------------------"
   echo "Zero-mode strength check:"
-  echo "Strength at omega = 0: $strength_zero"
-  echo "Maximum ratio |S(omega!=0)| / |S(omega=0)|: $max_ratio"
-  if (($check_zero_mode == 0)) ; then
-    echo "Result: PASS - All non-zero frequencies have strength < 0.1 * strength(0)"
+  echo "Fitted omega_r: $omega_r"
+  echo "Fitted omega_i: $omega_i"
+  echo "Failure code (ifail): $ifail"
+  if (($ifail == 0)) ; then
+    echo "Result: PASS - Zero-mode frequency components are small (< 0.1)"
   else
-    echo "Result: FAIL - Some non-zero frequencies have strength >= 0.1 * strength(0)"
+    echo "Result: FAIL - Zero-mode frequency components are too large (>= 0.1)"
   fi
   echo "----------------------------------------"
 fi
@@ -247,12 +264,12 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || $check_zero_mode))
+fail=$(($tantalus_check || $fam_check || $ifail))
 
 if (($fail == 0)) ; then
   echo -e "test FAM pairing zero mode :\033[1;32m success \033[0m"
 else
-  echo -e "test FAM pairing zero mode :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, zero_mode = $check_zero_mode \033[0m"
+  echo -e "test FAM pairing zero mode :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, zero_mode = $ifail \033[0m"
 fi
 
 exit $fail

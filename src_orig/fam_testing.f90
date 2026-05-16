@@ -384,8 +384,10 @@ $TR   dkappa_minus = - dkappa_minus
       do B= 1,8,2
         N = HFBlocks(B); N2 = HFBlocks(B+1); T = N + N2; if(T.eq.0) cycle
         dev_gaps = abs(delta_orig(si+1:si+T, si+1:si+T) - delta_me(si+1:si+T, si+1:si+T))
-        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, ' Max |Delta| = ', maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
-        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, ' Max dev = ', maxval(dev_gaps)
+        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, &
+             & ' Max |Delta| = ', maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
+        print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, &
+             &' Max dev = ', maxval(dev_gaps)
         if(maxval(dev_gaps)>1e-10) then
           ifail = 1
           print *

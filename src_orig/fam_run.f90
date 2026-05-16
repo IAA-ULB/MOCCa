@@ -202,7 +202,7 @@ program run_FAM
       call extract_x_gmres()
 
       print *, "One final FAM iteration based on GMRES solution:  "
-      fam_verbose = 3
+      fam_verbose = 1
       call iterate_dHsp(x_gmres, dH_flat_next)
       print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
 
