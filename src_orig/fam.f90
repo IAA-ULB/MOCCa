@@ -430,19 +430,19 @@ module fam
       !               -\delta \Delta^- as input to this routine!
       !            2. there IS a transpose operation for dH(:,:,2); the routine spits out the
       !               'bottom left' block of the full matrix, which is \delta H^{02, T}!
-      dH(:,:,2) = TRANSPOSE(dH(:,:,2))
+$NTR      dH(:,:,2) = TRANSPOSE(dH(:,:,2))
+$TR       dH(:,:,2) = -         dH(:,:,2)
+      print *, 'dDelta+'
+      call print_spme_complex_superblock(dHsp(:,:,1))
+      print *, 'Dh'
+      call print_spme_complex_superblock(dHsp(:,:,2))
+      print *, 'dDelta-'
+      call print_spme_complex_superblock(dHsp(:,:,3))
 
-      !print *, 'dDelta+'
-      !call print_spme_complex_superblock(dHsp(:,:,1))
-      !print *, 'Dh'
-      !call print_spme_complex_superblock(dHsp(:,:,2))
-      !print *, 'dDelta-'
-      !call print_spme_complex_superblock(dHsp(:,:,3))
-
-      !print *, 'H20'
-      !call print_spme_complex_superblock(dH(:,:,1))
-      !print *, 'H02'
-      !call print_spme_complex_superblock(dH(:,:,2))
+      print *, 'H20'
+      call print_spme_complex_superblock(dH(:,:,1))
+      print *, 'H02'
+      call print_spme_complex_superblock(dH(:,:,2))
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -470,9 +470,9 @@ module fam
       dkappa_plus  = 0  
       dkappa_minus = 0
     else                     ! QFAM
-      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
-      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
-      dkappa_minus = TRANSPOSE(CONJG(dkappa_minus))
+$NTR      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
+$NTR      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+$NTR      dkappa_minus = TRANSPOSE(CONJG(dkappa_minus))
       ! Attention:
       !  1. the perturbed density matrix is
       !
@@ -483,16 +483,32 @@ module fam
       !  2. The 'bottom left' corner of the resulting matrix is -\delta \kappa^{-,*}
       !     hence the -(CONJG) operation.
       !
-    endif
+$TR      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
+$TR      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+$TR      dkappa_minus = - CONJG(dkappa_minus)
+      endif
+
+    ! TEMP 
+    print *, 'KEEPING ONLY REAL PARTS OF KAPPA'
+    dkappa_plus  = DBLE(dkappa_plus)
+    dkappa_minus  = DBLE(dkappa_minus)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (4) Compute perturbed densities on the mesh
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
 
+    print *, 'kappa_pairing'
+    call print_spme_real_superblock(kappa_pairing)
+    print *, 'dkappa+'
+    call print_spme_complex_superblock(dkappa_plus)
+    print *, 'dkappaminus'
+    call print_spme_complex_superblock(dkappa_minus)
+
     ! TODO: use this to bugfix signs
-    !do i=1, nx 
-    !  print ('(99f10.3)'), dR_pp_plus%DP_I_I(i,2), dR_pp_minus%DP_I_I(i,2)
-    !enddo 
+    print *, 'PAIRING DENSITIES'
+    do i=1, nx 
+      print ('(99f12.3)'), dR_pp_plus%DP_I_I(i,2), dR_pp_minus%DP_I_I(i,2)
+    enddo 
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
@@ -502,14 +518,21 @@ module fam
       endif
     endif
 
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (5) compute perturbed fields on the mesh
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, &
+    &                                      dFs, dFa, dF_pp_plus, dF_pp_minus)
     ! We add in all additional contributions to F_I_I that do not 
     !  result from the Skyrme functional.  
     call combine_potentials(dFs)
     call combine_potentials(dFa)
+
+    print *, 'PAIRING POTENTIALS'
+    do i=1, mv
+      print ('(99f12.3)'), potentials%F_I_I(i,2), dF_pp_plus%FP_I_I(i,2), dF_pp_minus%FP_I_I(i,2)
+    enddo 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (6) calculate perturbed hamiltonian and pairing in the HF basis
@@ -528,14 +551,40 @@ module fam
 
       ! \delta \Delta^{+} -> stored naively
       dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus , .false.)
+
+      si = 0
+      do B=1,8
+        N = HFBLocks(B); if(N.eq.0) cycle
+        print *, 'PAIRING CUTOFFS IN BLOCK ', B
+        print ('(99f12.7)'), spenergies(si+1:si+N)
+        print ('(99f12.7)'), Pcutoffs(si+1:si+N)
+        print *
+        si = si + N
+      enddo 
+
+      print *, 'Delta from calcgaps with original potentials'
+      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),potentials)
+      call print_spme_real_superblock(HFBgaps)
+
+
+      print *, 'Delta from calcgaps with potentials = 1'
+      potentials%FP_I_I = 1.0d0
+      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),potentials)
+      call print_spme_real_superblock(HFBgaps)
+
+      kappa_pairing = DBLE(dkappa_plus)
+      dF_pp_plus%FP_I_I = 1.0d0
+      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),dF_pp_plus)
+      print *, 'dDelta+ from calcgaps'
+      call print_spme_real_superblock(HFBgaps)
+
+
       ! \delta \Delta^{-}
       dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
       ! -> stored as (- \delta \Delta^{-,*} )
       !    For reasons I don't quite grasp, fails if this is not done this way.
       dHspout(:,:,3) = - CONJG(dHspout(:,:,3))
 
-      ! .... mystery sign for \dDelta'+...
-$TR   dHspout(:,:,1) = -       dHspout(:,:,1)
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
     endif
 
@@ -620,7 +669,6 @@ $TR   dHspout(:,:,1) = -       dHspout(:,:,1)
 
     X = - (F(:,:,1) + dH(:,:,1))
     Y = - (F(:,:,2) + dH(:,:,2))
-
 
     ! normalise with energy denominator
 
@@ -1037,8 +1085,9 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! transformation and storing the F^20 anf F^02 components
       call transform_sp_to_qp(Bogoliubov, OTLsp=f_LK_spme, &                                ! Input 
       &                                   OTRqp=f_LK_qpme(:,:,1), OBLqp=f_LK_qpme(:,:,2))   ! Output
-      ! Attention: the output of this routine is not F^{02,T}
-      f_LK_qpme(:,:,2) = TRANSPOSE(f_LK_qpme(:,:,2))
+      ! TODO: update Attention: the output of this routine is F^{02,T}!
+$NTR  f_LK_qpme(:,:,2) = TRANSPOSE(f_LK_qpme(:,:,2))
+$TR   f_LK_qpme(:,:,2) = -         f_LK_qpme(:,:,2)
 
       if(fam_verbose > 2) then
         print *, ' f_LK_qpme(:,:,1)'
@@ -1088,7 +1137,8 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     else ! QFAM
       call transform_sp_to_qp(Bogoliubov, OTLsp=Nspme, &
            &                  OTRqp=Nqpme(:,:,1), OBLqp=Nqpme(:,:,2))
-      Nqpme(:,:,2) = TRANSPOSE(Nqpme(:,:,2))
+$NTR  Nqpme(:,:,2) = TRANSPOSE(Nqpme(:,:,2))
+$TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     endif
 
     if(fam_verbose > 2) then
@@ -2184,5 +2234,26 @@ $TR  Tphase = -1.0_dp
     print *
     
   end subroutine print_spme_complex_superblock
+
+  subroutine print_spme_real_superblock(A)
+    implicit none
+    real(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8,2
+
+      N  = HFblocks(B) + HFblocks(B+1) 
+
+      print *, 'BLOCKS ', B ,' & ', B+1
+      do i=si+1,si+N
+        print "(99f12.5)",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_real_superblock
 
 end module fam

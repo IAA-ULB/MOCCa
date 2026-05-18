@@ -199,8 +199,9 @@ omega=25.0
 smear=1.0
 l=0
 m=0
-maxiter=30
+maxiter=2
 fam_precision=1e-8
+mixingscheme=1
 /
 EOF
 
@@ -259,8 +260,9 @@ omega=25.0
 smear=1.0
 l=0
 m=0
-maxiter=30
+maxiter=2
 fam_precision=1e-8
+mixingscheme=1
 /
 EOF
 # Run the calculation
@@ -314,8 +316,9 @@ omega=25.0
 smear=1.0
 l=0
 m=0
-maxiter=30
+maxiter=2
 fam_precision=1e-10
+mixingscheme=1
 /
 EOF
 # Run the calculation
