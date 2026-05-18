@@ -125,7 +125,7 @@ neutrons=20, protons=22
 energy_prec=1e-20
 /
 &mesh
-nx=8, ny=8, nz=8, dx=1.0
+nx=14,ny=14,nz=14, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -155,7 +155,7 @@ allowtransform=.true.
 &Cranking
 /
 EOF
-./$exe < mf.data > $mfoutfile.bis
+#./$exe < mf.data > $mfoutfile.bis
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO FAM calculation
@@ -166,7 +166,7 @@ cat << EOF > fam.data
 neutrons=20, protons=22
 /
 &mesh
-nx=8, ny=8, nz=8, dx=1.0
+nx=14,ny=14,nz=14, dx=1.0
 /
 &func
 name_param='$parameterisation'
