@@ -1156,11 +1156,11 @@ jobs:
         with:
           name: fam_strength_symmetry.${{ env.SUFFIX }}.logs
           path: |
-            testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX }}.out
-            testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX }}.out.bis
-            testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX }}.fam.out
-            testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX_T }}.fam.out
-            testing/integration/logs/fam_strength_symmetry.HFB.${{ env.SUFFIX_P }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_P }}.fam.out
           retention-days: 90
 
   fam_pairing_zero_mode:
@@ -1286,7 +1286,7 @@ jobs:
         with:
           name: fam_strength_symmetry.${{ env.SUFFIX }}.logs
           path: |
-            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=0.1.${{ env.SUFFIX }}.out
-            testing/integration/logs/fam_rotational_invariance.HFB.${{ env.SUFFIX }}.${{ env.PARAM }}.fam.Q20.out
-            testing/integration/logs/fam_rotational_invariance.HFB.${{ env.SUFFIX }}.${{ env.PARAM }}.fam.Q22.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ env.PARAM }}.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ env.PARAM }}.fam.Q20.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ env.PARAM }}.fam.Q22.out
           retention-days: 90

@@ -374,6 +374,9 @@ contains
     !    dHspout_flat : iterated perturbed hamiltonian in HF basis as a flat array
     !
     ! Reminder: for QFAM, the arrays store -d\Delta^{-,*}, NOT d\Delta.
+    !           This is because GMRES works for LINEAR problems; the QFAM 
+    !           equations are a linear function of -d\Delta^{-,*} but NOT of 
+    !           d\Delta^{-}.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 
     ! One full FAM iterations consists of 6 steps : 

@@ -70,6 +70,8 @@ done
 # Set up FAM testing environment
 setup_test_env_fam "fam_rotational_invariance.${args[2]}.om=${args[3]}.eta=${args[4]}" "${args[0]}" "${args[0]}" "${args[1]}"
 
+mfoutfile=../logs/fam_rotational_invariance.${args[2]}.om=${args[3]}.eta=${args[4]}.${args[0]}.${args[1]}.out
+
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1a) Run a standard mean-field calculation
 # Create runtime data

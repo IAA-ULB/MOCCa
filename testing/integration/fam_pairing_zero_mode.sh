@@ -204,7 +204,7 @@ def zero_mode(omega, M, omega_ng_r, omega_ng_i):
     return f.real
 
 dat = np.loadtxt("N.fam")
-popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0,3], 0.0, 0.01])
+popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0,3], 0.001, 0.01])
 
 if np.abs(popt[1]) > 0.1 or np.abs(popt[2]) > 0.1:
     ifail = 1
