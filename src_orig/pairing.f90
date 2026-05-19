@@ -933,14 +933,15 @@ $NTR     rho_hf = rho_can
           ! exactly this formula. Otherwise, both kappa and delta have the 
           ! following structure
           !
-          !  ( 0      Delta)     (  0      kappa )
-          !  (-Delta     0 )     ( -kappa    0   )
+          ! \Delta =  ( 0      Delta_r)   \kappa = (  0        kappa_r )
+          !           (-Delta_r     0 )            ( -kappa_r    0     )
           !
-          ! but only the part on the upper right is actually stored in memory
-          ! 
+          ! but only the part on the upper right is actually stored in memory, 
+          ! hence the subscripts 'r' for "numerically represented.
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-$TR         E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
-$NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$TR       E(it) = E(it) +       Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$NTR       E(it)= E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
     end select
