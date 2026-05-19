@@ -1212,6 +1212,7 @@ jobs:
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
           chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/Tantalus.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
 
@@ -1277,7 +1278,7 @@ jobs:
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash fam_rotational_invariance.sh ${{ env.SUFFIX }}  ${{ env.PARAM }} HFB 2 1.0 --verbose
+          bash fam_rotational_invariance.sh ${{ env.SUFFIX }}  ${{ matrix.PARAM }} HFB 2 1.0 --verbose
 
       - name: Upload test results
         if: success() || failure() # Always upload the code outputs

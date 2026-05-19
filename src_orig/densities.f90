@@ -1370,6 +1370,8 @@ $EXPRESSION_DELTA_PP
           !
           ! This should be corrected in Hephaestos, but it is much harder than including this minus sign.
           delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
+          ! Sign to be clarified with better documentation of Hephaestos
+$TR       delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) 
           ! Delta is globally antisymmetric in the case of time-reversal symmetry, but we 
           !  represent only half of the matrix explicitly!
 $TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i) 

@@ -64,7 +64,7 @@ contains
     print 1, 'Linearity of FAM iteration'     , ifail_linearity
 
   
-    ifail = max(ifail_sp_qp, ifail_HFme, ifail_potentials)
+    ifail = max(ifail_sp_qp, ifail_HFme, ifail_potentials, ifail_linearity)
     if(ifail.eq.0) print 12
     if(ifail.eq.1) print 13
     call exit(ifail)

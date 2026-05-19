@@ -14,23 +14,30 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_pairing_zero_mode.sh [EXESUFFIX] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose]
+#   bash fam_pairing_zero_mode.sh [EXESUFFIX] [--pairing HF|HFB] [--parameterisation PARAM] [-v/--verbose] [--nx NX] [--nw NW]
 #
 # where
-# - EXESUFFIX     : maximally symmetric executable
-# -- pairing      : specifies the pairing type (HF or HFB, default: HFB)
+#   EXESUFFIX        : executable to test
+# --pairing          : specifies the pairing type (HF or HFB, default: HFB)
 # --parameterisation : specifies the parameterization (default: t0t3)
-# -v or --verbose : print the values which are compared.
+# --nx               : number of mesh points (in all 3 dimensions)
+# --nw               : number of single-particle wavefunctions (of one species)
+# -v or --verbose    : print the values which are compared.
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash:
 #-------------------------------------------------------------------------------
-# Initialize verbose mode as false by default
+
+# - - - - - - - - - - - - - -
+# Default values for options
 verbose=false
-pairing="HFB"  # Default value
-parameterisation="t0t3"  # Default value
+pairing="HFB"
+parameterisation="t0t3"
+nx=8
+nw=30
+# - - - - - - - - - - - - - -
 
 # Temporary array to hold arguments
 args=()
@@ -57,6 +64,16 @@ while [[ $# -gt 0 ]]; do
       parameterisation="$1"
       shift
       ;;
+    --nx)
+      shift
+      nx="$1"
+      shift
+      ;;
+    --nw)
+      shift
+      nw="$1"
+      shift
+      ;;
     *)
       args+=("$1")
       shift
@@ -81,7 +98,7 @@ neutrons=20, protons=22
 energy_prec=1e-16
 /
 &mesh
-nx=8, ny=8, nz=8, dx=1.0
+nx=$nx, ny=$nx, nz=$nx, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -91,13 +108,11 @@ type="$pairing"
 /
 &evolution
 maxiter=1000
-!dt=0.0180, momentum=0.6
-!Estimateparams=.false.
 /
 &scfiteration
 /
 &wfs
-nwn = 60, nwp = 60
+nwn = $nw, nwp = $nw
 osc_freq = 0.2, 0.2, 0.2
 /
 &IO
@@ -117,48 +132,7 @@ EOF
 tantalus_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (2) Run a calculation that freezes the potentials just to get a
-#     robust set of virtual states
-cat << EOF > mf.data
-&nucleus
-neutrons=20, protons=22
-energy_prec=1e-20
-/
-&mesh
-nx=14,ny=14,nz=14, dx=1.0
-/
-&func
-name_param='$parameterisation'
-/
-&pairing
-type="$pairing"
-/
-&evolution
-maxiter=1000
-dt=0.0209, momentum=0.5746
-Estimateparams=.false.
-freezeiter=1000
-/
-&scfiteration
-/
-&wfs
-nwn = 60, nwp = 60
-osc_freq = 0.2, 0.2, 0.18
-/
-&IO
-InputFilename='mf.wf'
-OutputFilename='mf.wf'
-allowtransform=.true.
-/
-&MomentParam
-/
-&Cranking
-/
-EOF
-#./$exe < mf.data > $mfoutfile.bis
-
-#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (3) Run the LO FAM calculation
+# (2) Run the LO FAM calculation
 
 # Create runtime data
 cat << EOF > fam.data
@@ -166,7 +140,7 @@ cat << EOF > fam.data
 neutrons=20, protons=22
 /
 &mesh
-nx=14,ny=14,nz=14, dx=1.0
+nx=$nx,ny=$nx,nz=$nx, dx=1.0
 /
 &func
 name_param='$parameterisation'
@@ -180,7 +154,7 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 60, nwp = 60
+nwn = $nw, nwp = $nw
 /
 &IO
 InputFilename='mf.wf'
@@ -230,7 +204,7 @@ def zero_mode(omega, M, omega_ng_r, omega_ng_i):
     return f.real
 
 dat = np.loadtxt("N.fam")
-popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[-1.225, 0.0, 0.01])
+popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0,3], 0.0, 0.01])
 
 if np.abs(popt[1]) > 0.1 or np.abs(popt[2]) > 0.1:
     ifail = 1
@@ -248,19 +222,19 @@ read omega_r omega_i ifail <<< $(python analyse.py)
 if $verbose; then
   echo "----------------------------------------"
   echo "Zero-mode strength check:"
-  echo "Fitted omega_r: $omega_r"
-  echo "Fitted omega_i: $omega_i"
+  echo "Fitted omega_r: $omega_r MeV"
+  echo "Fitted omega_i: $omega_i MeV"
   echo "Failure code (ifail): $ifail"
   if (($ifail == 0)) ; then
-    echo "Result: PASS - Zero-mode frequency components are small (< 0.1)"
+    echo "Result: PASS - Zero-mode frequency components are small (< 0.1 MeV)"
   else
-    echo "Result: FAIL - Zero-mode frequency components are too large (>= 0.1)"
+    echo "Result: FAIL - Zero-mode frequency components are too large (>= 0.1 MeV)"
   fi
   echo "----------------------------------------"
 fi
 
 # Clean up
-teardown_test_env
+#teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed

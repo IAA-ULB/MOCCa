@@ -13,7 +13,7 @@ module fam
   !  Copyright W. Ryssens & P. Demol
   !
   !------------------------------------------------------------------------------
-  ! A FAM-QRPA implementation to complement MOCCa.
+  ! A FAM-(Q)RPA implementation to complement MOCCa.
   !------------------------------------------------------------------------------
   ! Hephaestos keywords
   ! 
@@ -58,6 +58,27 @@ module fam
   ! Coefficient for the linear mixing of FAM iterations
   real(KIND=dp) :: fam_lin_mix = 0.3_dp
   !-----------------------------------------------------------------------------
+  ! Attention: storage convention for FAM matrices 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !  When z-signature is conserved, all (Q)FAM matrices come in either of the 
+  !   following two forms 
+  ! 
+  !    A =  ( A_+    0 )     or     B = (  0         B_{+-} )
+  !         ( 0    A_- )                ( -B^T_{+-}  0      )
+  !
+  ! where the division is made between the states with \eta = +-i.
+  !
+  ! Examples of A-shape are: \delta \rho, \delta H^{11}, ....
+  !          of B-shape are: \delta H^{20}, X, Y, ....
+  !
+  ! When time-reversal is conserved, we do not store the complete matrices 
+  ! A and B; rather we store half of them. Our convention is to store 
+  !  A_+ and B_{+-}, i.e. the top-left of A and the top-right of B. 
+  !
+  ! Note that the (Q)FAM equations for the "reduced" objects A_+ and B_{+-}
+  ! are not quite identical to the (Q)FAM equations for the complete matrices
+  ! A and B; some signs and/or transposes appear in not-so-obvious places.
+  !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes in sp (FAM) or  
   !                                         qp (QFAM) basis, size (nwt,nwt)
@@ -68,9 +89,8 @@ module fam
   !   and Y(p,h) /!\ where p is a unoccupied sp index h is an occupied sp index.
   !   They are allocated ove the complete basis size (nwt,nwt)
   ! - In presence of pairing : (QFAM)
-  !   X and Y are stored in the quasi-particle basis, containing X20 and Y02 
-  !   matrix elements. Only the positive qp spectrum is included such that size
-  !   is still (nwt,nwt)
+  !   X and Y are stored in the quasi-particle basis, their size is (nwt,nwt).
+  !
   !-----------------------------------------------------------------------------
   ! Perturbed densities
   ! /!\: perturbations are always RELATIVE to the static mean-field, e.g.
@@ -101,21 +121,24 @@ module fam
   !                                   | | '-> 1 : ph/20 or 2 : hp/02 component 
   !                                   | '-> sp/qp index
   !                                   '-> sp/qp index
-  ! - In absence of pairing : (FAM)
-  !   dH(:,:,1) and dH(:,:,2) contain ph and hp elements of the perturbed hamiltonian in the HF basis
-  !   They are allocated ove the complete basis size (nwt,nwt). 
-  ! - In presence of pairing : (QFAM)
-  !   dH(:,:,1) and dH(:,:,2) contain 20 and 02 elements of the perturbed hamiltonian in the HFG basis.
-  !   Only the positive qp spectrum is included such that size is still (nwt,nwt)
+  ! - FAM, no pairing: dH(:,:,1) and dH(:,:,2) 
+  !     contain ph and hp elements of the perturbed single-particle hamiltonian in the HF basis
+  !     They are allocated over the complete basis size, i.e. dimension (nwt,nwt). 
+  ! - QFAM, pairing: dH(:,:,1) and dH(:,:,2) 
+  !     contain the 20 and 02 elements of the perturbed HFB hamiltonian in the qp basis. 
+  !     These remain matrices of dimension (nwt,nwt).
   !   
   complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of Hamiltonian in the HF basis
   ! The free response is obtained by performing one complete FAM loop starting from dH=0
   ! - In absence of pairing : (FAM)
-  !   dH_free_flat contains the free perturbed sp hamiltonian dh(:,:) in HF basis as a flat
-  !   array of length (nwt x nwt).  
+  !   dH_free_flat contains the free perturbed sp hamiltonian dh(:,:) in HF basis. 
+  !   This is a flat array of length (nwt x nwt).  
   ! - In presence of pairing : (QFAM)
-  !   dH_free_flat stacks the free perturbed sp hamiltonian dh(:,:) and pairing fields ddelta_plus 
-  !   and ddelta_minus in the HF basis as a flat array of length (nwt x nwt x 3)
+  !   dH_free_flat contains three matrices in a stacked fashion in this order
+  !      1.    d\Delta^+ 
+  !      2.    dh 
+  !      3.  - d\Delta^-,*
+  !   The whole is a flat array of length (nwt x nwt x 3).
   !-----------------------------------------------------------------------------
   ! external field
   complex(KIND=dp), allocatable :: F(:,:,:)  ! perturbed external field in sp (FAM) or
@@ -162,13 +185,12 @@ module fam
   ! Run the unit tests on start-up; this will not result in a FAM calculation!
   logical :: unit_test = .false.
 
-
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
 
-  contains
+contains
 
   subroutine inifam(omega, DensUnper, PotUnper)
     !---------------------------------------------------------------------------
@@ -208,14 +230,6 @@ module fam
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! set up the unperturbed Hamiltonian from the unperturbed potentials
-    !if(.not.allocated(Hunper)) then
-    !  allocate(Hunper(nwt,nwt))
-    !  Hunper = calc_sphamil(PotUnper, .false.)
-    ! endif
-
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed Hamiltonian as 0
     if(.not.allocated(dH)) then 
       allocate(dH(nwt,nwt,2)) ! stores dHph (dH20), dHhp (dH02) in HF(B) basis for (Q)FAM
@@ -229,7 +243,7 @@ module fam
       if(pairingtype==0) then ! FAM
         allocate(dH_free_flat(nwt * nwt)) ! stores dh in HF basis
       else ! QFAM
-        allocate(dH_free_flat(3 * nwt * nwt)) ! stores dh, ddelta+, ddelta- in HF basis
+        allocate(dH_free_flat(3 * nwt * nwt)) ! stores dh, d\Delta^+, -d\Delta^{-,*} in HF basis
       endif
     endif
 
@@ -342,7 +356,6 @@ module fam
     &          '    dh convergence   < ', es8.1)
 
 
-
     print 1
     print 2, omega_min, omega_max, omega_step, smear
     print 3, l, m, eff_charge_n, eff_charge_p
@@ -353,29 +366,24 @@ module fam
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
-    ! Perform one FAM loop of the perturbed single-particle hamiltonian dh
-    ! (in HF basis), which contain dh and ddelta (in the QFAM). 
+    ! Perform one (Q)FAM loop.
     ! 
     ! Input:
     !    dHsp_flat    : perturbed hamiltonian in HF basis as a flat array
     ! Output:
     !    dHspout_flat : iterated perturbed hamiltonian in HF basis as a flat array
     !
-    ! TODO:  - generalize documentation to QFAM
-    !        - mention that (- \delta \Delta^{-}^*) is stored !
+    ! Reminder: for QFAM, the arrays store -d\Delta^{-,*}, NOT d\Delta.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    !
-    ! Note: in FAM dHsp_flat only contains dh, while in QFAM it stacks dh, 
-    !       ddelta+ and ddelta-
     ! 
     ! One full FAM iterations consists of 6 steps : 
     ! 
     ! (1) transform dh, ddelta+/- to QP basis         => dH20, dH02
-    ! (2) compute XY from linear response equation    => X20, Y02
+    ! (2) compute XY from linear response equation    => X   , Y 
     ! (3) transform XY back to sp basis               => drho, dkappa+/-
     ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
     ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
-    ! (6) compute perturbed sp hamiltonian and paring => dh, ddelta+/-
+    ! (6) compute perturbed sp hamiltonian and paring => dh, d\Delta^{+}, -d\Delta^{-,*}
     !
     !---------------------------------------------------------------------------
     1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
@@ -404,7 +412,7 @@ module fam
 
       ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
       ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
-      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
+      dHsp(1:nwt,1:nwt,1:1)    => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
@@ -415,34 +423,22 @@ module fam
     else ! QFAM
 
       ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
-      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
-      !    dH(:,:,1) = ddelta+ = dH20
-      !    dH(:,:,2) = dh      = dH11
-      !    dH(:,:,3) = ddelta- = dH02 
-      ! TODO: this comment does not reflect reality
+      !    dH(:,:,1) =  d\Delta^{-,*} 
+      !    dH(:,:,2) = dh             
+      !    dH(:,:,3) = -d\Delta^{-,*}  
       dHsp   (1:nwt,1:nwt,1:3) => dHsp_flat(:)
       dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & ! input 
       &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))                        ! output
-      ! Attention: 1. there is NO (-CONJG) operation for dHsp(:,:,3), because we expect
-      !               -\delta \Delta^- as input to this routine!
-      !            2. there IS a transpose operation for dH(:,:,2); the routine spits out the
-      !               'bottom left' block of the full matrix, which is \delta H^{02, T}!
-$NTR      dH(:,:,2) = TRANSPOSE(dH(:,:,2))
-$TR       dH(:,:,2) = -         dH(:,:,2)
-      print *, 'dDelta+'
-      call print_spme_complex_superblock(dHsp(:,:,1))
-      print *, 'Dh'
-      call print_spme_complex_superblock(dHsp(:,:,2))
-      print *, 'dDelta-'
-      call print_spme_complex_superblock(dHsp(:,:,3))
-
-      print *, 'H20'
-      call print_spme_complex_superblock(dH(:,:,1))
-      print *, 'H02'
-      call print_spme_complex_superblock(dH(:,:,2))
+      ! Attention: 1. there is NO (-CONJG) operation for dHsp(:,:,3), because this 
+      !               routine takes -d\Delta^{-,*} as input.
+      !            2. the routine spits out the 'bottom left' block of the full matrix, 
+      !               which is \delta H^{02, T}. We could apply a transpose, but this 
+      !               matrix is antisymmetric; exchanging signs works in both T-conserved 
+      !               and T-broken cases.
+      dH(:,:,2) = -         dH(:,:,2)
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -470,45 +466,48 @@ $TR       dH(:,:,2) = -         dH(:,:,2)
       dkappa_plus  = 0  
       dkappa_minus = 0
     else                     ! QFAM
-$NTR      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
-$NTR      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
-$NTR      dkappa_minus = TRANSPOSE(CONJG(dkappa_minus))
-      ! Attention:
-      !  1. the perturbed density matrix is
+      ! Attention for the subtleties of time-reversal invariance. 
+      !
+      ! When time-reversal is not conserved, i.e. in the "complete" calculation: 
+      ! the perturbed density matrix is
       !
       !     \delta \mathcal{R} =    (   0     X   )
       !                             (   Y^T   0   )
       !
       !    which is why the input to the routine has Y^T
-      !  2. The 'bottom left' corner of the resulting matrix is -\delta \kappa^{-,*}
-      !     hence the -(CONJG) operation.
+
+$NTR  call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
+$NTR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+    
+      ! When time-reversal is conserved: the perturbed density matrix is 
       !
-$TR      call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
-$TR      &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
-$TR      dkappa_minus = - CONJG(dkappa_minus)
-      endif
+      !       \delta \mathcal{R} =    (   0     X   )   = ( 0  0        0    X_r )
+      !                               (   Y^T   0   )     ( 0  0       -X_r  0   )
+      !                                                   ( 0  -Y^T_r   0    0   )
+      !                                                   ( Y^T_r       0    0   )
+      !
+      !     because we store the top-right part Y_r of  Y = ( 0   Y_r ) 
+      !                                                     (-Y_r 0   )
+      !     and similar for X. 
+      !
 
-    ! TEMP 
-    print *, 'KEEPING ONLY REAL PARTS OF KAPPA'
-    dkappa_plus  = DBLE(dkappa_plus)
-    dkappa_minus  = DBLE(dkappa_minus)
+$TR   call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
+$TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
+      ! The output of the qp -> sp transformation should be:
+      ! 
+      !      (  d\rho            d\kappa^+ )
+      !      ( -d\kappa^{-,*}    -d\rho^{T}) 
+      ! 
+      ! Notice that the 'bottom left' corner of the resulting matrix is 
+      !       -\delta \kappa^{-,*} 
+      ! hence the -(CONJG) operation here, independent of whether or not
+      ! time-reversal is conserved.
+      dkappa_minus = - CONJG(dkappa_minus)
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (4) Compute perturbed densities on the mesh
     call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
-
-    print *, 'kappa_pairing'
-    call print_spme_real_superblock(kappa_pairing)
-    print *, 'dkappa+'
-    call print_spme_complex_superblock(dkappa_plus)
-    print *, 'dkappaminus'
-    call print_spme_complex_superblock(dkappa_minus)
-
-    ! TODO: use this to bugfix signs
-    print *, 'PAIRING DENSITIES'
-    do i=1, nx 
-      print ('(99f12.3)'), dR_pp_plus%DP_I_I(i,2), dR_pp_minus%DP_I_I(i,2)
-    enddo 
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
@@ -517,8 +516,6 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
         print 22,  sum(abs(drho)**2), 0.0,  0.0
       endif
     endif
-
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (5) compute perturbed fields on the mesh
     ! explicit linearisation of the fields
@@ -528,12 +525,6 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
     !  result from the Skyrme functional.  
     call combine_potentials(dFs)
     call combine_potentials(dFa)
-
-    print *, 'PAIRING POTENTIALS'
-    do i=1, mv
-      print ('(99f12.3)'), potentials%F_I_I(i,2), dF_pp_plus%FP_I_I(i,2), dF_pp_minus%FP_I_I(i,2)
-    enddo 
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (6) calculate perturbed hamiltonian and pairing in the HF basis
     if (pairingtype==0) then ! FAM
@@ -549,40 +540,12 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
       ! \delta h, perturbation of the single-particle hamiltonian
       dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
 
-      ! \delta \Delta^{+} -> stored naively
+      ! \delta \Delta^{+} -> stored 'as-is'
       dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus , .false.)
-
-      si = 0
-      do B=1,8
-        N = HFBLocks(B); if(N.eq.0) cycle
-        print *, 'PAIRING CUTOFFS IN BLOCK ', B
-        print ('(99f12.7)'), spenergies(si+1:si+N)
-        print ('(99f12.7)'), Pcutoffs(si+1:si+N)
-        print *
-        si = si + N
-      enddo 
-
-      print *, 'Delta from calcgaps with original potentials'
-      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),potentials)
-      call print_spme_real_superblock(HFBgaps)
-
-
-      print *, 'Delta from calcgaps with potentials = 1'
-      potentials%FP_I_I = 1.0d0
-      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),potentials)
-      call print_spme_real_superblock(HFBgaps)
-
-      kappa_pairing = DBLE(dkappa_plus)
-      dF_pp_plus%FP_I_I = 1.0d0
-      call calcHFBgaps(FermiEnergy, (/ 0.0d0, 0.0d0 /),dF_pp_plus)
-      print *, 'dDelta+ from calcgaps'
-      call print_spme_real_superblock(HFBgaps)
-
 
       ! \delta \Delta^{-}
       dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
       ! -> stored as (- \delta \Delta^{-,*} )
-      !    For reasons I don't quite grasp, fails if this is not done this way.
       dHspout(:,:,3) = - CONJG(dHspout(:,:,3))
 
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,2))**2), sum(abs(dHsp(:,:,1))**2),  sum(abs(dHsp(:,:,3))**2)
@@ -627,14 +590,12 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
     ! therefore compute
     !    (I - T) dH = dH - (T(dH) + dH_free) + dH_free 
     !               = dH - iterate_dH(dH) +  dH_free 
-    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
-    !    dHsp_flat    : perturbed hamiltonian in HF basis as a flat array
+    !    dHsp_flat    : perturbed sp/qp hamiltonian in HF basis as a flat array
     ! Output:
     !    dHspout_flat : (I - T) * dHsp_flat
     !---------------------------------------------------------------------------
-
-    implicit none
     complex(KIND=dp), dimension(:), intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), intent(out)  :: dHspout_flat
 
@@ -655,13 +616,16 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
 
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
-    ! Compute the X and Y amplitudes from the FAM master equation. 
+    ! Compute the X and Y amplitudes from the (Q)FAM master equation. 
     ! In absense of pairing, X, Y, dH, F store ph subblocks and loops are only 
     ! over ph pairs. In presence of pairing, X, Y, dH and F store qp matrix 
-    ! elements and loops run over the complete qp basis.  
+    ! elements and loops run over the complete qp basis. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   dH :  perturbed single-particle (FAM) or HFB (QFAM) Hamiltonian
+    !         complex array of size (nwt,nwt,2)
     !---------------------------------------------------------------------------
-    implicit none
-    complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
+    complex(KIND=dp), intent(in)  :: dH(nwt,nwt,2) 
 
     integer       :: i, j, si, si2, N, N2, B, T
 
@@ -688,7 +652,6 @@ $TR      dkappa_minus = - CONJG(dkappa_minus)
         enddo
         si = si+T
       enddo 
-
     
     else ! QFAM : sum of two qp energy
     
@@ -987,7 +950,6 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
   end subroutine test_convergence
 
-
   function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the particle-hole and hole-particle matrix elements of the multipole
@@ -1046,9 +1008,6 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
       ! Renormalise with sqrt(2) if K is not 0
       if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
 
-
-      ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
-      ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
       endif
 
     ! TODO: refactor this; selecting particle-hole or quasiparticle parts
@@ -1111,10 +1070,18 @@ $TR   f_LK_qpme(:,:,2) = -         f_LK_qpme(:,:,2)
   end function get_F_LK
 
   function get_N(eff_e_n, eff_e_p) result(Nqpme)
+    !-----------------------------------------------------------------------------
+    ! Get the particle-hole and hole-particle matrix elements of the particle 
+    ! number operator N.
+    ! 
+    ! Input:
+    !     eff_e_n  : effective charge of neutrons (in units of e)
+    !     eff_e_p  : effective charge of protons (in units of e)
     !
-    ! TODO: document
-    !
-
+    ! Output:
+    !     Nqpme    : matrix elements of N, either particle-hole (FAM)
+    !                                      or 2qp (QFAM)
+    !-----------------------------------------------------------------------------
     real(KIND=dp), intent(in)     :: eff_e_n, eff_e_p
     complex(KIND=dp), allocatable :: Nqpme(:,:,:), Nspme(:,:)
     integer                       :: i
