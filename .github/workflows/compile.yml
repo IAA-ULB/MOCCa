@@ -1,0 +1,91 @@
+# Reusable workflow for compiling Tantalus executables (MF or FAM)
+# 
+# Inputs:
+#   config:      Configuration to compile (e.g., LO, NLO, BXL, BXL-T, N2LO, etc.)
+#   compiler:    Compiler to use (gfortran, ifx)
+#   calctype:    Calculation type (NUCLEI or PASTA)
+#   mpi:         Whether to compile with MPI support (true/false)
+#   exe_prefix:  Prefix for executable name (default: Tantalus)
+#   make_target: Make target - 'mf' for mean-field, 'fam' for FAM
+#
+# Outputs:
+#   artifact_name: Name of the uploaded artifact (with .exe extension)
+
+name: Compile Tantalus Executable
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Configuration to compile
+        type: string
+        required: true
+      compiler:
+        description: Compiler to use
+        type: string
+        required: true
+      calctype:
+        description: Calculation type (NUCLEI or PASTA)
+        type: string
+        required: true
+      mpi:
+        description: Enable MPI support
+        type: boolean
+        required: true
+      exe_prefix:
+        description: Prefix for executable name
+        type: string
+        default: Tantalus
+      make_target:
+        description: Make target - 'mf' for mean-field, 'fam' for FAM
+        type: string
+        required: true
+    outputs:
+      artifact_name:
+        description: Name of the uploaded artifact
+        value: ${{ jobs.compile.outputs.artifact_name }}
+
+jobs:
+  compile:
+    runs-on: self-hosted
+    outputs:
+      artifact_name: ${{ steps.set_vars.outputs.EXENAME }}
+    steps:
+      - name: Set environment variables
+        id: set_vars
+        run: |
+          MPI_STR="${{ inputs.mpi && 'MPI' || 'SERIAL' }}"
+          COMPFAM="${{ inputs.compiler == 'gfortran' && 'gnu' || 'intel' }}"
+          HDF5SUFFIX="${{ inputs.compiler == 'gfortran' && '-hdf5' || '' }}"
+          MPISUFFIX="${{ inputs.mpi && 'parallel' || 'serial' }}"
+          SUFFIX="${{ inputs.config }}.${{ inputs.compiler }}.${{ inputs.calctype }}.$MPI_STR"
+          EXENAME="${{ inputs.exe_prefix }}.$SUFFIX.exe"
+          MAKE_VAR="${{ inputs.make_target == 'fam' && 'FAMNAME' || 'EXENAME' }}"
+          echo "SUFFIX=$SUFFIX" >> $GITHUB_OUTPUT
+          echo "COMPFAM=$COMPFAM" >> $GITHUB_OUTPUT
+          echo "HDF5SUFFIX=$HDF5SUFFIX" >> $GITHUB_OUTPUT
+          echo "MPISUFFIX=$MPISUFFIX" >> $GITHUB_OUTPUT
+          echo "EXENAME=$EXENAME" >> $GITHUB_OUTPUT
+          echo "MAKE_VAR=$MAKE_VAR" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare src directory
+        run: |
+          mkdir -p src/ src_fam/
+          cp src_orig/*.f90 src/
+          cp src_orig/*.f90 src_fam/
+
+      - name: Compile
+        run: |
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          cp make_include/make.inc.${{ steps.set_vars.outputs.COMPFAM }}-${{ steps.set_vars.outputs.MPISUFFIX }}${{ steps.set_vars.outputs.HDF5SUFFIX }} make.inc
+          make ${{ inputs.make_target }} CONFIG=${{ inputs.config }} ${{ steps.set_vars.outputs.MAKE_VAR }}=${{ steps.set_vars.outputs.EXENAME }} CALCTYPE=${{ inputs.calctype }}
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set_vars.outputs.EXENAME }}
+          path: exec/${{ steps.set_vars.outputs.EXENAME }}
+          retention-days: 2
