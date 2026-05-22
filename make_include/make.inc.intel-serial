@@ -42,4 +42,4 @@ USE_MPI   = 0
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
 USE_HDF5           = 0
 HDF5_LIB           =
-LINEAR_ALGEBRA_LIB = -mkl
+LINEAR_ALGEBRA_LIB = -qmkl

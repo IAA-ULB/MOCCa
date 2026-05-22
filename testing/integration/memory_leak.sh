@@ -53,6 +53,8 @@ ITERATIONS=(100 500 1000)
 declare -a MEMORY_USAGE
 declare -a ITERATION_COUNT
 
+export MKL_NUM_THREADS=1
+
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
