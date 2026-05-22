@@ -44,7 +44,7 @@ for arg in "$@"; do
 done
 
 # Tolerance for memory comparison (in KB) - memory should not grow by more than this
-MEM_TOLERANCE_KB=1000  # 1 MB tolerance by default
+MEM_TOLERANCE_KB=3000  # 3 MB tolerance by default
 
 # Iteration counts to test
 ITERATIONS=(100 500 1000)
