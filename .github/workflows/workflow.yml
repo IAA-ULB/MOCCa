@@ -229,7 +229,7 @@ jobs:
     needs:   compile-mf-nuclei
     strategy:
       matrix:
-        COMPILER: [gfortran] #, ifx] # Reactivate
+        COMPILER: [gfortran, ifx] # Reactivate
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
@@ -261,6 +261,40 @@ jobs:
           name: minimal-${{ env.SUFFIX }}.logs
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
+
+  memory_leak:
+    #-----------------------------------------------------------------------------
+    # Run the 'minimal' test for two different compilers.
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [gfortran, ifx] # Reactivate
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          name: Tantalus.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run memory-leak test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash memory_leak.sh $SUFFIX
+
+        # uploading test results is not necessary
   fission:
     #-----------------------------------------------------------------------------
     # Run the 'fission' test for two different compilers.
