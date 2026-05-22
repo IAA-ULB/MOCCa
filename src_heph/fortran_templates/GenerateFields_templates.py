@@ -32,7 +32,10 @@ field_calc_DD_pert   = T(' * lr_pow(R%$DENSITY(:$DENIND,$ISOALT), R_pert%$DENSIT
 
 field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
 field_calc_pert      = T(2*tab + '& $SIGN $CPLCTE $EXPR_PERT $EXTRA & \n') 
-field_calc_INM = T(  tab + 'pot(:,$ISOIND) = pot(:,$ISOIND) $SIGN $CPLCTE $EXPR1 \n')
+field_calc_INM       = T(  tab + 'pot(:,$ISOIND) = pot(:,$ISOIND) $SIGN $CPLCTE $EXPR1 \n')
+
+field_calc_fac2    = T( 2*tab + '! Hacking in a factor of 1/2; see notes on pairing potentials \n' +\
+                        2*tab + 'F%$FIELD = 0.5d0 * F%$FIELD \n')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Dealing with potential vectors
