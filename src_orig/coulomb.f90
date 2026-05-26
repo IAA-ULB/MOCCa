@@ -68,7 +68,7 @@ module Coulombmod
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and
  ! has been shown to be sufficient in MOCCa.
- integer, parameter :: max_moment_coulomb=8
+ integer, parameter :: max_moment_coulomb=8 ! 2 for Kouhei, 8 default
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z

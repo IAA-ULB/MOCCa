@@ -64,22 +64,22 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                          'pairing_strengths.f90', 'pairingcutoffs.f90', \
                          'folding.f90', 'timing.f90', \
                          'fam_run.f90', 'fam_gmres.f90', \
-                         'fam_testing.f90', 'hdf5_auxiliary.f90', \
+                         'hdf5_auxiliary.f90', \
                          'IO_aux.f90', 'basis_transform.f90' ]
     # List of files that can be processed by a generic preprocessor
     generic_process_files = [ 'tantalus.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \
                               'HFB_direct.f90', 'momentsofinertia.f90', \
-                              'evolution.f90', 'fam.f90' ]
+                              'evolution.f90', 'fam.f90','fam_testing.f90']
 
-    if(fname in no_process_files):
+    if(fname in generic_process_files):
+        # A generic preprocessor that makes a few simple substitutions
+        ProcessGeneric(fname,src,target,so,fam_active, dry_run)
+        return
+    elif(fname in no_process_files):
         # Preprocessing = is a simple copy operation for these files
         if(not dry_run):
             os.system('cp ' + src + fname + ' ' + target + fname)
-        return
-    elif(fname in generic_process_files):
-        # A generic preprocessor that makes a few simple substitutions                        
-        ProcessGeneric(fname,src,target,so,fam_active, dry_run)
         return
     else: 
         # For these files, there is more work to do!
@@ -116,8 +116,6 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
             ProcessHFB(fname, src, target, so, dry_run)
         if(fname=='hartree-fock.f90'):
             ProcessHartreeFock(fname, src, target, so, dry_run)
-        if(fname=='momentsofinertia.f90'):
-            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
         if(fname=='fission_MOI.f90'):
             ProcessFission_MOI(fname, src, target, so, dry_run)
         if(fname=='transform.f90'):
@@ -130,8 +128,6 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
             ProcessCranking(fname, src, target, so, dry_run)
         if(fname=='IO_wf.f90'):
             ProcessIO_wf(fname, src, target, so, oldso, fam_active, dry_run) 
-        if(fname=='fam.f90'):
-            ProcessGeneric(fname, src, target, so, fam_active, dry_run)
 
 def ProcessGeninfo(fname, src, target, so, dry_run=False):
     """
@@ -174,6 +170,8 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     """
     from src_heph.heph_functional import derivative_order
     from src_heph.heph_substitute import substitute
+    from src_heph.heph_densities  import Densities_needed
+
     
     global derivative_order
 
@@ -200,6 +198,22 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
       dic['FAM'] = 1
     else:
       dic['FAM'] = 0
+
+
+    #PD: $TAUPRESENT required to prepocess fam.py
+    if('D_Nm_Nm' not in Densities_needed):
+      if('D_N_N' not in Densities_needed):
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = '!'
+        dic['TAUPRESENT'] = 0
+      else:
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = ' '
+        dic['TAUPRESENT'] = 1
+    else:
+      dic['TAUSCALAR']    = ' '
+      dic['TAUTENSOR']    = '!'
+      dic['TAUPRESENT']   = 1
 
     if(not dry_run):    
         substitute(src+fname, target+fname, dic)

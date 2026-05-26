@@ -67,7 +67,8 @@ implicit none
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile='', famfile='', xyfile=''
+  character(len=80)   :: inertfile='', famfile='', xyfile='', xyinfile=''
+  character(len=80)   :: finfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
@@ -141,6 +142,11 @@ contains
 
 #if($FAM == 1)
     call readfam(file_number)
+
+    if(xyfile .ne. '' .and. xyfile == xyinfile) then 
+      print * ,"ERROR : XYfile and XYinfile carry the same name. Stopping ..."
+      stop
+    endif
 #endif
 
     if(present(file_number)) then
@@ -170,8 +176,8 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia,     &
-    &           potentials_from_file
+    &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
+    &           finfile, N_inertia, potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -303,8 +309,11 @@ contains
              & '    INERT file     = ', a80, / &
              & '    FAM file       = ', a80, / &
              & '    XY file        = ', a80) 
- 1111 format ( '    Input data     = ', a26, / &
+  111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
+ 1111 format ( ' Filename for FAM input (not used if empty): ', /     &
+             & '    XY init file   = ', a80, / &
+             & '    Ext.field file = ', a80)
   112 format ( ' Checkpointiter =', i10)
   113 format (' Printing spwf details during iterations: ', l5)
    12 format ( ' Convergence required', / &
@@ -371,8 +380,11 @@ contains
 
       print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE
       if(present(file_number)) then
-        print 1111,  adjustl(trim(input_file)), file_number
+        print 111,  adjustl(trim(input_file)), file_number
       endif
+#if( $FAM == 1 )
+        print 1111,  XYINFILE, FINFILE
+#endif    
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
       
@@ -1932,9 +1944,9 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     if (present(O20) .and. present(O02)) then
       do nu = 1, nwt
         do mu = 1, nwt
-          ! if(abs(O20(mu,nu)) > 1e-10 .or. abs(O02(mu,nu)) > 1e-10) then
+          if(abs(O20(mu,nu)) > 1e-10 .or. abs(O02(mu,nu)) > 1e-10) then
             write(1, fmt=2) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
-          ! end if
+          end if
         enddo
       enddo
 
@@ -1943,9 +1955,9 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
       do nu = 1, nwt
         do mu = 1, nwt
-          ! if(abs(X(mu,nu)) > 1e-10 .or. abs(Y(mu,nu)) > 1e-10) then
+          if(abs(X(mu,nu)) > 1e-10 .or. abs(Y(mu,nu)) > 1e-10) then
             write(1, fmt=2) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
-          ! end if
+          end if
         enddo
       enddo
     endif
