@@ -15,7 +15,7 @@ src_heph/*.pyc
 site/
 
 # Do not track logs of various kinds
-testing/integration/logs/
+testing/*/logs/
 
 # Do not track the documentation builds
 site/ 

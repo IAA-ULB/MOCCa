@@ -10,7 +10,7 @@
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001     MeV               1     keV
-#  - strength S_20 @ 25.0 MeV          1.6612681654 fm^4 MeV^-1       1e-4  fm^4 MeV^-1 
+#  - strength S_20 @ 25.0 MeV          1.661155     fm^4 MeV^-1       1e-4  fm^4 MeV^-1
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
@@ -18,19 +18,12 @@
 #        doing so would lead to unstable strengths differing from run to run.  
 #
 #        There are two different values the FAM code can converge to based on the 
-#        presence on the pre diagonalisation step done at the beginning of 
-#        fam_run.f90. 
+#        presence on the prediagonalisation of h at the start of fam_run.f90
 #          - if the diagonalisation is enabled  : S_20(25.0) = 1.6611546044656
 #          - if the diagonalisation is disabled : S_20(25.0) = 1.6612681654265
+#         Note that the diagonalisation is done by default for HF calculations
+#         and is implicit in HFB calculations with the two-basis method.
 #
-#        However the reference value reported in this file based on commit 
-#        bg93d26f7 is 1.661298165, close to the later but not exactly equivalent
-#
-#        Also note that the QFAM converges to 1.6611546046598002, very close to 
-#        the former. 
-#
-#        Also note that the prediag step may be failing for parity-broken 
-#        calculations. This issue should be fixed.  
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------

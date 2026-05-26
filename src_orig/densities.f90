@@ -768,7 +768,6 @@ function densit_offdiag_restricted(rho, kappa) result(R)
   kappa_plus_temp  = kappa
   kappa_minus_temp = 0.0d0
 
-  print *, 'RHo', rho_temp(1,1), rho_can(1)
   call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
   ! Combine the correct densities
   R = Rs + R_pp_plus
@@ -1371,6 +1370,8 @@ $EXPRESSION_DELTA_PP
           !
           ! This should be corrected in Hephaestos, but it is much harder than including this minus sign.
           delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
+          ! Sign to be clarified with better documentation of Hephaestos
+$TR       delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) 
           ! Delta is globally antisymmetric in the case of time-reversal symmetry, but we 
           !  represent only half of the matrix explicitly!
 $TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i) 
@@ -1960,6 +1961,9 @@ $PBROKEN $TR  enddo
 
 end function CompNablaMelements
 
+#if($FAM == 0) 
+! We don't define this routine for FAM calculations because the pointer remapping
+! does not play nice with the complex-valued densities.
 subroutine print_boxsize_check(R)
   !-----------------------------------------------------------------------------
   ! Print the maximum values of the densities D_I_I and DP_I_I at the edges of 
@@ -1980,27 +1984,27 @@ subroutine print_boxsize_check(R)
 
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
-  
-!  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
-!  
-!  print 1
-!  print 11
-!  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
-!  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
-!  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
-!$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
-!  if(pairingtype .ne. 0) then
-!    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
-
-!    print 12
-!    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
-!    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
-!    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
-!$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
-!  endif
+  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
   
+  print 1
+  print 11
+  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+
+  if(pairingtype .ne. 0) then
+    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
+
+    print 12
+    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
+  endif
 end subroutine print_boxsize_check
+#endif 
 
 #if(USE_HDF5>0 && $FAM == 0) 
 ! There is no need to write densities to file in a FAM code

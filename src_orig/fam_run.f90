@@ -6,9 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_L_Linv
-  use fam_testing, only : test_linearity_T, test_linearity_FAM_coulomb, test_densit_offdiag
-  use fam_testing, only : test_qptrafo
+  use fam_testing, only : run_FAM_tests
   use gmres 
   use timing
 
@@ -76,7 +74,7 @@ program run_FAM
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
 
-  if(.false.) then
+  if(pairingtype.eq.0) then
     !----------------------------------------------------------------------------------  
     ! Perform an explicit diagonalisation of the single-particle hamiltonian 
     !  to ensure a "clean" start for FAM-RPA calculations
@@ -93,6 +91,9 @@ program run_FAM
     if(store_derivatives) call deriveHF() ! and update derivatives
     ! diagonalisation done; now recalculate other quantities
     call SolvePairing(pairingscheme, ifail)
+    ! ... make sure the full density matrix gets repopulated!
+    if (pairingtype .eq. 0) call iniHFdensities()
+
     Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
     Potentials  = calcPotentials(Density)
   endif 
@@ -141,7 +142,6 @@ program run_FAM
       allocate(dH_flat_next(3 * nwt * nwt))
     endif
   endif
-  
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -181,7 +181,8 @@ program run_FAM
       print * , 'strength at initialising X, Y :', strength
 
       ! perform partial FAM loop to obtain dH from X and Y
-      call partial_FAM_XY_to_dH(X, Y, dH_flat)
+      ! TODO: fix this!
+      !call partial_FAM_XY_to_dH(X, Y, dH_flat)
       ! dH_flat serves as the initialisation for the upcoming iterative FAM solvers
     
     else 
@@ -194,14 +195,8 @@ program run_FAM
 
     !-------------------------------------------------------------------------------
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-
-    ! Perform all kinds of tests on the quasi-particle transformation
-    ! call test_qptrafo()
-
-    ! Perform all kinds of tests on FAM routines
-    ! call run_FAM_tests(X,Y)
-
-
+    if(unit_test) call run_FAM_tests() ! Note: contains a stop statement!
+    
     !-------------------------------------------------------------------------------
     ! if XYtoF, calculate F staring from XY
 
@@ -212,9 +207,9 @@ program run_FAM
         stop
       endif
 
-
       ! Compute F from XY, passing dH_flat since is already computed with read XY
-      call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
+      ! TODO: fix this!
+      !call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
 
       ! BODGE : set fam_mixingscheme to -1 to skip all iterative FAM solvers
       fam_mixingscheme = -1
@@ -300,7 +295,7 @@ program run_FAM
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
         !---------------------------------------------------------------------------------
-        ! test convergenence
+        ! test convergence
 
         ! Exit the loop if convergence is achieved.
         if (iter > 1) then ! at least two iterations to be able to compare

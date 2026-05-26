@@ -844,7 +844,13 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ! Note that these boundary conditions are not touched by this procedure.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) ::  f(:,:,:)
-    real(KIND=dp), allocatable:: lf(:,:,:)
+    real(KIND=dp)             :: lf(nx+BC+coul_offset_x, &
+    &                               ny+BC+coul_offset_y, & 
+    &                               nz+BC+coul_offset_z)
+    ! The array lf cannot be allocatable, because the function results are 
+    !  often assigned to non-allocatable arrays; if this happens IFORT 
+    !  compilers tend to generate memory leaks. 
+
     integer, intent(in)       :: sx, sy, sz
     integer                   :: i,j,k,l, ox, oy, oz, trash
 
@@ -853,8 +859,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
 
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
-    allocate(lf(nx+BC+ox, ny+BC+oy, nz+BC+oz)) ;  lf = 0.0_dp
-
+    lf = 0.0_dp
 #if(USE_Periodic==0)
     !---------------------------------------------------------------------------
     ! X-direction

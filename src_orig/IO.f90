@@ -60,6 +60,10 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
+  ! Flag governing the reading of potentials from file
+  ! If .true.  => attempt to read the potentials from file and use them
+  !               to start iterating
+  logical             :: potentials_from_file = .true.
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
@@ -69,7 +73,6 @@ implicit none
   integer             :: checkpointiter = 0  
 
   logical                       :: passed_block_test = .true.
-
 
 contains
 
@@ -173,7 +176,8 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile, finfile, N_inertia
+    &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
+    &           finfile, N_inertia, potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -221,7 +225,9 @@ contains
 
     call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
-#endif  
+    call MPI_Bcast(potentials_from_file, 1            , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
   
 #if(USE_MPI == 0) 
   if(N_inertia .lt. 4) then
@@ -281,16 +287,17 @@ contains
     &          '  outputfilename =', a32)
     
   101 format ( ' Information obtained from file ')  
-  102 format ( '      - version number          : ', i5)  
- 1021 format ( '      - param. used on file     : ', 20a)
-  103 format ( '      - Bogoliubov transfo read?: ', l5)  
- 1031 format ( '      - Bogoliubov transfo used?: ', l5)  
-  104 format ( '      - Blocking type           : ', i5)
-  105 format ( '      - Blocknumber             : ', i5)
-  106 format ( '      - Block indices           : ', 10i4)
-  107 format ( '      - Block lowest            : ', 10a2)
-  108 format ( '      - Passed blocking test    : ', l5)
-    
+  102 format ( '      - version number            : ', i5)
+ 1021 format ( '      - param. used on file       : ', 20a)
+  103 format ( '      - Bogoliubov transfo read?  : ', l5)
+ 1031 format ( '      - Bogoliubov transfo used?  : ', l5)
+  104 format ( '      - Blocking type             : ', i5)
+  105 format ( '      - Blocknumber               : ', i5)
+  106 format ( '      - Block indices             : ', 10i4)
+  107 format ( '      - Block lowest              : ', 10a2)
+  108 format ( '      - Passed blocking test      : ', l5)
+  109 format ( '      - Potentials read from file : ', l5)
+
    11 format ( ' Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a80, / &
              & '    DEN file       = ', a80, / &
@@ -364,6 +371,8 @@ contains
             print 107, fileblocklowest
         end select
         print 108, passed_block_test
+
+        print 109, potentials_from_file
       endif 
 
       print 112, checkpointiter

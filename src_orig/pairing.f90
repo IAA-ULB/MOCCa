@@ -663,7 +663,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: tag_overlaps(:)
+    integer                    :: i
+    real(KIND=dp), allocatable :: tag_overlaps(:), sphamil_diag(:,:)
 
     call start_timer(T_pairing)
  
@@ -734,24 +735,37 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         ! Precompute the overlaps between the HF-basis states and the tagging spwf
         tag_overlaps = calculate_tag_overlaps()
       endif
+
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       select case(scheme)
       case( 0)
-        call solvepairing_HFB_direct(  &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        ! Technical note: when constraints are active, feeding the entire 
+        !     single-particle hamiltonian into the direct diagonalisation
+        !     solver can be really detrimental to convergence. Hence we take 
+        !     road travelled by EV8/CR8 and the older codes and feed the
+        !     routine only with the diagonal part. At convergence -- provided 
+        !      diag_sphamil == .true. -- this is of course equivalent.
+        if(.not.allocated(sphamil_diag)) allocate(sphamil_diag(nwt,nwt))
+        sphamil_diag = 0.0d0
+        do i = 1, nwt
+          sphamil_diag(i,i) = sphamil(i,i)
+        enddo
+
+        call solvepairing_HFB_direct( sphamil_diag,                            &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,          &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, partner_qps, partner_overlaps, HFBmix, tag_overlaps,  &
         &   ifail)
       case(+1)
-        call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
+        call solvepairing_HFB_gradient( sphamil,                               &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &   .true. , 1, HFBmix, ifail)
       case(-1)
-        call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
+        call solvepairing_HFB_gradient( sphamil,                               &
+        &   HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &  .false., 1,HFBmix, ifail)
@@ -919,14 +933,15 @@ $NTR     rho_hf = rho_can
           ! exactly this formula. Otherwise, both kappa and delta have the 
           ! following structure
           !
-          !  ( 0      Delta)     (  0      kappa )
-          !  (-Delta     0 )     ( -kappa    0   )
+          ! \Delta =  ( 0      Delta_r)   \kappa = (  0        kappa_r )
+          !           (-Delta_r     0 )            ( -kappa_r    0     )
           !
-          ! but only the part on the upper right is actually stored in memory
-          ! 
+          ! but only the part on the upper right is actually stored in memory, 
+          ! hence the subscripts 'r' for "numerically represented.
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-$TR         E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
-$NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$TR       E(it) = E(it) +       Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$NTR       E(it)= E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
     end select

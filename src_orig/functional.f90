@@ -957,8 +957,7 @@ $PRINT
         enddo
         Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
     enddo
-#else 
-    print *, 'NONDIAGONAL SUM'
+#else
     ! Nondiagonal sum for FAM
     si = 0
     do B=1,8
