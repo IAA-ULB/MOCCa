@@ -17,6 +17,10 @@ where
 This page will list release notes for all releases that increment at least the minor version, but 
 not the patch version.
 
+  - v0.4.2: Improved FAMQRPA, new functionality and several bugfixed (also on the mean-field level!)
+  - v0.4.1: Restored efficiency for constrained calculations that took a hit in v0.3.0 (W. Ryssens)
+
+
 ## v0.4.0 - FAMQRPA 
   Major new feature: full implementation of linear response functionality with pairing (P. Demol) 
   Notable changes from v0.3.1-0.3.9
