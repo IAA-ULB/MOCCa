@@ -421,6 +421,81 @@ contains
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Steps 1 & 2: from the perturbed hamiltonian in the HF basis to X,Y amplitudes
+    call FAM_dh_to_XY(dHsp_flat,X,Y)
+    ! .... but don't forget to store them into history for GMRES!
+    call store_XY_hist(X,Y)
+
+    if (fam_verbose>1) then
+      print *, 'Verify antisymmetry of X and Y'
+      print * , '||X + X^T|| = ', sum(abs(X+transpose(X))**2)
+      print * , '||Y + Y^T|| = ', sum(abs(Y+transpose(Y))**2)
+    endif
+
+    if (fam_verbose>0) then
+      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
+      strength =  calc_strength()
+      print 3, l,m, omega_fam, strength
+    endif
+  
+    ! - - - - -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Steps 3,4,5,6; from the X & Y amplitudes to the perturbed 
+    !                 hamiltonian in the HF basis
+    call  FAM_XY_to_dh(X,Y,dHspout_flat)
+
+    if(fam_verbose > 2) then
+       call print_all_fam_spmat()
+       print *, 'OUTPUT of dHSP_iterate'
+       print *, 'dh'
+       print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,2))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,2))
+       endif
+       print *, 'dDelta+'
+       print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,1))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,1))
+       endif
+       print *, 'dDelta-'
+       print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
+       if (pairingtype==0) then
+          call print_spme_complex(dHsp(:,:,3))
+       else
+          call print_spme_complex_superblock(dHsp(:,:,3))
+       endif
+    endif
+  end subroutine iterate_dHsp
+
+  subroutine FAM_dh_to_XY(dHsp_flat, X_local, Y_local)
+    !---------------------------------------------------------------------------
+    ! Obtain the X-Y (Q)FAM amplitudes starting from the induced mean-fields. 
+    !
+    ! Input:
+    !    dHsp_flat        : perturbed hamiltonian in HF basis as a flat array
+    ! Output:
+    !    X_local, Y_local : (Q)FAM amplitudes
+    !
+    ! Reminder: for QFAM, the arrays store -d\Delta^{-,*}, NOT d\Delta.
+    !           This is because GMRES works for LINEAR problems; the QFAM 
+    !           equations are a linear function of -d\Delta^{-,*} but NOT of 
+    !           d\Delta^{-}.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 
+    ! These are two of the steps from a full FAM iteration : 
+    ! 
+    ! (1) transform dh, ddelta+/- to QP basis               => dH20, dH02
+    ! (2) compute XY from linear response equation          => X   , Y 
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp), intent(out)          :: X_local(:,:), Y_local(:,:)
+    complex(KIND=dp), target, intent(in)   :: dHsp_flat(:)
+    complex(KIND=dp), pointer              :: dHsp(:,:,:)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (1) unpack the flat vector to dh, ddelta+/- and transform to QP basis dH20 dH02
 
     if (pairingtype==0) then ! FAM
@@ -428,12 +503,9 @@ contains
       ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
       ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
       dHsp(1:nwt,1:nwt,1:1)    => dHsp_flat(:)
-      dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
 
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
       call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
-
-      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 
     else ! QFAM
 
@@ -442,7 +514,6 @@ contains
       !    dH(:,:,2) = dh             
       !    dH(:,:,3) = -d\Delta^{-,*}  
       dHsp   (1:nwt,1:nwt,1:3) => dHsp_flat(:)
-      dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)
 
       ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & ! input 
@@ -458,23 +529,43 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (2) compute X and Y amplitudes from linear response equation
+    call calculate_XY(dH,X_local,Y_local)
 
-    call calculate_XY(dH,X,Y)
-    ! .... and store them into history
-    call store_XY_hist(X,Y)
+  end subroutine FAM_dh_to_XY
 
-    if (fam_verbose>1) then
-      print *, 'Verify antisymmetry of X and Y'
-      print * , '||X + X^T|| = ', sum(abs(X+transpose(X))**2)
-      print * , '||Y + Y^T|| = ', sum(abs(Y+transpose(Y))**2)
+  subroutine FAM_XY_to_dh(X,Y,dHsp_flat)
+    !-------------------------------------------------------------
+    ! Compute the induced perturbation to the s.p./q.p. hamiltonian 
+    ! from a set of X,Y (Q)FAM amplitudes. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input: 
+    !  X,Y      : (Q)FAM amplitudes
+    ! Output: 
+    !  dHsp_flat: the perturbed hamiltonian in the HF-basis
+    !             flattened, complex array
+    !-------------------------------------------------------------
+
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+
+    complex(KIND=dp), intent(in)          :: X(:,:), Y(:,:)
+    complex(KIND=dp), target, intent(out) :: dHsp_flat(:)
+    complex(KIND=dp), pointer             :: dHsp(:,:,:) 
+
+    if (pairingtype==0) then ! FAM
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
+    else ! QFAM
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      !    dH(:,:,1) =  d\Delta^{-,*} 
+      !    dH(:,:,2) = dh             
+      !    dH(:,:,3) = -d\Delta^{-,*}  
+      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
     endif
 
-    if (fam_verbose>0) then
-      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
-      strength =  calc_strength()
-      print 3, l,m, omega_fam, strength
-    endif
-  
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (3) Obtain perturbed (pairing) density matrices in HF basis
     if (pairingtype==0) then ! FAM
@@ -549,7 +640,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     if (pairingtype==0) then ! FAM
       
       ! construct the sp hamiltonian in HF basis
-      dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+      dHsp(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
       if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
 
@@ -557,98 +648,89 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
       ! construct the sp hamiltonian + pairing fields in HF basis
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! \delta h, perturbation of the single-particle hamiltonian
-      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
+      dHsp(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
 
       ! \delta \Delta^{+} -> stored 'as-is'
-      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus , .false.)
+      dHsp(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus , .false.)
 
       ! \delta \Delta^{-}
-      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
+      dHsp(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)
       ! -> stored as (- \delta \Delta^{-,*} )
-      dHspout(:,:,3) = - CONJG(dHspout(:,:,3))
+      dHsp(:,:,3) = - CONJG(dHsp(:,:,3))
 
     endif
 
-    if(fam_verbose > 2) then
-       call print_all_fam_spmat()
-       print *, 'OUTPUT of dHSP_iterate'
-       print *, 'dh'
-       print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,2))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,2))
-       endif
-       print *, 'dDelta+'
-       print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,1))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,1))
-       endif
-       print *, 'dDelta-'
-       print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,3))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,3))
-       endif
-    endif
-  end subroutine iterate_dHsp
+  end subroutine FAM_XY_to_dh
 
-  subroutine FAM_dh_to_XY(dHsp_flat, X_local, Y_local)
+  subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F, dHsp_flat_in)
     !---------------------------------------------------------------------------
-    ! Obtain the X-Y (Q)FAM amplitudes starting from the induced mean-fields. 
-    !
+    ! Multiply X and Y by the QRPA matrix by performing one adjusted FAM loop. 
+    ! i.e.
+    !        (E - omega) * X + dH20(X, Y) = - F20
+    !        (E + omega) * Y + dH02(X, Y) = - F02
+    !  
     ! Input:
-    !    dHsp_flat        : perturbed hamiltonian in HF basis as a flat array
+    !    X, Y     :  X Y input amplitudes 
+    !    omega    :  frequency used in the linear response
+    !    dHsp_flat_in (optional)  :  flat array of the perturbed hamiltonian in the HF basis 
     ! Output:
-    !    X_local, Y_local : (Q)FAM amplitudes
-    !
-    ! Reminder: for QFAM, the arrays store -d\Delta^{-,*}, NOT d\Delta.
-    !           This is because GMRES works for LINEAR problems; the QFAM 
-    !           equations are a linear function of -d\Delta^{-,*} but NOT of 
-    !           d\Delta^{-}.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !    F20, F02 :  induced external field 
     ! 
-    ! These are two of the steps from a full FAM iteration : 
-    ! 
-    ! (1) transform dh, ddelta+/- to QP basis               => dH20, dH02
-    ! (2) compute XY from linear response equation          => X   , Y 
     !---------------------------------------------------------------------------
+    
     1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
     12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
     2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
     22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
     3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
-    complex(KIND=dp), intent(out)          :: X_local(:,:), Y_local(:,:)
-    complex(KIND=dp), target, intent(in)   :: dHsp_flat(:)
-    complex(KIND=dp), pointer              :: dHsp(:,:,:)
+    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+    complex(KIND=dp), intent(in) :: omega
+    complex(KIND=dp), intent(out) :: F(:,:,:)
+    complex(KIND=dp), optional, intent(in) :: dHsp_flat_in(:)
+    complex(KIND=dp), allocatable, target :: dHsp_flat(:)
+    complex(KIND=dp), pointer :: dHsp(:,:,:)!!
+
+    if (fam_verbose > 1) print *, "Multiply_with_QRPAmat :: compute the external field induced by XY"!
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (1) unpack the flat vector to dh, ddelta+/- and transform to QP basis dH20 dH02
+    ! (1) if not present, compute the induced perturbed hamiltonian dH in the HF basis
+    if (.not. present(dHsp_flat_in)) then
 
-    if (pairingtype==0) then ! FAM
+      if (.not. allocated(dHsp_flat)) then
+        if(pairingtype==0) then
+          allocate(dHsp_flat(nwt * nwt))
+        else
+          allocate(dHsp_flat(3 * nwt * nwt))
+        endif
+      endif!
+
+      call FAM_XY_to_dH(X, Y, dHsp_flat)
+
+    else
+      dHsp_flat = dHsp_flat_in
+    endif
+
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   ! (2) unpack via pointer remap and transfrom dH to the qp basis
+   if (pairingtype==0) then ! FAM
 
       ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
       ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
-      dHsp(1:nwt,1:nwt,1:1)    => dHsp_flat(:)
-
+      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
       ! get the ph and hp subblocks of the perturbed sp hamiltonian
-      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))!
 
       if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
 
     else ! QFAM
 
       ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
-      !    dH(:,:,1) =  d\Delta^{-,*} 
-      !    dH(:,:,2) = dh             
-      !    dH(:,:,3) = -d\Delta^{-,*}  
-      dHsp   (1:nwt,1:nwt,1:3) => dHsp_flat(:)
-
-      ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
+      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
+      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
+      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
+      
+      ! Transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
       call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & ! input 
       &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))                        ! output
       ! Attention: 1. there is NO (-CONJG) operation for dHsp(:,:,3), because this 
@@ -658,217 +740,15 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
       !               matrix is antisymmetric; exchanging signs works in both T-conserved 
       !               and T-broken cases.
       dH(:,:,2) = -         dH(:,:,2)
+
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (2) compute X and Y amplitudes from linear response equation
+    ! (3) compute induced external field F20 F02   
+    call compute_F_from_XYdH(X, Y, dH, omega, F)
 
-    call calculate_XY(dH,X,Y)
-
-  end subroutine FAM_dh_to_XY
-  !subroutine partial_FAM_XY_to_dH(X, Y, dHspout_flat)
-  !  !---------------------------------------------------------------------------
-  !  ! Perform a partial FAM loop, starting from X and Y get the induced perturbed
-  !  ! Hamiltonian
-  !  ! 
-  !  ! Input:
-  !  !    X, Y         :  X Y FAM amplitudes 
-  !  ! Output:
-  !  !    dHspout_flat : iterated perturbed hamiltonian in HF basis as a flat array
-  !  ! 
-  !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  !  !
-  !  ! Note: 
-  !  !   In FAM dHsp_flat only contains dh, while in QFAM it stacks dh, ddelta+ and ddelta-
-  !  ! 
-  !  !   This function only is almost copy-paste of iterate_dHsp, skipping steps (1) and (2)
-  !  ! 
-  !  ! (3) transform XY to sp basis                    => drho, dkappa+/-
-  !  ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
-  !  ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
-  !  ! (6) compute perturbed sp hamiltonian and paring => dh, ddelta+/-
-  !  !
-  !  !---------------------------------------------------------------------------
-  !  
-  !  1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-  !  12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-  !  2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-  !  22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-  !  3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
-!
-!    complex(KIND=dp), dimension(:,:), intent(in) :: X, Y
-!    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
-!    complex(KIND=dp), pointer :: dHspout(:,:,:)!!
-!!!
-
-!    if (fam_verbose > 1) print *, "partial_FAM_XY_to_dH :: starting partial FAM loop from X and Y"!!
-!
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Set up the pointer remap!
-!
-!    if (pairingtype==0) then ! FAM!
-!
-!      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
-!      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
- !     dHspout(1:nwt,1:nwt,1:1) => dHspout_flat(:)
-
-
-!    else ! QFAM
-
-!      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
-!      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
-!      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
-!      dHspout(1:nwt,1:nwt,1:3) => dHspout_flat(:)!
-!
-!    endif
-
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (3) Obtain perturbed (pairing) density matrices in HF basis
-!    if (pairingtype==0) then ! FAM
-!      drho = X  + transpose(Y)
-!      dkappa_plus  = 0  
-!      dkappa_minus = 0
-!    else ! QFAM
-!      call transform_qp_to_sp(Bogoliubov, O20qp=X, O02qp=Y, O20sp=dkappa_plus, O11sp=drho, O02sp=dkappa_minus)
-!    endif!!
-
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (4) Compute perturbed densities on the mesh
-!    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
-!
-!    if (fam_verbose > 0) then
-!      if(pairingtype==0) then
-!        print 22,  sum(abs(drho)**2), 0.0,  0.0
-!      else
-!        print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
-!      endif
-!    endif
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (5) compute perturbed fields on the mesh
-!    ! explicit linearisation of the fields
-!    call calc_perturbed_potentials(RUnper, dRs, dRa, dR_pp_plus, dR_pp_minus, dFs, dFa, dF_pp_plus, dF_pp_minus)!!
-
-!    ! We add in all additional contributions to F_I_I that do not 
-!    !  result from the Skyrme functional.  
-!    call combine_potentials(dFs)
-!    call combine_potentials(dFa)!
-
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (6) calculate perturbed hamiltonian and pairing in the HF basis!
-
-!    if (pairingtype==0) then ! FAM
-!      
-!      ! construct the sp hamiltonian in HF basis
-!      dHspout(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)!!
-!
-!    else ! QFAM!!
-!
-!      ! construct the sp hamiltonian + pairing fields in HF basis
-!      dHspout(:,:,1) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_plus, .false.)
-!      dHspout(:,:,2) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, dFs, dFa, .false.)
-!      dHspout(:,:,3) = calc_delta_me(   HFpsi, HFdpsi, HFddpsi, dF_pp_minus, .false.)!!
-!
-!    endif!
-!
-!    if(fam_verbose > 2) call print_all_fam_spmat()
-!
-!  end subroutine partial_FAM_XY_to_dH
-
-
-!  subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F, dHsp_flat_in)
-!    !---------------------------------------------------------------------------
-!    ! Multiply X and Y by the QRPA matrix by performing one adjusted FAM loop. 
-!    ! i.e.
-!    !        (E - omega) * X + dH20(X, Y) = - F20
-!    !        (E + omega) * Y + dH02(X, Y) = - F02
-!    !  
-!    ! Input:
-!    !    X, Y     :  X Y input amplitudes 
-!    !    omega    :  frequency used in the linear response
-!    !    dHsp_flat_in (optional)  :  flat array of the perturbed hamiltonian in the HF basis 
-!    ! Output:
-!    !    F20, F02 :  induced external field 
-!    ! 
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    !
-!    !  (1) Compute the induced perturbed hamiltonian dH in the HF basis by calling 
-!    !      partial_FAM_XY_to_dH()            =>  dHsp_flat = {dh, ddelta+, ddelta-}
-!    !      -> this step gets skipped if dHsp is passed to this routine 
-!    !  (2) Transform dHsp to the QP basis    =>  dH20, dH02
-!    !  (3) Compute the resulting field F by linear response, i.e. the Eq. above
-!    !
-!    !---------------------------------------------------------------------------
-!    
-!    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-!    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-!    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-!    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-!    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
-!
-!    implicit none
-!    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
-!    complex(KIND=dp), intent(in) :: omega
-!    complex(KIND=dp), intent(out) :: F(:,:,:)
-!    complex(KIND=dp), optional, intent(in) :: dHsp_flat_in(:)
-!    complex(KIND=dp), allocatable, target :: dHsp_flat(:)
-!    complex(KIND=dp), pointer :: dHsp(:,:,:)!!
-!
-!    if (fam_verbose > 1) print *, "Multiply_with_QRPAmat :: compute the external field induced by XY"!
-!
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (1) if not present, compute the induced perturbed hamiltonian dH in the HF basis
-!
-!    if (.not. present(dHsp_flat_in)) then
-!
-!      if (.not. allocated(dHsp_flat)) then
-!        if(pairingtype==0) then
-!          allocate(dHsp_flat(nwt * nwt))
-!        else
-!          allocate(dHsp_flat(3 * nwt * nwt))
-!        endif
-!      endif!
-!
-!      call partial_FAM_XY_to_dH(X, Y, dHsp_flat)
-!
-!    else
-!      dHsp_flat = dHsp_flat_in
-!    endif
-
-!   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!   ! (2) unpack via pointer remap and transfrom dH to the qp basis
-!
-!    if (pairingtype==0) then ! FAM
-!
-!      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
-!      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
-!      dHsp(1:nwt,1:nwt,1:1) => dHsp_flat(:)
-
-!      ! get the ph and hp subblocks of the perturbed sp hamiltonian
-!      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))!
-!
-!      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
-!
-!    else ! QFAM
-!
-!      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
-!      ! dHsp contains sp hamiltonian in HF basis: normal field + two pairing fields [ddelta+, dh, ddelta-]
-!      !    dH(:,:,1) = ddelta+ = dH20, dH(:,:,2) = dh = dH11, dH(:,:,3) = ddelta- = dH02 
-!      dHsp(1:nwt,1:nwt,1:3) => dHsp_flat(:)
-!
-!      ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
-!      call transform_sp_to_qp(Bogoliubov, O20sp=dHsp(:,:,1), O11sp=dHsp(:,:,2), O02sp=dHsp(:,:,3), O20qp=dH(:,:,1), O02qp=dH(:,:,2))
-!
-!      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
-!
-!    endif
-
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! (3) compute induced external field F20 F02
-!    
-!    call compute_F_from_XYdH(X, Y, dH, omega, F)
-!
-!
-!  end subroutine Multiply_XY_with_QRPAmat
+  end subroutine Multiply_XY_with_QRPAmat
 
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------

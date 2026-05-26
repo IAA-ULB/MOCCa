@@ -14,10 +14,10 @@ on:
     branches:
       - master
       - FAMQRPA
-      - FAMQRPA_strenth_symmetry_tests
   pull_request:
     branches:
       - master
+      - FAMQRPA
 jobs:
   #-----------------------------------------------------------------------------
   # Compilation jobs
