@@ -6,7 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests
+  use fam_testing, only : run_FAM_tests, test_L_Linv
   use gmres 
   use timing
 
@@ -175,14 +175,13 @@ program run_FAM
 
     if (XYinfile .ne. '') then 
       call read_XY(XYinfile, X, Y)
-      call store_XY_hist()
+      call store_XY_hist(X,Y)
 
       strength =  calc_strength()
       print * , 'strength at initialising X, Y :', strength
 
       ! perform partial FAM loop to obtain dH from X and Y
-      ! TODO: fix this!
-      !call partial_FAM_XY_to_dH(X, Y, dH_flat)
+      call FAM_XY_to_dH(X, Y, dH_flat)
       ! dH_flat serves as the initialisation for the upcoming iterative FAM solvers
     
     else 
@@ -208,8 +207,7 @@ program run_FAM
       endif
 
       ! Compute F from XY, passing dH_flat since is already computed with read XY
-      ! TODO: fix this!
-      !call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
+      call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
 
       ! BODGE : set fam_mixingscheme to -1 to skip all iterative FAM solvers
       fam_mixingscheme = -1
@@ -361,7 +359,7 @@ program run_FAM
     endif
 
 
-    ! call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
+    !call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
 
 
 

@@ -117,7 +117,7 @@ contains
     ! Set up free response X and Y amplitudes
     allocate(dH(  nwt,  nwt, 2)) 
     dH = 0.0d0
-    call calculate_XY(dH)
+    call calculate_XY(dH,X,Y)
 
     ! Calculate the perturbed normal and anomalous density matrix
     if (pairingtype==0) then ! FAM
@@ -541,37 +541,37 @@ $TR   dkappa_minus = - dkappa_minus
 
   end subroutine test_densit_offdiag
 
-!  subroutine test_L_Linv(X, Y, F, omega)
-!    !-------------------------------------------------------------------------------
-!    ! This routine tests the multiply_by_QRPAmat by checking that it is the inverse
-!    ! operator as solving FAM, i.e.
-!    !             *QRPAmat :     L : x -> L * x = f 
-!    !                 FAM  :  Linv : f -> Linv * f = x
-!    ! where x = (X, Y) and f = (F20,F02). Note that L and Linv also depends on omega. 
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! I dont want to bother to solve FAM here inside this function so please call
-!    ! this test when FAM is converged and pass the converged X, Y together with the
-!    ! external field F. 
-!    !-------------------------------------------------------------------------------
-!    complex(KIND=dp), intent(in)          :: X(:,:), Y(:,:)
-!    complex(KIND=dp), intent(in)          :: F(:,:,:)
-!    complex(KIND=dp), intent(in)          :: omega
-!    complex(KIND=dp), allocatable         :: Fout(:,:,:)
-!
-!   ! allocate 
-!   allocate(Fout(nwt,nwt,2))
-!
-!
-!    print *, '--------------- Test L * Linv ---------------'
-!
-!    print * , '||Fin||^2 = ', sum(abs(F))
-!
-!    call Multiply_XY_with_QRPAmat(X, Y, omega, Fout)
-!
-!    print * , '||Fout||^2 = ', sum(abs(Fout))
-!    print * , '||(Fin-Fout)||^2 = ',  sum(abs(F - Fout))
-!
-!  end subroutine test_L_Linv
+  subroutine test_L_Linv(X, Y, F, omega)
+    !-------------------------------------------------------------------------------
+    ! This routine tests the multiply_by_QRPAmat by checking that it is the inverse
+    ! operator as solving FAM, i.e.
+    !             *QRPAmat :     L : x -> L * x = f 
+    !                 FAM  :  Linv : f -> Linv * f = x
+    ! where x = (X, Y) and f = (F20,F02). Note that L and Linv also depends on omega. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! I dont want to bother to solve FAM here inside this function so please call
+    ! this test when FAM is converged and pass the converged X, Y together with the
+    ! external field F. 
+    !-------------------------------------------------------------------------------
+    complex(KIND=dp), intent(in)          :: X(:,:), Y(:,:)
+    complex(KIND=dp), intent(in)          :: F(:,:,:)
+    complex(KIND=dp), intent(in)          :: omega
+    complex(KIND=dp), allocatable         :: Fout(:,:,:)
+
+   ! allocate 
+   allocate(Fout(nwt,nwt,2))
+
+
+    print *, '--------------- Test L * Linv ---------------'
+
+    print * , '||Fin||^2 = ', sum(abs(F))
+
+    call Multiply_XY_with_QRPAmat(X, Y, omega, Fout)
+
+    print * , '||Fout||^2 = ', sum(abs(Fout))
+    print * , '||(Fin-Fout)||^2 = ',  sum(abs(F - Fout))
+
+  end subroutine test_L_Linv
 
   subroutine test_gmres()
     !---------------------------------------------------------------------------
