@@ -175,7 +175,7 @@ program run_FAM
 
     if (XYinfile .ne. '') then 
       call read_XY(XYinfile, X, Y)
-      call store_XY_hist()
+      call store_XY_hist(X,Y)
 
       strength =  calc_strength()
       print * , 'strength at initialising X, Y :', strength

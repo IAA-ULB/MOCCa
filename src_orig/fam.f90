@@ -372,7 +372,7 @@ contains
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
     endif
   
-  end subroutine
+  end subroutine printfam
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
@@ -389,15 +389,18 @@ contains
     !           d\Delta^{-}.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 
-    ! One full FAM iterations consists of 6 steps : 
+    ! One full FAM iteration consists of 6 steps : 
     ! 
-    ! (1) transform dh, ddelta+/- to QP basis         => dH20, dH02
-    ! (2) compute XY from linear response equation    => X   , Y 
-    ! (3) transform XY back to sp basis               => drho, dkappa+/-
-    ! (4) calculate perturbed densities on the mesh   => dRs, dRa (DensityVector)
-    ! (5) compute perturbed fields on the mesh        => dFs, dFa (PotentialVector)
-    ! (6) compute perturbed sp hamiltonian and paring => dh, d\Delta^{+}, -d\Delta^{-,*}
+    ! (1) transform dh, ddelta+/- to QP basis               => dH20, dH02
+    ! (2) compute XY from linear response equation          => X   , Y 
+    ! (3) transform XY back to sp basis                     => drho, dkappa+/-
+    ! (4) calculate perturbed densities on the mesh         => dRs, dRa (DensityVector)
+    ! (5) compute perturbed fields on the mesh              => dFs, dFa (PotentialVector)
+    ! (6) compute perturbed sp hamiltonian and pairing gaps => dh, d\Delta^{+}, -d\Delta^{-,*}
     !
+    ! These are executed by calling two larger routines 
+    !   FAM_dh_to_XY => steps (1) to (2)
+    !   FAM_XY_to_dh => steps (3) to (6)
     !---------------------------------------------------------------------------
     1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
     12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
@@ -405,7 +408,6 @@ contains
     22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
     3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
-    implicit none
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
@@ -457,9 +459,9 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (2) compute X and Y amplitudes from linear response equation
 
-    call calculate_XY(dH)
+    call calculate_XY(dH,X,Y)
     ! .... and store them into history
-    call store_XY_hist()
+    call store_XY_hist(X,Y)
 
     if (fam_verbose>1) then
       print *, 'Verify antisymmetry of X and Y'
@@ -594,6 +596,76 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
   end subroutine iterate_dHsp
 
+  subroutine FAM_dh_to_XY(dHsp_flat, X_local, Y_local)
+    !---------------------------------------------------------------------------
+    ! Obtain the X-Y (Q)FAM amplitudes starting from the induced mean-fields. 
+    !
+    ! Input:
+    !    dHsp_flat        : perturbed hamiltonian in HF basis as a flat array
+    ! Output:
+    !    X_local, Y_local : (Q)FAM amplitudes
+    !
+    ! Reminder: for QFAM, the arrays store -d\Delta^{-,*}, NOT d\Delta.
+    !           This is because GMRES works for LINEAR problems; the QFAM 
+    !           equations are a linear function of -d\Delta^{-,*} but NOT of 
+    !           d\Delta^{-}.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 
+    ! These are two of the steps from a full FAM iteration : 
+    ! 
+    ! (1) transform dh, ddelta+/- to QP basis               => dH20, dH02
+    ! (2) compute XY from linear response equation          => X   , Y 
+    !---------------------------------------------------------------------------
+    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
+    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
+    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
+    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+
+    complex(KIND=dp), intent(out)          :: X_local(:,:), Y_local(:,:)
+    complex(KIND=dp), target, intent(in)   :: dHsp_flat(:)
+    complex(KIND=dp), pointer              :: dHsp(:,:,:)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (1) unpack the flat vector to dh, ddelta+/- and transform to QP basis dH20 dH02
+
+    if (pairingtype==0) then ! FAM
+
+      ! pointer remapping for reshaping 1D flat arrays into one 2D matrices
+      ! in absence of pairing, dHsp contains only normal field dhsp of sp hamiltonian in HF basis
+      dHsp(1:nwt,1:nwt,1:1)    => dHsp_flat(:)
+
+      ! get the ph and hp subblocks of the perturbed sp hamiltonian
+      call get_ph_hp_blocks(dHsp(:,:,1), dH(:,:,1), dH(:,:,2))
+
+      if (fam_verbose>1) print 1, sum( abs(dH(:,:,1))**2) , sum( abs(dH(:,:,2))**2) 
+
+    else ! QFAM
+
+      ! pointer remapping for reshaping 1D flat arrays into three 2D matrices
+      !    dH(:,:,1) =  d\Delta^{-,*} 
+      !    dH(:,:,2) = dh             
+      !    dH(:,:,3) = -d\Delta^{-,*}  
+      dHsp   (1:nwt,1:nwt,1:3) => dHsp_flat(:)
+
+      ! transform the perturbed hamiltonian to the qp basis only interested in dH20 and dH02 components
+      call transform_sp_to_qp(Bogoliubov, OTRsp=dHsp(:,:,1), OTLsp=dHsp(:,:,2), OBLsp=dHsp(:,:,3), & ! input 
+      &                                   OTRqp=dH(:,:,1),   OBLqp=dH(:,:,2))                        ! output
+      ! Attention: 1. there is NO (-CONJG) operation for dHsp(:,:,3), because this 
+      !               routine takes -d\Delta^{-,*} as input.
+      !            2. the routine spits out the 'bottom left' block of the full matrix, 
+      !               which is \delta H^{02, T}. We could apply a transpose, but this 
+      !               matrix is antisymmetric; exchanging signs works in both T-conserved 
+      !               and T-broken cases.
+      dH(:,:,2) = -         dH(:,:,2)
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (2) compute X and Y amplitudes from linear response equation
+
+    call calculate_XY(dH,X,Y)
+
+  end subroutine FAM_dh_to_XY
   !subroutine partial_FAM_XY_to_dH(X, Y, dHspout_flat)
   !  !---------------------------------------------------------------------------
   !  ! Perform a partial FAM loop, starting from X and Y get the induced perturbed
@@ -832,18 +904,25 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine one_minus_T
 
-
-  subroutine calculate_XY(dH)
+  subroutine calculate_XY(dH,X, Y)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the (Q)FAM master equation. 
-    ! In absense of pairing, X, Y, dH, F store ph subblocks and loops are only 
-    ! over ph pairs. In presence of pairing, X, Y, dH and F store qp matrix 
-    ! elements and loops run over the complete qp basis. 
+    !
+    ! Note: 
+    ! - In the absence of pairing, X, Y, dH, F store the particle-hole subblocks 
+    !    and the loops are only over particle-hole pairs. 
+    ! - In presence of pairing, X, Y, dH and F store quasiparticle matrix 
+    !    elements and the loops run over the complete quasiparticle basis. 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
-    !   dH :  perturbed single-particle (FAM) or HFB (QFAM) Hamiltonian
-    !         complex array of size (nwt,nwt,2)
+    !   dH   : perturbed single-particle (FAM) or HFB (QFAM) Hamiltonian
+    !          complex array of size (nwt,nwt,2)
+    ! Output:
+    !    X,Y : (Q) FAM amplitudes
+    !          complex arrays of size (nwt,nwt)
+    ! 
     !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(out) :: X(nwt,nwt), Y(nwt,nwt) 
     complex(KIND=dp), intent(in)  :: dH(nwt,nwt,2) 
 
     integer       :: i, j, si, si2, N, N2, B, T, degeneracy
@@ -988,11 +1067,16 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine compute_F_from_XYdH
 
-
-  subroutine store_XY_hist()
+  subroutine store_XY_hist(X,Y)
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
+    !
+    ! Input:
+    !  X, Y: (Q)FAM amplitudes to be stored
+    !        complex arrays of size (nwt,nwt)
     !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+
     if (fam_verbose > 1) print *, "store_XY_hist :: store X and Y in history"
 
     ! roll the current index one step forward

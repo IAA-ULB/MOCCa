@@ -117,7 +117,7 @@ contains
     ! Set up free response X and Y amplitudes
     allocate(dH(  nwt,  nwt, 2)) 
     dH = 0.0d0
-    call calculate_XY(dH)
+    call calculate_XY(dH,X,Y)
 
     ! Calculate the perturbed normal and anomalous density matrix
     if (pairingtype==0) then ! FAM
