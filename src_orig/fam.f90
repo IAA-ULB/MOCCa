@@ -1065,8 +1065,10 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
         si  = si + T 
       enddo
 
+      S = S / 2.0d0 ! acount for double counting qp pairs
+    
     endif
-    S = 0.5 * S
+  
     $TR S = 2 * S ! Time-reversal factor 2
 
 
@@ -1143,7 +1145,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
          enddo
         enddo
         print *
-        S_complex(B) = S_complex(B) / 2.0d0
+        S_complex(B) = S_complex(B) / 2.0d0 ! acount for double counting qp pairs
 
         si  = si + T
       enddo
