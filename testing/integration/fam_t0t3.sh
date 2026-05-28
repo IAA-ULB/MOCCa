@@ -611,19 +611,95 @@ fi
 compare_floats $S_QT $refS20 0.001
 check_strength_QRPA_T=$?
 
+
+mv mf_hfb.wf ../
+
 # ... but otherwise clean-up
 teardown_test_env
 
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# (9) Run the LO-P QFAM calculation
+
+setup_test_env_fam "qfam_t0t3" "${args[0]}" "${args[2]}" "t0t3"
+
+cp ../mf_hfb.wf .
+
+
+# Create runtime data
+cat << EOF > fam.data
+&nucleus
+neutrons=8, protons=8
+/
+&mesh
+nx=8, ny=8, nz=16, dx=0.8
+/
+&func
+name_param='t0t3'
+/
+&pairing
+type='HFB'
+/
+&evolution
+maxiter=1000
+/
+&scfiteration
+/
+&wfs
+nwn = 14, nwp = 14
+/
+&IO
+InputFilename='mf_hfb.wf'
+OutputFilename='trash'
+famfile='S_20.QFAM.P.fam'
+allowtransform=.true.
+/
+&MomentParam
+/
+&Cranking
+/
+&fam
+omega=25.0
+smear=1.0
+l=2
+m=0
+maxiter=30
+fam_precision=1e-8
+/
+EOF
+
+# Run the calculation
+./$exefam < fam.data > $famoutfile
+# .... and immediately check if Tantalus reported back some error codes
+qfam_P_check=$?
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Starting the checking
+
+# b) Get the strength from the S_20.fam file
+S_QP=$(get_strength "S_20.QFAM.P.fam" 25.0)
+
+if $verbose; then 
+	echo " QFAM LO-P : S(omega=25) = $S_QP"
+fi
+
+
+# ... and compare with a tolerance of 1e-2 to the expected answer
+compare_floats $S_QP $refS20 0.001
+check_strength_QRPA_P=$?
+
+# ... but otherwise clean-up
+teardown_test_env
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_check || $qfam_T_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_QRPA || $check_strength_QRPA_T))
+fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_check || $qfam_T_check || $qfam_P_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_QRPA || $check_strength_QRPA_T))
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
 else
 	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
-	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, , S20_QRPA_T = $check_strength_QRPA_T \033[0m"
+	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, S20_QRPA_T = $check_strength_QRPA_T, S20_QRPA_P = $check_strength_QRPA_P \033[0m"
 fi
 
 exit $fail
