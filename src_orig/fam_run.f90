@@ -26,7 +26,7 @@ program run_FAM
   real(KIND=dp) :: S_decomp(8) = 0
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
-  real(KIND=dp) :: res
+  real(KIND=dp) :: fam_residual
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -167,6 +167,7 @@ program run_FAM
     print *, 'Calculate the free response'
     dH_flat = 0
     call iterate_dHsp(dH_flat, dH_free_flat)
+    print *, 'S_free =', strength
     ! this also sets all other quantities like drho, dkappa, X, Y, dH20 to their free value
 
 
@@ -266,7 +267,8 @@ program run_FAM
       print *, "One final FAM iteration based on GMRES solution:  "
       fam_verbose = 1
       call iterate_dHsp(x_gmres, dH_flat_next)
-      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+      fam_residual = norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", fam_residual
 
       call dealloc_gmres()
 
@@ -297,12 +299,14 @@ program run_FAM
 
         ! Exit the loop if convergence is achieved.
         if (iter > 1) then ! at least two iterations to be able to compare
-         call test_convergence(is_converged, is_divergent)
+          call test_convergence(is_converged, is_divergent)
+          fam_residual = norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
+          print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", fam_residual
+
           if(is_converged) then
             print 1
             print 1
             print *, "   Hooray! FAM is converged! "
-            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = iter
             exit
           endif
@@ -310,7 +314,6 @@ program run_FAM
             print 1
             print 1
             print *, "   FAM diverges, exiting"
-            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = - iter
             exit
           endif
@@ -319,7 +322,6 @@ program run_FAM
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
           num_iter = - fam_maxiter
         endif
 
@@ -334,17 +336,11 @@ program run_FAM
     ! store the converged strength
     !---------------------------------------------------------------------------------
       
-    strength = calc_strength()
-
-    print 1
-    print *, "   number of iterations: ", num_iter
-    print *, "   converged strength:  "
-    print *, "          l, m  = ", l, m
-    print *, "          omega = ", omega_curr
-    print *, "          S     = ", strength 
-    print 1
-
+    ! strength = calc_strength()
     call calc_strength_decomp(S_complex_decomp, S_decomp)
+
+    call printfam_end(S_decomp, num_iter, fam_residual)
+
 
     call append_fam_file_new(S_decomp, num_iter, famfile)
 

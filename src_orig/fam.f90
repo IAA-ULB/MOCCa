@@ -341,7 +341,7 @@ contains
 
   end subroutine readfam
 
-  subroutine printfam
+  subroutine printfam_init
     1 format ( 32('-'), ' FAM information ', 31('-'))
     2 format ( ' FAM frequency range:   ', /, &
     &          '    omega_min        = ', f10.3, /,  &
@@ -372,7 +372,64 @@ contains
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
     endif
   
-  end subroutine printfam
+  end subroutine printfam_init
+
+  subroutine printfam_end(S_arr, num_iter, residual)
+    real(KIND=dp), intent(in) :: S_arr(8)
+    integer, intent(in) :: num_iter
+    real(KIND=dp), intent(in) :: residual
+
+
+    11 format(86('='))
+    12 format(2x,74('-'))
+    13 format(/,2x,32('-'), ' strength ', 32('-'),/)
+    20 format ( "   total number of iterations : ", i4)
+    21 format ( "                 fam residual :  ", es10.2)
+    22 format ( "   omega = ", f8.3)
+    23 format ( "   smear = ", f8.3)
+
+    31 format ( '   Operator:   ', /, &
+    &          '      F = Q_', i1, i1,/, &
+    &          '      neutron eff charge = ', f10.3, ' e', /, &
+    &          '      proton eff charge  = ', f10.3, ' e')
+    32 format ( '   Operator:   ', /, 30a) 
+    4 format (20x, '    neutron              proton                total')
+    51 format ('   parity +  ', es20.6, es20.6, es20.6)
+    52 format ('   parity -  ', es20.6, es20.6, es20.6)
+    53 format ('   total     ', es20.6, es20.6)
+    54 format ('   total strength :    ',30x, es20.6)
+
+
+
+    print *
+    print 11
+    print 20, num_iter
+    print 21, residual
+    print *
+    print 22, omega_fam
+    print 23, smear
+    
+    if(operator_type=="multipole") then
+      print 31, l, m, eff_charge_n, eff_charge_p
+    else
+      print 32, operator_type
+    endif
+    
+    print 13
+    print 4
+    print 12
+    print 51, sum(S_arr(1:2)), sum(S_arr(5:6)), sum(S_arr(1:2)) + sum(S_arr(5:6))
+    print 52, sum(S_arr(3:4)), sum(S_arr(7:8)), sum(S_arr(3:4)) + sum(S_arr(7:8))
+    print 53, sum(S_arr(1:4)), sum(S_arr(5:8))
+    print 12
+    print 54, sum(S_arr(1:8))
+    print 12
+
+    print 11
+
+
+  
+  end subroutine printfam_end
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
@@ -402,21 +459,15 @@ contains
     !   FAM_dh_to_XY => steps (1) to (2)
     !   FAM_XY_to_dh => steps (3) to (6)
     !---------------------------------------------------------------------------
-    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+    1 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
 
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
     complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
 
-    real(KIND=dp) :: strength
 
     integer :: si, i, B, N, N2, T
-    complex :: gauge 
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
@@ -433,9 +484,8 @@ contains
     endif
 
     if (fam_verbose>0) then
-      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
+      print 1, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
       strength =  calc_strength()
-      print 3, l,m, omega_fam, strength
     endif
   
     ! - - - - -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -546,9 +596,7 @@ contains
     !-------------------------------------------------------------
 
     12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
     22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     complex(KIND=dp), intent(in)          :: X(:,:), Y(:,:)
     complex(KIND=dp), target, intent(out) :: dHsp_flat(:)
@@ -679,10 +727,6 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     !---------------------------------------------------------------------------
     
     1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
     complex(KIND=dp), intent(in) :: omega
@@ -1002,111 +1046,43 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
   
   end subroutine iniHFdensities
 
-  function calc_strength() result (res)
+
+
+  subroutine calc_strength_decomp(S_cmplx_arr, S_arr)
     !---------------------------------------------------------------------------
-    ! Calculate the strength S(omega,F) and store output in strength and 
-    ! strength_complex and return strength
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! strength_complex is defined as 
+    ! Calculate the complex and the real strength S(omega,F) decomposed over 
+    ! the symmetry channels. 
+    !
+    ! The complex strength is defined as 
     !     strength_complex = Tr (F^dagger * drho)
-    !                      = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    !                      = 0.5 * sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
     ! while the strength  
-    !     strength = -1/pi * strength_complex
-    ! 
-    ! note: 
-    !  - normalisation of external field may have to be taken into account
-    !    S -> S/alpha
-    !  - in case of FAM, F(:,:,1) contains the ph block and F(:,:,2) contains
-    !    the hp block which differ is F if not Hermitian
-    !  - in case of QFAM, F(:,:,1) contains the F20 block in qp basis and F(:,:,2)
-    !    contains the F02 block which differ if F is not Hermitian
+    !     strength = -1/pi * Im(strength_complex)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     -
+    ! Output:
+    !     S_cmplx_arr   : array of length 8 containing the strength_complex 
+    !                     over (isospin, parity, z-sign) symmetry blocks 
+    !     S_arr         : array of length 8 containing the real-valued strength 
+    !                     over (isospin, parity, z-sign) symmetry blocks 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Notes:
+    !  - I follow the symmetry block conventions of the rest of the code. 
+    !    isospin is always respected. If partity is broken, than all the strength
+    !    is put in the positive parity block, etc.
     !---------------------------------------------------------------------------
 
-    complex(KIND=dp) :: S = 0
-    real(KIND=dp) :: res
-    integer :: i, j, si, B, N, N2, T
+    complex(KIND=dp), intent(out) :: S_cmplx_arr(8) 
+    real(KIND=dp), intent(out) :: S_arr(8)
 
-    if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
-
-    S = 0
-
-
-    if(pairingtype==0) then ! FAM
-      si = 0
-      ! loop over 8 isospin-parity-signature (IPS) block 
-      do B=1,8
-        N  = HFblocks(B)    ; if(N.eq.0) cycle 
-        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
-        do j = si+1, si+N
-          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
-          do i = si+1, si+N
-            S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
-          enddo
-        enddo
-        si = si+N
-      enddo
-    
-    else ! QFAM
-     ! loop over 4 isospin-parity (IP) block (signature unresolved)
-      si = 0
-      do B=1,8,2
-        N  = HFblocks(B)    ; if(N.eq.0) cycle 
-        N2 = HFblocks(B+1)
-        T = N + N2
-        ! Loop over all possible pairs (i,j)
-        ! Note: we do not leverage symmetry here - the representation
-        !  of the matrices F,X,Y in memory depends on the the conservation
-        !  or breaking of T
-        do j = si+1, si+T
-          do i = si+1, si+T
-             S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
-          enddo
-        enddo
-        si  = si + T 
-      enddo
-
-      S = S / 2.0d0 ! acount for double counting qp pairs
-    
-    endif
-  
-    $TR S = 2 * S ! Time-reversal factor 2
-
-
-    strength_complex = S 
-    strength = - IMAG(strength_complex) / pi
-
-    ! return the strength
-    res = strength
-
-  end function calc_strength
-
-
-  subroutine calc_strength_decomp(S_complex, strength)
-    !---------------------------------------------------------------------------
-    ! Calculate the complex response and the strength decomposed into
-    ! different symmetry channels. For now, this assumes that the perturbing
-    ! operator must respect all symmetries, i.e. diagonal in tau,pi,z-sign. 
-    ! In the future, applying the idea for a non-trivial perturbation operator
-    ! would require to loop over the blocks in a (partial) off-diagonal way, 
-    ! e.g. pi=-pi' when l is odd. 
-    !---------------------------------------------------------------------------
-
-    complex(KIND=dp), intent(out) :: S_complex(8) 
-    real(KIND=dp), intent(out) :: strength(8)
     integer :: i, j, B, N, N2, si, T
     real(KIND=dp) :: occ_h, occ_p
 
     if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
 
-    if (mod(l,2) == 1 .or. mod(m,2) == 1) then
-      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
-      ! print *, "calling calc_strength() instead"
-      ! call calc_strength()
-      return
-    endif
-
-    S_complex = 0
-    strength = 0
+    S_cmplx_arr = 0
+    S_arr = 0
 
 
    if(pairingtype==0) then ! FAM
@@ -1118,7 +1094,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
         do j = si+1, si+N
           if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
           do i = si+1, si+N
-            S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+            S_cmplx_arr(B) = S_cmplx_arr(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
           enddo
         enddo
         si = si+N
@@ -1140,29 +1116,53 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
         !  or breaking of T
         do j = si+1,si+T
           do i = si+1,si+T
-             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) &
+             S_cmplx_arr(B) = S_cmplx_arr(B) + conjg(F(i,j,1)) * X(i,j) &
                   &                      + conjg(F(i,j,2)) * Y(i,j)
          enddo
         enddo
-        print *
-        S_complex(B) = S_complex(B) / 2.0d0 ! acount for double counting qp pairs
+        S_cmplx_arr(B) = S_cmplx_arr(B) / 2.0d0 ! acount for double counting qp pairs
 
         si  = si + T
       enddo
     endif
 
-$TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
-    strength(:) = - IMAG(S_complex(:)) / pi
+$TR    S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
+    S_arr(:) = - IMAG(S_cmplx_arr(:)) / pi
 
-    if (fam_verbose > 0) then
+    if (fam_verbose > 2) then
       print *, 'Decomposed strength : '
-      print * , 'S_n+ : (', strength(1), ' , ', strength(2), ' )'
-      print * , 'S_n- : (', strength(3), ' , ', strength(4), ' )'
-      print * , 'S_p+ : (', strength(5), ' , ', strength(6), ' )'
-      print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
-      print * , 'S_tot : ', sum(strength(:))
+      print * , 'S_n+ : (', S_arr(1), ' , ', S_arr(2), ' )'
+      print * , 'S_n- : (', S_arr(3), ' , ', S_arr(4), ' )'
+      print * , 'S_p+ : (', S_arr(5), ' , ', S_arr(6), ' )'
+      print * , 'S_p- : (', S_arr(7), ' , ', S_arr(8), ' )'
+      print * , 'S_tot : ', sum(S_arr(:))
     endif
+
+    ! set the global variables of the module
+    strength_complex = sum(S_cmplx_arr(:))
+    strength = sum(S_arr(:))
+
   end subroutine calc_strength_decomp
+
+
+  function calc_strength() result (res)
+    !---------------------------------------------------------------------------
+    ! Alternative interface for calc_strength_decomp when only interested in the
+    ! total strength. Calling calc_strength_decomp with unused dummy variables. 
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp) :: res
+    
+    complex(KIND=dp) :: S_cmplx_dummy(8) = 0
+    real(KIND=dp) :: S_dummy(8) = 0
+
+    call calc_strength_decomp(S_cmplx_dummy, S_dummy)
+
+    ! return the strength
+    res = strength
+
+  end function calc_strength
+
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------
@@ -1727,6 +1727,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     integer                       :: B, N, N2, si, sb, T, i
     real(KIND=dp)                 :: Tphase
 
+    if (fam_verbose > 1) print *, "transform_sp_to_qp :: transform 1B operator from sp to qp basis"
+
     if (present(OTRqp)) OTRqp = 0._dp
     if (present(OTLqp)) OTLqp = 0._dp
     if (present(OBLqp)) OBLqp = 0._dp
@@ -1886,6 +1888,9 @@ $TR  Tphase = -1.0_dp
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
     integer                       :: B, N, N2, si, sb, T, i
     real(KIND=dp)                 :: Tphase
+
+    if (fam_verbose > 1) print *, "transform_qp_to_sp :: transform 1B operator from qp to sp basis"
+
 
    ! initialise the single-particle matrix elements to zero if they are present
     if(present(OTRsp)) OTRsp = 0._dp

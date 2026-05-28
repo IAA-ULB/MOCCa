@@ -255,7 +255,7 @@ contains
     use evolution
     use scfiteration
 #if( $FAM == 1 )
-    use fam, only : printfam
+    use fam, only : printfam_init
 #endif
     use IO_wf, only : fileblockindices, fileBlockLowest, fileblocknumber, &
     &                 fileblocktype, file_version, readHFBinfofile
@@ -394,7 +394,7 @@ contains
       call printmoment_init
       call printcranking_init
 #if( $FAM == 1 )
-      call printfam
+      call printfam_init
 #endif
       call printfunctional 
     endif    
