@@ -199,6 +199,7 @@ module fam
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
 
+
 contains
 
   subroutine inifam(omega, DensUnper, PotUnper, Finfile)
@@ -334,6 +335,7 @@ contains
 
   end subroutine readfam
 
+
   subroutine printfam_init
     1 format ( 32('-'), ' FAM information ', 31('-'))
     2 format ( ' FAM frequency range:   ', /, &
@@ -366,6 +368,7 @@ contains
     endif
   
   end subroutine printfam_init
+
 
   subroutine printfam_end(S_arr, num_iter, residual)
     real(KIND=dp), intent(in) :: S_arr(8)
@@ -423,9 +426,8 @@ contains
 
     print 11
 
-
-  
   end subroutine printfam_end
+
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
@@ -514,7 +516,9 @@ contains
           call print_spme_complex_superblock(dHsp(:,:,3))
        endif
     endif
+
   end subroutine iterate_dHsp
+
 
   subroutine FAM_dh_to_XY(dHsp_flat, X_local, Y_local)
     !---------------------------------------------------------------------------
@@ -579,6 +583,7 @@ contains
 
   end subroutine FAM_dh_to_XY
 
+
   subroutine FAM_XY_to_dh(X,Y,dHsp_flat)
     !-------------------------------------------------------------
     ! Compute the induced perturbation to the s.p./q.p. hamiltonian 
@@ -627,8 +632,8 @@ contains
       !
       !    which is why the input to the routine has Y^T
 
-$NTR  call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
-$NTR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      $NTR call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
+      $NTR &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     
       ! When time-reversal is conserved: the perturbed density matrix is 
       !
@@ -642,8 +647,8 @@ $NTR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
       !     and similar for X. 
       !
 
-$TR   call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
-$TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      $TR  call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
+      $TR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
       ! The output of the qp -> sp transformation should be:
       ! 
@@ -705,6 +710,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
 
   end subroutine FAM_XY_to_dh
+
 
   subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F, dHsp_flat_in)
     !---------------------------------------------------------------------------
@@ -790,6 +796,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine Multiply_XY_with_QRPAmat
 
+
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
     ! The precedure iterate_dH constitutes an affine transformation 
@@ -823,6 +830,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
 
   end subroutine one_minus_T
+
 
   subroutine calculate_XY(dH,X, Y)
     !---------------------------------------------------------------------------
@@ -986,6 +994,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine compute_F_from_XYdH
 
+
   subroutine store_XY_hist(X,Y)
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
@@ -1007,6 +1016,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine store_XY_hist
 
+
   subroutine mix_XY_linear(alpha)
     !---------------------------------------------------------------------------
     ! Simple linear mixing of the X and amplitudes, i.e. 
@@ -1021,6 +1031,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
 
   end subroutine mix_XY_linear
+
 
   subroutine iniHFdensities()
     !---------------------------------------------------------------------------
@@ -1122,7 +1133,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
       enddo
     endif
 
-$TR    S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
+    $TR S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
     S_arr(:) = - IMAG(S_cmplx_arr(:)) / pi
 
     if (fam_verbose > 2) then
@@ -1336,184 +1347,6 @@ $TR    S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
 
   end function get_external_field
 
-  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Get the particle-hole and hole-particle matrix elements of the multipole
-    ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
-    ! while the monopole operator is Q_00(i,j) = < i | r^2 Y_00 | j > 
-    ! Only operational for even L at this point. s
-    !
-    ! INPUT:
-    !     L, K          : multipolarity of the perturbing operator
-    !     eff_e_n  : effective charge of neutrons (in units of e)
-    !     eff_e_p  : effective charge of protons (in units of e)
-    ! 
-    ! REMARKS:  
-    !   - Note that the code works with Re(Y_LK) and Im(Y_LK) which are NOT normalised; 
-    !     they integrate to 1/2 when K != 0. 
-    !
-    !   - We define f^+_LK = 1/sqrt(2) r^L ( Y_LK + Y_L-K) = sqrt(2) * r^L Re(Y_LK), 
-    !     when K = 2n > 0, which are normalised such that |f^+_LK|^2 integrates to 1
-    !     over the unit sphere. 
-    !     The code gives back f^+_LK for now. Since f_LK and f_L-K would give identical strengths 
-    !     for axial even-even nuclei when L is even, f^-=0.
-    !
-    !   - Note that if eff_e_n = eff_e_p, the operator is of isoscalar type, 
-    !     if eff_e_n=-eff_e_p, the operator purely isovector. In certain 
-    !     applications, e.g. isovector dipole excitation, one choses eff_e_p = N/A
-    !     and eff_e_n = -Z/A such that one only has eff_e_n ~ - eff_e_p, 
-    !     but still calls the operator isovector. 
-    ! 
-    !   - One might add a normalisation to the external field F -> F / alpha in order to have 
-    !     dh_free of order 1. Due to linearity of all FAM steps, this then needs to be 
-    !     compensated as X -> alpha X , Y -> alpha Y, dh -> alpha * dh, ..., and 
-    !     S -> alpha^2 S
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    integer, intent(in)       :: L, K
-    real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
-    logical :: ImPart
-    complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
-    complex(KIND=dp), allocatable :: f_LK_spme(:,:)
-
-    if (fam_verbose > 1) print *, "get_f_LK :: "
-      
-    allocate(f_LK_spme(nwt,nwt)) 
-    allocate(f_LK_qpme(nwt,nwt,2)) 
-
-   
-
-    if(l==0) then
-      f_LK_spme = Rsq_spme()
-    else 
-      ! Calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
-      ! in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
-      ImPart = .false. ! real (.false.) , imaginary (.true.) 
-      f_LK_spme = Qlm_spme(L, K, ImPart)
-      
-      ! Rescale f_LK_spme to express in units of fm^l
-      f_LK_spme = f_LK_spme * (100**(l/2.0)) 
-
-      ! Renormalise with sqrt(2) if K is not 0
-      if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
-
-      endif
-
-    ! TODO: refactor this; selecting particle-hole or quasiparticle parts
-    !       of the perturbing operator and (ii) multiplying by effective charges
-    !       is independent on our particular choice of perturbing operator and can
-    !       thus be made universal...
-
-
-      ! Multiply the operator by the effective charges 
-      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
-      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
-
-     
-      if(fam_verbose > 2) then
-        print *, 'f^+_LK'
-       call print_spme_complex(f_LK_spme)
-       print *, '||f||²', sum(abs(f_LK_spme)**2)
-       call print_spme_complex_superblock(f_LK_spme)
-     endif
-
-      ! note: 
-      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
-      !   alpha converting the units of the perturbation to MeV, and eventually 
-      !   devides the obtained strength by alpha. 
-    if (pairingtype==0) then ! FAM
-      ! Define the external field F by selecting the particle-hole and 
-      ! hole-particle subblocks of f_LK by multiplying by their 
-      ! occupation, i.e. diagonal elements of rho in the canonical basis
-      call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
-
-      if(fam_verbose > 2) then
-        print *, ' f_LK_ph'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
-        print *, ' f_LK_hp'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
-      endif
-
-    else ! QFAM
-      
-      ! Define the external field F as the qpme obtained by performing a bogolibov 
-      ! transformation and storing the F^20 anf F^02 components
-      call transform_sp_to_qp(Bogoliubov, OTLsp=f_LK_spme, &                                ! Input 
-      &                                   OTRqp=f_LK_qpme(:,:,1), OBLqp=f_LK_qpme(:,:,2))   ! Output
-      ! TODO: update Attention: the output of this routine is F^{02,T}!
-$NTR  f_LK_qpme(:,:,2) = TRANSPOSE(f_LK_qpme(:,:,2))
-$TR   f_LK_qpme(:,:,2) = -         f_LK_qpme(:,:,2)
-
-      if(fam_verbose > 2) then
-        print *, ' f_LK_qpme(:,:,1)'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
-        print *, ' f_LK_qpme(:,:,2)'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
-      endif
-
-    endif
-
-    if(fam_verbose > 1) then
-
-      print *, '||F(:,:,1)||²', sum(abs(f_LK_qpme(:,:,1))**2)
-      print *, '||F(:,:,2)||²', sum(abs(f_LK_qpme(:,:,2))**2)
-
-    endif
-
-    deallocate(f_LK_spme)
-
-  end function get_F_LK
-
-  function get_N(eff_e_n, eff_e_p) result(Nqpme)
-    !-----------------------------------------------------------------------------
-    ! Get the particle-hole and hole-particle matrix elements of the particle 
-    ! number operator N.
-    ! 
-    ! Input:
-    !     eff_e_n  : effective charge of neutrons (in units of e)
-    !     eff_e_p  : effective charge of protons (in units of e)
-    !
-    ! Output:
-    !     Nqpme    : matrix elements of N, either particle-hole (FAM)
-    !                                      or 2qp (QFAM)
-    !-----------------------------------------------------------------------------
-    real(KIND=dp), intent(in)     :: eff_e_n, eff_e_p
-    complex(KIND=dp), allocatable :: Nqpme(:,:,:), Nspme(:,:)
-    integer                       :: i
-
-    allocate(Nspme(nwt,nwt))
-    allocate(Nqpme(nwt,nwt,2))
-
-    ! Build the single-particle matrix elements of N
-    Nspme = 0.0d0
-    do i=1,nwt
-       Nspme(i,i) = 1.0d0
-    enddo
-
-    ! Multiply by effective charges
-    Nspme(1:nwn,1:nwn)   = eff_e_n * Nspme(1:nwn,1:nwn)
-    Nspme(nwn+1:,nwn+1:) = eff_e_p * Nspme(nwn+1:,nwn+1:)
-
-    if (pairingtype==0) then ! FAM
-      call get_ph_hp_blocks(Nspme, Nqpme(:,:,1), Nqpme(:,:,2))
-    else ! QFAM
-      call transform_sp_to_qp(Bogoliubov, OTLsp=Nspme, &
-           &                  OTRqp=Nqpme(:,:,1), OBLqp=Nqpme(:,:,2))
-$NTR  Nqpme(:,:,2) = TRANSPOSE(Nqpme(:,:,2))
-$TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
-    endif
-
-    if(fam_verbose > 2) then
-      print *, ' f_LK_qpme(:,:,1)'
-      call print_spme_complex_superblock( Nqpme(:,:,1))
-      print *, ' f_LK_qpme(:,:,2)'
-      call print_spme_complex_superblock( Nqpme(:,:,2))
-    endif
-
-
-    print *, '||F(:,:,1)||²', sum(abs(Nqpme(:,:,1))**2)
-    print *, '||F(:,:,2)||²', sum(abs(Nqpme(:,:,2))**2)
-
-  end function get_N
 
   function calc_EWSR(R) result (res)
     !---------------------------------------------------------------------------
@@ -1686,7 +1519,7 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     ! return ewsr
     res = ewsr
 
-  end function
+  end function calc_EWSR
 
 
   subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)
@@ -1713,8 +1546,8 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
+        $TR   occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+        $NTR  occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
         Mhp(p,h) = M(h,p)
@@ -1727,6 +1560,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! Bogoliubov transformation to the qp basis. 
 
   end subroutine get_ph_hp_blocks_complex
+
 
   subroutine get_ph_hp_blocks_real(M, Mph, Mhp)
     !---------------------------------------------------------------------------
@@ -1752,8 +1586,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
+        $TR  occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+        $NTR occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
         Mhp(p,h) = M(h,p)
@@ -1766,6 +1600,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! Bogoliubov transformation to the qp basis.
 
   end subroutine get_ph_hp_blocks_real
+
 
   subroutine transform_sp_to_qp(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
     !---------------------------------------------------------------------------
@@ -1857,8 +1692,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     if (present(OTLqp)) OTLqp = 0._dp
     if (present(OBLqp)) OBLqp = 0._dp
 
-$NTR Tphase = +1.0_dp
-$TR  Tphase = -1.0_dp
+    $NTR Tphase = +1.0_dp
+    $TR  Tphase = -1.0_dp
 
     ! si determines the start of the block in sp-basis of dimension nwt
     ! sb determines the start of the block in qp-basis of dimension 2*nwt 
@@ -1926,9 +1761,10 @@ $TR  Tphase = -1.0_dp
         sb = sb +2*T      
     enddo 
 
-   end subroutine transform_sp_to_qp
+  end subroutine transform_sp_to_qp
 
-   subroutine transform_qp_to_sp(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
+ 
+  subroutine transform_qp_to_sp(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
     !---------------------------------------------------------------------------
     ! Transform a matrix representation of an operator from the quasiparticle
     ! to the single basis. This routine assumes that the Bogoliubov 
@@ -2016,13 +1852,13 @@ $TR  Tphase = -1.0_dp
     if (fam_verbose > 1) print *, "transform_qp_to_sp :: transform 1B operator from qp to sp basis"
 
 
-   ! initialise the single-particle matrix elements to zero if they are present
+    ! initialise the single-particle matrix elements to zero if they are present
     if(present(OTRsp)) OTRsp = 0._dp
     if(present(OTLsp)) OTLsp = 0._dp
     if(present(OBLsp)) OBLsp = 0._dp
 
-$NTR  Tphase = +1.0_dp
-$TR   Tphase = -1.0_dp
+    $NTR Tphase = +1.0_dp
+    $TR  Tphase = -1.0_dp
 
     si = 0 ; sb = 0
     do B=1,8,2
@@ -2088,6 +1924,7 @@ $TR   Tphase = -1.0_dp
     enddo
 
   end subroutine transform_qp_to_sp
+
 
   function Rsq_spme() result (Rsq)
 
@@ -2316,6 +2153,7 @@ $TR   Tphase = -1.0_dp
 
   end subroutine read_xy
 
+
   function norm_dH(dH) result(res)
     ! abstract template procedure dH -> real required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
@@ -2326,6 +2164,7 @@ $TR   Tphase = -1.0_dp
     res = sqrt(sum(abs(dH(:))**2))
 
   end function
+
 
   function ScProd_dH(dHl, dHr) result(res)
     ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
@@ -2338,6 +2177,7 @@ $TR   Tphase = -1.0_dp
     res = sum(dHl(:) * conjg(dHr(:)))
 
   end function
+
 
   subroutine print_all_fam_spmat()
 
@@ -2400,5 +2240,8 @@ $TR   Tphase = -1.0_dp
     else 
       call print_spme_complex_superblock(dH(:,:,2))
     endif
+
   end subroutine print_all_fam_spmat
+
+
 end module fam
