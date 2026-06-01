@@ -150,6 +150,8 @@ module fam
   ! Type of perturbing operator
   !   'multipole'       = multipole moment Q_{\ell m}
   !   'particle number' = particle number operator N
+  !   'Zcom'            = center-of mass z-coordinate
+  !   'Zmomentum'       = center-of mass z momentum
   character(len=20) :: operator_type = 'multipole'
   integer :: l = -1, m = -1 ! angular momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
@@ -230,16 +232,7 @@ contains
       if (Finfile .ne. '') then 
         F = read_f(Finfile)
       else
-        select case(trim(to_lower(operator_type)))
-         ! lower to make the selection case insensitive
-         ! trim to not bother about string length and possible trailing spaces
-        case('multipole')
-          F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
-        case('particle number')
-          F = get_N(eff_charge_n, eff_charge_p)
-        case DEFAULT
-          call stp('Unrecognized operator_type!')
-        end select
+        F = get_external_field()
       endif
     endif
 
@@ -1217,6 +1210,131 @@ $TR    S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
     endif
 
   end subroutine test_convergence
+
+
+  function get_external_field() result (f_qpme)
+    !---------------------------------------------------------------------------
+    ! Get quasi-particle matrix elements of the external field F based on 
+    ! operator_type and possibly multipolarity l, m
+    ! 
+    ! Input:
+    !    /
+    ! Output:
+    !    f_qpme : quasi-particle matrix elements F20_mn and F02_mn of 
+    !             the external field organised as a 3D complex array with 
+    !             dimensions (nwt, nwt, 2)
+    !                          |    |   '-> 1 : 20,  2 : 02 component 
+    !                          |    '-> qp index
+    !                          '-> qp index
+    ! 
+    ! Remarks:
+    !  - in case of HF, qpme F20_mn and F02_mn reduce to Fph_ai and Fhp_ai, 
+    !    the particle-hole and hole-particle subblocks of the spme, where 'a' is 
+    !    an unoccupied sp index and 'i' is an occupied sp index
+    !---------------------------------------------------------------------------
+ 
+
+    complex(KIND=dp), allocatable :: f_qpme(:,:,:)
+    complex(KIND=dp), allocatable :: f_spme(:,:)
+    integer :: i
+
+    if (fam_verbose > 1) print *, "get_external_field :: "
+      
+    allocate(f_qpme(nwt,nwt,2)) 
+    allocate(f_spme(nwt,nwt)) 
+
+    !----------------------------------------------------------------------------------
+    ! 1) get the single particle matrux elements f_spme
+
+    select case(trim(to_lower(operator_type)))
+     ! lower to make the selection case insensitive
+     ! trim to not bother about string length and possible trailing spaces
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+     ! a) get the multipole operator Q_LK
+      case('multipole')
+        ! if l=0, then one needs r^2 rather then Q_00 for a monopole excitation
+        if(l==0) then
+          f_spme = Rsq_spme()
+        else 
+          ! Calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
+          ! in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
+          f_spme = Qlm_spme(l, m, .false.)
+          
+          ! Convert f_spme to unit fm^l
+          f_spme = f_spme * (100**(l/2.0)) 
+
+          ! Normalise with sqrt(2) if K is not 0
+          if(m.ne.0) f_spme = f_spme * sqrt(2.0)
+
+          endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! b) get the particle number operator 
+      case('particle number')
+        ! Build the single-particle matrix elements of N
+        f_spme = 0.0d0
+        do i=1,nwt
+           f_spme(i,i) = 1.0d0
+        enddo
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! c) get the c.o.m. z-coordinate operator 
+      case('zcom')
+        ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
+
+        ! get Q_10
+        f_spme = Qlm_spme(1, 0, .false.)
+
+        ! Convert f_spme to unit fm^l
+        f_spme = f_spme * sqrt(100.0) 
+
+        ! Cancel prefactor sqrt(3/4pi)
+        f_spme = f_spme * sqrt( 4.0 * pi / 3.0) 
+
+        ! multiply by 1/A
+        f_spme = f_spme / (Neutrons + Protons)
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! d) get the c.o.m. z momentum = - i nabla_z
+      case('zmomentum')
+        call stp('Not implemeted yet. ')
+
+      case DEFAULT
+        call stp('Unrecognized operator_type!')
+    end select
+
+    !----------------------------------------------------------------------------------
+    ! 2) Multiply the single-particle matrix elements by the effective charges 
+    f_spme(1:nwn,1:nwn) = eff_charge_n * f_spme(1:nwn,1:nwn)
+    f_spme(nwn+1:,nwn+1:) = eff_charge_p * f_spme(nwn+1:,nwn+1:)
+
+    !----------------------------------------------------------------------------------
+    ! 3) convert spme to quasiparticle basis
+    if (pairingtype==0) then ! FAM
+      call get_ph_hp_blocks(f_spme, f_qpme(:,:,1), f_qpme(:,:,2))
+    else ! QFAM
+      call transform_sp_to_qp(Bogoliubov, OTLsp=f_spme, &
+           &                  OTRqp=f_qpme(:,:,1), OBLqp=f_qpme(:,:,2))
+      $NTR  f_qpme(:,:,2) = TRANSPOSE(f_qpme(:,:,2))
+      $TR   f_qpme(:,:,2) = -         f_qpme(:,:,2)
+    endif
+
+    deallocate(f_spme)
+
+
+    if(fam_verbose > 2) then
+      print *, ' f_qpme(:,:,1)'
+      call print_spme_complex_superblock( f_qpme(:,:,1))
+      print *, ' f_qpme(:,:,2)'
+      call print_spme_complex_superblock( f_qpme(:,:,2))
+    endif
+
+
+    print *, '||F(:,:,1)||²', sum(abs(f_qpme(:,:,1))**2)
+    print *, '||F(:,:,2)||²', sum(abs(f_qpme(:,:,2))**2)
+
+
+  end function get_external_field
 
   function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
