@@ -1247,6 +1247,7 @@ contains
 
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_spme(:,:)
+    real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
     integer :: i
 
     if (fam_verbose > 1) print *, "get_external_field :: "
@@ -1308,7 +1309,32 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! d) get the c.o.m. z momentum = - i nabla_z
       case('zmomentum')
-        call stp('Not implemeted yet. ')
+        print *, 'zmomentum'
+
+        allocate(nabla_spme(3,2,nwt,nwt))
+        !                   | |  '---'-> canonical basis indices 
+        !                   | '-> real, imag
+        !                   '-> x, y, z
+
+        ! get spme elements of nabla vector in the canonical basis
+        nabla_spme = CompNablaMelements()
+
+        ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
+        f_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
+
+        ! TBD : The routine CompNablaMelements construct nabla 
+        ! <quote>    
+        ! In the basis from which the densities are constructed:
+        !    (a) HF-basis for HF and BCS calculations
+        !    (b) Canonical basis for HFB calculations
+        ! <quote>  
+        ! Do I then need to convert is back to the HF basis in case of HFB with
+        ! cantransfo.transpose(), i.e.
+        ! f_spme   = transform_mat(f_spme, cantransfo.transpose())
+        ! or is infact the 'active basis in which densities are constructed'
+        ! still the HF basis in QFAM at this point ? 
+
+        
 
       case DEFAULT
         call stp('Unrecognized operator_type!')
