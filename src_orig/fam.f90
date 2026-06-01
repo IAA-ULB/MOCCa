@@ -393,11 +393,12 @@ contains
     &          '      neutron eff charge = ', f10.3, ' e', /, &
     &          '      proton eff charge  = ', f10.3, ' e')
     32 format ( '   Operator:   ', /, 30a) 
+    33 format ( '   EWSR = ',  es16.6) 
     4 format (20x, '    neutron              proton                total')
-    51 format ('   parity +  ', es20.6, es20.6, es20.6)
-    52 format ('   parity -  ', es20.6, es20.6, es20.6)
-    53 format ('   total     ', es20.6, es20.6)
-    54 format ('   total strength :    ',30x, es20.6)
+    51 format ('    parity +  ', es20.6, es20.6, es20.6)
+    52 format ('    parity -  ', es20.6, es20.6, es20.6)
+    53 format ('    total     ', es20.6, es20.6)
+    54 format ('    total strength :    ',30x, es20.6)
 
 
 
@@ -414,6 +415,8 @@ contains
     else
       print 32, operator_type
     endif
+    print 33, ewsr
+
     
     print 13
     print 4
@@ -1394,7 +1397,7 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
 
   end function get_N
 
-  function calc_EWSR(R) result (ewsr)
+  function calc_EWSR(R) result (res)
     !---------------------------------------------------------------------------
     ! Compute the energy-weighted sum rule from a ground-state expectation value. 
     ! This value should equal the first-moment of the strength function, i.e.
@@ -1421,11 +1424,10 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     !     are close in magnitude.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in) :: R
-    real(KIND=dp) :: ewsr
+    real(KIND=dp) :: res
     real(KIND=dp) :: m1kin=0, kappa=0, Ctau0=0, Ctau1=0
     type(Moment), pointer  :: moment_ptr, r2_ptr
 
-    ewsr = 0
 
     if (fam_verbose > 1) print *, "calc_EWSR :: calculate the energy-weighted sum rule m1"
 
@@ -1558,9 +1560,13 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     endif
 #endif 
 
+    ! set the global variable 
     ewsr = m1kin + kappa
 
     print *, "Energy-weighted sum rule : m1 = ", ewsr
+
+    ! return ewsr
+    res = ewsr
 
   end function
 
