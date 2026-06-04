@@ -1248,7 +1248,7 @@ contains
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_spme(:,:)
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
-    integer :: i
+    integer :: i, j
 
     if (fam_verbose > 1) print *, "get_external_field :: "
       
@@ -1267,10 +1267,12 @@ contains
       case('multipole')
         ! if l=0, then one needs r^2 rather then Q_00 for a monopole excitation
         if(l==0) then
+          ! Get single-particle matrix elements of R in the HF basis
           f_spme = Rsq_spme()
         else 
-          ! Calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
-          ! in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
+          ! Get single-particle matrix elements of Q_lm in the HF basis
+          !  -> calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
+          !     in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
           f_spme = Qlm_spme(l, m, .false.)
           
           ! Convert f_spme to unit fm^l
@@ -1294,7 +1296,7 @@ contains
       case('zcom')
         ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
 
-        ! get Q_10
+        ! Get single-particle matrix elements of Q_10 in the HF basis
         f_spme = Qlm_spme(1, 0, .false.)
 
         ! Convert f_spme to unit fm^l
@@ -1307,34 +1309,34 @@ contains
         f_spme = f_spme / (Neutrons + Protons)
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! d) get the c.o.m. z momentum = - i nabla_z
+      ! d) get the c.o.m. z momentum = - i [hbar] nabla_z
+      !    -> the factor hbar in the definition gets dropped
       case('zmomentum')
-        print *, 'zmomentum'
 
         allocate(nabla_spme(3,2,nwt,nwt))
-        !                   | |  '---'-> canonical basis indices 
+        !                   | |  '---'-> sp indices 
         !                   | '-> real, imag
         !                   '-> x, y, z
 
-        ! get spme elements of nabla vector in the canonical basis
+        ! Get single-particle matrix elements of nabla in the HF basis
+        ! -> Although the function documentation specifies that the operator 
+        !    is expressed in the canonical basis, this basis is not constructed 
+        !    in FAM and the pointer psi points to the HF wavefunctions. We do 
+        !    get the spme in HF basis in this case.
         nabla_spme = CompNablaMelements()
+
+        ! AD HOC SIGN FLIP LOWER TRIANGLE OF ∇
+        do j = 1,nwt
+          do i = j, nwt
+            nabla_spme(:,:,i,j) = - nabla_spme(:,:,i,j) 
+          enddo
+        enddo
+        ! TODO: remove once this bug is fixed inside CompNablaMelements
 
         ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
         f_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
 
-        ! TBD : The routine CompNablaMelements construct nabla 
-        ! <quote>    
-        ! In the basis from which the densities are constructed:
-        !    (a) HF-basis for HF and BCS calculations
-        !    (b) Canonical basis for HFB calculations
-        ! <quote>  
-        ! Do I then need to convert is back to the HF basis in case of HFB with
-        ! cantransfo.transpose(), i.e.
-        ! f_spme   = transform_mat(f_spme, cantransfo.transpose())
-        ! or is infact the 'active basis in which densities are constructed'
-        ! still the HF basis in QFAM at this point ? 
 
-        
 
       case DEFAULT
         call stp('Unrecognized operator_type!')
