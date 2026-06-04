@@ -6,7 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_L_Linv
+  use fam_testing, only : run_FAM_tests, test_L_Linv, test_RP_commutator
   use gmres 
   use timing
 
@@ -142,6 +142,9 @@ program run_FAM
       allocate(dH_flat_next(3 * nwt * nwt))
     endif
   endif
+
+  print * , 'test [R,P] = i'
+  call test_RP_commutator
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies

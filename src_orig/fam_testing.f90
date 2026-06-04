@@ -15,6 +15,12 @@ module fam_testing
 
 implicit none
 
+
+  interface print_matrix_symmetries
+    module procedure print_matrix_symmetries_complex
+    module procedure print_matrix_symmetries_real
+  end interface print_matrix_symmetries
+
 contains
 
   subroutine run_FAM_tests()
@@ -1338,5 +1344,335 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print 1
 
   end subroutine test_linearity_T
+
+
+  subroutine test_RP_commutator()
+    ! -----------------------------------------------------------------------
+    ! In QP basis, the VEV of a commutator of two one-body operators is 
+    !    <[A,B]> = <AB>_connected
+    !            = 1/2 * sum_ab ( A^20_ab B^02_ab - A^20_ba B^02_ba )
+    ! 
+    ! For A=R_com and B=P_com, one expects 
+    !    <[R,P]> = i
+    ! (excluding the factor hbar inside P) 
+    ! 
+
+    complex(KIND=DP) :: Rz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: Pz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: Rz_spme(nwt, nwt)
+    complex(KIND=DP) :: Pz_spme(nwt, nwt)
+    complex(KIND=DP) :: RP_comm_spme(nwt, nwt), RP_comm_spme_exp(nwt,nwt)
+    real(KIND=dp)    :: nabla_spme(3,2,nwt,nwt)
+    complex(KIND=DP) :: commut0B
+    complex(KIND=DP) :: term1RP, term1PR, term2RP, term2PR, term3RP, term3PR, term4RP, term4PR
+    complex(KIND=DP) :: twobdens, tot
+    integer          :: si, block, N, N2, i, j, k, T
+    integer          :: a, b, c, d
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 1. evaluate [R, P] based on spme : 
+    !
+    ! <[R, P]> = sum_ab (sum_k R^11_ak P^11_kb - sum_k P^11_ak R^11_kb ) * rho_ba
+    !          = Tr[  (R^11 P^11 - P^11 R^11) rho ]
+    !
+    ! Note that other terms in the two-body expectation value drop due to the commutator, 
+    ! i.e. terms involving rho rho, kappa* kappa and rho rho* get canceled; terms appear 
+    ! twice with opposite signs. For completeness, this is also verified.
+    !
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! get the SPME for R
+
+    ! get Q_10
+    Rz_spme = Qlm_spme(1, 0, .false.)
+
+    ! Convert Rz_spme to unit fm^l
+    Rz_spme = Rz_spme * sqrt(100.0) 
+
+    ! Cancel prefactor sqrt(3/4pi)
+    Rz_spme = Rz_spme * sqrt( 4.0 * pi / 3.0) 
+
+    ! multiply by 1/A
+    Rz_spme = Rz_spme / (Neutrons + Protons)
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! ... and then for P
+
+    ! get spme elements of nabla sp basis 
+    !  -> although the function documentation mentions the canoical 
+    !     basis
+    nabla_spme = CompNablaMelements()
+
+    ! AD HOC SIGN FLIP LOWER TRIANGLE OF ∇
+    do j = 1,nwt
+      do i = j, nwt
+
+      nabla_spme(:,:,i,j) = - nabla_spme(:,:,i,j) 
+      ! nabla_spme(3,2,i,j) = - nabla_spme(3,2,i,j) 
+
+      enddo
+    enddo
+
+    ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
+    Pz_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! print the symmetry properties of the matrices for debugging
+
+
+    ! print * , '||Re(∇_z)||', sum(abs(nabla_spme(3,1,:,:)))
+    ! print * , '||Im(∇_z)||', sum(abs(nabla_spme(3,2,:,:)))
+    ! print * , '||∇_z||', sum(abs(dcmplx(nabla_spme(3,1,:,:), nabla_spme(3,2,:,:))))
+
+
+    print * , 'R11 spme'
+    call print_matrix_symmetries(Rz_spme)
+
+    print * , '∇_z spme'
+    call print_matrix_symmetries(dcmplx(nabla_spme(3,1,:,:), nabla_spme(3,2,:,:)))
+
+    print * , 'P11 spme'
+    call print_matrix_symmetries(Pz_spme)
+
+    print * , 'rho'
+    call print_matrix_symmetries(rho_pairing)
+
+    print * , 'kappa'
+    call print_matrix_symmetries(kappa_pairing)
+
+
+    ! SP evaluation
+
+    print * , 'Evaluation from spme : [R,P] = Tr[ (R^11 P^11 - P^11 R^11) rho ]' 
+
+    term1RP = 0
+    term1PR = 0
+    
+    do a = 1,nwt
+      do b = 1,nwt
+        do c = 1,nwt 
+          term1RP = term1RP + Rz_spme(a,b) * Pz_spme(b,c) * rho_pairing(c, a)
+          term1PR = term1PR - Pz_spme(a,b) * Rz_spme(b,c) * rho_pairing(c, a)
+        enddo
+      enddo
+    enddo
+
+    $TR term1RP = term1RP * 2.0d0
+    $TR term1PR = term1PR * 2.0d0
+
+    print * , '        R P rho :', term1RP 
+    print * , '       -P R rho :', term1PR
+    print * , '     naive    [R,P]  =', term1RP + term1PR
+
+    print * 
+
+
+    RP_comm_spme = matmul(Rz_spme, Pz_spme) - matmul(Pz_spme, Rz_spme)
+
+    ! RP_comm_spme = matmul(RP_comm_spme, dcmplx(rho_pairing, 0_dp) )
+
+    commut0B = 0
+    do a = 1,nwt 
+      do b = 1,nwt 
+        commut0B = commut0B + RP_comm_spme(a,b) * rho_pairing(b, a)
+      enddo
+    enddo
+
+    $TR commut0B = commut0B * 2.0d0
+
+
+    print * , '     matmul   [R,P]  =', commut0B
+    print * 
+
+
+    print * , 'Evaluation from spme : [R,P] = Tr [(R^11 P^11 - P^11 R^11)*( rho rho  + kappa^* kappa + rho delta - rho rho^* ]'    
+
+
+    term1RP = 0
+    term1PR = 0
+    term2RP = 0
+    term2PR = 0
+    term3RP = 0
+    term3PR = 0
+    term4RP = 0
+    term4PR = 0
+    
+    do a = 1,nwt
+      do b = 1,nwt
+        do c = 1,nwt
+          do d = 1,nwt
+          
+          term1RP = term1RP + Rz_spme(a,b) * Pz_spme(c,d) * rho_pairing(b,a) * rho_pairing(d,c)
+          term1PR = term1PR - Pz_spme(a,b) * Rz_spme(c,d) * rho_pairing(b,a) * rho_pairing(d,c)
+
+          term2RP = term2RP + Rz_spme(a,b) * Pz_spme(c,d) * kappa_pairing(c,a) * kappa_pairing(d,b)
+          term2PR = term2PR - Pz_spme(a,b) * Rz_spme(c,d) * kappa_pairing(c,a) * kappa_pairing(d,b)
+          
+          term4RP = term4RP - Rz_spme(a,b) * Pz_spme(c,d) * rho_pairing(d,a) * rho_pairing(c,b)
+          term4PR = term4PR + Pz_spme(a,b) * Rz_spme(c,d) * rho_pairing(d,a) * rho_pairing(c,b)
+          
+          enddo
+
+          term3RP = term3RP + Rz_spme(a,c) * Pz_spme(c,b) * rho_pairing(b,a)
+          term3PR = term3PR - Pz_spme(a,c) * Rz_spme(c,b) * rho_pairing(b,a)
+
+        enddo
+      enddo
+    enddo
+
+    $TR term1RP = term1RP * 2.0d0
+    $TR term1PR = term1PR * 2.0d0
+    $TR term2RP = term2RP * 2.0d0
+    $TR term2PR = term2PR * 2.0d0
+    $TR term3RP = term3RP * 2.0d0
+    $TR term3PR = term3PR * 2.0d0
+    $TR term4RP = term4RP * 2.0d0
+    $TR term4PR = term4PR * 2.0d0
+
+
+    print * , '+ R P rho rho       : ', term1RP 
+    print * , '- P R rho rho       : ', term1PR
+    print * , '+ R P kappa^* kappa : ', term2RP 
+    print * , '- P R kappa^* kappa : ', term2PR
+    print * , '+ R P rho delta     : ', term3RP 
+    print * , '- P R rho delta     : ', term3PR
+    print * , '+ R P rho rho^*     : ', term4RP 
+    print * , '- P R rho rho^*     : ', term4PR
+    print * 
+
+
+    print * , '     [R,P]  =', term1RP + term1PR + term2RP + term2PR + term3RP + term3PR + term4RP + term4PR
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 2. evaluate [R, P] based on qpme : 
+    !
+    ! <[R, P]> = 1/2 sum_ab ( R^20_ab P^02_ab - P^20_ab R^02_ab )
+    !
+
+    print *
+    print *
+    print * , 'Evaluation from qpme : [R,P] = 0.5 * sum_ab ( R^20_ab P^02_ab - P^20_ab R^02_ab )'    
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! get the QPME for R and P
+
+    operator_type = 'Zcom'
+    Rz_qpme = get_external_field()
+
+    operator_type = 'Zmomentum'
+    Pz_qpme = get_external_field()
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! print some QPME symmetries
+
+    print * , 'R20 qpme'
+    call print_matrix_symmetries(Rz_qpme(:,:,1))
+
+    print * , 'R02 qpme'
+    call print_matrix_symmetries(Rz_qpme(:,:,2))
+
+    print *, '||R20 - R02^*|| = ', sum(abs(Rz_qpme(:,:,1)-(conjg(Rz_qpme(:,:,2)))))
+
+    print * , 'P20 qpme'
+    call print_matrix_symmetries(Pz_qpme(:,:,1))
+
+    print * , 'P02 qpme'
+    call print_matrix_symmetries(Pz_qpme(:,:,2))
+
+    print *, '||P20 - P02^*|| = ', sum(abs(Pz_qpme(:,:,1)-(conjg(Pz_qpme(:,:,2)))))
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! evaluate using naive loops
+
+    term1RP = 0
+    term1PR = 0
+
+    do j = 1,nwt
+      do i = 1,nwt
+
+      term1RP = term1RP + Rz_qpme(i,j,1) * Pz_qpme(i,j,2)
+      term1PR = term1PR - Pz_qpme(i,j,1) * Rz_qpme(i,j,2)
+
+      enddo
+    enddo
+
+    term1RP = term1RP / 2.0d0
+    term1PR = term1PR / 2.0d0
+
+    $TR term1RP = term1RP * 2.0d0
+    $TR term1PR = term1PR * 2.0d0
+
+    print * 
+
+
+    print * , '         0.5 R^20 P^02 :', term1RP 
+    print * , '       - 0.5 P^20 R^02 :', term1PR
+    print * , '     simple loops    [R,P]  =', term1RP + term1PR
+    print * 
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! evaluate by looping over HFblocks
+    !  -> THIS WILL NOT WORK WHEN PARITY IS CONSERVED SINCE P_z IS PARITY ODD
+    commut0B = 0
+
+    si = 0
+    do block= 1,8,2
+      N = HFBlocks(block); N2 = HFBlocks(block+1); T = N + N2; if(T.eq.0) cycle
+      do j = si+1,si+T
+        do i = si+1,si+T
+
+        commut0B = commut0B + Rz_qpme(i,j,1) * Pz_qpme(i,j,2) - Pz_qpme(i,j,1) * Rz_qpme(i,j,2)
+
+        enddo
+      enddo
+      si = si+T
+    enddo
+
+    commut0B = commut0B / 2.0d0
+
+    $TR commut0B = commut0B * 2.0d0
+
+    print * , '     via HFblocks    [R,P]  =', commut0B
+    print * 
+
+    call stp('end of test')
+
+  end subroutine test_RP_commutator
+
+
+
+
+
+  subroutine print_matrix_symmetries_complex(M)
+    complex(kind=dp), intent(in) :: M (:,:)
+
+    print *, 'This matrix is '
+
+    if (sum(abs(M-conjg(M))) < 1e-10) print *, '    real'
+    if (sum(abs(M+conjg(M))) < 1e-10) print *, '    imaginary'
+    if (sum(abs(M-transpose(M))) < 1e-10) print *, '    symmetric'
+    if (sum(abs(M+transpose(M))) < 1e-10) print *, '    antisymmetric'
+    if (sum(abs(M-transpose(conjg(M)))) < 1e-10) print *, '    Hermitian'
+    if (sum(abs(M+transpose(conjg(M)))) < 1e-10) print *, '    anti-Hermitian'
+
+    print *
+
+  end subroutine print_matrix_symmetries_complex
+
+  subroutine print_matrix_symmetries_real(M)
+    real(kind=dp), intent(in) :: M (:,:)
+
+    call print_matrix_symmetries_complex(dcmplx(M ,0))
+
+    print *
+
+  end subroutine print_matrix_symmetries_real
 
 end module fam_testing
