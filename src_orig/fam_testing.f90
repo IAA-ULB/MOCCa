@@ -1402,20 +1402,8 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! ... and then for P
 
-    ! get spme elements of nabla sp basis 
-    !  -> although the function documentation mentions the canoical 
-    !     basis
-    nabla_spme = CompNablaMelements()
-
-    ! AD HOC SIGN FLIP LOWER TRIANGLE OF ∇
-    do j = 1,nwt
-      do i = j, nwt
-
-      nabla_spme(:,:,i,j) = - nabla_spme(:,:,i,j) 
-      ! nabla_spme(3,2,i,j) = - nabla_spme(3,2,i,j) 
-
-      enddo
-    enddo
+    ! Get single-particle matrix elements of nabla in the HF basis
+    nabla_spme = CompNablaMelements('HF')
 
     ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
     Pz_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))

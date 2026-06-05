@@ -1319,19 +1319,7 @@ contains
         !                   '-> x, y, z
 
         ! Get single-particle matrix elements of nabla in the HF basis
-        ! -> Although the function documentation specifies that the operator 
-        !    is expressed in the canonical basis, this basis is not constructed 
-        !    in FAM and the pointer psi points to the HF wavefunctions. We do 
-        !    get the spme in HF basis in this case.
-        nabla_spme = CompNablaMelements()
-
-        ! AD HOC SIGN FLIP LOWER TRIANGLE OF ∇
-        do j = 1,nwt
-          do i = j, nwt
-            nabla_spme(:,:,i,j) = - nabla_spme(:,:,i,j) 
-          enddo
-        enddo
-        ! TODO: remove once this bug is fixed inside CompNablaMelements
+        nabla_spme = CompNablaMelements('HF')
 
         ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
         f_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
