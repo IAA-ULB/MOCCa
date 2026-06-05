@@ -233,7 +233,7 @@ contains
       if (Finfile .ne. '') then 
         F = read_f(Finfile)
       else
-        F = get_external_field()
+        F = get_external_field(operator_type)
       endif
     endif
 
@@ -388,7 +388,7 @@ contains
     &          '      F = Q_', i1, i1,/, &
     &          '      neutron eff charge = ', f10.3, ' e', /, &
     &          '      proton eff charge  = ', f10.3, ' e')
-    32 format ( '   Operator:   ', /, 30a) 
+    32 format ( '   Operator:   ',30a) 
     33 format ( '   EWSR = ',  es16.6) 
     4 format (20x, '    neutron              proton                total')
     51 format ('    parity +  ', es20.6, es20.6, es20.6)
@@ -1223,20 +1223,24 @@ contains
   end subroutine test_convergence
 
 
-  function get_external_field() result (f_qpme)
+  function get_external_field(op_type) result (f_qpme)
     !---------------------------------------------------------------------------
     ! Get quasi-particle matrix elements of the external field F based on 
     ! operator_type and possibly multipolarity l, m
     ! 
     ! Input:
-    !    /
+    !    op_type : operator_type to be loaded. Current options are
+    !               - 'multipole' :  Q_lm, the module variables m and l will be used 
+    !               - 'particle number' : particle number operator 
+    !               - 'zcom' : the z-coordinate operator  
+    !               - 'zmomentum' : z-momentum operator
     ! Output:
-    !    f_qpme : quasi-particle matrix elements F20_mn and F02_mn of 
-    !             the external field organised as a 3D complex array with 
-    !             dimensions (nwt, nwt, 2)
-    !                          |    |   '-> 1 : 20,  2 : 02 component 
-    !                          |    '-> qp index
-    !                          '-> qp index
+    !    f_qpme  : quasi-particle matrix elements F20_mn and F02_mn of 
+    !              the external field organised as a 3D complex array with 
+    !              dimensions (nwt, nwt, 2)
+    !                           |    |   '-> 1 : 20,  2 : 02 component 
+    !                           |    '-> qp index
+    !                           '-> qp index
     ! 
     ! Remarks:
     !  - in case of HF, qpme F20_mn and F02_mn reduce to Fph_ai and Fhp_ai, 
@@ -1244,7 +1248,7 @@ contains
     !    an unoccupied sp index and 'i' is an occupied sp index
     !---------------------------------------------------------------------------
  
-
+    character(len=*), intent(in) :: op_type
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_spme(:,:)
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
@@ -1258,7 +1262,7 @@ contains
     !----------------------------------------------------------------------------------
     ! 1) get the single particle matrux elements f_spme
 
-    select case(trim(to_lower(operator_type)))
+    select case(trim(to_lower(op_type)))
      ! lower to make the selection case insensitive
      ! trim to not bother about string length and possible trailing spaces
 

@@ -1549,11 +1549,9 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! get the QPME for R and P
 
-    operator_type = 'Zcom'
-    Rz_qpme = get_external_field()
+    Rz_qpme = get_external_field('Zcom')
 
-    operator_type = 'Zmomentum'
-    Pz_qpme = get_external_field()
+    Pz_qpme = get_external_field('Zmomentum')
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1602,7 +1600,13 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print * , '         0.5 R^20 P^02 :', term1RP 
     print * , '       - 0.5 P^20 R^02 :', term1PR
     print * , '     simple loops    [R,P]  =', term1RP + term1PR
-    print * 
+
+
+    ! evaluate via BLAS dot_product
+
+    commut0B = dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
+    $TR commut0B = commut0B * 2.0d0
+    print * , '     dot_product     [R,P]  =', commut0B
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
