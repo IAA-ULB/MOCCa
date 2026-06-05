@@ -687,6 +687,15 @@ $NTR    enddo
         enddo
       enddo
     enddo
+
+    !---------------------------------------------------------------------------
+    ! MB 26/05/26 - without these 2 lines the 4th moment of div.J is not addded
+    ! to the list of calculated moments. Needed for analytical expression for 
+    ! r_ch^4. These were part of the code in a distant past, but disappeared 
+    ! at some point, and now I'm stubbornly bringing them back.
+    !---------------------------------------------------------------------------
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
 #endif
     ! End of the chain
     nullify(Current,NextMoment)
