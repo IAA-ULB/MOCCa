@@ -1222,6 +1222,102 @@ contains
 
   end subroutine test_convergence
 
+  subroutine subtract_spurious_modes()
+    !---------------------------------------------------------------------------
+    ! Subtract the spurious modes from the X and Y amplitudes
+    ! 
+    ! Input:
+    !    /
+    ! Output:
+    !    /
+    ! 
+    ! Remarks:
+    !  - For now, only the subtraction of spurious translational mode is 
+    !    subtracted, present when F is parity odd, i.e. L is odd and K = 0, 1
+    !---------------------------------------------------------------------------
+
+    complex(KIND=DP) :: Rz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: Pz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: comm_RP, comm_XR, comm_XP
+    complex(KIND=DP) :: lambda_R, lambda_P
+    real(KIND=DP) :: a
+
+
+    a = calc_strength()
+    print *, ' S prior =', strength_complex
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! skip when F=N or if F=Q_LK with even L or K>1
+    if (operator_type == 'N' .or. (operator_type == 'multipole' .and. (mod(l,2)==0 .or. m>1)) ) then
+      print *, 'No need to subtract translational spurious mode'
+      return
+    endif
+
+    print *, 'Subtract translational spurious mode'
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! load the qpme of R and P
+    Rz_qpme = get_external_field('Zcom')
+    Pz_qpme = get_external_field('Zmomentum')
+
+    ! magic minus :
+    ! Pz_qpme = - Pz_qpme
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluate the commutator <[R,P]> . Note that 
+    !     <[R,P]> = 1/2 sum_ab(R20_ab P02_ab - P20_ab R02_ab)
+    !             = 1/2 sum_ab(R20_ab P02_ab - R20_ab^* P02_ab^*)
+    !             = Im (sum_ab(R20_ab P02_ab)) i
+    !  -> the sum is evaluated using BLAS dot_product() on flattend arrays
+
+    comm_RP = dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
+    $TR comm_RP = 2.0 * comm_RP ! account for absence of time-reversed states
+    comm_RP = dcmplx(0_dp, imag(comm_RP))
+
+    print * , '<[R, P]> = ', comm_RP
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluate the commutator <[(X,Y),R]>. Note that 
+    !     <[(X,Y),R]> = 1/2 sum_ab(X_ab R02_ab + R20_ab Y_ab)
+
+    comm_XR = dot_product(reshape(X(:,:), [nwt*nwt]), reshape(Rz_qpme(:,:,2), [nwt*nwt]))
+    comm_XR = comm_XR + dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Y(:,:), [nwt*nwt]))
+    $TR comm_XR = 2.0 * comm_XR ! account for absence of time-reversed states
+    comm_XR = dcmplx(0_dp, 0.5 * imag(comm_XR))
+
+    print * , '<[(X,Y), R]> = ', comm_XR
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluate the commutator <[(X,Y),P]>. Note that 
+
+    comm_XP = dot_product(reshape(X(:,:), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
+    comm_XP = comm_XP + dot_product(reshape(Pz_qpme(:,:,1), [nwt*nwt]), reshape(Y(:,:), [nwt*nwt]))
+    $TR comm_XP = 2.0 * comm_XP ! account for absence of time-reversed states
+    comm_XP = dcmplx(0_dp, 0.5 * imag(comm_XP))
+
+    print * , '<[(X,Y), P]> = ', comm_XP
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! compute lamda parameters 
+    lambda_R = comm_XP / comm_RP
+    lambda_P = - comm_XR / comm_RP
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! subtract from X, Y
+
+    X = X - lambda_R * Rz_qpme(:,:,1) - lambda_P * Pz_qpme(:,:,1)
+    Y = Y + lambda_R * Rz_qpme(:,:,2) + lambda_P * Pz_qpme(:,:,2)
+
+    a = calc_strength()
+    print *, ' S after =', strength_complex
+
+
+  end subroutine subtract_spurious_modes
+
 
   function get_external_field(op_type) result (f_qpme)
     !---------------------------------------------------------------------------

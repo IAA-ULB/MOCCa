@@ -143,8 +143,8 @@ program run_FAM
     endif
   endif
 
-  print * , 'test [R,P] = i'
-  call test_RP_commutator
+  ! print * , 'test [R,P] = i'
+  ! call test_RP_commutator
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -340,6 +340,13 @@ program run_FAM
     !---------------------------------------------------------------------------------
       
     ! strength = calc_strength()
+    call calc_strength_decomp(S_complex_decomp, S_decomp)
+
+    call printfam_end(S_decomp, num_iter, fam_residual)
+
+    ! subtract the spurious mode
+    call subtract_spurious_modes()
+
     call calc_strength_decomp(S_complex_decomp, S_decomp)
 
     call printfam_end(S_decomp, num_iter, fam_residual)
