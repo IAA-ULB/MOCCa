@@ -19,6 +19,7 @@ module fam
   ! 
   ! TR  : $TR
   ! NTR : $NTR
+  ! PBROKEN : $PBROKEN
   ! TAUPRESENT : $TAUPRESENT
   !==============================================================================
 
@@ -1669,12 +1670,12 @@ contains
 
     ddens3D(1:nx,1:ny,1:nz,1:2)   => dRs%D_I_I
   
-    maximum = maxval(abs(ddens3D(:,:,:,:)))
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
 
     print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
     print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
     print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
-    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
 
     print 12
     print 14, 'drho_antisym'
@@ -1682,12 +1683,12 @@ contains
 
     ddens3D(1:nx,1:ny,1:nz,1:2)   => dRa%D_I_I
   
-    maximum = maxval(abs(ddens3D(:,:,:,:)))
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
 
     print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
     print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
     print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
-    print 4, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
 
     print 12
     print 14, 'dkappa+'
@@ -1695,12 +1696,12 @@ contains
 
     ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_plus%DP_I_I
   
-    maximum = maxval(abs(ddens3D(:,:,:,:)))
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
 
     print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
     print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
     print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
-    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
 
     print 12
     print 14, 'dkappa-'
@@ -1708,12 +1709,12 @@ contains
 
     ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_minus%DP_I_I
   
-    maximum = maxval(abs(ddens3D(:,:,:,:)))
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
 
     print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
     print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
     print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
-    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
     print 12
     print *
     print *
