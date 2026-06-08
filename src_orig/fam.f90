@@ -100,16 +100,16 @@ module fam
   complex(KIND=dp), allocatable :: dkappa_plus(:,:)  ! perturbations to the pairing density matrix in HF basis
   complex(KIND=dp), allocatable :: dkappa_minus(:,:) 
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
-  type(DensityVector)   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
-  !                         |    '-> anti-symmetric part
-  !                         '-> symmetric part
+  type(DensityVector), target   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
+  !                                 |    '-> anti-symmetric part
+  !                                 '-> symmetric part
   type(PotentialVector) :: dFs, dFa  ! perturbation to the particle-hole potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
   !
-  type(DensityVector)   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
-  !                         |           '-> associated with kappa_minus
-  !                         '-> associated with kappa^plus 
+  type(DensityVector), target   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
+  !                                 |           '-> associated with kappa_minus
+  !                                 '-> associated with kappa^plus 
   type(PotentialVector) :: dF_pp_plus, dF_pp_minus  ! perturbation to the particle-particle potentials on the mesh
   !                         |           '-> associated with kappa_minus
   !                         '-> associated with kappa_plus
@@ -1636,6 +1636,90 @@ contains
     res = ewsr
 
   end function calc_EWSR
+
+  subroutine check_box_size()
+    !---------------------------------------------------------------------------
+    ! Check the values of drho and dkappa at the boundary of the box
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Notes:
+    !   - We use a relative measure, drho(max(box)) / max(drho)
+    !---------------------------------------------------------------------------
+
+    integer :: it=1
+    real(kind=DP) :: maximum, boundval
+    complex(KIND=dp), pointer                  :: ddens3D(:,:,:,:)
+
+
+    12 format(2x,78('-'))
+    13 format(36('-'), ' box size check ', 36('-'))
+    14 format(a45)
+
+    2 format (4x,'Xmax = (nx+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(X=Xmax)|| = ', es10.3 )
+    3 format (4x,'Ymax = (ny+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Y=Ymax)|| = ', es10.3 )
+    4 format (4x,'Zmax = (nz+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Z=Zmax)|| = ', es10.3 )
+    41 format (4x,'Zmin = -(nz+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Z=Zmin)|| = ', es10.3 )
+    
+
+    print *
+    print 13
+    print 12
+
+    print 14, 'drho_sym'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dRs%D_I_I
+  
+    maximum = maxval(abs(ddens3D(:,:,:,:)))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'drho_antisym'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dRa%D_I_I
+  
+    maximum = maxval(abs(ddens3D(:,:,:,:)))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    print 4, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'dkappa+'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_plus%DP_I_I
+  
+    maximum = maxval(abs(ddens3D(:,:,:,:)))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'dkappa-'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_minus%DP_I_I
+  
+    maximum = maxval(abs(ddens3D(:,:,:,:)))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    print 12
+    print *
+    print *
+
+
+  end subroutine check_box_size
 
 
   subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)

@@ -334,6 +334,8 @@ program run_FAM
       enddo
     endif
 
+    call check_box_size()
+
 
     !---------------------------------------------------------------------------------
     ! store the converged strength
