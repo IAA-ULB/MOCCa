@@ -1,9 +1,19 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+! Written mainly by W. Ryssens & M. Bender
+!
+! Opensource software distributed under the GNU AGPLv3 licence, see the
+!  LICENCE file in the root of this project.
+!===============================================================================
 module compilation
   !-----------------------------------------------------------------------------
-  ! Module to propagat the definition of a double and single precision real
-  ! MPI utilities (i.e. the USE MPI statement) throughout the entire code.
+  ! Module to propagate the definition of a double and single precision real
   !-----------------------------------------------------------------------------
-
 
   implicit none (external)
 

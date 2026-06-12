@@ -1,3 +1,16 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+! Written mainly by W. Ryssens & M. Bender
+!
+! Opensource software distributed under the GNU AGPLv3 licence, see the
+!  LICENCE file in the root of this project.
+!===============================================================================
+module timing
 !-------------------------------------------------------------------------------
 ! Timing module for Tantalus, allowing for the definition of times in multiple
 ! (possibly nested) contexts.
@@ -5,8 +18,6 @@
 ! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the
 ! Yale SMMC code in 2010/2014.
 !-------------------------------------------------------------------------------
-module timing
-
   use compilation,     only : dp
   use geninfo,         only : MPI_RANK, NPROCS, MPI_BLOCK_ASSIGNMENTS
   use iso_fortran_env, only : int64, real64

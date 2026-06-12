@@ -1,9 +1,21 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+! Written mainly by W. Ryssens & M. Bender
+!
+! Opensource software distributed under the GNU AGPLv3 licence, see the
+!  LICENCE file in the root of this project.
+!===============================================================================
+
 program tantalus_single
   !-----------------------------------------------------------------------------
-  ! This is a very simple driver module for the entire code; it
-  ! parses any command line arguments (if there are any) and
-  ! then passes control to Run_Tantalus.
-  !
+  ! This is a very simple driver module for the entire code; it  parses any
+  ! command line arguments (if there are any) and then passes control to
+  ! Run_Tantalus.
   !-----------------------------------------------------------------------------
   use Tantalus
 
@@ -24,11 +36,9 @@ program tantalus_single
   ! - if filename is absent, the code reads STDIN for input
   ! - if file_number is absent, the code will use a default value
   !------------------------------------------------------------------------------
-  !
   integer           :: Narguments, status
   integer(dp)       :: file_number = 10
   character(len=32) :: filename = 'input.dat', numberstring
-
 
   Narguments = COMMAND_ARGUMENT_COUNT()
   if(Narguments .eq. 0) then

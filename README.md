@@ -1,5 +1,8 @@
 # Tantalus & Hephaestos
 
+- ADD LICENCE INFO 
+- ADD DOI INFO
+
 The following is an extremely concise summary of the contents of this repository.
 
 __Tantalus__ is a mean-field and linear response code using energy density functionals of the Skyrme type that represents the single-particle wavefunctions on a Lagrange mesh, written in FORTRAN.

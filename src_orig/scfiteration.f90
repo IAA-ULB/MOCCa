@@ -1,14 +1,16 @@
-module SCFiteration
 !===============================================================================
-!  #######   ##   #    # #####   ##   #      #    #  ####
-!     #     #  #  ##   #   #    #  #  #      #    # #
-!     #    #    # # #  #   #   #    # #      #    #  ####
-!     #    ###### #  # #   #   ###### #      #    #      #
-!     #    #    # #   ##   #   #    # #      #    # #    #
-!     #    #    # #    #   #   #    # ######  ####   ####
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
 !
-!  Copyright W. Ryssens & M. Bender
+! Written mainly by W. Ryssens & M. Bender
 !
+! Opensource software distributed under the GNU AGPLv3 licence, see the
+!  LICENCE file in the root of this project.
+!===============================================================================
+module SCFiteration
 !===============================================================================
 ! 
 ! This module is the central control center for the treatment of the evolution 

@@ -1,3 +1,16 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+! Written mainly by W. Ryssens & M. Bender
+!
+! Opensource software distributed under the GNU AGPLv3 licence, see the
+!  LICENCE file in the root of this project.
+!===============================================================================
+
 module Tantalus
 
    use geninfo
@@ -9,18 +22,8 @@ contains
 #if( $FAM == 0)
    subroutine Run_Tantalus(file_number, input_file)
       !==============================================================================
-      !_________ _______  _       _________ _______  _                 _______
-      !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
-      !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
-      !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
-      !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
-      !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
-      !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
-      !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+      ! TODO: describe input/output of this routine
       !
-      !  Copyright W. Ryssens & M. Bender
-      !
-      !------------------------------------------------------------------------------
       ! While I (W.R.) like to think about Tantalus as a standalone code, this
       ! 'main' routine is now written as a subroutine (with inputs!) to accomodate
       ! meta-codes that want to run Tantalus multiple times.
