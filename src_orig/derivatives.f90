@@ -39,7 +39,7 @@ module derivatives
  ! Technical notes:
  ! - - - - - - - - - - -
  !
- ! * At the moment Tantalus will only allow you to use symmetry combinations
+ ! * At the moment MOCCa will only allow you to use symmetry combinations
  !   that give rise to 'local' derivatives, i.e. symmetry combinations that will
  !   let you relate
  !

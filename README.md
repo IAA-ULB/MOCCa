@@ -1,4 +1,4 @@
-# Tantalus & Hephaestos
+# MOCCa
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
@@ -7,7 +7,7 @@
 
 The following is an extremely concise summary of the contents of this repository.
 
-__Tantalus__ is a mean-field and linear response code using energy density functionals of the Skyrme type that represents the single-particle wavefunctions on a Lagrange mesh, written in FORTRAN.
+__MOCCa__ is a mean-field and linear response code using energy density functionals of the Skyrme type that represents the single-particle wavefunctions on a Lagrange mesh, written in FORTRAN.
 __Hephaestos__ is a (collection of) Python modules/scripts that partially writes (parts of) the FORTRAN source code for Tantalus. 
 
 Hephaestos, is in fact a code generator or preprocessor for Tantalus. For different choices regarding (a) types of functionals, (b) self-consistent symmetries and (c) type of many-body claculations, Hephaestos generates a version of Tantalus that is able to perform the calculations you wish to do. 

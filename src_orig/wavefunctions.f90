@@ -246,7 +246,7 @@ module wavefunctions
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = (/ 0.2125, 0.2125, 0.175 /)
  !------------------------------------------------------------------------------
- ! Tell Tantalus to either 
+ ! Tell MOCCa to either
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
  !       iterative scheme
  !  (ii) to stop caring about the diagonalisation of the sphamiltonian

@@ -12,7 +12,7 @@
 !===============================================================================
 module timing
 !-------------------------------------------------------------------------------
-! Timing module for Tantalus, allowing for the definition of times in multiple
+! Timing module for MOCCa, allowing for the definition of times in multiple
 ! (possibly nested) contexts.
 !
 ! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the
@@ -32,7 +32,7 @@ module timing
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
   integer :: T_wfini, T_wfoutput, T_wfinput
-  integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
+  integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_MOCCa
   integer :: T_subspace_rotation, T_subrot_transfo, T_subrot_diag
   integer :: T_calc_sph, T_calc_sph_me, T_update_sph
   integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp

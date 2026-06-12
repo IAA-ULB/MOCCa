@@ -6,7 +6,7 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 # Module that determines the symmetries imposed by Hephaestos on 
-# Tantalus/Prometheus.
+# MOCCa/Prometheus.
 #-------------------------------------------------------------------------------
 # We will use the definitions and notation of
 #

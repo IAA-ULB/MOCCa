@@ -6,7 +6,7 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 # Module governing the treatment of the functional in Hephaestos, for writing to
-# Tantalus source files. 
+# MOCCa source files.
 #-------------------------------------------------------------------------------
 
 import itertools

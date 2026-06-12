@@ -11,13 +11,13 @@
 !  LICENCE file in the root of this project.
 !===============================================================================
 
-program tantalus_single
+program mocca_single
   !-----------------------------------------------------------------------------
   ! This is a very simple driver module for the entire code; it  parses any
   ! command line arguments (if there are any) and then passes control to
-  ! Run_Tantalus.
+  ! Run_MOCCa.
   !-----------------------------------------------------------------------------
-  use Tantalus
+  use MOCCa
 
   implicit none
 
@@ -25,7 +25,7 @@ program tantalus_single
   ! Dealing with the optional command line arguments of the code
   ! You can invoke the code as
   !
-  !  ./Tantalus.exe filename file_number
+  !  ./MOCCa.exe filename file_number
   !
   !  filename    = string indicating the name of the file that
   !                contains the input data
@@ -43,7 +43,7 @@ program tantalus_single
   Narguments = COMMAND_ARGUMENT_COUNT()
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
-    call Run_Tantalus()
+    call Run_MOCCa()
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
@@ -67,6 +67,6 @@ program tantalus_single
       endif
     endif
     ! Run the code from input on file "filename"
-    call Run_Tantalus(file_number, filename)
+    call Run_MOCCa(file_number, filename)
   endif
 end program 

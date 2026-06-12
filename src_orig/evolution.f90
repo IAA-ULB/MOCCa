@@ -111,7 +111,7 @@ module evolution
     end interface
     procedure(Evolve_Interface),pointer :: Evolve_subspace
     !---------------------------------------------------------------------------
-    ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
+    ! Allow MOCCa to estimate the runtime parameters of the heavy-ball
     ! algorithm for the linear subproblem or stay faithful to those specified 
     ! by the user. 
     logical :: EstimateParams     = .true.

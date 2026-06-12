@@ -2901,7 +2901,7 @@ $PVECTORINPRODUCT
     open (chan,file=ifn)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! We need to skip any header lines (indicated by #).
-    ! For a Tantalus-created file, there are 14 of them by default but other 
+    ! For a MOCCa-created file, there are 14 of them by default but other
     ! people might write a different amount
     io = 0; headercount = -1
     do while(io.eq.0) 

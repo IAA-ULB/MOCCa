@@ -239,7 +239,7 @@ module moments
 
   !-----------------------------------------------------------------------------
   ! Maximum degree of the multipole moments that are considered in the 
-  ! Tantalus calculation. Default = 10 for nuclei, less for pasta
+  ! MOCCa calculation. Default = 10 for nuclei, less for pasta
 #if(PASTA == 1)
   ! We do very little in the pasta case; it does not really interest us greatly
   ! and storing the spherical harmonics does cost memory.
@@ -467,7 +467,7 @@ contains
     !    Moments that are automatically zero (by symmetry) are not created by
     !    NewMoment and are absent from the list.
     ! 
-    ! 4) Tantalus here detects the nonphysical moments. 
+    ! 4) MOCCa here detects the nonphysical moments.
     !
     ! 5) After all this, we add a few additional "multipole moments" with 
     !    negative values for l.

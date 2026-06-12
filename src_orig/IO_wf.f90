@@ -20,10 +20,10 @@ module IO_wf
   !
   !     SYM_CODE   : $SYM_CODE  
   !        String encoding the symmetry choices of this particular version of 
-  !        Tantalus. Written to .wf files created by this version.
+  !        Mocca. Written to .wf files created by this version.
   !
   !     TRANS_CODE : $TRANS_CODE
-  !        String encoding the symmetry choices that this version of Tantalus
+  !        String encoding the symmetry choices that this version of Mocca
   !        can READ (in addition to its own type of files).
   ! 
   ! I.e. when compiled, the code can read files characterized by either 
@@ -94,9 +94,9 @@ module IO_wf
 
  contains
 
-  subroutine read_tantalus_wf(chan, ifn)
+  subroutine read_mocca_wf(chan, ifn)
     !---------------------------------------------------------------------------
-    ! Reading all information from a previous Tantalus run stored in a .wf file.
+    ! Reading all information from a previous Mocca run stored in a .wf file.
     ! It does not (yet) exploit MPI I/O; reading is essentially done by rank 0
     ! and then broadcasted to the rest of the ranks.
     !
@@ -567,10 +567,10 @@ module IO_wf
        endif  
       endif
     endif
-  end subroutine read_tantalus_wf
+  end subroutine read_mocca_wf
  
 #if( $FAM == 0 )
-  subroutine write_tantalus_wf(chan, ofn)
+  subroutine write_mocca_wf(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
     ! Note: this does not (yet) use any MPI I/O operations, it simply relies on
@@ -778,11 +778,11 @@ module IO_wf
     close(chan)
 
     call stop_timer(T_wfoutput)
-  end subroutine write_tantalus_wf
+  end subroutine write_mocca_wf
 #endif
 
 #if (USE_HDF5 > 0 && $FAM == 0)
-  subroutine write_tantalus_hdf5(ofn)
+  subroutine write_mocca_hdf5(ofn)
     !------------------------------------------------------------------------------------------
     ! Subroutine that writes a .hdf5 file to warmstart future runs or to do more
     ! analysis.
@@ -857,7 +857,7 @@ module IO_wf
 
     call stop_timer(T_wfoutput)
 
-  end subroutine write_tantalus_hdf5
+  end subroutine write_mocca_hdf5
 
   subroutine write_hdf5_attributes(file_id)
     !-----------------------------------------------------------------------------
@@ -1149,7 +1149,7 @@ module IO_wf
 #endif 
 
 #if( USE_HDF5 > 0)
-  subroutine read_tantalus_hdf5(ifn, sym_transfo_needed)
+  subroutine read_mocca_hdf5(ifn, sym_transfo_needed)
     !------------------------------------------------------------------------------------------
     ! Subroutine that reads a .hdf5 file to warmstart future runs or to do more analysis.
     !
@@ -1209,7 +1209,7 @@ module IO_wf
     call h5close_f(h5ferr)
 
     call stop_timer(T_wfinput)
-  end subroutine read_tantalus_hdf5
+  end subroutine read_mocca_hdf5
 
   subroutine read_hdf5_attributes(file_id, sym_transfo_needed)
     !-----------------------------------------------------------------------------

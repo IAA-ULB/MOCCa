@@ -8,7 +8,7 @@
 # This module processes the 
 #  (a) moments.f90 
 #  (b) fission_MOI.f90 
-# modules of Tantalus, tailoring several aspects of the calculation of multipole
+# modules of MOCCa, tailoring several aspects of the calculation of multipole
 # moments to the symmetry choices. 
 #
 # Important remarks:
@@ -32,7 +32,7 @@
 #                  *   P^{m}_{l}(cos(\theta)) e^{i m \phi}
 #
 # The P^{m}_{l} are the associated Legendre Polynomials and -l <= m <= l. 
-# The multipole moments calculated by Tantalus are then
+# The multipole moments calculated by MOCCa are then
 #
 #        Q_{l m} = r^l Y^l_m(theta, phi).
 #
