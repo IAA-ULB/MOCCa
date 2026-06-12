@@ -121,8 +121,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2) Run a calculation that freezes the potentials just to get a 
 #     robust set of virtual states
@@ -211,7 +211,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -290,7 +290,7 @@ fam_precision=1e-8
 EOF
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_T_check=$?
 
 
@@ -357,7 +357,7 @@ fam_precision=1e-10
 EOF
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_P_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # b) Get the strength from the S_20.fam file
@@ -417,8 +417,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile.ter
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (6) Run a calculation that freezes the potentials just to get a 
@@ -518,7 +518,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 qfam_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -593,7 +593,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 qfam_T_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -617,12 +617,12 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_check || $qfam_T_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_QRPA || $check_strength_QRPA_T))
+fail=$(($mocca_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_check || $qfam_T_check || $check_energy || $check_strength || $check_strength_T || $check_strength_P || $check_strength_QRPA || $check_strength_QRPA_T))
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
 else
-	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
+	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $mocca_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
 	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, , S20_QRPA_T = $check_strength_QRPA_T \033[0m"
 fi
 

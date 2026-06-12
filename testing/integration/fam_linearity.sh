@@ -89,8 +89,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1b) Run a calculation that freezes the potentials just to get a 
 #     robust set of virtual states
@@ -181,7 +181,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check_eff1=$?
 
 
@@ -233,7 +233,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile.bis
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check_eff2=$?
 
 
@@ -301,8 +301,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2b) Run a calculation that freezes the potentials just to get a 
@@ -394,7 +394,7 @@ EOF
 
 # Run the calculation
 ./$exefam < qfam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 qfam_check_eff1=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -445,7 +445,7 @@ EOF
 
 # Run the calculation
 ./$exefam < qfam.data > $famoutfile.bis
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 qfam_check_eff2=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -476,12 +476,12 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check_eff1 || $fam_check_eff2 || $qfam_check_eff1 || $qfam_check_eff2 || $check_strength || $check_strength_QRPA ))
+fail=$(($mocca_check || $fam_check_eff1 || $fam_check_eff2 || $qfam_check_eff1 || $qfam_check_eff2 || $check_strength || $check_strength_QRPA ))
 
 if (($fail == 0)) ; then
   echo -e "test FAM linearity :\033[1;32m success \033[0m"
 else
-  echo -e "test FAM linearity :\033[1;31m failed ! exit status : tant = $tantalus_check, fam_eff1 = $fam_check_eff1, fam_eff2 = $fam_check_eff1, qfam_eff1 = $qfam_check_eff1, qfam_eff2 = $qfam_check_eff1,
+  echo -e "test FAM linearity :\033[1;31m failed ! exit status : tant = $mocca_check, fam_eff1 = $fam_check_eff1, fam_eff2 = $fam_check_eff1, qfam_eff1 = $qfam_check_eff1, qfam_eff2 = $qfam_check_eff1,
     benchmarks :  FAM S20(eff=1) == S20(eff=2) / 4 : $check_strength
                  QFAM S20(eff=1) == S20(eff=2) / 4 : $check_strength_QRPA \033[0m"
 fi

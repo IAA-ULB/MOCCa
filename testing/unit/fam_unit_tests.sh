@@ -108,10 +108,10 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
-if [ $tantalus_check -ne 0 ]; then
-    echo "ERROR: Mean-field calculation failed with exit status $tantalus_check"
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
+if [ $mocca_check -ne 0 ]; then
+    echo "ERROR: Mean-field calculation failed with exit status $mocca_check"
 fi
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -203,7 +203,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check=$?
 if [ $fam_check -ne 0 ]; then
     echo "ERROR: FAM calculation failed with exit status $fam_check"
@@ -213,13 +213,13 @@ teardown_test_env
 
 # Return overall exit status - fail if any calculation failed
 exit_status=0
-if [ $tantalus_check -ne 0 ] || [ $fam_check -ne 0 ]; then
+if [ $mocca_check -ne 0 ] || [ $fam_check -ne 0 ]; then
     exit_status=1
 fi
 
 echo ""
 echo "========= Test Summary ========"
-echo "Mean-field exit status : $tantalus_check"
+echo "Mean-field exit status : $mocca_check"
 echo "FAM unit tests status  : $fam_check"
 echo "Overall exit status    : $exit_status"
 echo "==============================="

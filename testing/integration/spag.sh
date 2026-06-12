@@ -20,7 +20,7 @@
 #
 # where EXESUFFIX specifies the  suffix of the executable to be used.
 # Note: this test relies on the executable having been compiled with HDF5 support.
-#            Example: "BXL" for "Tantalus.BXL.exe".
+#            Example: "BXL" for "MOCCa.BXL.exe".
 #
 # Dependencies: inp_cyl.pot
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -86,8 +86,8 @@ write_data  40 400 "'inp_cyl.pot'"
 echo "Running $exe"
 ./$exe < tant.data > $outfile
 echo "Calculations done"
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check1=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check1=$?
 # Starting the checking
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $outfile)
@@ -105,8 +105,8 @@ check_Z1=$?
 write_data  0 50 "'tant_cyl.hdf5'"
 # Run the calculation
 ./$exe < tant.data > $outfile.b
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check2=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check2=$?
 # Starting the checking
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $outfile.b)
@@ -126,8 +126,8 @@ teardown_test_env
 echo '------------------------------------------------'
 echo ' Runtime checks                           '
 echo '------------------------------------------------'
-printf ' pasta start            ->  %1d \n' $tantalus_check1
-printf ' pasta REstart          ->  %1d \n' $tantalus_check2
+printf ' pasta start            ->  %1d \n' $mocca_check1
+printf ' pasta REstart          ->  %1d \n' $mocca_check2
 echo '------------------------------------------------'
 echo '------------------------------------------------'
 printf ' Total energy consistency            ->  %1d \n' $check_energy1
@@ -143,7 +143,7 @@ printf ' Number of protons consistency       ->  %1d \n' $check_Z2
 echo '------------------------------------------------'
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exitcode=$(($tantalus_check1 || $check_energy1 || $check_Z1 || $tantalus_check2 || $check_energy2 || $check_Z2 ))
+exitcode=$(($mocca_check1 || $check_energy1 || $check_Z1 || $mocca_check2 || $check_energy2 || $check_Z2 ))
 echo '------------------------------------------------'
 printf ' Success?                     ->  %1d \n' $exitcode
 echo '------------------------------------------'

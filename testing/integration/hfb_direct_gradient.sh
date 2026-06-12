@@ -20,7 +20,7 @@
 #
 # -p param: specify a parameterization name
 # -s exec : specify the  suffix of the serial executable, i.e. the one without MPI
-#           Example: "BXL" for "Tantalus.BXL.exe".
+#           Example: "BXL" for "MOCCa.BXL.exe".
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : wouter.ryssens@ulb.be
 # Reference commit hash: 7a785f352de2dc4d995dc190f66ced1afc6ff34
@@ -102,8 +102,8 @@ write_data  $param 0
 # Run the calculation
 echo "Running $exe with the direct HFB solver"
 ./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_direct=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_direct=$?
 # Saving reference values
 directE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -115,8 +115,8 @@ write_data  $param 1
 # Run the calculation
 echo "Running $exe with the gradient HFB solver"
 ./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_gradient=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_gradient=$?
 # Saving reference values
 gradientE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -127,9 +127,9 @@ teardown_test_env
 echo '------------------------------------------'
 echo ' Runtime checks                           '
 echo '------------------------------------------'
-printf ' direct HFB solver  ->  %1d \n' $tantalus_check_direct
-printf ' gradient HFB solver->  %1d \n' $tantalus_check_gradient
-tantalus_check=$(( $tantalus_check_direct|| $tantalus_check_gradient ))
+printf ' direct HFB solver  ->  %1d \n' $mocca_check_direct
+printf ' gradient HFB solver->  %1d \n' $mocca_check_gradient
+mocca_check=$(( $mocca_check_direct|| $mocca_check_gradient ))
 
 # a) Compare total energies with a tolerance of 1 keV
 compare_floats $directE              $gradientE 0.001
@@ -138,7 +138,7 @@ echo '------------------------------------------'
 printf ' Energy consistency           ->  %1d \n' $check_energy
 echo '------------------------------------------'
 
-exitcode=$(( $tantalus_check || $check_energy ))
+exitcode=$(( $mocca_check || $check_energy ))
 
 printf ' Success?                     ->  %1d \n' $exitcode
 echo '------------------------------------------'
