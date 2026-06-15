@@ -275,10 +275,10 @@ jobs:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download executable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: MOCCa.${{ env.SUFFIX }}
           path: exec/
@@ -388,6 +388,61 @@ jobs:
           path: |
             testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
             testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
+          retention-days: 90
+
+  blocking:
+    #-----------------------------------------------------------------------------
+    # Run the blocking.sh test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER:
+          - gfortran
+    env:
+      SUFFIX  : BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: BXL-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+        # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # Start by downloading the relevant executable
+      - uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download executable for pasta
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make the executables executable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run blocking test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash blocking $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: boundary_conditions-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/blocking_full.out
+            testing/integration/logs/blocking_FV.out
+            testing/integration/logs/blocking_EFA.out
+            testing/integration/logs/blocking_EFA_T.out
           retention-days: 90
 
   continuation_wf:
@@ -510,10 +565,10 @@ jobs:
   #    SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
   #  steps:
   #    - name: Checkout code # needed to get the testing scripts
-  #      uses: actions/checkout@v4
+  #      uses: actions/checkout@v6
   #
   #    - name: Download executable
-  #      uses: actions/download-artifact@v4
+  #      uses: actions/download-artifact@v7
   #      with:
   #        name: MOCCa.${{ env.SUFFIX }}
   #        path: exec/
@@ -530,7 +585,7 @@ jobs:
 
   #    - name: Upload store_derivatives test results
   #      if: success() || failure() # Always upload the code outputs
-  #      uses: actions/upload-artifact@v4
+  #      uses: actions/upload-artifact@v7
   #      with:
   #        name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
   #        path: |
