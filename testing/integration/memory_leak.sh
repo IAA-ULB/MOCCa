@@ -76,7 +76,7 @@ run_memory_test() {
     setup_test_env "memory_leak_${maxiter}" "$EXESUFFIX" "SLy4"
 
     # Create runtime data with energy_prec=1e-20 to prevent early stopping
-    cat <<EOF >tant.data
+    cat <<EOF >mocca.data
 &nucleus
 neutrons=8, protons=8,
 energy_prec=1e-20
@@ -114,7 +114,7 @@ EOF
     # Run the calculation with /usr/bin/time -v to get memory stats
     # /usr/bin/time writes its stats to stderr, so we redirect that to our temp file
     # Program's stdout goes to outfile, program's stderr is discarded (or could be logged)
-    /usr/bin/time -v ./$exe <tant.data >"$out_file" 2>"$time_file"
+    /usr/bin/time -v ./$exe <mocca.data >"$out_file" 2>"$time_file"
     mocca_check=$?
 
     # Extract maximum resident set size (in KB) from time output

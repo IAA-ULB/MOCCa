@@ -31,7 +31,7 @@ set -v
 setup_test_env "continuation_wf" "$1" "$2"
 
 # Create runtime data for both code runs
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-10
@@ -77,7 +77,7 @@ constraint=20
 /
 EOF
 
-cat << EOF > tant.continuation.data
+cat << EOF > mocca.continuation.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-07
@@ -125,10 +125,10 @@ multfromfile=.true.
 EOF
 
 # Run the first calculation from scratch
-./$exe < tant.data > $outfile.a
+./$exe < mocca.data > $outfile.a
 mocca_check=$?
 # ... and then a second continuation calculation
-./$exe < tant.continuation.data > $outfile.b
+./$exe < mocca.continuation.data > $outfile.b
 mocca_check_continuation=$?
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -

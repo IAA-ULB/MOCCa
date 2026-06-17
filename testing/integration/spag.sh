@@ -37,7 +37,7 @@ refZ=20.0     # number of protons
 write_data()
 {
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=80, protons=20
 store_derivatives=.false.
@@ -84,7 +84,7 @@ setup_test_env_dep "spag" "$1" "BSkG4" "inp_cyl.pot"
 write_data  40 400 "'inp_cyl.pot'"
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 echo "Calculations done"
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check1=$?
@@ -104,7 +104,7 @@ check_Z1=$?
 # restarting with hdf5 file
 write_data  0 50 "'tant_cyl.hdf5'"
 # Run the calculation
-./$exe < tant.data > $outfile.b
+./$exe < mocca.data > $outfile.b
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check2=$?
 # Starting the checking

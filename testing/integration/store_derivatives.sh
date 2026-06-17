@@ -53,7 +53,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 store_derivatives=$1
@@ -112,7 +112,7 @@ setup_test_env "store_derivatives=true" "$exec" "$param"
 write_data '.true.' $param
 # Run the calculation
 echo "Running $exe with store_derivatives=true"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 # Saving reference values
@@ -125,7 +125,7 @@ setup_test_env "store_derivatives=false" "$exec" "$param"
 write_data '.false.' $param
 # Run the calculation
 echo "Running $exe with store_derivatives=false"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_false=$?
 # Saving reference values

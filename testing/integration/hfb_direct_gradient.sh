@@ -45,7 +45,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 /
@@ -101,7 +101,7 @@ setup_test_env "directHFB" "$exec" "$param"
 write_data  $param 0
 # Run the calculation
 echo "Running $exe with the direct HFB solver"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_direct=$?
 # Saving reference values
@@ -114,7 +114,7 @@ setup_test_env "gradientHFB" "$exec" "$param"
 write_data  $param 1
 # Run the calculation
 echo "Running $exe with the gradient HFB solver"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_gradient=$?
 # Saving reference values

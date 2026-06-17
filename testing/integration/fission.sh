@@ -40,7 +40,7 @@ source ../functions.sh
 setup_test_env "fission" "$1" "BSkG3"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=146, protons=94
 energy_prec=1e-06
@@ -97,7 +97,7 @@ multfromfile=.true.
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -

@@ -36,7 +36,7 @@ source ../functions.sh
 setup_test_env "minimal" "$1" "SLy4"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=8, protons=8
 /
@@ -68,7 +68,7 @@ OutputFilename='trash'
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 

@@ -34,7 +34,7 @@ source ../functions.sh
 setup_test_env "cranking" "$1" "SLy4"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -72,12 +72,12 @@ crankZ=2
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile.J
+./$exe < mocca.data > $outfile.J
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_J=$?
 
 # Second run: constant omega_z and direct diagonalisation
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -112,11 +112,11 @@ allowtransform=.true.
 omegaZ=0.3292333881
 /
 EOF
-./$exe < tant.data > $outfile.omega
+./$exe < mocca.data > $outfile.omega
 mocca_check_omega=$?
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -155,7 +155,7 @@ crankZ=2
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile.gradient
+./$exe < mocca.data > $outfile.gradient
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_gradient=$?
 

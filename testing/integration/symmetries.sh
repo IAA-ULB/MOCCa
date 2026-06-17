@@ -94,7 +94,7 @@ source ../functions.sh
 # Setting up the reference calculation: BXL
 setup_test_env "$logfiletag" "$exec" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -141,7 +141,7 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 
@@ -164,7 +164,7 @@ teardown_test_env
 # Performing a parity-broken calculation
 setup_test_env "$logfiletag" "$exec_P" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -212,7 +212,7 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # ... immediately check if MOCCa reported back some error codes
 mocca_check_P=$?
 
@@ -233,7 +233,7 @@ teardown_test_env
 # Performing a time-reversal-broken calculation
 setup_test_env "$logfiletag" "$exec_T" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -280,7 +280,7 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # ... immediately check if MOCCa reported back some error codes
 mocca_check_T=$?
 
@@ -303,7 +303,7 @@ teardown_test_env
 # We need to set-up an initial run
 setup_test_env "$logfiletag" "$exec_P" "$param"
 
-cat << EOF > tant.init.data
+cat << EOF > mocca.init.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -349,7 +349,7 @@ constraint=10
 /
 EOF
 # Run the initial run calculation (we don't keep the output)
-./$exe < tant.init.data > /dev/null
+./$exe < mocca.init.data > /dev/null
 # ... but we do keep the wf file!
 mv setting_up.wf ../
 teardown_test_env
@@ -359,7 +359,7 @@ setup_test_env "$logfiletag" "$exec_TP" "$param"
 mv ../setting_up.wf .
 
 # ... and now put the actual data!
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -406,7 +406,7 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # ... immediately check if MOCCa reported back some error codes
 mocca_check_TP=$?
 

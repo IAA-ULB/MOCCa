@@ -64,7 +64,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 /
@@ -123,7 +123,7 @@ setup_test_env "serial" "$exec_serial" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_serial=$?
 # Saving reference values
@@ -136,7 +136,7 @@ setup_test_env "parallel_1" "$exec_mpi" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-mpirun -n $MPI_RANKS_1 ./$exe < tant.data > $outfile
+mpirun -n $MPI_RANKS_1 ./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_parallel_1=$?
 # Saving reference values
@@ -149,7 +149,7 @@ setup_test_env "parallel_2" "$exec_mpi" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-mpirun -n $MPI_RANKS_2 ./$exe < tant.data > $outfile
+mpirun -n $MPI_RANKS_2 ./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_parallel_2=$?
 # Saving reference values

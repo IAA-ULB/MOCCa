@@ -71,7 +71,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=8, protons=8
 /
@@ -121,7 +121,7 @@ setup_test_env "boundary_conditions" "$exec_anti" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 # Saving reference values
@@ -135,7 +135,7 @@ setup_test_env "boundary_conditions" "$exec_period" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check_false=$?
 # Saving reference values

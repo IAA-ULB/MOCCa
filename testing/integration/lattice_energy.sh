@@ -78,7 +78,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=20, protons=20
 /
@@ -124,7 +124,7 @@ setup_test_env "lattice_energy" "$exec_anti" "$param"
 write_data  $param 16 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check1=$?
 # get the coulomb energy
@@ -141,7 +141,7 @@ setup_test_env "lattice_energy" "$exec_period" "$param"
 write_data  $param $np
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
+./$exe < mocca.data > $outfile
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check2=$?
 # get the coulomb energy
