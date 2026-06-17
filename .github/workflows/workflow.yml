@@ -430,7 +430,7 @@ jobs:
         run: |
           cd testing/integration/
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          bash blocking $SUFFIX $T_SUFFIX
+          bash blocking.sh $SUFFIX $T_SUFFIX
 
       - name: Upload test results
         # Upload the log files as artefact
