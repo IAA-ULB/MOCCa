@@ -1325,7 +1325,10 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
       J2_coll(:,3) = sum(J2_coll(:,1:2), 2)
 $TR   J2_coll_no_cut(:,1:2) = 2 * J2_coll_no_cut(:,1:2)   ! Time-reversal factor two 
       J2_coll_no_cut(:,3) = sum(J2_coll_no_cut(:,1:2), 2)
-      
+      ! If there is no q.p. cutoff, then J2_coll_no_cut = J2_coll
+      if (.not. (rotcorr_cut)) then 
+        J2_coll_no_cut = J2_coll
+      endif       
     endif
     !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
