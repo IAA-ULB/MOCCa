@@ -2,7 +2,7 @@
 
 [![Github](https://img.shields.io/badge/github-MOCCa-blue?logo=github)](https://www.github.com/IAA-nuclear/tantalus_full)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Tantalus CI/CD Workflow](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml)
+[![CI/CD](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml)
 
 **Nuclear Mean-field and Linear Response with Skyrme energy density functionals.**
 
