@@ -2,31 +2,42 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-**Mean-field and linear response code for nuclear physics using Skyrme energy density functionals.**
+**Nuclear Mean-field and Linear Response with Skyrme energy density functionals.**
 
 ---
 
 ## About MOCCa
 
-MOCCa is a FORTRAN code that performs mean-field and linear response calculations using Skyrme-type energy density functionals. Single-particle wavefunctions are represented on a Lagrange mesh.
+MOCCa is a solver for the Skyrme mean-field and linear response equations which represents the single-particle wavefunctions on a three-dimensional coordinate space mesh. To save on both computational and human resources, the code is capable of operating in different symmetry modes, i.e. imposing different assumptions on the self-consistent symmetries of the nuclear mean-field many-body wavefunction. Despite this generality, an efficient numerical representation in terms of a [Lagrange mesh](https://www-sciencedirect-com.ezproxy.ulb.ac.be/science/article/pii/S0370157314004086) and clever [algorithms](https://link.springer.com/article/10.1140/epja/i2019-12766-6) make MOCCa sufficiently fast for [applications to the entire nuclear chart](https://link.springer.com/article/10.1140/epja/s10050-021-00642-1).
 
-**Hephaestos** is a Python code generator and preprocessor for MOCCa. Based on your choices for:
-- Types of functionals
-- Self-consistent symmetries
-- Many-body calculation type (static mean-field or linear response)
+### Structure of the code and this repository 
 
-Hephaestos generates a customized MOCCa version tailored to your specific needs.
+MOCCa has evolved into a complex project: you will find that there is no one unique "source code" for the actual solver that covers all cases. Instead, a collection of Fortran90 source code files in `src_orig` gets modified by a complex preprocessor code, `Hephaestos.py` and its modules in `src_heph/`. Depending on your choice for 
 
-MOCCa builds on early work by P.-H. Heenen, Flocard, and others.
+- the functional type (LO, NLO, BXL, ...)
+- the self-consistent symmetries to imposed
+- the many-body calculation type (static mean-field or linear response)
+- the type of system targetted (nuclei or pasta)
+
+Hephaestos will generate a customized MOCCa version tailored to your needs. For more information, see the [compilation section](docs/user-guide/compilation.md) in the documentation. 
+
+
+### Some history 
+
+MOCCa is a direct descendant of the Skyrme mean-field codes developed by the Brussels - Orsay - Saclay collaboration of P.-H. Heenen, H. Flocard and P. Bonche in the '80s. The most widely known of these codes is EV8 ([GitHub](https://github.com/wryssens/ev8),[original paper](https://doi.org/10.1016/j.cpc.2005.05.001)).
+Today, MOCCa is capable of essentially all calculations that EV8 and its (unpublished) variants were designed for but 
+supercedes its predecessors greatly in efficiency and generality. Nevertheless, the overall design and concept remains true to the original and we remain indebted to the original developers for their vision and many years of guidance.
+
+In fact, MOCCa started as the PhD project of W. Ryssens under the guidance of P.-H.-Heenen. At the time, the goal was the study of rotational bands in a context of general symmetry breaking through cranking calculations. Coined at that time, the acronym MOCCa stands for **MO**dular **C**ranking **C**ode, with an extra 'a'. As always, our intentions evolved and so did MOCCa. Today the name is no longer truly suited to the tool; although still capable of cranking calculations, those are no longer the primary goal.
 
 ---
 
 ## Quickstart
 
 ### Prerequisites
-- Python 3 with numpy and scipy
-- Fortran compiler (gfortran, ifort)
-- BLAS and LAPACK (or SCALAPACK for MPI)
+- Python 3 with the numpy and scipy libraries
+- a Fortran compiler (gfortran, ifort)
+- BLAS and LAPACK (or SCALAPACK for MPI) installations
 - HDF5 (optional, if you want to use it)
 
 ### Compilation
@@ -94,6 +105,10 @@ Please see [this page in the documentation](docs/user-guide/structure.md) to sta
 
 ## Documentation
 
+> [!WARNING]
+> The explicit documentation of MOCCa is work-in-progress. If you don't find what you are looking for, check the comments in the source code.
+
+
 The documentation is available in the `docs/` directory. To build it locally:
 
 ```bash
@@ -107,18 +122,23 @@ This requires a working [mkdocs](https://www.mkdocs.org/) installation. If you c
 
 ## Getting help
 
-- Open an issue on GitHub
-- Contact: [your email]
+If the documentation is not sufficient to help you solve your problems, you can either
+
+- Open an issue on GitHub; tagging one of the authors will help you get noticed.
+- Contact Dr. W. Ryssens directly via email. You can find his adress easily on the internet. 
+
+> [!WARNING]
+> We made MOCCa opensource as a service to the community and will do our best to help users. However, we do not guarantee anything: our response times can be long and we might not provide a solution to any given issue, particularly if it concerns the implementation of new functionality.
 
 ---
 
 ## Contributors
 
-- Dr. W. Ryssens [@wryssens](https://github.com/wryssens)
-- Dr. M. Bender [@mbipnl](https://github.com/mbipnl)
-- Dr. Nikolai Shchechilin [@NikolaiNikolaevic](https://github.com/NikolaiNikolaevic)
-- Dr. Luis González-Miret Zaragoza [@luigonzar](https://github.com/luigonzar)
-- Dr. Pepijn Demol [@PepijnDemol](https://github.com/PepijnDemol)
+- W. Ryssens [@wryssens](https://github.com/wryssens)
+- M. Bender [@mbipnl](https://github.com/mbipnl)
+- N. Shchechilin [@NikolaiNikolaevic](https://github.com/NikolaiNikolaevic)
+- L. González-Miret Zaragoza [@luigonzar](https://github.com/luigonzar)
+- P. Demol [@PepijnDemol](https://github.com/PepijnDemol)
 
 ---
 
@@ -126,7 +146,7 @@ This requires a working [mkdocs](https://www.mkdocs.org/) installation. If you c
 
 When you use MOCCa in your research, we ask that you cite our work. The minimal requirement is to include the DOI of the version you used:
 
-> W. Ryssens and M. Bender, *The MOCCa code*, https://doi.org/10.1140/epja/s10050-021-00365-3
+> W. Ryssens and M. Bender, *The MOCCa code*, [INSERT LINK]
 
 Unfortunately, there is currently no dedicated peer-reviewed paper about MOCCa specifically. The closest reference is the original PhD thesis:
 
