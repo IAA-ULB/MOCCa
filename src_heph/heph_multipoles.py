@@ -105,8 +105,7 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
       fam_active : Boolean, whether we are compiling a mf or fam executable.
       dry_run    : Boolean, if True, do not write any files (default: False)
   """
-  from src_heph.heph_functional import derivative_order
-  global derivative_order
+  from src_heph.heph_densities  import Densities_needed
 
   tab           = '    '
   template_list = Template( tab+'moment_list($ELL,$EMM,$IND) = $ON   ')
@@ -196,7 +195,8 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
   else:
     dic['FAM']  = 0
 
-  if (derivative_order >= 2 ):
+  # Hack to detect whether we are working with an LO EDF
+  if('D_Nm_Nm' in Densities_needed or 'D_N_N'  in Densities_needed ):
     dic['CAN_DO_MAGNETIC'] = 1
   else:
     dic['CAN_DO_MAGNETIC'] = 0

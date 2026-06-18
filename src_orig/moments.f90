@@ -1166,7 +1166,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !   = - sum_ijk epsilon_ijk r_j (nabla_i j_k)
     !   =   r.(nabla x j)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#if( $CAN_DO_MAGNETIC )
+#if( $CAN_DO_MAGNETIC == 1 )
 $NTR    do it=1,2
 $NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
 $NTR      rj(:,1) = meshgrid_shifted(:,1) * &
