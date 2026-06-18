@@ -1050,7 +1050,59 @@ jobs:
           path: |
             testing/integration/logs/cranking.${{ env.SUFFIX }}.out.J
             testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
-          retention-days: 90          
+          retention-days: 90
+
+  magmoment_Sc41:
+    #---------------------------------------------------------------------------
+    # Run the magmoment_Sc41.sh test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX  : NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: NLO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable (time-reversal conserving)
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable (time-reversal breaking)
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run magmoment_Sc41 test
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash magmoment_Sc41.sh $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: magmoment_Sc41-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/magmoment_Sc41_FV.out
+            testing/integration/logs/magmoment_Sc41_blocked.out
+          retention-days: 90
 
   fam_unit_tests:
     # Unit tests for the FAM code

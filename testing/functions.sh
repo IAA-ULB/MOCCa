@@ -256,6 +256,17 @@ get_B22_stdout (){
   echo ${B20arr[6]}                           # echo the last result
 }
 
+get_muz_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the z-component of the magnetic moment
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  muarr=(`grep "mu_z  t" $1  | tail -1`) # The () forces the grep result into array
+  echo ${muarr[2]}                       # echo the last result
+}
+
 get_strength (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Get the strength from a .fam output file at given energy

@@ -105,6 +105,9 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
       fam_active : Boolean, whether we are compiling a mf or fam executable.
       dry_run    : Boolean, if True, do not write any files (default: False)
   """
+  from src_heph.heph_functional import derivative_order
+  global derivative_order
+
   tab           = '    '
   template_list = Template( tab+'moment_list($ELL,$EMM,$IND) = $ON   ')
   template_comm = Template( '! $REIM Q_{ $ELL $EMM} \n')
@@ -192,6 +195,11 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
     dic['FAM']  = 1
   else:
     dic['FAM']  = 0
+
+  if (derivative_order >= 2 ):
+    dic['CAN_DO_MAGNETIC'] = 1
+  else:
+    dic['CAN_DO_MAGNETIC'] = 0
 
   if(not dry_run):        
     substitute(src+fname, target+fname, dic)

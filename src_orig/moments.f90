@@ -25,6 +25,7 @@ module moments
 ! SECOND_AX : $SECOND_AX
 ! TR        : $TR
 ! NTR       : $NTR
+! CAN_DO_MAGNETIC : $CAN_DO_MAGNETIC
 !==============================================================================
 ! 
 ! Spherical harmonics are taken to be in the convention of Messiah.
@@ -518,8 +519,8 @@ $NTR    Root_mag%Calculate   => Calculate_electric
 $NTR    Root_mag%PrintMoment => PrintMoment_electric
 $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
 
-#if($FAM == 0)
-    Root_divJ%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
+#if(PASTA == 0 && $FAM == 0)
+    Root_divJ%SpherHarm=1.0_dp/sqrt(4.0_dp*pi)
     Root_divJ%Impart=.false.
     Root_divJ%ConstraintType=0
     Root_divJ%Calculate   => Calculate_multipole_divJ
@@ -607,6 +608,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
 #endif
     !---------------------------------------------------------------------------
     ! b) The magnetic moments
+#if(PASTA == 0 && $FAM == 0)
 $NTR    Current=>Root_mag
 $NTR    nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
 $NTR    do l=1,MaxMoment_mag
@@ -628,7 +630,6 @@ $NTR      enddo
 $NTR    enddo
     !---------------------------------------------------------------------------
     ! c) The moments of divJ
-#if(PASTA == 0 && $FAM == 0)
     nullify(Current)      ;  Current=>Root_divJ
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
@@ -652,11 +653,9 @@ $NTR    enddo
         enddo
       enddo
     enddo
-#endif
     !---------------------------------------------------------------------------
     ! Appending special "multipole moments" to the linked list
     ! 1. we append the radius squared to the ordinary list...
-#if(PASTA == 0 && $FAM == 0)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -833,7 +832,8 @@ $NTR    enddo
 
     return
   end function NewMoment_Electric
-  
+
+#if(PASTA == 0 && $FAM == 0)
   function NewMoment_divJ(l,m,ImPart) result(newmoment)
     !---------------------------------------------------------------------------
     ! An exact copy of Newmoment_electric, but for the last two lines
@@ -1007,7 +1007,7 @@ $NTR    enddo
     return
   
   end function NewMoment_magnetic
-
+#endif
 !===============================================================================
 ! Calculation routines
 !
@@ -1045,15 +1045,17 @@ $NTR    enddo
     enddo
     !---------------------------------------------------------------------------
     ! Calculate the magnetic multipole moments 
+#if($FAM == 0)
 $NTR    nullify(Current) ;  Current => Root_mag
 $NTR    do while(associated(Current%Next))
 $NTR        Current => Current%Next
 $NTR        if(save_history) Current%history = Current%value
 $NTR        call Current%Calculate(Current,R)
 $NTR    enddo
+#endif
     !---------------------------------------------------------------------------
     ! Calculate the multipole moments of divJ
-#if($FAM == 0)
+#if(PASTA == 0 && $FAM == 0)
     nullify(Current) ;  Current => Root_divJ
     call Current%Calculate(Current,R)           !norm of div J
     do while(associated(Current%Next))
@@ -1124,7 +1126,8 @@ $NTR    enddo
 
     return
   end subroutine Calculate_electric
-  
+
+#if(PASTA == 0 && $FAM == 0)
   subroutine Calculate_magnetic(ToCalculate, R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates the magnetic multipole moment by integrating 
@@ -1163,40 +1166,41 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !   = - sum_ijk epsilon_ijk r_j (nabla_i j_k)
     !   =   r.(nabla x j)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! $NTR    do it=1,2
-! $NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
-! $NTR      rj(:,1) = meshgrid_shifted(:,1) * &
-! $NTR      &                         (R%der_C_I_N(:,2,3,it) - R%der_C_I_N(:,3,2,it))
-! $NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
-! $NTR      rj(:,2) = meshgrid_shifted(:,2) * &
-! $NTR      &                         (R%der_C_I_N(:,3,1,it) - R%der_C_I_N(:,1,3,it))
-! $NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
-! $NTR      rj(:,3) = meshgrid_shifted(:,3) * &
-! $NTR      &                         (R%der_C_I_N(:,1,2,it) - R%der_C_I_N(:,2,1,it))
-! $NTR
-! $NTR      ! spin part = -1/2 Y_lm div.s(r)
-! $NTR      do mu=1,3
-! $NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
-! $NTR        &                  sum(ToCalculate%SpherHarm(:)*R%Der_D_I_S(:,mu,mu,it))
-! $NTR      enddo
-! $NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
-! $NTR      do mu=1,3
-! $NTR        ToCalculate%VectorValue(mu,2,it) =  2.0_dp/(ToCalculate%l+1) *         &
-! $NTR        &                                 sum(ToCalculate%SpherHarm(:)*rj(:,mu))
-! $NTR      enddo
-! $NTR    enddo
-! $NTR    !---------------------------------------------------------------------------
-! $NTR    ! Calculate the contribution to the physical magnetic multipole moment
-! $NTR    do it=1,2
-! $NTR        do mu=1,3
-! $NTR            toCalculate%Physvectorvalue(mu,it) =                &
-! $NTR            &    g_spin (it) * tocalculate%vectorvalue(mu,1,it) &
-! $NTR            &  + g_orbit(it) * tocalculate%vectorvalue(mu,2,it)
-! $NTR        enddo
-! $NTR    enddo
-! $NTR    ToCalculate%vectorValue       = ToCalculate%vectorValue*dv
-! $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
-
+#if( $CAN_DO_MAGNETIC )
+$NTR    do it=1,2
+$NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
+$NTR      rj(:,1) = meshgrid_shifted(:,1) * &
+$NTR      &                         (R%der_C_I_N(:,2,3,it) - R%der_C_I_N(:,3,2,it))
+$NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
+$NTR      rj(:,2) = meshgrid_shifted(:,2) * &
+$NTR      &                         (R%der_C_I_N(:,3,1,it) - R%der_C_I_N(:,1,3,it))
+$NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
+$NTR      rj(:,3) = meshgrid_shifted(:,3) * &
+$NTR      &                         (R%der_C_I_N(:,1,2,it) - R%der_C_I_N(:,2,1,it))
+$NTR
+$NTR      ! spin part = -1/2 Y_lm div.s(r)
+$NTR      do mu=1,3
+$NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
+$NTR        &                  sum(ToCalculate%SpherHarm(:)*R%Der_D_I_S(:,mu,mu,it))
+$NTR      enddo
+$NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
+$NTR      do mu=1,3
+$NTR        ToCalculate%VectorValue(mu,2,it) =  2.0_dp/(ToCalculate%l+1) *         &
+$NTR        &                                 sum(ToCalculate%SpherHarm(:)*rj(:,mu))
+$NTR      enddo
+$NTR    enddo
+$NTR    !---------------------------------------------------------------------------
+$NTR    ! Calculate the contribution to the physical magnetic multipole moment
+$NTR    do it=1,2
+$NTR        do mu=1,3
+$NTR            toCalculate%Physvectorvalue(mu,it) =                &
+$NTR            &    g_spin (it) * tocalculate%vectorvalue(mu,1,it) &
+$NTR            &  + g_orbit(it) * tocalculate%vectorvalue(mu,2,it)
+$NTR        enddo
+$NTR    enddo
+$NTR    ToCalculate%vectorValue       = ToCalculate%vectorValue*dv
+$NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
+#endif
     return
   end subroutine Calculate_magnetic
 
@@ -1228,6 +1232,7 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
     return
   end subroutine Calculate_multipole_divJ
+#endif
 
   subroutine Calculate_neckoperator(ToCalculate, R)
     !---------------------------------------------------------------------------
@@ -2153,6 +2158,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     
     !---------------------------------------------------------------------------
     ! b) Magnetic multipole moments
+#if(PASTA == 0 && $FAM == 0)
 $NTR if(maxmoment_mag .ne.0) then
 $NTR    print 101
 $NTR    print 10, Ax
@@ -2176,7 +2182,6 @@ $NTR    print 102
 $NTR endif
     !---------------------------------------------------------------------------
     ! c) divJ multipole moments
-#if($FAM == 0)
     if(maxmoment_divJ .ne.0) then
       print 104
       print 10, Ax

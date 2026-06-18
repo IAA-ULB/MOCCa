@@ -1,6 +1,8 @@
 # MOCCa
 
+[![Github](https://img.shields.io/badge/github-MOCCa-blue?logo=github)](https://www.github.com/IAA-nuclear/tantalus_full)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Tantalus CI/CD Workflow](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml)
 
 **Nuclear Mean-field and Linear Response with Skyrme energy density functionals.**
 
@@ -14,10 +16,10 @@ MOCCa is a solver for the Skyrme mean-field and linear response equations which 
 
 MOCCa has evolved into a complex project: you will find that there is no one unique "source code" for the actual solver that covers all cases. Instead, a collection of Fortran90 source code files in `src_orig` gets modified by a complex preprocessor code, `Hephaestos.py` and its modules in `src_heph/`. Depending on your choice for 
 
-- the functional type (LO, NLO, BXL, ...)
-- the self-consistent symmetries to imposed
-- the many-body calculation type (static mean-field or linear response)
-- the type of system targetted (nuclei or pasta)
+- **Functional type**: LO, NLO, BXL, etc.
+- **Self-consistent symmetries**: maximally symmetric, broken parity, broken time-reversal, etc.
+- **Calculation type:**: static mean-field or linear response
+- **System type**:: atomic nuclei or dense matter with periodic boundary conditions
 
 Hephaestos will generate a customized MOCCa version tailored to your needs. For more information, see the [compilation section](docs/user-guide/compilation.md) in the documentation. 
 
@@ -35,7 +37,7 @@ In fact, MOCCa started as the PhD project of W. Ryssens under the guidance of P.
 ## Quickstart
 
 ### Prerequisites
-- Python 3 with the numpy and scipy libraries
+- Python 3 with the numpy and scipy libraries, tested for Python 3.12.8
 - a Fortran compiler (gfortran, ifort)
 - BLAS and LAPACK (or SCALAPACK for MPI) installations
 - HDF5 (optional, if you want to use it)
@@ -47,12 +49,16 @@ cd MOCCa
 cp make_include/make.inc.gnu-serial make.inc
 make mf 
 ```
+> [!WARNING]
+> Make sure that the `make.inc` file matches your system specifics!
 
 The last command will 
 
  1. run Hephaestos for the default configuration file which is suitable for NLO EDFs,
  2. compile the resulting MOCCa source code with gfortran, 
  3. place the executable `MOCCa.default.exe` in the `exec/` directory.
+
+Note that compilation may take several minutes, depending on your choices.
 
 See the [compilation section](docs/user-guide/compilation.md) of the full documentation for advanced options.
 
@@ -62,12 +68,12 @@ See the [compilation section](docs/user-guide/compilation.md) of the full docume
 MOCCa takes its main user input from STDIN, e.g. you can type 
 
 ```bash
-./exec/MOCCa.BXL.exe < MOCCa.in 
+./exec/MOCCa.default.exe < MOCCa.in 
 ```
 
 which will start a calculation. Note that essentially all relevant output will be printed to STDOUT, so you might want to save that.
 
-A minimal example of `MOCCa.in` would be the following: 
+A minimal example of contents for `MOCCa.in` would be: 
 
 ```
 &nucleus
@@ -128,7 +134,7 @@ If the documentation is not sufficient to help you solve your problems, you can 
 - Contact Dr. W. Ryssens directly via email. You can find his adress easily on the internet. 
 
 > [!WARNING]
-> We made MOCCa opensource as a service to the community and will do our best to help users. However, we do not guarantee anything: our response times can be long and we might not provide a solution to any given issue, particularly if it concerns the implementation of new functionality.
+> We welcome questions and will respond as time permits. However, we do not guarantee anything: our response times can be long and we might not provide a solution to any given issue, particularly if it concerns the implementation of new functionality.
 
 ---
 
