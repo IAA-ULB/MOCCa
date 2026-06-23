@@ -203,7 +203,7 @@ module fam
 
 contains
 
-  subroutine inifam(omega, DensUnper, PotUnper, Finfile)
+  subroutine inifam(omega, DensUnper, Finfile)
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
     ! densities, fields and strength are computed from the free response, i.e. one 
@@ -212,16 +212,10 @@ contains
     ! Input:
     !    omega      : frequency of the perturbing field
     !    DensUnper  : unperturbed densities on the mesh
-    !    PotUnper   : unperturbed potentials on the mesh
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
-    type(PotentialVector), intent(in)  :: PotUnper
     character(len=*), intent(in)       :: Finfile
-
-
-
-    1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
     print *, "Initialise FAM matrices" 
 
@@ -463,11 +457,6 @@ contains
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
-    complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
-
-
-    integer :: si, i, B, N, N2, T
-
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -491,32 +480,6 @@ contains
     ! Steps 3,4,5,6; from the X & Y amplitudes to the perturbed 
     !                 hamiltonian in the HF basis
     call  FAM_XY_to_dh(X,Y,dHspout_flat)
-
-    if(fam_verbose > 2) then
-       call print_all_fam_spmat()
-       print *, 'OUTPUT of dHSP_iterate'
-       print *, 'dh'
-       print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,2))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,2))
-       endif
-       print *, 'dDelta+'
-       print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,1))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,1))
-       endif
-       print *, 'dDelta-'
-       print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,3))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,3))
-       endif
-    endif
 
   end subroutine iterate_dHsp
 
@@ -708,6 +671,32 @@ contains
       ! -> stored as (- \delta \Delta^{-,*} )
       dHsp(:,:,3) = - CONJG(dHsp(:,:,3))
 
+    endif
+
+    if(fam_verbose > 2) then
+      call print_all_fam_spmat()
+      print *, 'OUTPUT of FAM_XY_to_dh'
+      print *, 'dh'
+      print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,2))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,2))
+      endif
+      print *, 'dDelta+'
+      print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,1))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,1))
+      endif
+      print *, 'dDelta-'
+      print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,3))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,3))
+      endif
     endif
 
   end subroutine FAM_XY_to_dh
@@ -1085,7 +1074,6 @@ contains
     real(KIND=dp), intent(out) :: S_arr(8)
 
     integer :: i, j, B, N, N2, si, T
-    real(KIND=dp) :: occ_h, occ_p
 
     if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
 
@@ -1186,8 +1174,7 @@ contains
     ! the abs takes care of obtaining the modulus of the complex values.
     !---------------------------------------------------------------------------
 
-    1 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
-    2 format('Convergence: ', '||FAM(X) - X||/||X|| = ', es10.3, '     ||FAM(Y) - Y||/||Y|| = ', es10.3)
+    1 format('Convergence: ', '||FAM(X) - X||/||X|| = ', es10.3, '     ||FAM(Y) - Y||/||Y|| = ', es10.3)
     logical, intent(out) :: conv, div
     integer :: idx_prev
     real(KIND=dp) :: DX_norm, DY_norm, X_norm, Y_norm
@@ -1215,7 +1202,7 @@ contains
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
     DY_norm = DY_norm / Y_norm
 
-    if (fam_verbose > 0) print 2, DX_norm, DY_norm
+    if (fam_verbose > 0) print 1, DX_norm, DY_norm
 
     if( (DX_norm < fam_precision) .and. (DY_norm < fam_precision)) then
       conv = .true.
@@ -1341,7 +1328,7 @@ contains
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_spme(:,:)
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
-    integer :: i, j
+    integer :: i
 
     if (fam_verbose > 1) print *, "get_external_field :: "
       
@@ -1441,6 +1428,10 @@ contains
 
     deallocate(f_spme)
 
+    if(fam_verbose > 1) then
+      print *, '||F(:,:,1)||²', sum(abs(f_qpme(:,:,1))**2)
+      print *, '||F(:,:,2)||²', sum(abs(f_qpme(:,:,2))**2)
+    endif
 
     if(fam_verbose > 2) then
       print *, ' f_qpme(:,:,1)'
@@ -1449,9 +1440,6 @@ contains
       call print_spme_complex_superblock( f_qpme(:,:,2))
     endif
 
-
-    print *, '||F(:,:,1)||²', sum(abs(f_qpme(:,:,1))**2)
-    print *, '||F(:,:,2)||²', sum(abs(f_qpme(:,:,2))**2)
 
 
   end function get_external_field
@@ -1488,6 +1476,7 @@ contains
     real(KIND=dp) :: m1kin=0, kappa=0, Ctau0=0, Ctau1=0
     type(Moment), pointer  :: moment_ptr, r2_ptr
 
+    res = 0.0
 
     if (fam_verbose > 1) print *, "calc_EWSR :: calculate the energy-weighted sum rule m1"
 
@@ -1587,14 +1576,14 @@ contains
           
           ! integral over the mesh of 4 (x^2 + y^2 + z^2) * rho_n * rho_p
           kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
-            &                       * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &                       * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 1  dipole (same for m=0 and m=1)
         else if(l == 1) then
 
           ! integral over the mesh of 3/(4pi) rho_n * rho_p
-          kappa = kappa * (3.0 / (4.0 * pi)) * sum(R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+          kappa = kappa * (3.0 / (4.0 * pi)) * sum(real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
         
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 0, axial quadrupole Q20
@@ -1603,7 +1592,7 @@ contains
           ! integral over the mesh of 5/(4pi) (x^2 + y^2 + 4*z^2) * rho_n * rho_p
           kappa = kappa * (5.0 / (4.0 * pi) ) &
             &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) &
-            &            * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &            * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 2, quadrupole Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2)
@@ -1611,7 +1600,7 @@ contains
 
           ! integral over the mesh of 15/(4pi) (x^2 + y^2) * rho_n * rho_p
           kappa = kappa * (15.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
-            &                                          * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &                                          * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
           
         endif
           
@@ -1638,8 +1627,7 @@ contains
     !   - We use a relative measure, drho(max(box)) / max(drho)
     !---------------------------------------------------------------------------
 
-    integer :: it=1
-    real(kind=DP) :: maximum, boundval
+    real(kind=DP) :: maximum
     complex(KIND=dp), pointer                  :: ddens3D(:,:,:,:)
 
 
@@ -1876,7 +1864,7 @@ contains
     complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-    integer                       :: B, N, N2, si, sb, T, i
+    integer                       :: B, N, N2, si, sb, T
     real(KIND=dp)                 :: Tphase
 
     if (fam_verbose > 1) print *, "transform_sp_to_qp :: transform 1B operator from sp to qp basis"
@@ -2039,7 +2027,7 @@ contains
     complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-    integer                       :: B, N, N2, si, sb, T, i
+    integer                       :: B, N, N2, T, si, sb
     real(KIND=dp)                 :: Tphase
 
     if (fam_verbose > 1) print *, "transform_qp_to_sp :: transform 1B operator from qp to sp basis"

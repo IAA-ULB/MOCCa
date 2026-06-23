@@ -161,7 +161,7 @@ program run_FAM
     ! initialise FAM matrices end set perturbing external field
 
     num_iter = 0
-    call inifam(omega_curr, Density, Potentials, Finfile)
+    call inifam(omega_curr, Density, Finfile)
 
 
     !-------------------------------------------------------------------------------
