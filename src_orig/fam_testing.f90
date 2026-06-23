@@ -1602,11 +1602,9 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print * , '     simple loops    [R,P]  =', term1RP + term1PR
 
 
-    ! evaluate via BLAS dot_product
-
-    commut0B = dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
+    commut0B = dcmplx(0.0, imag(sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2))))
     $TR commut0B = commut0B * 2.0d0
-    print * , '     dot_product     [R,P]  =', commut0B
+    print * , ' imag(sum(R*P)) i    [R,P]  =', commut0B
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -1235,18 +1235,27 @@ contains
     ! Remarks:
     !  - For now, only the subtraction of spurious translational mode is 
     !    subtracted, present when F is parity odd, i.e. L is odd and K = 0, 1
+    !
+    !  - This involves vacuum expectation values of commutators of 1B operators
+    !    <[A,B]> which can be evaluated from their quasi-particle matrix
+    !    elements as
+    !
+    !        <[A,B]> = 1/2 sum_ab(A20_ab B02_ab - B20_ab A02_ab)
+    !
+    !     -> if both operators are Hermitian such that A20 = A02*, then 
+    !        <[A,B]> = Im (sum_ab(A20_ab B02_ab)) i
+    !
+    !  - Note the sign in the definition of the QRPA excitation operator 
+    !    O^+ = X20 - Y02, such that 
+    !        <[O^+,A]> = 1/2 sum_ab(X20_ab A02_ab + A20_ab Y02_ab)
+    !    and causing several unexpected minus sign elsewhere
     !---------------------------------------------------------------------------
 
     complex(KIND=DP) :: Rz_qpme(nwt, nwt, 2)
     complex(KIND=DP) :: Pz_qpme(nwt, nwt, 2)
-    complex(KIND=DP) :: comm_RP, comm_XR, comm_XP
+    complex(KIND=DP) :: comm_RP, comm_OR, comm_OP
     complex(KIND=DP) :: lambda_R, lambda_P
     real(KIND=DP) :: a
-
-
-    a = calc_strength()
-    print *, ' S prior =', strength_complex
-
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1258,58 +1267,41 @@ contains
 
     print *, 'Subtract translational spurious mode'
 
+    a = calc_strength()
+    print *, ' S prior =', strength_complex
+
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! load the qpme of R and P
     Rz_qpme = get_external_field('Zcom')
     Pz_qpme = get_external_field('Zmomentum')
 
-    ! magic minus :
-    ! Pz_qpme = - Pz_qpme
-
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Evaluate the commutator <[R,P]> . Note that 
-    !     <[R,P]> = 1/2 sum_ab(R20_ab P02_ab - P20_ab R02_ab)
-    !             = 1/2 sum_ab(R20_ab P02_ab - R20_ab^* P02_ab^*)
-    !             = Im (sum_ab(R20_ab P02_ab)) i
-    !  -> the sum is evaluated using BLAS dot_product() on flattend arrays
-
-    comm_RP = dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
+    ! Evaluation of commutator expectation value <[R,P]>
+    comm_RP = 0.5 * (sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2)) - sum(Pz_qpme(:,:,1) * Rz_qpme(:,:,2)))
     $TR comm_RP = 2.0 * comm_RP ! account for absence of time-reversed states
-    comm_RP = dcmplx(0_dp, imag(comm_RP))
-
-    print * , '<[R, P]> = ', comm_RP
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Evaluate the commutator <[(X,Y),R]>. Note that 
-    !     <[(X,Y),R]> = 1/2 sum_ab(X_ab R02_ab + R20_ab Y_ab)
-
-    comm_XR = dot_product(reshape(X(:,:), [nwt*nwt]), reshape(Rz_qpme(:,:,2), [nwt*nwt]))
-    comm_XR = comm_XR + dot_product(reshape(Rz_qpme(:,:,1), [nwt*nwt]), reshape(Y(:,:), [nwt*nwt]))
-    $TR comm_XR = 2.0 * comm_XR ! account for absence of time-reversed states
-    comm_XR = dcmplx(0_dp, 0.5 * imag(comm_XR))
-
-    print * , '<[(X,Y), R]> = ', comm_XR
+    ! Evaluate the commutator <[O^+,R]>. 
+    comm_OR = 0.5 * (sum(X(:,:) * Rz_qpme(:,:,2)) + sum(Rz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OR = 2.0 * comm_OR ! account for absence of time-reversed states
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Evaluate the commutator <[(X,Y),P]>. Note that 
-
-    comm_XP = dot_product(reshape(X(:,:), [nwt*nwt]), reshape(Pz_qpme(:,:,2), [nwt*nwt]))
-    comm_XP = comm_XP + dot_product(reshape(Pz_qpme(:,:,1), [nwt*nwt]), reshape(Y(:,:), [nwt*nwt]))
-    $TR comm_XP = 2.0 * comm_XP ! account for absence of time-reversed states
-    comm_XP = dcmplx(0_dp, 0.5 * imag(comm_XP))
-
-    print * , '<[(X,Y), P]> = ', comm_XP
+    ! Evaluate the commutator <[O^+,P]>. 
+    comm_OP = 0.5 * (sum(X(:,:) * Pz_qpme(:,:,2)) + sum(Pz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OP = 2.0 * comm_OP ! account for absence of time-reversed states
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! compute lamda parameters 
-    lambda_R = comm_XP / comm_RP
-    lambda_P = - comm_XR / comm_RP
+    ! compute lambda parameters 
+    lambda_R = comm_OP / comm_RP
+    lambda_P = - comm_OR / comm_RP
+
+    print * , 'lambda_R = ', lambda_R
+    print * , 'lambda_P = ', lambda_P
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! subtract from X, Y
-
     X = X - lambda_R * Rz_qpme(:,:,1) - lambda_P * Pz_qpme(:,:,1)
     Y = Y + lambda_R * Rz_qpme(:,:,2) + lambda_P * Pz_qpme(:,:,2)
 
