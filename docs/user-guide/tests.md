@@ -18,7 +18,6 @@ The testing framework provides the following helper functions for test scripts:
 | `setup_test_env_fam` | Sets up for FAM (Finite Amplitude Method) calculations |
 | `setup_test_env_dep` | Sets up for tests with external potential files |
 | `teardown_test_env` | Cleans up working directory after test completion |
-| `tantalus_error_codes` | Handles MOCCa exit codes (TODO: expand functionality) |
 | `get_total_energy_stdout` | Extracts final total energy from MOCCa output |
 | `get_coulomb_energy_stdout` | Extracts Coulomb energy from MOCCa output |
 | `get_Z_stdout` | Extracts proton number from MOCCa output |

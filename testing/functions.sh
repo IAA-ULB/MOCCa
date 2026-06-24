@@ -178,18 +178,6 @@ rm -r work/
 fi
 }
 
-
-tantalus_error_codes () {
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Act on the exit code returned by MOCCa
-# TODO: do something meaningful with these error codes
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ $1 -eq 0 ]; then
-  sleep 0
-  #echo "MOCCa ran succesfully."
-fi
-}
-
 get_total_energy_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Get the final total energy from the MOCCa STDOUT as a float

@@ -34,7 +34,7 @@ code by invoking make in the main directory as follows:
      - NUCLEI: (default) impose antiperiodic boundary conditions to model finite nuclei.
      - PASTA: impose periodic boundary conditions to model crystalline lattices.
 
-If nothing fails, the compilation process will either create `Tantalus.$configname.exe` (`MC = mf`)
+If nothing fails, the compilation process will either create `MOCCa.$configname.exe` (`MC = mf`)
 or `fam.$configname.exe` (`MC=fam`) inside the `exec/` directory.
 
 ## Advanced compilation

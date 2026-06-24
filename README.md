@@ -1,10 +1,12 @@
 # MOCCa
 
 [![Github](https://img.shields.io/badge/github-MOCCa-blue?logo=github)](https://www.github.com/IAA-nuclear/tantalus_full)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-orange.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![CI/CD](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml)
 
 **Nuclear Mean-field and Linear Response with Skyrme energy density functionals.**
+
+*Copyright (C) 2026 W. Ryssens and M. Bender*
 
 ---
 
@@ -126,6 +128,15 @@ This requires a working [mkdocs](https://www.mkdocs.org/) installation. If you c
 
 ---
 
+## Examples / Tests 
+
+MOCCa is subject to a continuous integration pipeline, i.e. its output is checked quite systematically when the code changes. The tests, particularly those in the `tests/integration/` directory also double as simple examples for typical MOCCa workflows. 
+
+
+Please see [this page in the documentation](docs/user-guide/tests.md) for more details.
+
+---
+
 ## Getting help
 
 If the documentation is not sufficient to help you solve your problems, you can either
@@ -140,11 +151,11 @@ If the documentation is not sufficient to help you solve your problems, you can 
 
 ## Contributors
 
-- W. Ryssens [@wryssens](https://github.com/wryssens)
-- M. Bender [@mbipnl](https://github.com/mbipnl)
-- N. Shchechilin [@NikolaiNikolaevic](https://github.com/NikolaiNikolaevic)
-- L. González-Miret Zaragoza [@luigonzar](https://github.com/luigonzar)
-- P. Demol [@PepijnDemol](https://github.com/PepijnDemol)
+- W. Ryssens - Research Fellow of the [FRS-FNRS](https://www.frs-fnrs.be/en) at ULB - [Github](https://github.com/wryssens), [web](https://wryssens.pages.in2p3.fr/mysite/), [orcid](https://orcid.org/0000-0002-4775-4403)
+- M. Bender - Directeur de Recherche of the [CNRS](https://www.cnrs.fr/) - [Github](https://github.com/mbipnl), [web](https://perso.ip2i.in2p3.fr/bender/), [orcid](https://orcid.org/0000-0001-8707-3410)
+- P. Demol - Postdoctoral Fellow at ULB - [Github](https://github.com/PepijnDemol), [orcid](https://orcid.org/0000-0003-2511-7179)
+- L. González-Miret Zaragoza - Postdoctoral Fellow at ULB - [Github](https://github.com/luigonzar), [orcid](https://orcid.org/0009-0003-3350-3077)
+- N. Shchechilin - Postdoctoral Fellow at the Institute of Science Tokyo -  [Github](https://github.com/NikolaiNikolaevic), [orcid](https://orcid.org/0000-0001-5827-8097)
 
 ---
 
