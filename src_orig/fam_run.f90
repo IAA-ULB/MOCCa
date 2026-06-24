@@ -115,7 +115,8 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
-  call init_fam_file_new(famfile)
+  call init_fam_file(famfile)
+  call init_fam_file(trim(famfile)//'.inclSM')
 
   if(xyfile .ne. '') then
     call init_xy_file(xyfile)
@@ -346,6 +347,9 @@ program run_FAM
 
     call printfam_end(S_decomp, num_iter, fam_residual)
 
+    call append_fam_file(S_decomp, num_iter, trim(famfile)//'.inclSM')
+
+
     ! subtract the spurious mode
     call subtract_spurious_modes()
 
@@ -354,7 +358,7 @@ program run_FAM
     call printfam_end(S_decomp, num_iter, fam_residual)
 
 
-    call append_fam_file_new(S_decomp, num_iter, famfile)
+    call append_fam_file(S_decomp, num_iter, famfile)
 
     if(xyfile .ne. '') then
       if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
