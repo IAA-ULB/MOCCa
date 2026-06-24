@@ -21,7 +21,7 @@ MOCCa has evolved into a complex project: you will find that there is no one uni
 - **Functional type**: LO, NLO, BXL, etc.
 - **Self-consistent symmetries**: maximally symmetric, broken parity, broken time-reversal, etc.
 - **Calculation type:**: static mean-field or linear response
-- **System type**:: atomic nuclei or dense matter with periodic boundary conditions
+- **System type**: atomic nuclei or dense matter with periodic boundary conditions
 
 Hephaestos will generate a customized MOCCa version tailored to your needs. For more information, see the [compilation section](docs/user-guide/compilation.md) in the documentation. 
 
