@@ -151,8 +151,8 @@ If the documentation is not sufficient to help you solve your problems, you can 
 
 ## Contributors
 
-- W. Ryssens - Research Fellow of the [FRS-FNRS](https://www.frs-fnrs.be/en) at ULB - [Github](https://github.com/wryssens), [web](https://wryssens.pages.in2p3.fr/mysite/), [orcid](https://orcid.org/0000-0002-4775-4403)
-- M. Bender - Directeur de Recherche of the [CNRS](https://www.cnrs.fr/) - [Github](https://github.com/mbipnl), [web](https://perso.ip2i.in2p3.fr/bender/), [orcid](https://orcid.org/0000-0001-8707-3410)
+- W. Ryssens - Research Fellow at the [FRS-FNRS](https://www.frs-fnrs.be/en) at ULB - [Github](https://github.com/wryssens), [web](https://wryssens.pages.in2p3.fr/mysite/), [orcid](https://orcid.org/0000-0002-4775-4403)
+- M. Bender - Directeur de Recherche at the [CNRS](https://www.cnrs.fr/) - [Github](https://github.com/mbipnl), [web](https://perso.ip2i.in2p3.fr/bender/), [orcid](https://orcid.org/0000-0001-8707-3410)
 - P. Demol - Postdoctoral Fellow at ULB - [Github](https://github.com/PepijnDemol), [orcid](https://orcid.org/0000-0003-2511-7179)
 - L. González-Miret Zaragoza - Postdoctoral Fellow at ULB - [Github](https://github.com/luigonzar), [orcid](https://orcid.org/0009-0003-3350-3077)
 - N. Shchechilin - Postdoctoral Fellow at the Institute of Science Tokyo -  [Github](https://github.com/NikolaiNikolaevic), [orcid](https://orcid.org/0000-0001-5827-8097)
