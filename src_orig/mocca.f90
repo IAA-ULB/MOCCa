@@ -5,12 +5,22 @@
 !    | |  | | |_| | |__| |__| (_| |
 !    |_|  |_|\___/ \____\____\__,_|
 !
-! Written mainly by W. Ryssens & M. Bender
+!    Copyright (C) 2026 W. Ryssens and M. Bender
 !
-! Opensource software distributed under the GNU AGPLv3 licence, see the
-!  LICENCE file in the root of this project.
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
 !===============================================================================
-
 module MOCCa
 
    use geninfo
