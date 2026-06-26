@@ -1,8 +1,8 @@
 # MOCCa
 
-[![Github](https://img.shields.io/badge/github-MOCCa-blue?logo=github)](https://www.github.com/IAA-nuclear/tantalus_full)
+[![Github](https://img.shields.io/badge/github-MOCCa-green?logo=github)](https://www.github.com/IAA-nuclear/tantalus_full)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-orange.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![CI/CD](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/IAA-nuclear/tantalus_full/actions/workflows/workflow.yml)
+[![DOI](https://zenodo.org/badge/470503673.svg)](https://doi.org/10.5281/zenodo.20931651)
 
 **Nuclear Mean-field and Linear Response with Skyrme energy density functionals.**
 
@@ -20,7 +20,7 @@ MOCCa has evolved into a complex project: you will find that there is no one uni
 
 - **Functional type**: LO, NLO, BXL, etc.
 - **Self-consistent symmetries**: maximally symmetric, broken parity, broken time-reversal, etc.
-- **Calculation type:**: static mean-field or linear response
+- **Calculation type:** static mean-field or linear response
 - **System type**: atomic nuclei or dense matter with periodic boundary conditions
 
 Hephaestos will generate a customized MOCCa version tailored to your needs. For more information, see the [compilation section](docs/user-guide/compilation.md) in the documentation. 
@@ -152,7 +152,7 @@ If the documentation is not sufficient to help you solve your problems, you can 
 ## Contributors
 
 - W. Ryssens - Research Fellow at the [FRS-FNRS](https://www.frs-fnrs.be/en) at ULB - [Github](https://github.com/wryssens), [web](https://wryssens.pages.in2p3.fr/mysite/), [orcid](https://orcid.org/0000-0002-4775-4403)
-- M. Bender - Directeur de Recherche at the [CNRS](https://www.cnrs.fr/) - [Github](https://github.com/mbipnl), [web](https://perso.ip2i.in2p3.fr/bender/), [orcid](https://orcid.org/0000-0001-8707-3410)
+- M. Bender - Directeuyr de Recherche at the [CNRS](https://www.cnrs.fr/) - [Github](https://github.com/mbipnl), [web](https://perso.ip2i.in2p3.fr/bender/), [orcid](https://orcid.org/0000-0001-8707-3410)
 - P. Demol - Postdoctoral Fellow at ULB - [Github](https://github.com/PepijnDemol), [orcid](https://orcid.org/0000-0003-2511-7179)
 - L. González-Miret Zaragoza - Postdoctoral Fellow at ULB - [Github](https://github.com/luigonzar), [orcid](https://orcid.org/0009-0003-3350-3077)
 - N. Shchechilin - Postdoctoral Fellow at the Institute of Science Tokyo -  [Github](https://github.com/NikolaiNikolaevic), [orcid](https://orcid.org/0000-0001-5827-8097)
@@ -163,7 +163,7 @@ If the documentation is not sufficient to help you solve your problems, you can 
 
 When you use MOCCa in your research, we ask that you cite our work. The minimal requirement is to include the DOI of the version you used:
 
-> W. Ryssens and M. Bender, *The MOCCa code*, [INSERT LINK]
+> W. Ryssens and M. Bender, *The MOCCa code*, 10.5281/zenodo.20931651
 
 Unfortunately, there is currently no dedicated peer-reviewed paper about MOCCa specifically. The closest reference is the original PhD thesis:
 
