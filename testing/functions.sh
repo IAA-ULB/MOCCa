@@ -1,5 +1,5 @@
 ################################################################################
-# Boilerplate functions for writing a Tantalus testing script
+# Boilerplate functions for writing a MOCCa testing script
 #
 ################################################################################
 
@@ -20,13 +20,13 @@ setup_test_env () {
 #
 # Arguments are:
 #  $1 => naming scheme, i.e. strings to use for filenames
-#  $2 => configuration file name, or rather the X in Tantalus.X.exe
+#  $2 => configuration file name, or rather the X in MOCCa.X.exe
 #  $3 => parameterization name, or rather the X in X.param
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
 outfile="../logs/$1.$2.out"      # output file; doubles as log file
-exe="Tantalus.$2.exe"              # full name of the mean-field executable
+exe="MOCCa.$2.exe"              # full name of the mean-field executable
 param="$3"                         # name of the parameterization
 
 #2. create working and logging directory
@@ -58,14 +58,14 @@ setup_test_env_fam() {
 #
 # Arguments are:
 #  $1 => naming scheme, i.e. strings to use for filenames
-#  $2 => configuration file name for the mean-field code, or rather the X in Tantalus.X.exe
+#  $2 => configuration file name for the mean-field code, or rather the X in MOCCa.X.exe
 #  $3 => configuration file name for the FAM code, or rather the X in fam.X.exe
 #  $4 => parameterization name, or rather the X in X.param
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
 mfoutfile="../logs/$1.$2.out"      # output file; doubles as log file
-exe="Tantalus.$2.exe"              # full name of the mean-field executable
+exe="MOCCa.$2.exe"              # full name of the mean-field executable
 famoutfile="../logs/$1.$3.fam.out" # output file; doubles as log file
 exefam="fam.$3.exe"                # full name of the fam executable
 param="$4"                         # name of the parameterization
@@ -94,13 +94,13 @@ setup_test_env_dep () {
 # 3. copy the relevant executable and .param file there
 #
 # Arguments are:
-#  $1 => configuration file name, or rather the X in Tantalus.X.exe
+#  $1 => configuration file name, or rather the X in MOCCa.X.exe
 #  $2 => parameterization name, or rather the X in X.param
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
 outfile="../logs/$1.$2.out"       # output file; doubles as log file
-exe="Tantalus.$2.exe"             # full name of the executable
+exe="MOCCa.$2.exe"             # full name of the executable
 param="$3"                        # name of the parameterization
 pot="$4"						  # potential file name
 
@@ -141,13 +141,13 @@ setup_test_env_dep () {
 # 3. copy the relevant executable and .param file there
 #
 # Arguments are:
-#  $1 => configuration file name, or rather the X in Tantalus.X.exe
+#  $1 => configuration file name, or rather the X in MOCCa.X.exe
 #  $2 => parameterization name, or rather the X in X.param
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
 outfile="../logs/$1.$2.out"       # output file; doubles as log file
-exe="Tantalus.$2.exe"             # full name of the executable
+exe="MOCCa.$2.exe"             # full name of the executable
 param="$3"                        # name of the parameterization
 pot="$4"						  # potential file name
 
@@ -178,21 +178,9 @@ rm -r work/
 fi
 }
 
-
-tantalus_error_codes () {
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Act on the exit code returned by Tantalus
-# TODO: do something meaningful with these error codes
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ $1 -eq 0 ]; then
-  sleep 0
-  #echo "Tantalus ran succesfully."
-fi
-}
-
 get_total_energy_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the final total energy from the Tantalus STDOUT as a float
+# Get the final total energy from the MOCCa STDOUT as a float
 #
 # Input:
 #    $1: filename of tantalus STDOUT
@@ -202,7 +190,7 @@ get_total_energy_stdout (){
 
 get_coulomb_energy_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the final Coulomb energy from the Tantalus STDOUT as a float
+# Get the final Coulomb energy from the MOCCa STDOUT as a float
 #
 # Input:
 #    $1: filename of tantalus STDOUT
@@ -213,7 +201,7 @@ get_coulomb_energy_stdout (){
 
 get_Z_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the Z from the Tantalus STDOUT as a float
+# Get the Z from the MOCCa STDOUT as a float
 #
 # Input:
 #    $1: filename of tantalus STDOUT
@@ -224,7 +212,7 @@ get_Z_stdout (){
 
 get_rms_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the rms from the Tantalus STDOUT as a float
+# Get the rms from the MOCCa STDOUT as a float
 #
 # Input:
 #    $1: filename of tantalus STDOUT
@@ -236,7 +224,7 @@ get_rms_stdout (){
 
 get_B20_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the quadrupole deformation \beta_{20} from a Tantalus STDOUT
+# Get the quadrupole deformation \beta_{20} from a MOCCa STDOUT
 #
 # Input:
 #    $1: filename of tantalus STDOUT
@@ -247,13 +235,24 @@ get_B20_stdout (){
 
 get_B22_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the quadrupole deformation \beta_{22} from a Tantalus STDOUT
+# Get the quadrupole deformation \beta_{22} from a MOCCa STDOUT
 #
 # Input:
 #    $1: filename of tantalus STDOUT
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   B20arr=(`grep "Beta_{ 2 2}" $1  | tail -1`) # The () force the grep result into array
   echo ${B20arr[6]}                           # echo the last result
+}
+
+get_muz_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the z-component of the magnetic moment
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  muarr=(`grep "mu_z  t" $1  | tail -1`) # The () forces the grep result into array
+  echo ${muarr[2]}                       # echo the last result
 }
 
 get_strength (){
@@ -282,10 +281,10 @@ get_strength (){
 
 get_Belyaev_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the total Belyaev moment of inertia from a Tantalus STDOUT
+# Get the total Belyaev moment of inertia from a MOCCa STDOUT
 #
 # Input:
-#    $1: filename of Tantalus STDOUT
+#    $1: filename of MOCCa STDOUT
 #    $2: Cartesian direction, i.e. "X/Y/Z"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Bearr=(`grep "I_B $2" $1  | tail -2 | head -1 `) # The () force the grep result into array
@@ -294,10 +293,10 @@ get_Belyaev_stdout (){
 
 get_DJ2_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Get the total "ordinary" dispersion of J^2 from a Tantalus STDOUT
+# Get the total "ordinary" dispersion of J^2 from a MOCCa STDOUT
 #
 # Input:
-#    $1: filename of Tantalus STDOUT
+#    $1: filename of MOCCa STDOUT
 #    $2: Cartesian direction, i.e. "X/Y/Z"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Bearr=(`grep "J2_$2" $1  | tail -3 | head -1 `) # The () force the grep result into array
@@ -306,7 +305,7 @@ get_DJ2_stdout (){
 
 get_inertia_components() {
 # Arguments:
-#   $1 -> filename of Tantalus STDOUT
+#   $1 -> filename of MOCCa STDOUT
 # Outputs the inertia tensor components 2020, 2030, 3030
 
     LC_NUMERIC="en_US.UTF-8" # Ensure decimal points are correctly treated
@@ -320,9 +319,9 @@ get_inertia_components() {
 }
 
 get_neck_stdout (){
-# Get the neck value from a Tantalus STDOUT
+# Get the neck value from a MOCCa STDOUT
 # Input:
-#   $1 -> filename of Tantalus STDOUT
+#   $1 -> filename of MOCCa STDOUT
     neck=(`grep "Neck (z)" $1  | tail -1`) # The () force the grep result into array
     echo ${neck[5]}                              # echo the last result
 }
@@ -338,9 +337,9 @@ extract_strength_components() {
 
 check_convergence() {
 #
-# Check if Tantalus has converged by looking for "Converged" in the STDOUT
+# Check if MOCCa has converged by looking for "Converged" in the STDOUT
 # Input:
-#   $1 -> filename of Tantalus STDOUT
+#   $1 -> filename of MOCCa STDOUT
     if grep -q "Convergence criteria satisfied" "$1"; then
         return 0  # Converged
     else

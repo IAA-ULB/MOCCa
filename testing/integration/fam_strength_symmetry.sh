@@ -103,8 +103,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1b) Run a calculation that freezes the potentials just to get a
@@ -202,7 +202,7 @@ famoutfile=../logs/fam_strength_symmetry.${args[2]}.om=${args[3]}.eta=${args[4]}
 
 # Run the calculation
 ./$exefam < qfam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 #qfam_check_eff1=$?
 
 done

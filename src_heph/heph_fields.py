@@ -149,11 +149,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
                 spatial = True
 
         if spatial:
-            # Tantalus will essentially not read potentials from file
+            # MOCCa will essentially not read potentials from file
             dic["UNDOREAD"] = " "
             dic["POTREAD"] = "!"
         else:
-            # Tantalus will read potentials correctly from file
+            # MOCCa will read potentials correctly from file
             dic["UNDOREAD"] = "!"
             dic["POTREAD"] = " "
 

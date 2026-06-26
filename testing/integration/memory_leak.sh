@@ -11,7 +11,7 @@
 #   bash memory_leak.sh [EXESUFFIX] [-v|--verbose]
 #
 # where EXESUFFIX specifies the suffix of the executable to be used
-#            Example: "BXL" for "Tantalus.BXL.exe".
+#            Example: "BXL" for "MOCCa.BXL.exe".
 #
 #   -v, --verbose: Report memory used as a function of iteration count in a table
 #
@@ -76,7 +76,7 @@ run_memory_test() {
     setup_test_env "memory_leak_${maxiter}" "$EXESUFFIX" "SLy4"
 
     # Create runtime data with energy_prec=1e-20 to prevent early stopping
-    cat <<EOF >tant.data
+    cat <<EOF >mocca.data
 &nucleus
 neutrons=8, protons=8,
 energy_prec=1e-20
@@ -114,8 +114,8 @@ EOF
     # Run the calculation with /usr/bin/time -v to get memory stats
     # /usr/bin/time writes its stats to stderr, so we redirect that to our temp file
     # Program's stdout goes to outfile, program's stderr is discarded (or could be logged)
-    /usr/bin/time -v ./$exe <tant.data >"$out_file" 2>"$time_file"
-    tantalus_check=$?
+    /usr/bin/time -v ./$exe <mocca.data >"$out_file" 2>"$time_file"
+    mocca_check=$?
 
     # Extract maximum resident set size (in KB) from time output
     max_rss=$(grep "Maximum resident set size" "$time_file" | awk '{print $6}')
@@ -125,7 +125,7 @@ EOF
     teardown_test_env
 
     echo "$max_rss"
-    return $tantalus_check
+    return $mocca_check
 }
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -140,7 +140,7 @@ for maxiter in "${ITERATIONS[@]}"; do
     check=$?
     
     if [ $check -ne 0 ]; then
-        echo "FAILED (Tantalus exit code: $check)"
+        echo "FAILED (MOCCa exit code: $check)"
         exit 1
     fi
     

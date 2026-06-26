@@ -1,38 +1,49 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module pairing_strengths
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
- !==============================================================================
- !
- ! This module deals with the determination of so-called microscopic pairing 
- ! strengths as discussed in detail in 
- !    N. Chamel, PRC 82, 014313 (2010),
- ! and first used in a BSk model in 
- !    N. Chamel et al., NPA 812, 72 (2008)
- ! and originally (though seemingly not completely) formulated first in 
- !    T. Duguet et al., PRC 69, 054317 (2004). 
- !
- ! Large parts of the coding in this module reflect the variety of choices that
- ! can be made for the determination of the gaps. One can
- !   (a) choose the recipe for the pairing gaps that should be reproduced
- !   (b) choose an interpolation recipe for extending said gaps to INM at
- !       arbitrary symmetry
- !   (c) choose an integration strategy for calculating a rather complicated
- !       integral that occurs in the formulas.
- ! 
- !==============================================================================
- ! Hephaestos keywords: [NONE at the moment]
- !
- !==============================================================================
+!==============================================================================
+!
+! This module deals with the determination of so-called microscopic pairing
+! strengths as discussed in detail in
+!    N. Chamel, PRC 82, 014313 (2010),
+! and first used in a BSk model in
+!    N. Chamel et al., NPA 812, 72 (2008)
+! and originally (though seemingly not completely) formulated first in
+!    T. Duguet et al., PRC 69, 054317 (2004).
+!
+! Large parts of the coding in this module reflect the variety of choices that
+! can be made for the determination of the gaps. One can
+!   (a) choose the recipe for the pairing gaps that should be reproduced
+!   (b) choose an interpolation recipe for extending said gaps to INM at
+!       arbitrary symmetry
+!   (c) choose an integration strategy for calculating a rather complicated
+!       integral that occurs in the formulas.
+!
+!==============================================================================
+! Hephaestos keywords: [NONE at the moment]
+!
+!==============================================================================
  use geninfo
  use parameterization
 

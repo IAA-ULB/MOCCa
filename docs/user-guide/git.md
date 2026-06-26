@@ -13,9 +13,9 @@ In my experience, setting up ssh as your method of access to github is a good id
 
 Execute the following command in a directory of your choice
 
-    git clone https://github.com/IAA-nuclear/tantalus_full.git
+    git clone https://github.com/IAA-ULB/MOCCa.git
 
-If your computer succesfully communicates with github, you will now have a ```tantalus_full``` 
+If your computer succesfully communicates with github, you will now have a ```MOCCa``` 
 directory that contains the code.
 
 ## Setting your username and email address

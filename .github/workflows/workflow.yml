@@ -8,7 +8,7 @@
 # It is currently only verified to run the astropc machines.
 #
 #-------------------------------------------------------------------------------
-name: Tantalus CI/CD Workflow
+name: CI/CD
 on:
   push:
     branches:
@@ -77,7 +77,7 @@ jobs:
       - name: Prepare src directory
         # ---------------------------------------------------------------------------
         # This is a horrible hack:
-        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   unfortunately the current Makefile configuration of MOCCa will always
         #   fail the first time around because Hephaestos has not created f90 files
         #   in the src/ directory yet. I have not found a way to correctly do this
         #   dependency in the Makefile yet...;
@@ -87,20 +87,20 @@ jobs:
             mkdir src_fam/
             cp src_orig/*.f90 src/
             cp src_orig/*.f90 src_fam/
-      - name: Compile Tantalus
+      - name: Compile MOCCa
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=MOCCa.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
         uses: actions/upload-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
-          path: exec/Tantalus.${{ env.SUFFIX }}.exe
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/MOCCa.${{ env.SUFFIX }}.exe
           retention-days: 2
   compile-mf-pasta:
     #------------------------------------------------------------------------------
@@ -139,7 +139,7 @@ jobs:
       - name: Prepare src directory
         # ---------------------------------------------------------------------------
         # This is a horrible hack:
-        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   unfortunately the current Makefile configuration of MOCCa will always
         #   fail the first time around because Hephaestos has not created f90 files
         #   in the src/ directory yet. I have not found a way to correctly do this
         #   dependency in the Makefile yet...;
@@ -149,18 +149,18 @@ jobs:
             mkdir src_fam/
             cp src_orig/*.f90 src/
             cp src_orig/*.f90 src_fam/
-      - name: Compile Tantalus
+      - name: Compile MOCCa
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=MOCCa.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
       - name: Upload mean-field executable
         uses: actions/upload-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
-          path: exec/Tantalus.${{ env.SUFFIX }}.exe
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/MOCCa.${{ env.SUFFIX }}.exe
           retention-days: 2
   compile-fam-nuclei:
     #------------------------------------------------------------------------------
@@ -195,7 +195,7 @@ jobs:
       - name: Prepare src directory
         # ---------------------------------------------------------------------------
         # This is a horrible hack:
-        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   unfortunately the current Makefile configuration of MOCCa will always
         #   fail the first time around because Hephaestos has not created f90 files
         #   in the src/ directory yet. I have not found a way to correctly do this
         #   dependency in the Makefile yet...;
@@ -206,7 +206,7 @@ jobs:
             cp src_orig/*.f90 src/
             cp src_orig/*.f90 src_fam/
 
-      - name: Compile Tantalus
+      - name: Compile MOCCa
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
         run: |
@@ -239,12 +239,12 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
-        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+        run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run minimal test
         # Perform the test
@@ -275,17 +275,17 @@ jobs:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
     steps:
       - name: Checkout code # needed to get the testing scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download executable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
-        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+        run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run memory-leak test
         # Perform the test
@@ -313,12 +313,12 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
-        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+        run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run fission test
         # Perform the test
@@ -358,19 +358,19 @@ jobs:
       # Start by downloading the relevant executable
       - uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.N_SUFFIX }}
+          name: MOCCa.${{ env.N_SUFFIX }}
           path: exec/
       - name: Download executable for pasta
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.P_SUFFIX }}
+          name: MOCCa.${{ env.P_SUFFIX }}
           path: exec/
 
       - name: Make the executables executable
         # Unfortunately, github artifacts don't retain permissions.
         run: |
-          chmod +x exec/Tantalus.${{ env.N_SUFFIX }}.exe
-          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.N_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.P_SUFFIX }}.exe
 
       - name: Run boundary conditions test
         # Perform the test
@@ -388,6 +388,61 @@ jobs:
           path: |
             testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
             testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
+          retention-days: 90
+
+  blocking:
+    #-----------------------------------------------------------------------------
+    # Run the blocking.sh test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER:
+          - gfortran
+    env:
+      SUFFIX  : BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: BXL-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+        # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # Start by downloading the relevant executable
+      - uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download executable for pasta
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make the executables executable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run blocking test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash blocking.sh $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: boundary_conditions-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/blocking_full.out
+            testing/integration/logs/blocking_FV.out
+            testing/integration/logs/blocking_EFA.out
+            testing/integration/logs/blocking_EFA_T.out
           retention-days: 90
 
   continuation_wf:
@@ -414,12 +469,12 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
-        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+        run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run continuation_wf test
         # Perform the test
@@ -463,12 +518,12 @@ jobs:
       - name: Download executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
-        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+        run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run continuation_wf test
         # Perform the test
@@ -510,17 +565,17 @@ jobs:
   #    SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.SERIAL
   #  steps:
   #    - name: Checkout code # needed to get the testing scripts
-  #      uses: actions/checkout@v4
+  #      uses: actions/checkout@v6
   #
   #    - name: Download executable
-  #      uses: actions/download-artifact@v4
+  #      uses: actions/download-artifact@v7
   #      with:
-  #        name: Tantalus.${{ env.SUFFIX }}
+  #        name: MOCCa.${{ env.SUFFIX }}
   #        path: exec/
   #
   #    - name: Make executeable
   #     # Unfortunately, github artifacts don't retain permissions.
-  #      run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+  #      run:  chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
   #    - name: Run store_derivatives test
   #      # Actually execute the test
@@ -530,7 +585,7 @@ jobs:
 
   #    - name: Upload store_derivatives test results
   #      if: success() || failure() # Always upload the code outputs
-  #      uses: actions/upload-artifact@v4
+  #      uses: actions/upload-artifact@v7
   #      with:
   #        name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}.logs
   #        path: |
@@ -561,19 +616,19 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the executables
         with:
-          name: Tantalus.${{ env.SUFFIX_VAC }}
+          name: MOCCa.${{ env.SUFFIX_VAC }}
           path: exec/
       - uses: actions/download-artifact@v7
         # Download the executables
         with:
-          name: Tantalus.${{ env.SUFFIX_PAS }}
+          name: MOCCa.${{ env.SUFFIX_PAS }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX_VAC }}.exe
-          chmod +x exec/Tantalus.${{ env.SUFFIX_PAS }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_VAC }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_PAS }}.exe
 
       - name: Run lattice energy test
         # Actually execute the test
@@ -611,13 +666,13 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the executables
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run spaghetti test
         # Actually execute the test
@@ -662,20 +717,20 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the executables
         with:
-          name: Tantalus.${{ env.P_SUFFIX }}
+          name: MOCCa.${{ env.P_SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
         # Download the executables
         with:
-          name: Tantalus.${{ env.S_SUFFIX }}
+          name: MOCCa.${{ env.S_SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.S_SUFFIX }}.exe
-          chmod +x exec/Tantalus.${{ env.P_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.S_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.P_SUFFIX }}.exe
 
       - name: Run parallel script
         # Actually execute the test (source call to ensure MPIRUN is available)
@@ -724,30 +779,30 @@ jobs:
       - name: Download symmetric executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.EXEC }}
+          name: MOCCa.${{ env.EXEC }}
           path: exec/
       - name: Download parity broken executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.EXEC_P }}
+          name: MOCCa.${{ env.EXEC_P }}
           path: exec/
       - name: Download time-reversal broken executable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.EXEC_T }}
+          name: MOCCa.${{ env.EXEC_T }}
           path: exec/
       - name: Download TP-broken executeable
         uses: actions/download-artifact@v7
         with:
-          name: Tantalus.${{ env.EXEC_TP }}
+          name: MOCCa.${{ env.EXEC_TP }}
           path: exec/
 
       - name: Make executeable
         run:  |
-         chmod +x exec/Tantalus.${{ env.EXEC    }}.exe
-         chmod +x exec/Tantalus.${{ env.EXEC_P  }}.exe
-         chmod +x exec/Tantalus.${{ env.EXEC_T  }}.exe
-         chmod +x exec/Tantalus.${{ env.EXEC_TP }}.exe
+         chmod +x exec/MOCCa.${{ env.EXEC    }}.exe
+         chmod +x exec/MOCCa.${{ env.EXEC_P  }}.exe
+         chmod +x exec/MOCCa.${{ env.EXEC_T  }}.exe
+         chmod +x exec/MOCCa.${{ env.EXEC_TP }}.exe
 
       - name: Run symmetries test
         # Useage: bash symmetries param exec exec_P exec_T exec_TP
@@ -788,7 +843,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
@@ -812,7 +867,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
@@ -857,7 +912,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
@@ -869,7 +924,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
 
       - name: Run the testing script
@@ -924,13 +979,13 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run script
         # Actually execute the test (source call to ensure MPIRUN is available)
@@ -972,13 +1027,13 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run script
         # Actually execute the test (source call to ensure MPIRUN is available)
@@ -995,7 +1050,59 @@ jobs:
           path: |
             testing/integration/logs/cranking.${{ env.SUFFIX }}.out.J
             testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
-          retention-days: 90          
+          retention-days: 90
+
+  magmoment_Sc41:
+    #---------------------------------------------------------------------------
+    # Run the magmoment_Sc41.sh test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX  : NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: NLO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+    steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable (time-reversal conserving)
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - uses: actions/download-artifact@v7
+        # Download the mean-field executable (time-reversal breaking)
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run magmoment_Sc41 test
+        # Actually execute the test (source call to ensure MPIRUN is available)
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash magmoment_Sc41.sh $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure() # Always upload the code outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: magmoment_Sc41-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/magmoment_Sc41_FV.out
+            testing/integration/logs/magmoment_Sc41_blocked.out
+          retention-days: 90
 
   fam_unit_tests:
     # Unit tests for the FAM code
@@ -1025,7 +1132,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
@@ -1037,7 +1144,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
 
       - name: Run the testing script
@@ -1086,7 +1193,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
@@ -1098,7 +1205,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
 
       - name: Run the testing script (several times!)
@@ -1149,7 +1256,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       # Download the FAM executables
@@ -1171,7 +1278,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
@@ -1222,13 +1329,13 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX_T }}
+          name: MOCCa.${{ env.SUFFIX_T }}
           path: exec/
 
       # Download the FAM executables
@@ -1245,8 +1352,8 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
-          chmod +x exec/Tantalus.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
 
@@ -1292,7 +1399,7 @@ jobs:
       - uses: actions/download-artifact@v7
         # Download the mean-field executable
         with:
-          name: Tantalus.${{ env.SUFFIX }}
+          name: MOCCa.${{ env.SUFFIX }}
           path: exec/
 
       # Download the FAM executables
@@ -1304,7 +1411,7 @@ jobs:
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  |
-          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
           chmod +x exec/fam.${{ env.SUFFIX }}.exe
 
       - name: Run the testing script (several times!)

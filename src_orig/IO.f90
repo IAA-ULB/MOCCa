@@ -1,17 +1,28 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module IO
  !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
- !============================================================================== 
  ! High-level module governing all aspects of in- and output. 
  ! The lower-level functions that this module relies on are grouped into
  !   - hdf5_auxiliary.f90 : auxiliary routines for hdf5 reading/writing
@@ -441,7 +452,7 @@ contains
     ! etc and is for this reason no performed "centrally". Rather, it is done
     ! within each kind of subroutine. 
     !    - iniwavefunctions => load balance based on the EV8 symmetries
-    !    - readtantalus     => load balance based on the symmetries on file
+    !    - readMOCCa        => load balance based on the symmetries on file
     !    - transformspwfs   => load balance based on the actual symmetries
     !                          of the calculation.
     ! This kind of approach incurs some communication overheads that can 
@@ -449,9 +460,9 @@ contains
     ! like an inefficient use of human time since it concerns only the set-up
     ! of a given calculation.
     !---------------------------------------------------------------------------
-    use IO_wf, only : read_tantalus_wf, file_HFB_blocks
+    use IO_wf, only : read_mocca_wf, file_HFB_blocks
 #if(USE_HDF5 == 1)
-    use IO_wf, only : read_tantalus_hdf5
+    use IO_wf, only : read_mocca_hdf5
 #endif
     use IO_wf, only : file_rank_map, file_spwf_map, file_spwf_inverse 
     use IO_wf, only : filenx, fileny, filenz, filenwn, filenwp,filedx, filemv
@@ -525,13 +536,13 @@ contains
     else if(inputoption.eq.2) then
 #if (USE_HDF5 > 0)
       ! Option 2a) start from a previous calculation with hdf5 input file
-      call read_tantalus_hdf5(inputfilename, sym_transfo_needed)
+      call read_mocca_hdf5(inputfilename, sym_transfo_needed)
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
     else
       ! Option 2b) start from a previous calculation with .wf input file
-      call read_tantalus_wf(12, inputfilename)
+      call read_mocca_wf(12, inputfilename)
       ! No need to guess gaps every time (unless the user asked for it)
     endif
     !---------------------------------------------------------------------------
@@ -694,9 +705,9 @@ subroutine write_header(iochannel)
     !          If this ends in "HDF5" (case-insensitive), then the code will write an HDF5 file.
     !          If not, then a simple fortran unformatted file will be written.
     !--------------------------------------------------------------------------------------------
-    use IO_wf, only: write_tantalus_wf
+    use IO_wf, only: write_mocca_wf
 #if(USE_HDF5 == 1)
-    use IO_wf, only : write_tantalus_hdf5
+    use IO_wf, only : write_mocca_hdf5
 #endif
 
     integer, intent(in)          :: chan
@@ -704,12 +715,12 @@ subroutine write_header(iochannel)
 
     if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
-      call write_tantalus_hdf5(ofn) !new hdf5 format
+      call write_mocca_hdf5(ofn) !new hdf5 format
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
     else
-      call write_tantalus_wf(chan, ofn) ! old style in .wf file
+      call write_mocca_wf(chan, ofn) ! old style in .wf file
     endif
 
   end subroutine WriteWaveFunction

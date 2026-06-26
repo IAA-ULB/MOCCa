@@ -35,9 +35,9 @@
 #
 # -p param: specify a parameterization name (should be without collective corrections)
 # -e exec : specify the  suffix of the executable with antiperiodic boundary conditions
-#            Example: "BXL.NUCLEI" for "Tantalus.BXL.NUCLEI.exe".
+#            Example: "BXL.NUCLEI" for "MOCCa.BXL.NUCLEI.exe".
 # -f exec : specify the  suffix of the executable with periodic boundary conditions
-#            Example: "BXL.PASTA" for "Tantalus.BXL.PASTA.exe".
+#            Example: "BXL.PASTA" for "MOCCa.BXL.PASTA.exe".
 # -n np   : specify the number of points in the lattice (dx=1.0), so it determines the lattice spacing
 #
 #  Attention: the exe being called should be able to auto-initialise, i.e. to
@@ -78,7 +78,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=20, protons=20
 /
@@ -124,9 +124,9 @@ setup_test_env "lattice_energy" "$exec_anti" "$param"
 write_data  $param 16 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check1=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check1=$?
 # get the coulomb energy
 Ecv=$(get_coulomb_energy_stdout $outfile)
 echo "fast check coul vac" $Ecv $refEcv
@@ -141,9 +141,9 @@ setup_test_env "lattice_energy" "$exec_period" "$param"
 write_data  $param $np
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check2=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check2=$?
 # get the coulomb energy
 Ecl=$(get_coulomb_energy_stdout $outfile)
 echo "fast check coul latt" $Ecl
@@ -158,8 +158,8 @@ teardown_test_env
 echo '------------------------------------------------'
 echo ' Runtime checks                           '
 echo '------------------------------------------------'
-printf ' vacuum calculations   ->  %1d \n' $tantalus_check1
-printf ' lattice calculations   ->  %1d \n' $tantalus_check2
+printf ' vacuum calculations   ->  %1d \n' $mocca_check1
+printf ' lattice calculations   ->  %1d \n' $mocca_check2
 # ... and compare with a tolerance of 50 keV to the expected answer
 compare_floats $Ecv $refEcv 0.050
 check_energy_coul_vac=$?

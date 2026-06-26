@@ -1,13 +1,13 @@
 #------------------------------------------------------------------------------------
 #
-# Makefile for the succesfull compilation of different Tantalus executables.
+# Makefile for the succesfull compilation of different MOCCa executables.
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # For succesful compilation, one needs
 #
-# * a complete copy of the Tantalus repository, including
+# * a complete copy of the MOCCa repository, including
 #   - a working Hephaestos version
-#   - a correct set of Tantalus source code template files
+#   - a correct set of MOCCa source code template files
 #
 # * a working installation of some version of Python3 to run Hephaestos
 #   - which should have access to basic Python libraries and numpy in particular
@@ -29,9 +29,9 @@
 #
 #   > make CONFIG=BXL
 #
-# will compile a Tantalus executable based on the BXL.py configuration file
+# will compile a MOCCa executable based on the BXL.py configuration file
 # (look in the configs/ folder). By default, executables at the end will be
-# named Tantalus.$(CONFIG).exe and be placed in the $(EXECDIR) configured
+# named MOCCa.$(CONFIG).exe and be placed in the $(EXECDIR) configured
 # in make.inc.
 #
 # An alternative is to not use a make.inc file but directly pass the Makefile the
@@ -90,7 +90,7 @@ INCLUDEFILE=$(INCLUDE)
 ifeq ("$(wildcard $(INCLUDEFILE))","")
   INCLUDE_ALT := make_include/make.inc.$(INCLUDEFILE)
 ifeq ("$(wildcard $(INCLUDE_ALT))","")
-  $(error $(INCLUDE_ALT) was not found; Tantalus cannot be compiled.)
+  $(error $(INCLUDE_ALT) was not found; MOCCa cannot be compiled.)
 else
   INCLUDEFILE=$(INCLUDE_ALT)
 endif
@@ -107,7 +107,7 @@ include $(INCLUDEFILE)
 ################################################################################
 CONFIG  := default
 CONFIG_FILE := configs/$(CONFIG).py
-EXENAME := Tantalus.$(CONFIG).exe
+EXENAME := MOCCa.$(CONFIG).exe
 FAMNAME := fam.$(CONFIG).exe
 
 # Obtaining the name of the functional from the config file in order to get 
@@ -194,7 +194,7 @@ endif
 ################################################################################
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Tantalus source files
+# MOCCa source files
 MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
 ifeq ($(USE_HDF5),1)
 MF_SRC    +=   hdf5_auxiliary.f90
@@ -208,7 +208,7 @@ MF_SRC  +=   pairing.f90 densities.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 MF_SRC  +=   fission_MOI.f90 functional.f90 evolution.f90 scfiteration.f90
 MF_SRC  +=   IO_aux.f90 IO_wf.f90
-MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
+MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
@@ -226,7 +226,7 @@ FAM_SRC +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC +=   fission_MOI.f90 functional.f90 evolution.f90 scfiteration.f90
 FAM_SRC +=   fam_gmres.f90 fam.f90 fam_testing.f90
 FAM_SRC  +=  IO_aux.f90 IO_wf.f90
-FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
+FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
 FAM_SRC +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
@@ -365,7 +365,7 @@ $(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
 	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $<
 $(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
 	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $<
-	
+
 setversioninfo_mf:
 # Copy the git information into the main code, so it can be printed
 	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(MF_SRC_DIR)/version.f90

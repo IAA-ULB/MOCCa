@@ -1,97 +1,37 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module convergence
 
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
- !==============================================================================
- use Geninfo
+ use geninfo
 
  implicit none
-
 
  real(KIND=dp), allocatable :: con_rates(:)   
 
 contains
 
-!  subroutine monitor_convergence(iter)
-!    !---------------------------------------------------------------------------
-!    ! We calculate estimates for various convergence rates. 
-!    !
-!    !
-!    !
-!    !---------------------------------------------------------------------------
-
-!    use functional
-!    use moments
-
-!    integer, intent(in)   :: iter
-!    integer               :: N, i
-!    real(KIND=dp)         :: rate, ds, dsold, D
-!    type(Moment), pointer :: mom 
-!    
-!    !if(allocated(con_rates)) deallocate(con_rates)
-!    
-!    !---------------------------------------------------------------------------
-!    ! Count how many rates we need
-!    !N = 3     ! Energy + complete Routhian + (E_func - E_spwf)
-
-!    !mom => Root
-!    !do while(associated(mom%next))
-!    !    mom => mom%next
-!    !    if(mom%constrainttype.ne.0) N = N+1
-!    !enddo
-
-!    !---------------------------------------------------------------------------
-!    if(.not. allocated(con_rates)) then
-!        allocate(con_rates(4)) ; con_rates = 0.0d0
-!    endif
-
-!    ! Rate of total energy
-!    D = log(abs(totalE-EHistory(1))/abs(EHistory(1)-EHistory(2)))     
-!    D = D/log(abs(Ehistory(1)-EHistory(2))/abs(EHistory(2)-EHistory(3)))     
-!    D = D - con_rates(1)
-!    con_rates(1) =  con_rates(1)  + 0.1 * D 
-!    ! Rate of the Routhian
-!    D = log(abs(Routhian-RHistory(1))/abs(RHistory(1) - RHistory(2)))
-!    D = D/log(abs(RHistory(1)-RHistory(2))/abs(RHistory(2) - RHistory(3)))
-!    D = D  - con_rates(2)
-!    con_rates(2) = con_rates(2)   + 0.1 * D
-!    ! Rate of E_spwf - E_fun
-!    ds    =   Spwfenergy     - Spwfhistory(1) - totalE      + Ehistory(1) 
-!    dsold =   Spwfhistory(1) - Spwfhistory(2) - Ehistory(1) + Ehistory(2)
-!    D = log(abs(ds)/abs(dsold)) 
-
-!    ds    =   Spwfhistory(1) - Spwfhistory(2) - Ehistory(1) + Ehistory(2)
-!    dsold =   Spwfhistory(2) - Spwfhistory(3) - Ehistory(2) + Ehistory(3)
-!    D = D / log(abs(ds)/abs(dsold)) 
-!    D = D - con_rates(3)
-!    con_rates(3) = con_rates(3) + 0.1 * D
-!  
-!    ! Rate of the change in density
-!    D = sqrt(sum((D_I_I - D_I_I_hist(:,:,1))**2)*dv) / sqrt(sum((D_I_I_hist(:,:,1) - D_I_I_hist(:,:,2))**2)*dv)
-!    D = log(D) / &
-!    &   log(sqrt(sum((D_I_I_hist(:,:,1) - D_I_I_hist(:,:,2))**2)*dv) / &
-!    &       sqrt(sum((D_I_I_hist(:,:,3) - D_I_I_hist(:,:,2))**2)*dv))
-!    D = D - con_rates(4)
-!    con_rates(4) = con_rates(4) + 0.1 * D
-
-
-
-!    do i=1, size( con_rates)
-!        if(abs(con_rates(i)) .lt. 1d-16) con_rates(i) = 0.0d0
-!    enddo
-!  end subroutine monitor_convergence
-
-  subroutine Converged(C, iter) 
+  subroutine Converged(C, iter)
     !---------------------------------------------------------------------------
     ! Checks if the code has converged using the following convergence criteria.
     !
@@ -206,5 +146,3 @@ contains
   end subroutine Converged
 
 end module convergence
-
-

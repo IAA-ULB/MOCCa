@@ -1,11 +1,33 @@
-program tantalus_single
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
+program mocca_single
   !-----------------------------------------------------------------------------
-  ! This is a very simple driver module for the entire code; it
-  ! parses any command line arguments (if there are any) and
-  ! then passes control to Run_Tantalus.
-  !
+  ! This is a very simple driver module for the entire code; it  parses any
+  ! command line arguments (if there are any) and then passes control to
+  ! Run_MOCCa.
   !-----------------------------------------------------------------------------
-  use Tantalus
+  use MOCCa
 
   implicit none
 
@@ -13,7 +35,7 @@ program tantalus_single
   ! Dealing with the optional command line arguments of the code
   ! You can invoke the code as
   !
-  !  ./Tantalus.exe filename file_number
+  !  ./MOCCa.exe filename file_number
   !
   !  filename    = string indicating the name of the file that
   !                contains the input data
@@ -24,16 +46,14 @@ program tantalus_single
   ! - if filename is absent, the code reads STDIN for input
   ! - if file_number is absent, the code will use a default value
   !------------------------------------------------------------------------------
-  !
   integer           :: Narguments, status
   integer(dp)       :: file_number = 10
   character(len=32) :: filename = 'input.dat', numberstring
 
-
   Narguments = COMMAND_ARGUMENT_COUNT()
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
-    call Run_Tantalus()
+    call Run_MOCCa()
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
@@ -57,6 +77,6 @@ program tantalus_single
       endif
     endif
     ! Run the code from input on file "filename"
-    call Run_Tantalus(file_number, filename)
+    call Run_MOCCa(file_number, filename)
   endif
 end program 

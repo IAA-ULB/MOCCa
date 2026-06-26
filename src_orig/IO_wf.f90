@@ -1,17 +1,28 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module IO_wf
   !==============================================================================
-  !_________ _______  _       _________ _______  _                 _______ 
-  !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
-  !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
-  !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
-  !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
-  !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
-  !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
-  !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
-  !                                                                       
-  !  Copyright W. Ryssens & M. Bender
-  !
-  !============================================================================== 
   ! Module governing the writing and reading of wave function files; 
   !   a submodule of the IO.f90 file.
   !------------------------------------------------------------------------------
@@ -20,10 +31,10 @@ module IO_wf
   !
   !     SYM_CODE   : $SYM_CODE  
   !        String encoding the symmetry choices of this particular version of 
-  !        Tantalus. Written to .wf files created by this version.
+  !        Mocca. Written to .wf files created by this version.
   !
   !     TRANS_CODE : $TRANS_CODE
-  !        String encoding the symmetry choices that this version of Tantalus
+  !        String encoding the symmetry choices that this version of Mocca
   !        can READ (in addition to its own type of files).
   ! 
   ! I.e. when compiled, the code can read files characterized by either 
@@ -94,9 +105,9 @@ module IO_wf
 
  contains
 
-  subroutine read_tantalus_wf(chan, ifn)
+  subroutine read_mocca_wf(chan, ifn)
     !---------------------------------------------------------------------------
-    ! Reading all information from a previous Tantalus run stored in a .wf file.
+    ! Reading all information from a previous Mocca run stored in a .wf file.
     ! It does not (yet) exploit MPI I/O; reading is essentially done by rank 0
     ! and then broadcasted to the rest of the ranks.
     !
@@ -567,10 +578,10 @@ module IO_wf
        endif  
       endif
     endif
-  end subroutine read_tantalus_wf
+  end subroutine read_mocca_wf
  
 #if( $FAM == 0 )
-  subroutine write_tantalus_wf(chan, ofn)
+  subroutine write_mocca_wf(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
     ! Note: this does not (yet) use any MPI I/O operations, it simply relies on
@@ -778,11 +789,11 @@ module IO_wf
     close(chan)
 
     call stop_timer(T_wfoutput)
-  end subroutine write_tantalus_wf
+  end subroutine write_mocca_wf
 #endif
 
 #if (USE_HDF5 > 0 && $FAM == 0)
-  subroutine write_tantalus_hdf5(ofn)
+  subroutine write_mocca_hdf5(ofn)
     !------------------------------------------------------------------------------------------
     ! Subroutine that writes a .hdf5 file to warmstart future runs or to do more
     ! analysis.
@@ -857,7 +868,7 @@ module IO_wf
 
     call stop_timer(T_wfoutput)
 
-  end subroutine write_tantalus_hdf5
+  end subroutine write_mocca_hdf5
 
   subroutine write_hdf5_attributes(file_id)
     !-----------------------------------------------------------------------------
@@ -1149,7 +1160,7 @@ module IO_wf
 #endif 
 
 #if( USE_HDF5 > 0)
-  subroutine read_tantalus_hdf5(ifn, sym_transfo_needed)
+  subroutine read_mocca_hdf5(ifn, sym_transfo_needed)
     !------------------------------------------------------------------------------------------
     ! Subroutine that reads a .hdf5 file to warmstart future runs or to do more analysis.
     !
@@ -1209,7 +1220,7 @@ module IO_wf
     call h5close_f(h5ferr)
 
     call stop_timer(T_wfinput)
-  end subroutine read_tantalus_hdf5
+  end subroutine read_mocca_hdf5
 
   subroutine read_hdf5_attributes(file_id, sym_transfo_needed)
     !-----------------------------------------------------------------------------

@@ -1,12 +1,34 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
+module timing
 !-------------------------------------------------------------------------------
-! Timing module for Tantalus, allowing for the definition of times in multiple
+! Timing module for MOCCa, allowing for the definition of times in multiple
 ! (possibly nested) contexts.
 !
 ! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the
 ! Yale SMMC code in 2010/2014.
 !-------------------------------------------------------------------------------
-module timing
-
   use compilation,     only : dp
   use geninfo,         only : MPI_RANK, NPROCS, MPI_BLOCK_ASSIGNMENTS
   use iso_fortran_env, only : int64, real64
@@ -21,7 +43,7 @@ module timing
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
   integer :: T_wfini, T_wfoutput, T_wfinput
-  integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
+  integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_MOCCa
   integer :: T_subspace_rotation, T_subrot_transfo, T_subrot_diag
   integer :: T_calc_sph, T_calc_sph_me, T_update_sph
   integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp

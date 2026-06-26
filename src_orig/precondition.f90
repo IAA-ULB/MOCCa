@@ -1,17 +1,30 @@
 !===============================================================================
-!  #######   ##   #    # #####   ##   #      #    #  ####
-!     #     #  #  ##   #   #    #  #  #      #    # #
-!     #    #    # # #  #   #   #    # #      #    #  ####
-!     #    ###### #  # #   #   ###### #      #    #      #
-!     #    #    # #   ##   #   #    # #      #    # #    #
-!     #    #    # #    #   #   #    # ######  ####   ####
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
 !
-!  Copyright W. Ryssens & M. Bender
+!    Copyright (C) 2026 W. Ryssens and M. Bender
 !
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
+module preconditioning
 !===============================================================================
 !
 ! Module that governs all of the possible preconditioning that can be applied.
-!
 !
 ! Two different possibilities are currently presented. 
 ! 
@@ -37,75 +50,11 @@
 !     operator in a conjugate gradient scheme.
 !===============================================================================
 
-module preconditioning
-
     use derivatives
 
     implicit none
     
 contains
-
- !------------------------------------------------------------------------------
- !   (1)
- !------------------------------------------------------------------------------
-! subroutine InvertDerivatives(eps,C,invX,invY,invZ)
-!    !---------------------------------------------------------------------------
-!    ! Construct the inverse matrices of the second Lagrange derivative matrices.
-!    ! With some parameters ( epsilon and c) to make the thing look like a true
-!    ! inverted Hamiltonian.
-!    !
-!    ! Calculates and returns matrices invX, invY and invZ that are
-!    !    
-!    !      (C * Delta_{x/y/z} - eps)^{-1}
-!    !---------------------------------------------------------------------------
-!    ! OUTPUT
-!    real(KIND=dp),intent(out) :: invX(nx,nx,2),invY(ny,ny,2),invZ(nz,nz,2)
-!    ! INPUT 
-!    real(KIND=dp),intent(in)  :: eps, C 
-!    
-!    integer :: pivotx(nx)
-!    integer :: pivoty(ny)
-!    integer :: pivotz(nz)    
-!    integer :: ierror, pm,i
-!    real(KIND=dp) :: work(nz)
-
-!    !---------------------------------------------------------------------------
-!    ! Invert the shifted Laplacians
-!    do pm=1,2
-!        invX(:,:,pm) = C*laplaX(:,:,pm)
-!        do i=1,nx
-!            invX(i,i,pm) = invX(i,i,pm) - eps
-!        enddo
-!        call dgetrf (nx, nx, invX(:,:,pm), nx,pivotx, ierror)
-!        call dgetri (nx, invX(:,:,pm), nx, pivotx, work, nx, ierror) 
-!    enddo
-
-!    do pm=1,2
-!        invY(:,:,pm) = C*laplaY(:,:,pm)
-!        do i=1,ny
-!            invY(i,i,pm) = invY(i,i,pm) - eps
-!        enddo
-!        call dgetrf (ny, ny, invY(:,:,pm), ny,pivoty, ierror)
-!        call dgetri (ny, invY(:,:,pm), nx, pivoty, work, ny, ierror) 
-!    enddo
-
-!    do pm=1,2
-!        invZ(:,:,pm) = C*laplaZ(:,:,pm)
-!        do i=1,nz
-!            invZ(i,i,pm) = invZ(i,i,pm) - eps
-!        enddo
-!        call dgetrf (nz, nz, invZ(:,:,pm), nz,pivotz, ierror)
-!        call dgetri (nz, invZ(:,:,pm), nz, pivotz, work, nz, ierror) 
-!    enddo
-!    !---------------------------------------------------------------------------
-!    if(ierror.ne.0) then
-!        print *, 'Error in inverting the shifted laplacians.'
-!        stop
-!    endif
-! end subroutine InvertDerivatives
- !------------------------------------------------------------------------------
- !   (2)
- !------------------------------------------------------------------------------
 
  function PreconditionPotential(pot,A,B,sx,sy,sz) result(invpot)
     !---------------------------------------------------------------------------

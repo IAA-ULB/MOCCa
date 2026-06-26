@@ -67,7 +67,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                          'hdf5_auxiliary.f90', \
                          'IO_aux.f90', 'basis_transform.f90' ]
     # List of files that can be processed by a generic preprocessor
-    generic_process_files = [ 'tantalus.f90', 'scfiteration.f90', \
+    generic_process_files = [ 'mocca.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \
                               'HFB_direct.f90', 'momentsofinertia.f90', \
                               'evolution.f90', 'fam.f90','fam_testing.f90']
