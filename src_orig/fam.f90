@@ -229,6 +229,11 @@ contains
         F = read_f(Finfile)
       else
         F = get_external_field(operator_type)
+
+        !----------------------------------------------------------------------------------
+        ! 2) Multiply the single-particle matrix elements by the effective charges 
+        F(1:nwn,1:nwn,:) = eff_charge_n * F(1:nwn,1:nwn,:) 
+        F(nwn+1:,nwn+1:,:) = eff_charge_p * F(nwn+1:,nwn+1:,:)
       endif
     endif
 
@@ -1322,6 +1327,7 @@ contains
     !  - in case of HF, qpme F20_mn and F02_mn reduce to Fph_ai and Fhp_ai, 
     !    the particle-hole and hole-particle subblocks of the spme, where 'a' is 
     !    an unoccupied sp index and 'i' is an occupied sp index
+    !  - the field is NOT yet multiplied by the effective charges
     !---------------------------------------------------------------------------
  
     character(len=*), intent(in) :: op_type
@@ -1410,13 +1416,9 @@ contains
         call stp('Unrecognized operator_type!')
     end select
 
-    !----------------------------------------------------------------------------------
-    ! 2) Multiply the single-particle matrix elements by the effective charges 
-    f_spme(1:nwn,1:nwn) = eff_charge_n * f_spme(1:nwn,1:nwn)
-    f_spme(nwn+1:,nwn+1:) = eff_charge_p * f_spme(nwn+1:,nwn+1:)
 
     !----------------------------------------------------------------------------------
-    ! 3) convert spme to quasiparticle basis
+    ! 2) convert spme to quasiparticle basis
     if (pairingtype==0) then ! FAM
       call get_ph_hp_blocks(f_spme, f_qpme(:,:,1), f_qpme(:,:,2))
     else ! QFAM
