@@ -157,6 +157,7 @@ module fam
   integer :: l = -1, m = -1 ! angular momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
+  logical :: remove_spurious = .true. ! boolian for subtracting the spurious modes
   !-----------------------------------------------------------------------------
   ! convergence
   complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
@@ -310,7 +311,8 @@ contains
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type
+    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type, &
+    &               remove_spurious
 
     if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -346,7 +348,8 @@ contains
     3 format ( ' Perturbing field:   ', /, &
     &          '    F = Q_', i1, i1,/, &
     &          '    neutron eff charge = ', f10.3, ' e', /, &
-    &          '    proton eff charge  = ', f10.3, ' e')
+    &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    &          '    subtract spur. mode ?  ', L4)
     41 format (' Convergence strategy: GMRES', /,  &
     &          '    max history size = ', i8, /,  &
     &          '    max # iterations = ', i8, /,  &
@@ -362,7 +365,7 @@ contains
     if (XYtoF) then
       print 5
     else
-      print 3, l, m, eff_charge_n, eff_charge_p
+      print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
       if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
     endif

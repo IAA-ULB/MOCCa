@@ -351,7 +351,7 @@ program run_FAM
 
 
     ! subtract the spurious mode
-    call subtract_spurious_modes()
+    if (remove_spurious) call subtract_spurious_modes()
 
     call calc_strength_decomp(S_complex_decomp, S_decomp)
 
