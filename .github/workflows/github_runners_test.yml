@@ -74,6 +74,59 @@ jobs:
           path: exec/MOCCa.${{ env.SUFFIX }}.exe
           retention-days: 2
 
+  compile-fam-nuclei:
+    #------------------------------------------------------------------------------
+    # Compile FAM executables for gfortran compiler
+    #   - CONFIG   = configuration file (various levels)
+    #   - COMPILER = gfortran only
+    #   - CALCTYPE = NUCLEI
+    #   - MPI      = false (serial only)
+    #------------------------------------------------------------------------------
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG     :  [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL ]
+        COMPILER   :  [ gfortran ]
+        CALCTYPE   :  [ NUCLEI   ]
+        MPI        :  [ false    ]
+
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+      # HDF5 disabled
+      HDF5SUFFIX: 
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        # Install gfortran, LAPACK, BLAS, SCALAPACK, OpenMPI, and Python packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gfortran liblapack-dev libblas-dev \
+              libopenmpi-dev openmpi-bin libscalapack-mpi-dev \
+              python3 python3-numpy python3-scipy
+
+      - name: Compile MOCCa
+        # Copy the appropriate make.inc file and compile
+        run: |
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          make fam CONFIG=${{ matrix.CONFIG }} FAMNAME=fam.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+        env:
+          PYTHON_CMD: python3
+
+      - name: Upload FAM executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/fam.${{ env.SUFFIX }}.exe
+          retention-days: 2
+
   minimal:
     #-----------------------------------------------------------------------------
     # Run the 'minimal' test for gfortran compiler
