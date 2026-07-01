@@ -5,33 +5,16 @@ name: Compile FAM Nuclei
 
 on:
   workflow_call:
-    inputs:
-      configs:
-        description: 'JSON array of CONFIG values'
-        required: true
-        type: string
-      compilers:
-        description: 'JSON array of COMPILER values'
-        required: true
-        type: string
-      calctypes:
-        description: 'JSON array of CALCTYPE values'
-        required: true
-        type: string
-      mpi_values:
-        description: 'JSON array of MPI values'
-        required: true
-        type: string
 
 jobs:
   compile:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        CONFIG: ${{ fromJson(inputs.configs) }}
-        COMPILER: ${{ fromJson(inputs.compilers) }}
-        CALCTYPE: ${{ fromJson(inputs.calctypes) }}
-        MPI: ${{ fromJson(inputs.mpi_values) }}
+        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL ]
+        COMPILER: [ gfortran ]
+        CALCTYPE: [ NUCLEI ]
+        MPI: [ false ]
 
     steps:
       - name: Checkout code

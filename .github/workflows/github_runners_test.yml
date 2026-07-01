@@ -25,24 +25,9 @@ on:
 jobs:
   compile-mf-nuclei:
     uses: ./.github/workflows/compile-mf-nuclei.yml
-    with:
-      configs: '[
-        "LO", "LO-T", "NLO", "NLO-T", "BXL", "BXL-T", "BXL-P", "BXL-TP",
-        "N2LO", "N2LO-T", "N2LO-P", "N2LO-TP", "BXL-N2LO"
-      ]'
-      compilers: '["gfortran"]'
-      calctypes: '["NUCLEI"]'
-      mpi_values: '[false]'
 
   compile-fam-nuclei:
     uses: ./.github/workflows/compile-fam-nuclei.yml
-    with:
-      configs: '[
-        "LO", "LO-T", "LO-P", "NLO", "NLO-T", "NLO-P", "BXL"
-      ]'
-      compilers: '["gfortran"]'
-      calctypes: '["NUCLEI"]'
-      mpi_values: '[false]'
 
   compile-mf-pasta:
     uses: ./.github/workflows/compile-mf-pasta.yml
