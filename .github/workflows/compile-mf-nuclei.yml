@@ -1,0 +1,53 @@
+#-------------------------------------------------------------------------------
+# Reusable workflow: Compile mean-field executables for nuclei calculations
+#-------------------------------------------------------------------------------
+name: Compile MF Nuclei
+
+on:
+  workflow_call:
+    inputs:
+      configs:
+        description: 'JSON array of CONFIG values'
+        required: true
+        type: string
+      compilers:
+        description: 'JSON array of COMPILER values'
+        required: true
+        type: string
+      calctypes:
+        description: 'JSON array of CALCTYPE values'
+        required: true
+        type: string
+      mpi_values:
+        description: 'JSON array of MPI values'
+        required: true
+        type: string
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: ${{ fromJson(inputs.configs) }}
+        COMPILER: ${{ fromJson(inputs.compilers) }}
+        CALCTYPE: ${{ fromJson(inputs.calctypes) }}
+        MPI: ${{ fromJson(inputs.mpi_values) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-build-deps
+
+      - name: Compile and upload
+        uses: ./.github/actions/compile-and-upload
+        with:
+          target: mf
+          config: ${{ matrix.CONFIG }}
+          compiler: ${{ matrix.COMPILER }}
+          calctype: ${{ matrix.CALCTYPE }}
+          mpi: ${{ matrix.MPI }}
+          compfam: 'gnu'
+          hdf5suffix: ''
+          execname_prefix: 'MOCCa'

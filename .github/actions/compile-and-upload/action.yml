@@ -1,0 +1,71 @@
+name: 'Compile and upload MOCCa'
+description: 'Compile MOCCa and upload executable as artifact'
+
+inputs:
+  target:
+    description: 'Make target (mf or fam)'
+    required: true
+    type: string
+  config:
+    description: 'Configuration level'
+    required: true
+    type: string
+  compiler:
+    description: 'Compiler name'
+    required: true
+    type: string
+  calctype:
+    description: 'Calculation type (NUCLEI, PASTA)'
+    required: true
+    type: string
+  mpi:
+    description: 'MPI enabled (true/false)'
+    required: true
+    type: boolean
+  compfam:
+    description: 'Compiler family (gnu/intel)'
+    required: true
+    type: string
+  hdf5suffix:
+    description: 'HDF5 suffix'
+    required: false
+    type: string
+    default: ''
+  execname_prefix:
+    description: 'Executable name prefix (MOCCa or fam)'
+    required: true
+    type: string
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set environment
+      run: |
+        MPI_LABEL="${{ inputs.mpi && 'MPI' || 'SERIAL' }}"
+        SUFFIX="${{ inputs.config }}.${{ inputs.compiler }}.${{ inputs.calctype }}.$MPI_LABEL"
+        EXENAME="${{ inputs.execname_prefix }}.$SUFFIX.exe"
+        MPISUFFIX="${{ inputs.mpi && 'parallel' || 'serial' }}"
+        
+        echo "SUFFIX=$SUFFIX" >> $GITHUB_ENV
+        echo "EXENAME=$EXENAME" >> $GITHUB_ENV
+        echo "MPISUFFIX=$MPISUFFIX" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Compile MOCCa
+      run: |
+        cp make_include/make.inc.${{ inputs.compfam }}-${{ env.MPISUFFIX }}${{ inputs.hdf5suffix }} make.inc
+        if [ "${{ inputs.target }}" = "mf" ]; then
+          make mf CONFIG=${{ inputs.config }} EXENAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
+        else
+          make fam CONFIG=${{ inputs.config }} FAMNAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
+        fi
+      shell: bash
+      env:
+        PYTHON_CMD: python3
+
+    - name: Upload executable
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.execname_prefix }}.${{ env.SUFFIX }}
+        path: exec/${{ env.EXENAME }}
+        retention-days: 2

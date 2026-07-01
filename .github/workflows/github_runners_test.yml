@@ -1,11 +1,13 @@
 #-------------------------------------------------------------------------------
 # CI/CD deployment for MOCCa on GitHub-hosted runners
 #
-# Simplified workflow using only gfortran compiler and GitHub-hosted runners.
-# This is a test workflow with only:
-#   - compile-mf-nuclei: Compile mean-field executables
+# Main workflow that orchestrates:
+#   - compile-mf-nuclei: Compile mean-field executables for nuclei
+#   - compile-fam-nuclei: Compile FAM executables for nuclei
+#   - compile-mf-pasta: Compile mean-field executables for pasta
 #   - minimal: Run minimal test
 #
+# Uses reusable workflows for each compilation type to maximize code reuse.
 #-------------------------------------------------------------------------------
 name: GitHub Runners Test
 
@@ -22,117 +24,32 @@ on:
 
 jobs:
   compile-mf-nuclei:
-    #------------------------------------------------------------------------------
-    # Compile mean-field executables for gfortran compiler
-    #   - CONFIG   = configuration file (various levels)
-    #   - COMPILER = gfortran only
-    #   - CALCTYPE = NUCLEI
-    #   - MPI      = false (serial) or true (parallel)
-    #------------------------------------------------------------------------------
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        CONFIG     :   [ LO, LO-T, NLO, NLO-T, BXL, BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP, BXL-N2LO ]
-        COMPILER   :   [ gfortran   ]
-        CALCTYPE   :   [ NUCLEI     ]
-        MPI        :   [ false]
-
-    env:
-      # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
-      # Compiler family - always gnu for GitHub runners
-      COMPFAM: gnu
-      # HDF5 disabled
-      HDF5SUFFIX: 
-      # MPI enabled
-      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install build dependencies
-        # Install gfortran, LAPACK, BLAS, SCALAPACK, OpenMPI, and Python packages
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y gfortran liblapack-dev libblas-dev \
-              libopenmpi-dev openmpi-bin libscalapack-mpi-dev \
-              python3 python3-numpy python3-scipy
-
-      - name: Compile MOCCa
-        # Copy the appropriate make.inc file and compile
-        run: |
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=MOCCa.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
-        env:
-          PYTHON_CMD: python3
-
-      - name: Upload compilation artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: MOCCa.${{ env.SUFFIX }}
-          path: exec/MOCCa.${{ env.SUFFIX }}.exe
-          retention-days: 2
+    uses: ./.github/workflows/compile-mf-nuclei.yml
+    with:
+      configs: '[
+        "LO", "LO-T", "NLO", "NLO-T", "BXL", "BXL-T", "BXL-P", "BXL-TP",
+        "N2LO", "N2LO-T", "N2LO-P", "N2LO-TP", "BXL-N2LO"
+      ]'
+      compilers: '["gfortran"]'
+      calctypes: '["NUCLEI"]'
+      mpi_values: '[false]'
 
   compile-fam-nuclei:
-    #------------------------------------------------------------------------------
-    # Compile FAM executables for gfortran compiler
-    #   - CONFIG   = configuration file (various levels)
-    #   - COMPILER = gfortran only
-    #   - CALCTYPE = NUCLEI
-    #   - MPI      = false (serial only)
-    #------------------------------------------------------------------------------
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        CONFIG     :  [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL ]
-        COMPILER   :  [ gfortran ]
-        CALCTYPE   :  [ NUCLEI   ]
-        MPI        :  [ false    ]
+    uses: ./.github/workflows/compile-fam-nuclei.yml
+    with:
+      configs: '[
+        "LO", "LO-T", "LO-P", "NLO", "NLO-T", "NLO-P", "BXL"
+      ]'
+      compilers: '["gfortran"]'
+      calctypes: '["NUCLEI"]'
+      mpi_values: '[false]'
 
-    env:
-      # Uniquely labelling the executables with this environment variable
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
-      # Compiler family
-      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
-      # HDF5 disabled
-      HDF5SUFFIX: 
-      # MPI enabled
-      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install build dependencies
-        # Install gfortran, LAPACK, BLAS, SCALAPACK, OpenMPI, and Python packages
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y gfortran liblapack-dev libblas-dev \
-              libopenmpi-dev openmpi-bin libscalapack-mpi-dev \
-              python3 python3-numpy python3-scipy
-
-      - name: Compile MOCCa
-        # Copy the appropriate make.inc file and compile
-        run: |
-          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
-          make fam CONFIG=${{ matrix.CONFIG }} FAMNAME=fam.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
-        env:
-          PYTHON_CMD: python3
-
-      - name: Upload FAM executable
-        uses: actions/upload-artifact@v7
-        with:
-          name: fam.${{ env.SUFFIX }}
-          path: exec/fam.${{ env.SUFFIX }}.exe
-          retention-days: 2
+  compile-mf-pasta:
+    uses: ./.github/workflows/compile-mf-pasta.yml
 
   minimal:
-    #-----------------------------------------------------------------------------
-    # Run the 'minimal' test for gfortran compiler
-    #-----------------------------------------------------------------------------
-    runs-on: ubuntu-latest
     needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -155,7 +72,6 @@ jobs:
           path: exec/
 
       - name: Make executable
-        # GitHub artifacts don't retain permissions
         run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
 
       - name: Run minimal test
@@ -164,7 +80,6 @@ jobs:
           bash minimal.sh $SUFFIX
 
       - name: Upload test results
-        # Always upload the code outputs (success or failure)
         if: success() || failure()
         uses: actions/upload-artifact@v7
         with:
