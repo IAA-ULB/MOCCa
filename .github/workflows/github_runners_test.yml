@@ -1,0 +1,124 @@
+#-------------------------------------------------------------------------------
+# CI/CD deployment for MOCCa on GitHub-hosted runners
+#
+# Simplified workflow using only gfortran compiler and GitHub-hosted runners.
+# This is a test workflow with only:
+#   - compile-mf-nuclei: Compile mean-field executables
+#   - minimal: Run minimal test
+#
+#-------------------------------------------------------------------------------
+name: GitHub Runners Test
+
+on:
+  push:
+    branches:
+      - master
+      - development
+  pull_request:
+    branches:
+      - master
+      - development
+  workflow_dispatch:
+
+jobs:
+  compile-mf-nuclei:
+    #------------------------------------------------------------------------------
+    # Compile mean-field executables for gfortran compiler
+    #   - CONFIG   = configuration file (various levels)
+    #   - COMPILER = gfortran only
+    #   - CALCTYPE = NUCLEI
+    #   - MPI      = false (serial) or true (parallel)
+    #------------------------------------------------------------------------------
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [ LO, NLO, BXL ]
+        COMPILER: [ gfortran ]
+        CALCTYPE: [ NUCLEI ]
+        MPI: [ false, true ]
+        exclude:
+          # Exclude MPI=true for LO since we're testing minimal setup
+          - CONFIG: LO
+            MPI: true
+
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.${{ matrix.MPI && 'MPI'|| 'SERIAL' }}
+      # Compiler family - always gnu for GitHub runners
+      COMPFAM: gnu
+      # HDF5 disabled
+      HDF5SUFFIX: 
+      # MPI enabled
+      MPISUFFIX: ${{ matrix.MPI && 'parallel'|| 'serial' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        # Install gfortran, LAPACK, BLAS, SCALAPACK, OpenMPI, and Python packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gfortran liblapack-dev libblas-dev \
+              libopenmpi-dev openmpi-bin libscalapack-mpi-dev \
+              python3 python3-numpy python3-scipy
+
+      - name: Compile MOCCa
+        # Copy the appropriate make.inc file and compile
+        run: |
+          cp make_include/make.inc.${{ env.COMPFAM }}-${{ env.MPISUFFIX }}${{ env.HDF5SUFFIX }} make.inc
+          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=MOCCa.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+        env:
+          PYTHON_CMD: python3
+
+      - name: Upload compilation artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/MOCCa.${{ env.SUFFIX }}.exe
+          retention-days: 2
+
+  minimal:
+    #-----------------------------------------------------------------------------
+    # Run the 'minimal' test for gfortran compiler
+    #-----------------------------------------------------------------------------
+    runs-on: ubuntu-latest
+    needs: compile-mf-nuclei
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        # GitHub artifacts don't retain permissions
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run minimal test
+        run: |
+          cd testing/integration/
+          bash minimal.sh $SUFFIX
+
+      - name: Upload test results
+        # Always upload the code outputs (success or failure)
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: minimal-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
+          retention-days: 2
