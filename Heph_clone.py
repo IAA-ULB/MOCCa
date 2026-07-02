@@ -72,7 +72,7 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
 
 #   sys.exit(1)
 
-config                 = 'NLO' #sys.argv[1]
+config                 = 'BXL' #sys.argv[1]
 EXETYPE                = 'mf'     #sys.argv[2]
 DENSITY_SPWF_SUMMATION = 0      # int(sys.argv[3])
 source_location        = 'src_orig/' #sys.argv[4]
@@ -208,6 +208,7 @@ calc = fields_result[2]
 
 # First, we massage the declaration
 # First, remove all mentions of allocation
+print ('FIELDS')
 newcalc = ''
 for line in calc.split('\n'):
   if('allocate' in line or 'if' in line):
