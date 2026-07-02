@@ -1,3 +1,9 @@
+module G_I_NS
+
+  implicit none
+
+contains
+
 subroutine calc_G_I_NS(Der_D_I_I, C_I_NS, coupl_constant, ngrid, G_I_NS)
   !--------------------------------------------------------------------------------------------
   ! Calculate the mean-field potential G_I_NS from the densities
@@ -31,158 +37,160 @@ subroutine calc_G_I_NS(Der_D_I_I, C_I_NS, coupl_constant, ngrid, G_I_NS)
   !--------------------------------------------------------------------------------------------
 
   integer, intent(in) :: ngrid
-  real*8, intent(in)  :: Der_D_I_I(ngrid,3,2), C_I_NS(ngrid,3,3,2), coupl_constant(14)
+  real*8, intent(in)  :: Der_D_I_I(ngrid,3,2), C_I_NS(ngrid,3,3,2), coupl_constant(22)
   real*8, intent(out) :: G_I_NS(ngrid,3,3,2)
 
   !---------------------------------------------------------------------------
   ! Calculation of G_I_NS
   G_I_NS = 0.0
+
   !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Isospin = 0
   G_I_NS(:,1,1,1) = G_I_NS(:,1,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,1,1)
 
   G_I_NS(:,1,2,1) = G_I_NS(:,1,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,2,1)
 
   G_I_NS(:,1,3,1) = G_I_NS(:,1,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,3,1)
 
   G_I_NS(:,2,1,1) = G_I_NS(:,2,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,1,1)
 
   G_I_NS(:,2,2,1) = G_I_NS(:,2,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,2,1)
 
   G_I_NS(:,2,3,1) = G_I_NS(:,2,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,3,1)
 
   G_I_NS(:,3,1,1) = G_I_NS(:,3,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,1,1)
 
   G_I_NS(:,3,2,1) = G_I_NS(:,3,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,2,1)
 
   G_I_NS(:,3,3,1) = G_I_NS(:,3,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,3,1)
 
   G_I_NS(:,1,1,1) = G_I_NS(:,1,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,1,1)
 
   G_I_NS(:,1,2,1) = G_I_NS(:,1,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,2,1)
 
   G_I_NS(:,1,3,1) = G_I_NS(:,1,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,1,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,1,3,1)
 
   G_I_NS(:,2,1,1) = G_I_NS(:,2,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,1,1)
 
   G_I_NS(:,2,2,1) = G_I_NS(:,2,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,2,1)
 
   G_I_NS(:,2,3,1) = G_I_NS(:,2,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,2,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,2,3,1)
 
   G_I_NS(:,3,1,1) = G_I_NS(:,3,1,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,1,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,1,1)
 
   G_I_NS(:,3,2,1) = G_I_NS(:,3,2,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,2,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,2,1)
 
   G_I_NS(:,3,3,1) = G_I_NS(:,3,3,1)  &
-       & + coupl_constant(11)  * C_I_NS(:,3,3,1)
+  & + coupl_constant( 9)  * C_I_NS(:,3,3,1)
 
   G_I_NS(:,2,3,1) = G_I_NS(:,2,3,1)  &
-       & - coupl_constant(13)  * Der_D_I_I(:,1,1)
+  & - coupl_constant(21)  * Der_D_I_I(:,1,1)
 
   G_I_NS(:,3,2,1) = G_I_NS(:,3,2,1)  &
-       & + coupl_constant(13)  * Der_D_I_I(:,1,1)
+  & + coupl_constant(21)  * Der_D_I_I(:,1,1)
 
   G_I_NS(:,3,1,1) = G_I_NS(:,3,1,1)  &
-       & - coupl_constant(13)  * Der_D_I_I(:,2,1)
+  & - coupl_constant(21)  * Der_D_I_I(:,2,1)
 
   G_I_NS(:,1,3,1) = G_I_NS(:,1,3,1)  &
-       & + coupl_constant(13)  * Der_D_I_I(:,2,1)
+  & + coupl_constant(21)  * Der_D_I_I(:,2,1)
 
   G_I_NS(:,1,2,1) = G_I_NS(:,1,2,1)  &
-       & - coupl_constant(13)  * Der_D_I_I(:,3,1)
+  & - coupl_constant(21)  * Der_D_I_I(:,3,1)
 
   G_I_NS(:,2,1,1) = G_I_NS(:,2,1,1)  &
-       & + coupl_constant(13)  * Der_D_I_I(:,3,1)
+  & + coupl_constant(21)  * Der_D_I_I(:,3,1)
 
   !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Isospin = 1
   G_I_NS(:,1,1,2) = G_I_NS(:,1,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,1,2)
 
   G_I_NS(:,1,2,2) = G_I_NS(:,1,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,2,2)
 
   G_I_NS(:,1,3,2) = G_I_NS(:,1,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,3,2)
 
   G_I_NS(:,2,1,2) = G_I_NS(:,2,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,1,2)
 
   G_I_NS(:,2,2,2) = G_I_NS(:,2,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,2,2)
 
   G_I_NS(:,2,3,2) = G_I_NS(:,2,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,3,2)
 
   G_I_NS(:,3,1,2) = G_I_NS(:,3,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,1,2)
 
   G_I_NS(:,3,2,2) = G_I_NS(:,3,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,2,2)
 
   G_I_NS(:,3,3,2) = G_I_NS(:,3,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,3,2)
 
   G_I_NS(:,1,1,2) = G_I_NS(:,1,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,1,2)
 
   G_I_NS(:,1,2,2) = G_I_NS(:,1,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,2,2)
 
   G_I_NS(:,1,3,2) = G_I_NS(:,1,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,1,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,1,3,2)
 
   G_I_NS(:,2,1,2) = G_I_NS(:,2,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,1,2)
 
   G_I_NS(:,2,2,2) = G_I_NS(:,2,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,2,2)
 
   G_I_NS(:,2,3,2) = G_I_NS(:,2,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,2,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,2,3,2)
 
   G_I_NS(:,3,1,2) = G_I_NS(:,3,1,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,1,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,1,2)
 
   G_I_NS(:,3,2,2) = G_I_NS(:,3,2,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,2,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,2,2)
 
   G_I_NS(:,3,3,2) = G_I_NS(:,3,3,2)  &
-       & + coupl_constant(12)  * C_I_NS(:,3,3,2)
+  & + coupl_constant(10)  * C_I_NS(:,3,3,2)
 
   G_I_NS(:,2,3,2) = G_I_NS(:,2,3,2)  &
-       & - coupl_constant(14)  * Der_D_I_I(:,1,2)
+  & - coupl_constant(22)  * Der_D_I_I(:,1,2)
 
   G_I_NS(:,3,2,2) = G_I_NS(:,3,2,2)  &
-       & + coupl_constant(14)  * Der_D_I_I(:,1,2)
+  & + coupl_constant(22)  * Der_D_I_I(:,1,2)
 
   G_I_NS(:,3,1,2) = G_I_NS(:,3,1,2)  &
-       & - coupl_constant(14)  * Der_D_I_I(:,2,2)
+  & - coupl_constant(22)  * Der_D_I_I(:,2,2)
 
   G_I_NS(:,1,3,2) = G_I_NS(:,1,3,2)  &
-       & + coupl_constant(14)  * Der_D_I_I(:,2,2)
+  & + coupl_constant(22)  * Der_D_I_I(:,2,2)
 
   G_I_NS(:,1,2,2) = G_I_NS(:,1,2,2)  &
-       & - coupl_constant(14)  * Der_D_I_I(:,3,2)
+  & - coupl_constant(22)  * Der_D_I_I(:,3,2)
 
   G_I_NS(:,2,1,2) = G_I_NS(:,2,1,2)  &
-       & + coupl_constant(14)  * Der_D_I_I(:,3,2)
+  & + coupl_constant(22)  * Der_D_I_I(:,3,2)
 
 end subroutine calc_G_I_NS
+end module

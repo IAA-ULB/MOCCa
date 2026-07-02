@@ -115,7 +115,7 @@ contains
     hpsi(:,4) =  hpsi(:,4) +  temp(:,4)
 
     !----------------------------------------------------------------------------
-    ! Action of F_Nm_Nm symmetrized: 0
+    ! Action of the operator corresponding to F_Nm_Nm
     temp = 0.0d0
     do i=1,ngrid
        temp(i,1) =  temp(i,1) -  F_Nm_Nm(i,it) * dpsi_x(i,1)
