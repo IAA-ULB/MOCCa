@@ -34,12 +34,16 @@ module fam
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   !-----------------------------------------------------------------------------
+  ! set default SENTINEL values. 
+  real(KIND=dp), parameter :: SENTINEL_DP = -999999_dp
+  integer, parameter :: SENTINEL_INT = -999999
+  !-----------------------------------------------------------------------------
   ! FAM energy frequencies
-  real(KIND=dp) :: omega_fam  ! frequency of the perturbing field 
+  real(KIND=dp) :: omega_fam=SENTINEL_DP  ! frequency of the perturbing field 
                               ! omega already defined as cranking frequency 
   ! A range of omega values can be passed by defining the min, max and stepsize
   ! i.e. omega = omega_min + k * omega_step < omega max for k=0,...
-  real(KIND=dp) :: omega_min = 0.0_dp, omega_max = 30.0_dp
+  real(KIND=dp) :: omega_min = SENTINEL_DP, omega_max = SENTINEL_DP
   real(KIND=dp) :: omega_step = 1.0_dp  ! Default stepsize of 1 MeV
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
@@ -154,7 +158,7 @@ module fam
   !   'Zcom'            = center-of mass z-coordinate
   !   'Zmomentum'       = center-of mass z momentum
   character(len=20) :: operator_type = 'multipole'
-  integer :: l = -1, m = -1 ! angular momentum and projection quantum number of the multipole moment
+  integer :: l = SENTINEL_INT, m = SENTINEL_INT ! angular momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
   logical :: remove_spurious = .true. ! boolian for subtracting the spurious modes
@@ -305,7 +309,7 @@ contains
     ! name differs from the one in input data, it gets always overwritten
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional :: file_number
-    real(KIND=dp) :: omega = -1.0_dp
+    real(KIND=dp) :: omega=SENTINEL_DP
     integer       :: mixingscheme = 0
     integer       :: maxiter = 100, maxhist = 30
 
@@ -324,15 +328,31 @@ contains
         read (unit=*, nml=fam)
       endif
 
+      ! if a single FAM frequency omega is passed, set min and max to omega
+      if(omega .ne. SENTINEL_DP) then
+        omega_min = omega
+        omega_max = omega
+      ! if no single omega is passed, then omega_min and omega_max must be provided
+      else if(omega_min == SENTINEL_DP .or. omega_max == SENTINEL_DP) then
+        print *, 'InputError in fam namelist :' 
+        print *, 'Either omega, or omega_min and omega_max must be set ... exiting'
+        stop 1
+      endif
+
       fam_maxiter = maxiter
       fam_maxhist = maxhist
       fam_mixingscheme = mixingscheme
 
-      ! if a single fams frequency omega is passed, set min and max to omega
-      if(omega .ne. -1.0_dp) then
-        omega_min = omega
-        omega_max = omega
+      ! assert that l and m are provided if the exc operator is multipole
+      if (operator_type=='multipole') then
+        if (l==SENTINEL_INT .or. m==SENTINEL_INT) then
+          print *, 'InputError in fam namelist :' 
+          print *, 'l and m of the mulitpole excitation operator must be set ... exiting'
+          stop 1     
+        endif
       endif
+    
+
     endif
 
   end subroutine readfam
