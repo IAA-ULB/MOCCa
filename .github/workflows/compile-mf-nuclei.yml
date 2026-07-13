@@ -9,6 +9,7 @@ on:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [ LO, LO-T, NLO, NLO-T, BXL, BXL-T, BXL-P, BXL-TP, N2LO, N2LO-T, N2LO-P, N2LO-TP, BXL-N2LO ]
@@ -19,9 +20,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install build dependencies
-        uses: ./.github/actions/install-build-deps
 
       - name: Compile and upload
         uses: ./.github/actions/compile-and-upload

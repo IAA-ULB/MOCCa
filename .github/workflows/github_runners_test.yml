@@ -39,6 +39,7 @@ jobs:
   minimal:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -48,9 +49,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -81,6 +79,7 @@ jobs:
   memory_leak:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -90,9 +89,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -119,6 +115,7 @@ jobs:
   fission:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -128,9 +125,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -157,6 +151,7 @@ jobs:
   continuation_wf:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -172,9 +167,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -203,6 +195,7 @@ jobs:
   continuation_hdf5:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -213,9 +206,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -244,6 +234,7 @@ jobs:
   cranking:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [NLO-T]
@@ -254,9 +245,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -285,6 +273,7 @@ jobs:
   gradient_vs_direct:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [BXL, NLO]
@@ -300,9 +289,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -335,6 +321,7 @@ jobs:
   fam_linearity:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -345,9 +332,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -390,6 +374,7 @@ jobs:
   fam_unit_tests:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, LO-T, NLO, NLO-T]
@@ -409,9 +394,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -449,6 +431,7 @@ jobs:
   fam_t0t3:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -460,9 +443,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -526,6 +506,7 @@ jobs:
   fam_strength_symmetry:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -541,11 +522,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
-        with:
-          with-python: true
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -587,6 +563,7 @@ jobs:
   fam_sc_symmetry:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -604,9 +581,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -671,6 +645,7 @@ jobs:
   fam_pairing_zero_mode:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -687,11 +662,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
-        with:
-          with-python: true
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -743,6 +713,7 @@ jobs:
   fam_rotational_invariance:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
+    container: ghcr.io/wryssens/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [NLO]
@@ -756,9 +727,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Install runtime dependencies
-        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
