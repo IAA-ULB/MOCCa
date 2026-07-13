@@ -764,3 +764,141 @@ jobs:
             testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q20.out
             testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q22.out
           retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 3: PASTA Tests
+  #-----------------------------------------------------------------------------
+
+  boundary_conditions:
+    needs: [compile-mf-nuclei, compile-mf-pasta]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download NUCLEI executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.N_SUFFIX }}
+          path: exec/
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.P_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.N_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.P_SUFFIX }}.exe
+
+      - name: Run boundary_conditions test
+        run: |
+          cd testing/integration/
+          bash boundary_conditions.sh -p BSkG3_naked -e $N_SUFFIX -f $P_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: boundary_conditions-${{ env.N_SUFFIX }}.logs
+          path: |
+            testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
+            testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
+          retention-days: 2
+
+  lattice_energy:
+    needs: [compile-mf-nuclei, compile-mf-pasta]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL]
+    env:
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download NUCLEI executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_VAC }}
+          path: exec/
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_PAS }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX_VAC }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_PAS }}.exe
+
+      - name: Run lattice_energy test
+        run: |
+          cd testing/integration/
+          bash lattice_energy.sh -p BSkG4simpl -e ${{ env.SUFFIX_VAC }} -f ${{ env.SUFFIX_PAS }} -n 12
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lattice_energy.logs
+          path: |
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_VAC }}.out
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_PAS }}.out
+          retention-days: 2
+
+  spaghetti:
+    needs: compile-mf-pasta
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run spaghetti test
+        run: |
+          cd testing/integration/
+          bash spag.sh ${{ env.SUFFIX }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spaghetti-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/spag.${{ env.SUFFIX }}.out
+            testing/integration/logs/spag.${{ env.SUFFIX }}.b.out
+          retention-days: 2
