@@ -3,7 +3,7 @@
 # of Mg24 constrained to a triaxial shape.
 #
 # More precisely, this testing script runs the exact same calculation with four
-# different Tantalus configuration files:
+# different MOCCa configuration files:
 #    - X   : maximally symmetric mode
 #    - X-P : broken parity
 #    - X-T : broken time-reversal
@@ -42,15 +42,15 @@
 #     where
 #        - param  : the name of a parameterisation, i.e. BSkG3
 #        - exec   : the suffix of the maximally symmetric executable on
-#                   your system. Example: "BXL" for "Tantalus.BXL.exe".
+#                   your system. Example: "BXL" for "MOCCa.BXL.exe".
 #        - exec_P : the suffix of the parity-broken executable on your
-#                   system. Example: "BXL-P" for "Tantalus.BXL-P.exe".
+#                   system. Example: "BXL-P" for "MOCCa.BXL-P.exe".
 #        - exec_T : the suffix of the time-reversal-broken executable
 #                   on your system.
-#                   Example: "BXL-T" for "Tantalus.BXL-T.exe".
+#                   Example: "BXL-T" for "MOCCa.BXL-T.exe".
 #        - exec_TP: the suffix of the parity+time-reversal-broken executable
 #                   on your system.
-#                   Example: "BXL-TP" for "Tantalus.BXL-TP.exe".
+#                   Example: "BXL-TP" for "MOCCa.BXL-TP.exe".
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -94,7 +94,7 @@ source ../functions.sh
 # Setting up the reference calculation: BXL
 setup_test_env "$logfiletag" "$exec" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -141,9 +141,9 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 # Saving reference values
 # Energy
@@ -164,7 +164,7 @@ teardown_test_env
 # Performing a parity-broken calculation
 setup_test_env "$logfiletag" "$exec_P" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -212,9 +212,9 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# ... immediately check if Tantalus reported back some error codes
-tantalus_check_P=$?
+./$exe < mocca.data > $outfile
+# ... immediately check if MOCCa reported back some error codes
+mocca_check_P=$?
 
 # Saving reference values
 E_parity=$(get_total_energy_stdout $outfile)
@@ -233,7 +233,7 @@ teardown_test_env
 # Performing a time-reversal-broken calculation
 setup_test_env "$logfiletag" "$exec_T" "$param"
 
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -280,9 +280,9 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# ... immediately check if Tantalus reported back some error codes
-tantalus_check_T=$?
+./$exe < mocca.data > $outfile
+# ... immediately check if MOCCa reported back some error codes
+mocca_check_T=$?
 
 # Saving reference values
 E_timereversal=$(get_total_energy_stdout $outfile)
@@ -303,7 +303,7 @@ teardown_test_env
 # We need to set-up an initial run
 setup_test_env "$logfiletag" "$exec_P" "$param"
 
-cat << EOF > tant.init.data
+cat << EOF > mocca.init.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -349,7 +349,7 @@ constraint=10
 /
 EOF
 # Run the initial run calculation (we don't keep the output)
-./$exe < tant.init.data > /dev/null
+./$exe < mocca.init.data > /dev/null
 # ... but we do keep the wf file!
 mv setting_up.wf ../
 teardown_test_env
@@ -359,7 +359,7 @@ setup_test_env "$logfiletag" "$exec_TP" "$param"
 mv ../setting_up.wf .
 
 # ... and now put the actual data!
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=12, protons=12
 store_derivatives=$store_derivatives
@@ -406,9 +406,9 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# ... immediately check if Tantalus reported back some error codes
-tantalus_check_TP=$?
+./$exe < mocca.data > $outfile
+# ... immediately check if MOCCa reported back some error codes
+mocca_check_TP=$?
 
 # Saving reference values
 E_timereversal_parity=$(get_total_energy_stdout $outfile)
@@ -431,10 +431,10 @@ teardown_test_env
 echo '---------------------------------'
 echo ' Runtime checks                  '
 echo '---------------------------------'
-printf ' Did %-10s run?       %1d \n' $exec    $tantalus_check
-printf ' Did %-10s run?       %1d \n' $exec_P  $tantalus_check_P
-printf ' Did %-10s run?       %1d \n' $exec_T  $tantalus_check_T
-printf ' Did %-10s run?       %1d \n' $exec_TP $tantalus_check_TP
+printf ' Did %-10s run?       %1d \n' $exec    $mocca_check
+printf ' Did %-10s run?       %1d \n' $exec_P  $mocca_check_P
+printf ' Did %-10s run?       %1d \n' $exec_T  $mocca_check_T
+printf ' Did %-10s run?       %1d \n' $exec_TP $mocca_check_TP
 
 # a) Compare total energies with a tolerance of 1 keV
 # a.1) parity-broken calculation
@@ -535,7 +535,7 @@ echo '---------------------------------'
 
 
 # t_check = Global exit code for correct endings of executables
-t_check=$(( $tantalus_check || $tantalus_check_P || $tantalus_check_T || $tantalus_check_TP ))
+t_check=$(( $mocca_check || $mocca_check_P || $mocca_check_T || $mocca_check_TP ))
 # e_check = Global exit code for energy comparisons
 e_check=$(( $check_energy_P || $check_energy_T || $check_energy_TP ))
 # b_check = Global exit code for Belyaev comparisons

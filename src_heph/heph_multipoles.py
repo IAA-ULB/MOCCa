@@ -8,7 +8,7 @@
 # This module processes the 
 #  (a) moments.f90 
 #  (b) fission_MOI.f90 
-# modules of Tantalus, tailoring several aspects of the calculation of multipole
+# modules of MOCCa, tailoring several aspects of the calculation of multipole
 # moments to the symmetry choices. 
 #
 # Important remarks:
@@ -32,7 +32,7 @@
 #                  *   P^{m}_{l}(cos(\theta)) e^{i m \phi}
 #
 # The P^{m}_{l} are the associated Legendre Polynomials and -l <= m <= l. 
-# The multipole moments calculated by Tantalus are then
+# The multipole moments calculated by MOCCa are then
 #
 #        Q_{l m} = r^l Y^l_m(theta, phi).
 #
@@ -105,6 +105,8 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
       fam_active : Boolean, whether we are compiling a mf or fam executable.
       dry_run    : Boolean, if True, do not write any files (default: False)
   """
+  from src_heph.heph_densities  import Densities_needed
+
   tab           = '    '
   template_list = Template( tab+'moment_list($ELL,$EMM,$IND) = $ON   ')
   template_comm = Template( '! $REIM Q_{ $ELL $EMM} \n')
@@ -192,6 +194,12 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
     dic['FAM']  = 1
   else:
     dic['FAM']  = 0
+
+  # Hack to detect whether we are working with an LO EDF
+  if('D_Nm_Nm' in Densities_needed or 'D_N_N'  in Densities_needed ):
+    dic['CAN_DO_MAGNETIC'] = 1
+  else:
+    dic['CAN_DO_MAGNETIC'] = 0
 
   if(not dry_run):        
     substitute(src+fname, target+fname, dic)

@@ -128,8 +128,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2) Run the LO FAM calculation
@@ -182,7 +182,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check=$?
 
 
@@ -238,12 +238,12 @@ fi
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $fam_check || $ifail))
+fail=$(($mocca_check || $fam_check || $ifail))
 
 if (($fail == 0)) ; then
   echo -e "test FAM pairing zero mode :\033[1;32m success \033[0m"
 else
-  echo -e "test FAM pairing zero mode :\033[1;31m failed ! exit status : tant = $tantalus_check, fam = $fam_check, zero_mode = $ifail \033[0m"
+  echo -e "test FAM pairing zero mode :\033[1;31m failed ! exit status : tant = $mocca_check, fam = $fam_check, zero_mode = $ifail \033[0m"
 fi
 
 exit $fail

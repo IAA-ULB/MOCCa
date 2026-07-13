@@ -136,13 +136,13 @@ line  = 80*"-"
 # 4 spaces for W.R., but I can imagine other people have different standards.
 tab           = '    '
 
-# Names of the arrays storing the single-particle states in Tantalus, from 
+# Names of the arrays storing the single-particle states in MOCCa, from
 # which the densities need to be calculated.
 ArrayNames=['DenPsi', 'DendPsi', 'DenddPsi', 'DendddPsi']
 
 #-------------------------------------------------------------------------------
 # Array containing all the different densities needed. Note that this contains 
-# all of the densities that will get summed by Tantalus.
+# all of the densities that will get summed by MOCCa.
 Densities_needed   = []
 deriv_needed       = [] # what external derivatives are needed for each element
                         # in Densities needed

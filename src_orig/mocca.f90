@@ -1,4 +1,27 @@
-module Tantalus
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
+module MOCCa
 
    use geninfo
 
@@ -7,23 +30,13 @@ module Tantalus
 contains
 
 #if( $FAM == 0)
-   subroutine Run_Tantalus(file_number, input_file)
+   subroutine Run_MOCCa(file_number, input_file)
       !==============================================================================
-      !_________ _______  _       _________ _______  _                 _______
-      !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
-      !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
-      !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
-      !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
-      !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
-      !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
-      !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+      ! TODO: describe input/output of this routine
       !
-      !  Copyright W. Ryssens & M. Bender
-      !
-      !------------------------------------------------------------------------------
-      ! While I (W.R.) like to think about Tantalus as a standalone code, this
+      ! While I (W.R.) like to think about MOCCa as a standalone code, this
       ! 'main' routine is now written as a subroutine (with inputs!) to accomodate
-      ! meta-codes that want to run Tantalus multiple times.
+      ! meta-codes that want to run MOCCa multiple times.
       !==============================================================================
 
       use compilation
@@ -67,7 +80,7 @@ contains
       ! starting all timers
       ! (disabled for now as I'm not sure how this interacts with MPI)
       call initialize_all_timers
-      call start_timer(T_tantalus)
+      call start_timer(T_MOCCa)
 
       !------------------------------------------------------------------------------
       ! Printing information to STDOUT on the run
@@ -111,7 +124,7 @@ contains
       ! guarantee that timing info is only at the very end
       call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
 #endif
-      call stop_timer(T_tantalus)
+      call stop_timer(T_MOCCa)
       call print_all_timers()
       !------------------------------------------------------------------------------
       ! end the processes across MPI ranks
@@ -120,7 +133,7 @@ contains
 #endif
 
       ! end of one mean-field calculation..;
-   end subroutine Run_Tantalus
+   end subroutine Run_MOCCa
 
    subroutine ReachForWaterAndFood(iter, iomsg)
       !---------------------------------------------------------------------------
@@ -167,9 +180,9 @@ contains
       use functional
       use evolution
       use IO
-      use IO_wf, only: readHFBinfofile, write_tantalus_wf
+      use IO_wf, only: readHFBinfofile, write_MOCCa_wf
 #if(USE_HDF5>0)
-      use IO_wf, only: write_tantalus_hdf5
+      use IO_wf, only: write_MOCCa_hdf5
 #endif
       use moments
       use coulombmod
@@ -498,12 +511,12 @@ contains
             iomsg = 'CHECKPOINT'
             if (trim(to_upper(OutputFileName(len_trim(OutputFileName) - 3:))) .eq. 'HDF5') then
 #if(USE_HDF5>0)
-               call write_tantalus_hdf5(outputfilename) !new hdf5 format
+               call write_MOCCa_hdf5(outputfilename) !new hdf5 format
 #else
                call stp('HDF5 support was not enabled at compilation.')
 #endif
             else
-               call write_tantalus_wf(12, outputfilename) ! old style in .wf file
+               call write_MOCCa_wf(12, outputfilename) ! old style in .wf file
             end if
          end if
          end if
@@ -811,7 +824,7 @@ contains
 
       logical, intent(in), optional :: fam
 
-      call add_timer('Tantalus', T_tantalus)
+      call add_timer('MOCCa', T_MOCCa)
       call add_timer('Wavefunction initialisation', T_wfini)
       call add_timer('Wavefunction output', T_wfoutput)
       call add_timer('Wavefunction reading', T_wfinput)
@@ -908,4 +921,4 @@ contains
       call clean_evolution
 
    end subroutine cleanupthemess
-end module Tantalus
+end module MOCCa

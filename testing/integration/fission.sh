@@ -40,7 +40,7 @@ source ../functions.sh
 setup_test_env "fission" "$1" "BSkG3"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=146, protons=94
 energy_prec=1e-06
@@ -97,9 +97,9 @@ multfromfile=.true.
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
 # a) Get the total energy from the STDOUT file
@@ -132,7 +132,7 @@ check_neck=$?
 # remove working directory and traces of these calculations
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
-overall_check=$(($tantalus_check || $check_energy || $check_B20 || $check_I_2020 || $check_I_2030 || $check_I_3030 || $check_neck))
+overall_check=$(($mocca_check || $check_energy || $check_B20 || $check_I_2020 || $check_I_2030 || $check_I_3030 || $check_neck))
 
 # Print final status
 if [ $overall_check -eq 0 ]; then
@@ -144,8 +144,8 @@ else
     echo "--------------------"
 
     # Specify which ones failed with detailed diagnostics
-    if [ $tantalus_check -ne 0 ]; then
-        echo "  - Tantalus check failed: Tantalus returned non-zero exit code ($tantalus_check)"
+    if [ $mocca_check -ne 0 ]; then
+        echo "  - MOCCa check failed: MOCCa returned non-zero exit code ($mocca_check)"
     fi
     
     if [ $check_energy -ne 0 ]; then

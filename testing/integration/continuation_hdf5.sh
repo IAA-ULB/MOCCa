@@ -13,7 +13,7 @@
 #   bash continuation_HDF5.sh [EXESUFFIX] [PARAM]
 #
 # where EXESUFFIX specifies the  suffix of the executable to be used
-#            Example: "BXL" for "Tantalus.BXL.exe".
+#            Example: "BXL" for "MOCCa.BXL.exe".
 # and PARAM specifies the parameterisation to be used.
 #
 # Dependencies: none
@@ -31,7 +31,7 @@ set -v
 setup_test_env "continuation_HDF5" "$1" "$2"
 
 # Create runtime data for both code runs
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-10
@@ -77,7 +77,7 @@ constraint=20
 /
 EOF
 
-cat << EOF > tant.continuation.data
+cat << EOF > mocca.continuation.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-07
@@ -125,11 +125,11 @@ multfromfile=.true.
 EOF
 
 # Run the first calculation from scratch
-./$exe < tant.data > $outfile.a
-tantalus_check=$?
+./$exe < mocca.data > $outfile.a
+mocca_check=$?
 # ... and then a second continuation calculation
-./$exe < tant.continuation.data > $outfile.b
-tantalus_check_continuation=$?
+./$exe < mocca.continuation.data > $outfile.b
+mocca_check_continuation=$?
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
@@ -150,12 +150,12 @@ c_a=$?
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-fail=$(($tantalus_check || $tantalus_check_continuation || $check_energy || $c_a || $c_b ))
+fail=$(($mocca_check || $mocca_check_continuation || $check_energy || $c_a || $c_b ))
 
 if (($fail == 0)) ; then
     echo -e "test continuation_HDF5 :\033[1;32m success \033[0m"
 else
-    echo -e "test continuation_HDF5 :\033[1;31m failed ! 1st : $tantalus_check, 2nd : $tantalus_check_continuation, E : $check_E, convergence : $c_a $c_b \033[0m"
+    echo -e "test continuation_HDF5 :\033[1;31m failed ! 1st : $mocca_check, 2nd : $mocca_check_continuation, E : $check_E, convergence : $c_a $c_b \033[0m"
 fi
 
 exit $fail

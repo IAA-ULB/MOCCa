@@ -15,7 +15,7 @@
 #   bash minimal.sh [EXESUFFIX]
 #
 # where EXESUFFIX specifies the  suffix of the executable to be used
-#            Example: "BXL" for "Tantalus.BXL.exe".
+#            Example: "BXL" for "MOCCa.BXL.exe".
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -36,7 +36,7 @@ source ../functions.sh
 setup_test_env "minimal" "$1" "SLy4"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=8, protons=8
 /
@@ -68,9 +68,9 @@ OutputFilename='trash'
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
@@ -90,4 +90,4 @@ check_B22=$?
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exit $(($tantalus_check || $check_energy || $check_B20 || $check_B22 ))
+exit $(($mocca_check || $check_energy || $check_B20 || $check_B22 ))

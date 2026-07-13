@@ -1,17 +1,27 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module fam
-
-  !==============================================================================
-  ! ________ _______  _        _ _________ _______  _                 _______
-  !(  _____/(  ___  )( (      ) |\__   __/(  ___  )( \      |\     /|(  ____ \
-  !| (      | (   ) ||  \    /  |   ) (   | (   ) || (      | )   ( || (    \/
-  !| |___   | (___) ||   \  /   |   | |   | (___) || |      | |   | || (_____
-  !|  ___)  |  ___  || (\ \/ /) |   | |   |  ___  || |      | |   | |(_____  )
-  !| |      | (   ) || | \  / | |   | |   | (   ) || |      | |   | |      ) |
-  !| |      | )   ( || )  \/  ( |   | |   | )   ( || (____/\| (___) |/\____) |
-  !(_/      |/     \||/        \)   )_(   |/     \|(_______/(_______)\_______)
-  !
-  !  Copyright W. Ryssens & P. Demol
-  !
   !------------------------------------------------------------------------------
   ! A FAM-(Q)RPA implementation to complement MOCCa.
   !------------------------------------------------------------------------------

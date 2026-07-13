@@ -123,8 +123,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2b) Run the LO QFAM calculations

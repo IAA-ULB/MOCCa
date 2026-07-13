@@ -15,7 +15,7 @@
 #   bash cranking.sg [EXESUFFIX]
 #
 # where EXESUFFIX specifies the  suffix of the executable to be used
-#            Example: "NLO-T" for "Tantalus.NLO-T.exe".
+#            Example: "NLO-T" for "MOCCa.NLO-T.exe".
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -34,7 +34,7 @@ source ../functions.sh
 setup_test_env "cranking" "$1" "SLy4"
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -72,12 +72,12 @@ crankZ=2
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile.J
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_J=$?
+./$exe < mocca.data > $outfile.J
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_J=$?
 
 # Second run: constant omega_z and direct diagonalisation
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -112,11 +112,11 @@ allowtransform=.true.
 omegaZ=0.3292333881
 /
 EOF
-./$exe < tant.data > $outfile.omega
-tantalus_check_omega=$?
+./$exe < mocca.data > $outfile.omega
+mocca_check_omega=$?
 
 # Create runtime data
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 energy_prec=1e-8
@@ -155,9 +155,9 @@ crankZ=2
 EOF
 
 # Run the calculation
-./$exe < tant.data > $outfile.gradient
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_gradient=$?
+./$exe < mocca.data > $outfile.gradient
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_gradient=$?
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
@@ -176,4 +176,4 @@ check_energy_gradient=$?
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exit $(( $tantalus_check_J || $check_energy_J || $tantalus_check_omega || $check_energy_omega || $tantalus_check_gradient || $check_energy_gradient ))
+exit $(( $mocca_check_J || $check_energy_J || $mocca_check_omega || $check_energy_omega || $mocca_check_gradient || $check_energy_gradient ))

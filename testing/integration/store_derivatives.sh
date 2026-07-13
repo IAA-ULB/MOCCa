@@ -23,7 +23,7 @@
 #
 # -p param: specify a parameterization name
 # -e exec : specify the  suffix of the executable
-#           Example: "BXL" for "Tantalus.BXL.exe".
+#           Example: "BXL" for "MOCCa.BXL.exe".
 #
 #  Attention: the exe being called should be able to auto-initialise, i.e. to
 #             start from scratch without reading a .wf file!
@@ -53,7 +53,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 store_derivatives=$1
@@ -112,9 +112,9 @@ setup_test_env "store_derivatives=true" "$exec" "$param"
 write_data '.true.' $param
 # Run the calculation
 echo "Running $exe with store_derivatives=true"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 # Saving reference values
 refE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -125,9 +125,9 @@ setup_test_env "store_derivatives=false" "$exec" "$param"
 write_data '.false.' $param
 # Run the calculation
 echo "Running $exe with store_derivatives=false"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_false=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_false=$?
 # Saving reference values
 testE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -139,8 +139,8 @@ teardown_test_env
 echo '------------------------------------------'
 echo ' Runtime checks                           '
 echo '------------------------------------------'
-printf ' store_derivatives = .true.   ->  %1d \n' $tantalus_check
-printf ' store_derivatives = .false.  ->  %1d \n' $tantalus_check_false
+printf ' store_derivatives = .true.   ->  %1d \n' $mocca_check
+printf ' store_derivatives = .false.  ->  %1d \n' $mocca_check_false
 # a) Compare total energies with a tolerance of 1 keV
 compare_floats $testE              $refE 0.001
 check_energy=$?
@@ -149,7 +149,7 @@ echo '------------------------------------------'
 printf ' Energy consistency           ->  %1d \n' $check_energy
 echo '------------------------------------------'
 
-exitcode=$(( $tantalus_check || tantalus_check_false || $check_energy ))
+exitcode=$(( $mocca_check || mocca_check_false || $check_energy ))
 
 printf ' Success?                     ->  %1d \n' $exitcode
 echo '------------------------------------------'

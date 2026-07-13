@@ -27,7 +27,7 @@
 #
 # -p param: specify a parameterization name
 # -s exec : specify the  suffix of the serial executable, i.e. the one without MPI
-#           Example: "BXL" for "Tantalus.BXL.exe".
+#           Example: "BXL" for "MOCCa.BXL.exe".
 # -m exec : specify the  suffix of the parallel executable, i.e. the one with MPI
 # -r  np  : the number of MPI ranks to use
 # -q  np2 : another number of MPI ranks to use
@@ -64,7 +64,7 @@ done
 # A small function to write equivalent input data
 write_data()
 {
-cat << EOF > tant.data
+cat << EOF > mocca.data
 &nucleus
 neutrons=24, protons=24
 /
@@ -123,9 +123,9 @@ setup_test_env "serial" "$exec_serial" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_serial=$?
+./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_serial=$?
 # Saving reference values
 serialE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -136,9 +136,9 @@ setup_test_env "parallel_1" "$exec_mpi" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-mpirun -n $MPI_RANKS_1 ./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_parallel_1=$?
+mpirun -n $MPI_RANKS_1 ./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_parallel_1=$?
 # Saving reference values
 parallelE_1=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -149,9 +149,9 @@ setup_test_env "parallel_2" "$exec_mpi" "$param"
 write_data  $param
 # Run the calculation
 echo "Running $exe"
-mpirun -n $MPI_RANKS_2 ./$exe < tant.data > $outfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check_parallel_2=$?
+mpirun -n $MPI_RANKS_2 ./$exe < mocca.data > $outfile
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check_parallel_2=$?
 # Saving reference values
 parallelE_2=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
@@ -163,10 +163,10 @@ teardown_test_env
 echo '------------------------------------------'
 echo ' Runtime checks                           '
 echo '------------------------------------------'
-printf ' serial    ->  %1d \n' $tantalus_check_serial
-printf ' parallel_1->  %1d \n' $tantalus_check_parallel_1
-printf ' parallel_2->  %1d \n' $tantalus_check_parallel_2
-tantalus_check_parallel=$(( $tantalus_check_parallel_1 || $tantalus_check_parallel_2 ))
+printf ' serial    ->  %1d \n' $mocca_check_serial
+printf ' parallel_1->  %1d \n' $mocca_check_parallel_1
+printf ' parallel_2->  %1d \n' $mocca_check_parallel_2
+mocca_check_parallel=$(( $mocca_check_parallel_1 || $mocca_check_parallel_2 ))
 
 # a) Compare total energies with a tolerance of 1 keV
 compare_floats $serialE              $parallelE_1 0.001
@@ -180,7 +180,7 @@ echo '------------------------------------------'
 printf ' Energy consistency           ->  %1d \n' $check_energy
 echo '------------------------------------------'
 
-exitcode=$(( $tantalus_check_serial || $tantalus_check_parallel || $check_energy ))
+exitcode=$(( $mocca_check_serial || $mocca_check_parallel || $check_energy ))
 
 printf ' Success?                     ->  %1d \n' $exitcode
 echo '------------------------------------------'

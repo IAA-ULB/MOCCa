@@ -115,8 +115,8 @@ EOF
 
 # Run the calculation
 ./$exe < mf.data > $mfoutfile
-# .... and immediately check if Tantalus reported back some error codes
-tantalus_check=$?
+# .... and immediately check if MOCCa reported back some error codes
+mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (2) Run a calculation that freezes the potentials just to get a
@@ -207,7 +207,7 @@ EOF
 
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_check=$?
 
 # We keep the wf file!
@@ -267,7 +267,7 @@ mixingscheme=0
 EOF
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_T_check=$?
 
 # Extract strength value before cleanup
@@ -323,7 +323,7 @@ mixingscheme=0
 EOF
 # Run the calculation
 ./$exefam < fam.data > $famoutfile
-# .... and immediately check if Tantalus reported back some error codes
+# .... and immediately check if MOCCa reported back some error codes
 fam_P_check=$?
 
 # Extract strength value before cleanup

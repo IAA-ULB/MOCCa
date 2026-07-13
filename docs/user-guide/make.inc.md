@@ -24,7 +24,7 @@ possible combinations of
 as well as separate sets of compilation options more suited to debugging.
 
 To use a predefined file from the make_includes/ folder, it suffices to copy
-the file into the main Tantalus directory and rename it. For example, execute
+the file into the main MOCCa directory and rename it. For example, execute
 the following comand from inside the main directory:
 
       cp make_include/make.inc.gnu-serial-hdf5 make.inc
