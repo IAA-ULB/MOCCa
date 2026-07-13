@@ -50,9 +50,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -94,9 +92,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev time bc
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -134,9 +130,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -180,9 +174,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -223,9 +215,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev libhdf5-dev hdf5-tools
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -266,9 +256,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -314,9 +302,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download executable
         uses: actions/download-artifact@v7
@@ -361,9 +347,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev bc
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -427,9 +411,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -480,9 +462,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -563,9 +543,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy bc
+        uses: ./.github/actions/install-runtime-deps
+        with:
+          with-python: true
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
@@ -626,9 +606,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -711,9 +689,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy
+        uses: ./.github/actions/install-runtime-deps
+        with:
+          with-python: true
 
       - name: Download MF executables
         uses: actions/download-artifact@v7
@@ -780,9 +758,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install runtime dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy bc
+        uses: ./.github/actions/install-runtime-deps
 
       - name: Download MF executable
         uses: actions/download-artifact@v7
