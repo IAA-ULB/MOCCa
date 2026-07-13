@@ -341,3 +341,478 @@ jobs:
             testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
             testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
           retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 2: MF + FAM Tests
+  #-----------------------------------------------------------------------------
+
+  fam_linearity:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [LO]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev bc
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_linearity test
+        run: |
+          cd testing/integration/
+          bash fam_linearity.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_linearity-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out.bis
+          retention-days: 2
+
+  fam_unit_tests:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [LO, LO-T, NLO, NLO-T]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: LO-T
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+          - CONFIG: NLO-T
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_unit_tests
+        run: |
+          cd testing/unit/
+          bash fam_unit_tests.sh ${{ env.SUFFIX }} --pairing HFB --nw=30 --parameterisation ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_unit_tests.${{ env.SUFFIX }}.logs
+          path: |
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.out
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.out.bis
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.fam.out
+          retention-days: 2
+
+  fam_t0t3:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_t0t3 test
+        run: |
+          cd testing/integration/
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_t0t3.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_strength_symmetry:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy bc
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_strength_symmetry test
+        run: |
+          cd testing/integration/
+          bash fam_strength_symmetry.sh ${{ env.SUFFIX }} ${{ matrix.PARAM }} HF  10 0.1 --verbose
+          bash fam_strength_symmetry.sh ${{ env.SUFFIX }} ${{ matrix.PARAM }} HFB 10 0.1 --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_strength_symmetry.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=+.+.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=+.-.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=-.+.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=-.-.out
+          retention-days: 2
+
+  fam_sc_symmetry:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_sc_symmetry test
+        run: |
+          cd testing/integration/
+          bash fam_sc_symmetry.sh ${{ env.SUFFIX }} ${{ env.SUFFIX_T }} ${{ env.SUFFIX_P }} --pairing HF  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_sc_symmetry.sh ${{ env.SUFFIX }} ${{ env.SUFFIX_T }} ${{ env.SUFFIX_P }} --pairing HFB --parameterisation ${{ matrix.PARAM }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_sc_symmetry.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_pairing_zero_mode:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+
+      - name: Run fam_pairing_zero_mode test
+        run: |
+          cd testing/integration/
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX }}   --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX_T }} --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_pairing_zero_mode.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.fam.out
+          retention-days: 2
+
+  fam_rotational_invariance:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev python3 python3-numpy python3-scipy bc
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_rotational_invariance test
+        run: |
+          cd testing/integration/
+          bash fam_rotational_invariance.sh ${{ env.SUFFIX }}  ${{ matrix.PARAM }} HFB 2 1.0 --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_rotational_invariance.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q20.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q22.out
+          retention-days: 2
