@@ -39,7 +39,7 @@ jobs:
   minimal:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -79,7 +79,7 @@ jobs:
   memory_leak:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -115,7 +115,7 @@ jobs:
   fission:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -151,7 +151,7 @@ jobs:
   continuation_wf:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -195,7 +195,7 @@ jobs:
   continuation_hdf5:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -234,7 +234,7 @@ jobs:
   cranking:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [NLO-T]
@@ -273,7 +273,7 @@ jobs:
   gradient_vs_direct:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [BXL, NLO]
@@ -321,7 +321,7 @@ jobs:
   fam_linearity:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -374,7 +374,7 @@ jobs:
   fam_unit_tests:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, LO-T, NLO, NLO-T]
@@ -431,7 +431,7 @@ jobs:
   fam_t0t3:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         COMPILER: [gfortran]
@@ -506,7 +506,7 @@ jobs:
   fam_strength_symmetry:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -563,7 +563,7 @@ jobs:
   fam_sc_symmetry:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -645,7 +645,7 @@ jobs:
   fam_pairing_zero_mode:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [LO, NLO]
@@ -713,7 +713,7 @@ jobs:
   fam_rotational_invariance:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     runs-on: ubuntu-latest
-    container: ghcr.io/wryssens/mocca-ci:latest
+    container: ghcr.io/IAA-ULB/mocca-ci:latest
     strategy:
       matrix:
         CONFIG: [NLO]
