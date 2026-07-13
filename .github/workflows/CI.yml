@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# CI/CD deployment for MOCCa on GitHub-hosted runners
+# CI deployment for MOCCa on GitHub-hosted runners
 #
 # Main workflow that orchestrates:
 #   - compile-mf-nuclei: Compile mean-field executables for nuclei
@@ -9,7 +9,7 @@
 #
 # Uses reusable workflows for each compilation type to maximize code reuse.
 #-------------------------------------------------------------------------------
-name: GitHub Runners Test
+name: MOCCa CI
 
 on:
   push:
@@ -20,8 +20,8 @@ on:
     branches:
       - master
       - development
-  workflow_dispatch:
 
+# These permissions are required for the Docker images to actually be able to checkout the code
 permissions:
   contents: read
   packages: read
