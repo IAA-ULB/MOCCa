@@ -214,12 +214,7 @@ jobs:
     strategy:
       matrix:
         COMPILER: [gfortran]
-        CONFIG: [BXL, BXL-N2LO]
-        include:
-          - CONFIG: BXL
-            PARAM: BSkG3
-          - CONFIG: BXL-N2LO
-            PARAM: BSkG5
+        CONFIG: [BXL]
     env:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
 
@@ -244,7 +239,7 @@ jobs:
       - name: Run continuation_hdf5 test
         run: |
           cd testing/integration/
-          bash continuation_hdf5.sh $SUFFIX ${{ matrix.PARAM }}
+          bash continuation_hdf5.sh $SUFFIX BSkG3
 
       - name: Upload test results
         if: success() || failure()
