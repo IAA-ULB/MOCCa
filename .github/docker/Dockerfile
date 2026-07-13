@@ -22,7 +22,7 @@ RUN apt-get update -y && \
         liblapack-dev libblas-dev \
         libhdf5-dev hdf5-tools \
         python3 python3-numpy python3-scipy \
-        time bc \
+        time bc ca-certificates \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
