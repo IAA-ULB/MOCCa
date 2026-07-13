@@ -1,5 +1,5 @@
 name: 'Install build dependencies'
-description: 'Install gfortran, LAPACK, BLAS, SCALAPACK, OpenMPI, Python packages, and runtime test dependencies'
+description: 'Install gfortran, LAPACK, BLAS, HDF5, and Python for MOCCa compilation'
 
 runs:
   using: 'composite'
@@ -7,9 +7,8 @@ runs:
     - name: Install build dependencies
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y gfortran liblapack-dev libblas-dev \
-            libopenmpi-dev openmpi-bin libscalapack-mpi-dev \
-            python3 python3-numpy python3-scipy \
-            time bc \
-            libhdf5-dev hdf5-tools
+        sudo apt-get install -y --no-install-recommends \
+            gfortran liblapack-dev libblas-dev \
+            libhdf5-dev \
+            python3 python3-numpy python3-scipy
       shell: bash
