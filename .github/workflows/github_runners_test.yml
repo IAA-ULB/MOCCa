@@ -27,9 +27,13 @@ jobs:
     uses: ./.github/workflows/compile-mf-nuclei.yml
 
   compile-fam-nuclei:
+    # Only test FAM compilation if standard MF compilation works
+    needs: [compile-mf-nuclei]
     uses: ./.github/workflows/compile-fam-nuclei.yml
 
   compile-mf-pasta:
+    # Only test pasta compilation if all other compilation works
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
     uses: ./.github/workflows/compile-mf-pasta.yml
 
   minimal:
@@ -70,4 +74,275 @@ jobs:
         with:
           name: minimal-${{ env.SUFFIX }}.logs
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 1: Simple Single-Executable Tests
+  #-----------------------------------------------------------------------------
+
+  memory_leak:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev time bc
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run memory_leak test
+        run: |
+          cd testing/integration/
+          bash memory_leak.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: memory_leak-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/memory_leak_*.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  fission:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run fission test
+        run: |
+          cd testing/integration/
+          bash fission.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fission-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/fission.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  continuation_wf:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL, BXL-N2LO]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM: BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_wf test
+        run: |
+          cd testing/integration/
+          bash continuation_wf.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: continuation_wf-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.b
+          retention-days: 2
+
+  continuation_hdf5:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL, BXL-N2LO]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM: BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev libhdf5-dev hdf5-tools
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_hdf5 test
+        run: |
+          cd testing/integration/
+          bash continuation_hdf5.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: continuation_hdf5-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.b
+          retention-days: 2
+
+  cranking:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [NLO-T]
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run cranking test
+        run: |
+          cd testing/integration/
+          bash cranking.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cranking-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.J
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
+          retention-days: 2
+
+  gradient_vs_direct:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        CONFIG: [BXL, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y liblapack-dev libblas-dev
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run gradient_vs_direct test
+        run: |
+          cd testing/integration/
+          bash hfb_direct_gradient.sh -e $SUFFIX -p ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gradient_vs_direct-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
           retention-days: 2
