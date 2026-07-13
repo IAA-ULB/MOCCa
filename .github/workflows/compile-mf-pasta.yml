@@ -34,5 +34,5 @@ jobs:
           calctype: ${{ matrix.CALCTYPE }}
           mpi: ${{ matrix.MPI }}
           compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
-          hdf5suffix: '' # DISABLED HDF5 for now ${{ matrix.COMPILER == 'gfortran' && '-hdf5' || '' }}
+          hdf5suffix: '-hdf5' #${{ matrix.COMPILER == 'gfortran' && '-hdf5' || '' }}
           execname_prefix: 'MOCCa'
