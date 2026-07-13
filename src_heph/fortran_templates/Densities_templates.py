@@ -11,6 +11,11 @@ Sph_sum_real     = T( 2*tab+'sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wav
 Sph_sum_realpart = T( 2*tab+'sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) + $WEIGHT * DCMPLX($NAME$IND_nocomma,0.0d0)')
 Sph_sum_imagpart = T( 2*tab+'sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) + $WEIGHT * DCMPLX(0.0d0,$NAME$IND_nocomma)')
 
+Delta_sum_real     = T( 2*tab+'delta_me(wave_j, wave_i) = delta_me(wave_j, wave_i) + $WEIGHT * $NAME$IND_nocomma')
+Delta_sum_realpart = T( 2*tab+'delta_me(wave_j, wave_i) = delta_me(wave_j, wave_i) + $WEIGHT * DCMPLX($NAME$IND_nocomma,0.0d0)')
+Delta_sum_imagpart = T( 2*tab+'delta_me(wave_j, wave_i) = delta_me(wave_j, wave_i) + $WEIGHT * DCMPLX(0.0d0,$NAME$IND_nocomma)')
+
+
 Den_1_spwf = T( 2*tab+'$NAME$IND_nocomma = ')
 Den_diag = T( \
                     tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,$LEFTWAVE) * ' + \

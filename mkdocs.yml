@@ -37,9 +37,9 @@ nav:
     - Fortran style guide: user-guide/codingstyle.md
   - Auxiliary tools:
     - mean-field_analysis: user-guide/mfa.md
-  - Examples and tests:
-    - General considerations : examples/general.md
-    - How to write a test: examples/requirements.md
+  - Tests:
+    - Test suite overview: user-guide/tests.md
+    - How to write a test: user-guide/test-writing.md
   - Not yet organised:
     - Blocking by tagging:  user-guide/tagging.md
 theme: readthedocs

@@ -1,16 +1,27 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module HFB
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
  !==============================================================================
  ! 
  ! This module is in charge of the solution of the HFB pairing subproblem 
@@ -70,7 +81,7 @@ module HFB
   implicit none
 
   !-----------------------------------------------------------------------------
-  ! Matrix of all qp energies
+  ! Pairing gaps (= matrix elements of Delta) in the Hartree-Fock (!) basis
   real(KIND=dp), allocatable :: HFBGaps(:,:)
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 200
@@ -127,6 +138,18 @@ $SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
   !-----------------------------------------------------------------------------
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
+
+  !-----------------------------------------------------------------------------
+  ! Handy printing routines for debugging statements
+  interface print_spme 
+      module procedure print_spme_real
+      module procedure print_spme_complex
+  end interface
+
+  interface print_spme_superblock
+      module procedure print_spme_real_superblock
+      module procedure print_spme_complex_superblock
+  end interface
 
 contains
     
@@ -1462,9 +1485,37 @@ $TR    dispersion = 2 * dispersion
     !    rho   = U   f U^\dagger + V^* (1 - f) V^T
     !    kappa = U   f V^\dagger + V^* (1 - f) U^T  
     !
-    !  Notice how this routine only uses the last half of the columns of the  
-    !  Bogoliubov transformation.
+    !  Notice how this routine only uses the right half of the columns of the  
+    !  Bogoliubov transformation - the left half is not referenced.
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Technical note: the equations change when time-reversal is conserved. In
+    !  that case, we store only HALF of all matrices. More specifically, we
+    !  assume phase conventions such that 
+    ! 
+    !   U = ( U_r 0  )     V = ( 0   -V_r  )
+    !       ( 0   U_r)         ( V_r  0    )
+    !
+    ! where the subscript _r indicates what submatrix we actually numerically 
+    ! represent. 
+    ! 
+    ! For \rho and \kappa - as for ALL matrices EXCEPT for the Bogoliubov 
+    !  transformation - we choose 
+    !
+    !  \rho = ( \rho_r 0     )     \kappa = (       0    \kappa_r )
+    !          ( 0     \rho_r)              ( -\kappa_r      0    )
+    !
+    ! i.e. we store the upper-left blocks for particle-hole quantities and 
+    !  the upper-right block for particle-particle quantities. 
+    !
+    ! The relevant equations in terms of numerically represented quantities are
+    ! then
+    ! 
+    !   \rho_r   = U_r   f U_r^\dagger + V_r^* (1 - f) V_r^T
+    !   \kappa_r = U_r   f V_r^\dagger - V_r^* (1 - f) U_r^T 
+    !                                  ^
+    !                                  |
+    !                                  sneaky minus sign
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !    config: the configuration matrix, i.e. f, in most of the literature
@@ -1476,7 +1527,10 @@ $TR    dispersion = 2 * dispersion
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
     real(KIND=dp), intent(out):: rho(:,:), kappa(:,:)
-    integer                   :: si, sb, B, i,j,k, N, N2, column
+    integer                   :: si, sb, B, i,j,k, N, N2, column, Tphase
+
+$NTR Tphase = +1
+$TR  Tphase = -1
 
     si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
@@ -1495,15 +1549,11 @@ $TR    dispersion = 2 * dispersion
             &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb+N+N2+j,column)
             !-------------------------------------------------------------------
             !                                   U   f        V^{\dagger}     
-            ! Note the minus sign due to the hidden time-reversal!
-$TR            kappa(si+i,si+j)  = kappa(si+i,si+j) -             &
-$TR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
-
-
-$NTR            kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
-$NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
-            !                                   V^{*}(1 - f) U^{T} 
             kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
+            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
+
+            !                                   V^{*}(1 - f) U^{T} 
+            kappa(si+i,si+j)  = kappa(si+i,si+j) + Tphase *  &
             &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb  +j,column)
           enddo
         enddo
@@ -1597,7 +1647,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   subroutine calcHFBgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
-    ! Calculates the HFB gaps for use in the HFB solver.
+    ! Calculates the HFB gaps in the Hartree-Fock basis for use in the HFB solver.
     !
     ! Fermi is a dummy argument in this routine, since we need that argument 
     ! for the BCS solver.
@@ -1658,7 +1708,6 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     si      = 0
     HFBgaps = 0 ! ----> set everything to zero such that can safely use 
                 !       MPI_ALLREDUCE below
-
     ! Loop over the first of all blocks linked by the antihermitian symmetry
     ! 1,3,5,7
     do B=1,8,2   ! <-------------- this loop ranges over the local set of spwfs
@@ -1668,18 +1717,13 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
       iso = -1
       if(B .gt. 4) iso = 1
 
-      ! Add the stabilisation factor
-      ! (1 if the pairing functional is not stabilized)
+      ! Add the stabilisation factor (stabfac = 1 if the pairing is not stabilized)
       stabfac = 1 + stabfactor((iso+3)/2)
 
       do wave1=1,N   ! <---------- local index of the spwf
-        ! If time-reversal is not conserved:
-        !     The first index comes from the second symmetry block.
-$NTR        inda = si + wave1 + N
-        ! If time-reversal is conserved:
-        !     The first index comes from the first block, and an implicit
-        !     time-like symmetry operation is performed in delta_action_HFB.
-$TR        inda = si + wave1
+        ! We always calculate the top-right corner of \Delta:
+        !  -> the first index "a" comes from the first symmetry block 
+        inda = si + wave1
 
         inda_global = spwf_map(inda)
 
@@ -1689,20 +1733,22 @@ $N2DELTA  &                           hfddpsi(:,:,:,inda),                     &
 $N3DELTA  &                          hfdddpsi(:,:,:,inda),                     &
 $SYMDELTA &                        sx(:,inda), sy(:,inda), sz(:,inda),         &
                                                                   iso,.false.,F)
-        
-$NTR        do wave2=1,N
+        ! The second index "b" comes from the second symmetry block
+$NTR        do wave2=N+1,T
 $TR         do wave2=wave1,N
-          ! The second index is always in the first block. 
           indb = si + wave2 
           indb_global = spwf_map(indb)
 
           HFBgaps(inda_global,indb_global) = &
-          &                           sum(hfpsi(:,:,indb)*deltapsi)*dv *stabfac
+          &                          sum(hfpsi(:,:,indb)*deltapsi)*dv*stabfac
+
+          ! Mystery sign that needs to be resolved - but requires a larger 
+          !  refactoring of all things pairing in Hephaestos. 
+$TR       HFBgaps(inda_global,indb_global) = - HFBgaps(inda_global,indb_global)
 
           ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(indb_global,inda_global) =  - HFBgaps(inda_global,indb_global)
-          ! ... but the stored matrix is symmetric when time-reversal is 
-          ! conserved; but this is not exploited at the moment!
+          ! ... but the stored matrix is symmetric when time-reversal is conserved
 $TR       HFBgaps(indb_global,inda_global) = HFBgaps(inda_global,indb_global)
         enddo
       enddo
@@ -1725,7 +1771,7 @@ $TR       HFBgaps(indb_global,inda_global) = HFBgaps(inda_global,indb_global)
       &                  MPI_REAL8,MPI_SUM, MPI_COMM_WORLD, mpi_err)
       si = si + N + N2
     enddo
-#endif
+#endif 
     !---------------------------------------------------------------------------
     ! We have now calculated the gaps (without cutoffs) in the basis that 
     ! is currently in storage. This can either be the HF basis or not, but
@@ -2159,4 +2205,136 @@ $NTR     enddo
     enddo
 
    end subroutine update_qp_angmom
+
+  subroutine print_spme_real(A)
+    !-----------------------------------------------------------------------------
+    ! Print a real matrix in single-particle matrix element format.
+    !
+    ! The matrix is printed block-wise according to the HFBlocks array from the
+    ! wavefunctions module. Each of the 8 symmetry blocks is printed separately
+    ! with its block index as a header.
+    !
+    ! Input:
+    !   A : real(dp) matrix of dimension (nwt,nwt) to be printed
+    !
+    !-----------------------------------------------------------------------------
+      use wavefunctions, only: HFBlocks, nwt
+    real(kind=dp), intent(in) :: A(nwt,nwt)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print '(99f10.5)',  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_real
+
+  subroutine print_spme_complex(A)
+    !-----------------------------------------------------------------------------
+    ! Print a complex matrix in single-particle matrix element format.
+    !
+    ! The matrix is printed block-wise according to the HFBlocks array from the
+    ! wavefunctions module. Each of the 8 symmetry blocks is printed separately
+    ! with its block index as a header. Complex numbers are printed as
+    ! (real,imag) pairs.
+    !
+    ! Input:
+    !   A : complex(dp) matrix of dimension (nwt,nwt) to be printed
+    !
+    !-----------------------------------------------------------------------------
+    use wavefunctions, only: HFBlocks
+    complex(kind=dp), intent(in) :: A(nwt,nwt)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print "(*( '(',g12.5,',',g12.5,')',:))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex
+
+  subroutine print_spme_complex_superblock(A)
+    !-----------------------------------------------------------------------------
+    ! Print a complex matrix in single-particle matrix element format using
+    ! superblocks.
+    !
+    ! The matrix is printed in pairs of blocks (superblocks) according to the
+    ! HFBlocks array from the wavefunctions module. Blocks 1&2, 3&4, 5&6, 7&8
+    ! are printed together as superblocks.
+    ! Complex numbers are printed as (real,imag) pairs.
+    !
+    ! Input:
+    !   A : complex(dp) matrix of dimension (nwt,nwt) to be printed
+    !
+    !-----------------------------------------------------------------------------
+    use wavefunctions, only: HFBlocks, nwt
+
+    complex(kind=dp), intent(in) :: A(nwt,nwt)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8,2
+
+      N  = HFblocks(B) + HFblocks(B+1) 
+
+      print *, 'BLOCKS ', B ,' & ', B+1
+      do i=si+1,si+N
+        print "(*( '(',g12.5,',',g12.5,')',:))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex_superblock
+
+  subroutine print_spme_real_superblock(A)
+    !-----------------------------------------------------------------------------
+    ! Print a real matrix in single-particle matrix element format using
+    ! superblocks.
+    !
+    ! The matrix is printed in pairs of blocks (superblocks) according to the
+    ! HFBlocks array from the wavefunctions module. Blocks 1&2, 3&4, 5&6, 7&8
+    ! are printed together as superblocks.
+    !
+    ! Input:
+    !   A : real(dp) matrix of dimension (nwt,nwt) to be printed
+    !
+    ! Note: Requires access to HFBlocks array from wavefunctions module.
+    !-----------------------------------------------------------------------------
+    real(kind=dp), intent(in) :: A(nwt,nwt)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8,2
+
+      N  = HFblocks(B) + HFblocks(B+1) 
+
+      print *, 'BLOCKS ', B ,' & ', B+1
+      do i=si+1,si+N
+        print '(99f10.5)',  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_real_superblock
+
 end module

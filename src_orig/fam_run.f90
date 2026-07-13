@@ -1,12 +1,37 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 program run_FAM
-
+  !===========================
+  ! TODO: document the module
+  !===========================
   use compilation
   use IO
   use version,  only : print_header
-  use Tantalus, only : initialize_all_timers, full_printout
-  use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
+  use MOCCa,    only : initialize_all_timers, full_printout
+  use MOCCa,    only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T, test_linearity_FAM_coulomb
+  use fam_testing, only : run_FAM_tests, test_L_Linv
   use gmres 
   use timing
 
@@ -20,6 +45,7 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
+  real(kind=dp) :: strength_free
 
   complex(KIND=dp) :: S_complex_decomp(8) = 0
   real(KIND=dp) :: S_decomp(8) = 0
@@ -56,57 +82,61 @@ program run_FAM
   ! Print all relevant input gleaned from STDIN and the wf file.
   call PrintInput()
 
+  !-----------------------------------------------------------------------------
+  ! Step 0: calculate mean-field quantities and prepare the spwf states
   ! Provide memory for the derivatives of the spwfs
-  call allocate_memory_derivatives(PairingType)
-
-  ! Future dev: required for HFB
-  ! ifail = 0
-  call SolvePairing(pairingscheme, ifail)
-
   ! Derive all single-particle wavefunctions on the mesh
+  call allocate_memory_derivatives(PairingType)
   if(store_derivatives) call deriveHF()
+  ! Solve the pairing problem
+  call SolvePairing(pairingscheme, ifail)
+  ! NOTE: we DO NOT construct the canonical basis here since we want to save on memory
 
-  !--------------------------------------------------------------------------------
-  ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
-  !          diagonalize it within the subspace spanned by the spwfs read from file
-  Density     = densit(rho_can, kappa_pairing)
+  ! if doing HF, we construct the full HF densities rather than the merely the vector rho_can
+  if (pairingtype .eq. 0) call iniHFdensities()
+  ! Mean-field densities and potentials
+  Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! ATTENTION: this explicit diagonalisation can break the apparent agreement
-  !            between proton and neutron matices since the LAPACK diagonalisation
-  !            might perform different rotations of the spwfs dependent on small
-  !            numerical details.
-  dispersions = calculate_spwf_dispersions(potentials)
-  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-  if(store_derivatives) call deriveHF() ! and update derivatives
+  if(pairingtype.eq.0) then
+    !----------------------------------------------------------------------------------  
+    ! Perform an explicit diagonalisation of the single-particle hamiltonian 
+    !  to ensure a "clean" start for FAM-RPA calculations
+    !
+    ! ATTENTION: this explicit diagonalisation can break the apparent agreement
+    !            between proton and neutron matices since the LAPACK diagonalisation
+    !            might perform different rotations of the spwfs dependent on small
+    !            numerical details.
+     
+    ! Construct the matrix of the single-particle hamiltonian
+    sphamil     = Calc_Sphamil(potentials, .true.)
+    ! Diagonalise and transform spwf states
+    call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+    if(store_derivatives) call deriveHF() ! and update derivatives
+    ! diagonalisation done; now recalculate other quantities
+    call SolvePairing(pairingscheme, ifail)
+    ! ... make sure the full density matrix gets repopulated!
+    if (pairingtype .eq. 0) call iniHFdensities()
+
+    Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
+    Potentials  = calcPotentials(Density)
+  endif 
+
   ! Explicitly recalculate dispersion to provide an idea of the quality of the mean-field state
   dispersions = calculate_spwf_dispersions(potentials)
-  ! diagonalisation done; now recalculate other quantities
-  call SolvePairing(pairingscheme, ifail)
-  Density     = densit(rho_can, kappa_pairing)
-  Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
-  !----------------------------------------------------------------------------------
-  ! Step 0b: calculate all relevant quantities on the meanfield level to enable a
-  !          complete printout
+  ! ... further update mean-field quantities and print a full summary
   call update_spwf_properties_HF () !
-  if(PairingType.eq.2) call update_spwf_properties_CAN()
   print_adv_spwf_properties = .true.
   call setBelyaevProcedure()
-  call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
-  call calc_avg_gap()
+  ! Calculate the energy ... but do not include expensive contributions that have to be calculated in the canonical basis - which is not constructed in FAM runs.
+  call CalcEnergy(Density,Potentials,pairingtype.ne.2) 
+  ! call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
-
-  !---------------------------------------------------------------------------------
-  ! construct the full HF densities rather than the merely the vector rho_can
-  if (pairingtype .eq. 0) call iniHFdensities()
-
+  
   !---------------------------------------------------------------------------------
   ! Evaluate the energy weighted sum rule
-  ewsr = calc_EWSR()
-
+  ewsr = calc_EWSR(Density)
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
@@ -120,16 +150,22 @@ program run_FAM
     call init_perturbed_denfile(DENFILE)
   endif
 
-
-
   !---------------------------------------------------------------------------------
-  ! allocate the single-particle hamiltonians 
+  ! allocate the flattend single-particle hamiltonians (+pairing fields)
   if(.not. allocated(dH_flat)) then
-    allocate(dH_flat(nwt*nwt))
+    if(pairingtype==0) then
+      allocate(dH_flat(nwt * nwt))
+    else
+      allocate(dH_flat(3 * nwt * nwt))
+    endif
   endif
 
   if(.not. allocated(dH_flat_next)) then
-    allocate(dH_flat_next(nwt*nwt))
+    if(pairingtype==0) then
+      allocate(dH_flat_next(nwt * nwt))
+    else
+      allocate(dH_flat_next(3 * nwt * nwt))
+    endif
   endif
 
   !---------------------------------------------------------------------------------
@@ -145,30 +181,91 @@ program run_FAM
 
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
-    !-------------------------------------------------------------------------------
 
     num_iter = 0
-    call inifam(omega_curr, Density, Potentials)
+    call inifam(omega_curr, Density, Potentials, Finfile)
+
+
+    !-------------------------------------------------------------------------------
+    ! calculate the free response by running one FAM loop starting from dh = 0
+
+    print *, 'Calculate the free response'
+    dH_flat = 0
+    call iterate_dHsp(dH_flat, dH_free_flat)
+    ! this also sets all other quantities like drho, dkappa, X, Y, dH20 to their free value
+
+
+    !-------------------------------------------------------------------------------
+    ! optional : read X and Y from XYinfile if provided
+
+    if (XYinfile .ne. '') then 
+      call read_XY(XYinfile, X, Y)
+      call store_XY_hist(X,Y)
+
+      strength =  calc_strength()
+      print * , 'strength at initialising X, Y :', strength
+
+      ! perform partial FAM loop to obtain dH from X and Y
+      call FAM_XY_to_dH(X, Y, dH_flat)
+      ! dH_flat serves as the initialisation for the upcoming iterative FAM solvers
+    
+    else 
+      ! If XYinfile is not present, then the free response is used as initalisation
+      ! of dH_flat in the iterative solvers
+
+      dH_flat = dH_free_flat
+
+    endif
+
+    !-------------------------------------------------------------------------------
+    ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+    if(unit_test) call run_FAM_tests() ! Note: contains a stop statement!
+    
+    !-------------------------------------------------------------------------------
+    ! if XYtoF, calculate F staring from XY
+
+    if (XYtoF) then
+      ! check if there is an XY input
+      if (XYinfile == '') then
+        print *, "ERROR: Cannot calculate F from XY if no input file XYinfile is provided. Stopping..."
+        stop
+      endif
+
+      ! Compute F from XY, passing dH_flat since is already computed with read XY
+      call Multiply_XY_with_QRPAmat(X, Y, dcmplx(omega_curr,smear), F, dH_flat)
+
+      ! BODGE : set fam_mixingscheme to -1 to skip all iterative FAM solvers
+      fam_mixingscheme = -1
+
+    endif
+
 
     is_converged = .false.
     is_divergent = .false.
 
+    !-------------------------------------------------------------------------------
+    ! start the iterative solver unless maxiter = 0 providing the free response. 
     if (fam_mixingscheme == 0 .and. fam_maxiter > 1) then
 
       !---------------------------------------------------------------------------------
-      ! via GMRES on implicit matrix*vector procedure one_minus_T()
+      ! OPTION 0 : GMRES on implicit matrix*vector procedure one_minus_T()
       !---------------------------------------------------------------------------------
 
       call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, fam_precision, norm_dH, ScProd_dH)
       
       fam_verbose = 0
 
-      ! initiliase the GMRES solver, using the free response as the initial guess x0
-      call init_gmres(dH_free_flat)
+      call init_gmres(dH_flat)
+
 
       do iter=1, gmres_itermax
+        !---------------------------------------------------------------------------------
+        ! Perform one GMRES iteration
         call iterate_gmres()
 
+
+        !---------------------------------------------------------------------------------
+        ! test convergenence
         if (gmres_res < gmres_precision) then 
           print 1
           print *, "Hooray! GMRES is converged! "
@@ -186,6 +283,9 @@ program run_FAM
 
       enddo
 
+
+      !---------------------------------------------------------------------------------
+      ! obtain the GMRES solution and perform one last iteration
       call extract_x_gmres()
 
       print *, "One final FAM iteration based on GMRES solution:  "
@@ -199,11 +299,10 @@ program run_FAM
     else if (fam_mixingscheme == 1) then
 
       !---------------------------------------------------------------------------------
-      ! linear mixing while employing iterate_dHsp()
+      ! OPTION 1 : linear mixing while employing iterate_dHsp()
       !---------------------------------------------------------------------------------
 
       ! initialise the sp hamiltonians to the ones of the free response 
-      dH_flat = dH_free_flat
       dH_flat_next = 0
 
       ! Start of the iterations 
@@ -215,14 +314,11 @@ program run_FAM
         ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
         call iterate_dHsp(dH_flat, dH_flat_next)
 
-        ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-        ! call run_FAM_tests(X,Y)
-
         ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
         dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
         !---------------------------------------------------------------------------------
-        ! test convergenence
+        ! test convergence
 
         ! Exit the loop if convergence is achieved.
         if (iter > 1) then ! at least two iterations to be able to compare
@@ -286,6 +382,11 @@ program run_FAM
     if(DENFILE .ne. '') then
       call append_perturbed_denfile(dRs, dRa, DENFILE)
     endif
+
+
+    !call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
+
+
 
     omega_curr = omega_curr + omega_step
 

@@ -136,13 +136,13 @@ line  = 80*"-"
 # 4 spaces for W.R., but I can imagine other people have different standards.
 tab           = '    '
 
-# Names of the arrays storing the single-particle states in Tantalus, from 
+# Names of the arrays storing the single-particle states in MOCCa, from
 # which the densities need to be calculated.
 ArrayNames=['DenPsi', 'DendPsi', 'DenddPsi', 'DendddPsi']
 
 #-------------------------------------------------------------------------------
 # Array containing all the different densities needed. Note that this contains 
-# all of the densities that will get summed by Tantalus.
+# all of the densities that will get summed by MOCCa.
 Densities_needed   = []
 deriv_needed       = [] # what external derivatives are needed for each element
                         # in Densities needed
@@ -213,12 +213,12 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation):
+def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation, dry_run=False, verbose=True):
     """
-     Master routine calling the other routines based on a list of densities.
-     Also prints output.
+    Master routine calling the other routines based on a list of densities.
+    Also prints output.
 
-     Input:
+    Input:
         fname                 : name of the file to write the output to
         src                   : source directory where the template file is
         target                : target directory where the output file should be
@@ -230,8 +230,10 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                 through summation over spwfs
                                 If False, calculate them directly from the 
                                 wavefunctions.
+        dry_run               : if True, do not write any files (default: False)
+        verbose               : if True, print detailed output (default: True)
 
-     Output:
+    Output:
         Declaration           : string that declares the density in FORTRAN
         Memory                : string that gets the contribution to memory 
                                 requirements for this density
@@ -248,6 +250,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     Expression                       = '' # calculation statements for mean-field densities
     Expression_offdiag_symmetric     = '' # calculation statements for symmetric parts of more general densities
     Expression_offdiag_antisymmetric = '' # calculation statements for antisymmetric parts of more general densities
+    Expression_offdiag_pp            = '' # calculation statements for perturbed pairing densities
 
     Derivation                       = ''
     Derivation_pair                  = ''
@@ -271,11 +274,13 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     Memory           = ''
     Write            = ''
 
-    print (line)
-    print (' Densities necessary for the functional                                    ')
-    print (line)
-    print ('      Name       Calc?     TR    Intermediate?  DIM with / out  Derivative combs.      ')
-    print (line)
+    if(verbose):
+        print (line)
+        print (' Densities necessary for the functional                                    ')
+        print (line)
+        print ('      Name       Calc?     TR    Intermediate?  DIM with / out  Derivative combs.      ')
+        print (line)
+
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
         
@@ -284,22 +289,25 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         T        = TimeDen(den)
         D        = deriv_needed[i]
         I        = intermediate_status[i]
-        print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
+        if(verbose):
+            print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
 
-    print (line)
-    print (' Symmetries of the densities')
-    print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
-    print (line)
+    if(verbose):
+        print (line)
+        print (' Symmetries of the densities')
+        print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
+        print (line)
+
     for i in range(len(Densities_needed)):
       den = Densities_needed[i]
-
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      # "Diagonal" summation of densities in the canonical basis
+      # "Diagonal" summation of particle-hole densities in the canonical basis
+      #         + "offdiagonal" summation of particle-particle densities
       (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so, fam_active,                     \
-                           density_spwf_summation)
+                           density_spwf_summation, silent=not verbose)
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Off-diagonal" summation of densities in the HF-basis
@@ -339,17 +347,26 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Expressions required to evaluate the matrix elements of the single-particle
-      # hamiltonian based on density-like expressions
+      # hamiltonian and pairing matrix Delta based on density-like expressions
       e_sph_sym     = ''
       e_sph_antisym = ''
       (t,t,left,right,t,t) = ParseOperators(Densities_needed[i], so.timelike)
       # TODO:  - [ ] write documentation!
       #        - [X] refactor this thing with loops
       #        - [ ] add if statements for time-reversal necessities?
-      if(left != right):
+
+      # Dirty hack: I do not want to deal (YET) with the symmetrization of pairing densities
+      if('P' in den):
+        symmetrization_needed = False 
+      elif(left == right):
+        symmetrization_needed = False 
+      else:
+        symmetrization_needed = True
+
+      if(symmetrization_needed):
         # Explicit symmetrisation is required
         for symsign in [-1,+1]:
-            if((not so.timelike) or TimeDen(Densities_needed[i]) == 1):
+            if((not so.timelike) or TimeDen(Densities_needed[i]) == 1  or  'P' in den):
                 # Symmetric parts of the perturbation of time-even mean-field densities are time-even
                 # Symmetric parts of the perturbation of time-odd  mean-field densities are time-odd
                 sph_tuple = \
@@ -358,7 +375,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                     'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                                     complex_component=+1, weight='potential', symmetrize=symsign, silent=True)
                 e_sph_sym += sph_tuple[0]
-            if(not(so.timelike) or TimeDen(Densities_needed[i])==-1):
+            if(not(so.timelike) or TimeDen(Densities_needed[i])==-1 or 'P' in den):
                 # Antisymmetric parts of the perturbation of time-even mean-field densities are time-odd
                 # Antisymmetric parts of the perturbation of time-odd  mean-field densities are time-even
                 sph_tuple = \
@@ -383,26 +400,40 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                 'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                                 complex_component=-1, weight='potential', symmetrize=0, silent=True)
             e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
-      print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+      if(verbose):
+          print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
        Declaration     = Declaration    + '\n' + dec
 
       Spwf_Declaration = Spwf_Declaration + '\n' + spwf_dec
       if('P' in den):
+        #-------------------------------------------------------------------------------------
+        # Pairing densities 
+        #-------------------------------------------------------------------------------------
         # The BCS expression is diagonal in 'wave'
         BCSExpression = BCSExpression + '\n' + e
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
-        # This summation is blockwise, hence the 'si+'
+        # This summation is blockwise, hence the 'si+' in the indices 
+
+        silent_call = False 
+        if(not verbose):
+            silent_call = True
         (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],    \
                                           intermediate_status[i],                  \
                                          'si+wave2' , 'si+wave'  ,                 \
                                          'der_index', 'der_index', so, fam_active, \
-                                          density_spwf_summation, silent=False)
+                                          density_spwf_summation, silent=silent_call)
         HFBExpression = HFBExpression + '\n' + e
+
+        Expression_offdiag_pp  = Expression_offdiag_pp + e_sph_sym
+        # TODO: there seems to be no treatment for derivatives of pairing densities yes!
       else:
+        #-------------------------------------------------------------------------------------
+        # Particle-hole densities
+        #-------------------------------------------------------------------------------------
         Expression                       = Expression                       + '\n' + e
         Expression_offdiag_symmetric     = Expression_offdiag_symmetric     + '\n' + e_off_sym
         Expression_offdiag_antisymmetric = Expression_offdiag_antisymmetric + '\n' + e_off_asym
@@ -416,7 +447,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
 
-        Isospincoupl                 = Isospincoupl          + isoi
+        Isospincoupl                 = Isospincoupl                    + isoi
         Isospincoupl_symmetric       = Isospincoupl_symmetric          + iso_off_sym
         Isospincoupl_antisymmetric   = Isospincoupl_antisymmetric      + iso_off_asym
 
@@ -427,7 +458,9 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         Multiply       = Multiply       + '\n' + multi
         Memory         = Memory         + '\n' + memi
         Write          = Write          + '\n' + writei
-    print (line)
+    
+    if(verbose):
+        print (line)
 
     # Substitute into the densities.f90 file.
     dic={}
@@ -438,15 +471,15 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         dic['FAM'] = 1
     else:   
         dic['FAM'] = 0
-        
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # These are the strings detailing the calculation of densities in all possible contexts
     #
     # a) particle-hole densities
-    dic['EXPRESSION'        ] = Expression                                      # single summation for mean-field calculations
-    dic['EXPRESSION_OFFDIAG_SYMMETRIC']  = Expression_offdiag_symmetric         # double summation for symmetric part of more general densities
+    dic['EXPRESSION'        ]               = Expression                        # single summation for mean-field calculations
+    dic['EXPRESSION_OFFDIAG_SYMMETRIC']     = Expression_offdiag_symmetric      # double summation for symmetric part of more general densities
     dic['EXPRESSION_OFFDIAG_ANTISYMMETRIC'] = Expression_offdiag_antisymmetric  # double summation for symmetric part of more general densities
+    dic['EXPRESSION_DELTA_PP']              = Expression_offdiag_pp             # double summation for perturbed pairing densities
 
     dic['ISOSPINCOUPL'              ] = Isospincoupl
     dic['ISOSPINCOUPL_SYMMETRIC'    ] = Isospincoupl_symmetric
@@ -540,11 +573,8 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       if (sym == symdic['P']):
         dic['PBROKEN'] = '!'
 
-    substitute(src+fname, target+fname, dic)           
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))  
+    if(not dry_run):
+        substitute(src+fname, target+fname, dic)           
 
     # Return the declaration of all densities for use in vectors.f90
     return Declaration, Memory
@@ -930,7 +960,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         Multiply       = Multiply + '\n' + ta.Multiply_template.substitute(dic)
         dic['NAME']    = density
 
-    if((not so.timelike) or leftwave != rightwave or TimeDen(density) == +1):
+    if((not so.timelike) or (leftwave != rightwave and 'P' not in density) or TimeDen(density) == +1):
         #---------------------------------------------------------------------------
         # Generate the expression to calculate the density
         # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
@@ -1176,12 +1206,27 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                         mult = ''
                     dic['WEIGHT'] = mult + 'F%' + density.replace('D', 'F').replace('C', 'G') + '(i' + IND + ',it)'
 
-                    if complex_component == +1:
-                        Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
-                    elif complex_component == -1:
-                        Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
-                    elif complex_component == +0:
-                        Expression = Expression + ta.Sph_sum_real.substitute(dic) + '\n\n'
+                    if('P' not in density):
+                        # Calculation for the single-particle hamiltonian
+                        if complex_component == +1:
+                            Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
+                        elif complex_component == -1:
+                            Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
+                        elif complex_component == +0:
+                            Expression = Expression + ta.Sph_sum_real.substitute(dic) + '\n\n'
+                    else:
+                        # Calculation for the matrix of pairing gaps
+                        #
+                        # HACK
+                        # - - - - -
+                        dic['WEIGHT'] = ' 2.0d0 * ' + dic['WEIGHT']
+                        #
+                        if complex_component == +1:
+                            Expression = Expression + ta.Delta_sum_realpart.substitute(dic) + '\n\n'
+                        elif complex_component == -1:
+                            Expression = Expression + ta.Delta_sum_imagpart.substitute(dic) + '\n\n'
+                        elif complex_component == +0:
+                            Expression = Expression + ta.Delta_sum_real.substitute(dic) + '\n\n'
 
             # And add a line for the isospin coupling
             if 'P' not in density:

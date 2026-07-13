@@ -41,14 +41,11 @@ The recommendation is to use CRAY compilers on LUCIA, i.e. use the following `ma
 
 To correctly compile the code, you will need to load:
 ```
-module load Cray
-module load CPE
-module load PrgEnv-cray
 module load cray-python
+module load PrgEnv-cray
+module load craype-hugepages2M                                       
 ```
-The ordering of these commands is not arbitrary.
-
-You can optionally enable HDF5: 
+You should also enable HDF5 support: 
 ```
 module load cray-hdf5 OR cray-hdf5-parallel 
 ```

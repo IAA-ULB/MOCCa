@@ -1,16 +1,27 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module wavefunctions
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
  !==============================================================================
  !
  ! Module containing the single-particle wave-functions (spwfs for short) and 
@@ -246,7 +257,7 @@ module wavefunctions
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = (/ 0.2125, 0.2125, 0.175 /)
  !------------------------------------------------------------------------------
- ! Tell Tantalus to either 
+ ! Tell MOCCa to either
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
  !       iterative scheme
  !  (ii) to stop caring about the diagonalisation of the sphamiltonian
@@ -428,11 +439,15 @@ $N3   if(allocated(CANdddPsi))   deallocate(CANdddPsi)
     allocate(HFddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
 $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
 
+#if($FAM == 0) 
+    ! We do not need the canonical basis when doing FAM calculations
+    ! ... so we save memory.
     if(ptype.eq.2) then
       allocate(candPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
       allocate(canddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
   $N3 allocate(candddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     endif
+#endif
   end subroutine allocate_memory_derivatives
 
   subroutine loadbalance(blocks_global,blocks_local,spwf_map,        &

@@ -14,6 +14,10 @@ from src_heph import preprocess as pp
 #from src_heph import latex
 import sys, importlib
 
+#-------------------------------------------------------------------------------
+# DECLARATIONS 
+#-------------------------------------------------------------------------------
+
 # Horizontal line for printing
 line  = 80*"-"
 
@@ -28,26 +32,49 @@ r"   |                                                                        |"
 r"   |  Copyright W.Ryssens & M. Bender                                       |"+"\n" +\
 r"   ==========================================================================="
 
-print (heph_name)
+#List of FORTRAN files needed for a functional code.
+FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90',
+              'constants.f90'     , 'printing.f90'     , 'HFB.f90',
+              'HFB_gradient.f90'  , 'HFB_direct.f90'   , 'folding.f90' ,
+              'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   ,
+              'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',
+              'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
+              'momentsofinertia.f90', 'hdf5_auxiliary.f90',
+              'fission_MOI.f90'   ,  'densities.f90'      ,
+              'moments.f90'       , 'pairing.f90'       , 'pairing_strengths.f90',
+              'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   ,
+              'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,
+              'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' ,
+              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
+              'vectors.f90', 'IO_aux.f90', 'IO_wf.f90', 'version.f90', 
+              'fam_gmres.f90', 'fam.f90', 'fam_run.f90', 'fam_testing.f90']
+
 #-------------------------------------------------------------------------------
-# Dealing with the input:
-# a) checking for existence
-# b) importing a configuration file
-# c) specifying density summation option
+# Actually start Hephaestos
 #-------------------------------------------------------------------------------
-if(len(sys.argv) != 4):
-  print ("Running Hephaestos requires specifying two arguments.")
-  print (' a) specifying a configuration file')
-  print (' b) indicate whether compiling a mean-field or FAM executable')
-  print (' c) specifying the chosen option regarding density summation')
-  print (' Example:')
-  print ('    python Hephaestos.py NLO mf 1')
+if(len(sys.argv) != 6):
+  
+  print ("Running Hephaestos requires specifying either five or four arguments.")
+  print (' 1. specifying a configuration file')
+  print (' 2. indicate whether compiling a mean-field or FAM executable')
+  print (' 3. specifying the chosen option regarding density summation')
+  print (' 4. specifying the location of the generated source file')
+  print (' 5. name of the source code file to be processed OR "dry-run" to simulate processing of all files')
+  print (' Examples:')
+  print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf version.f90 -> will process ONLY version.f90' )
+  print ('    python Hephaestos.py NLO mf 1 build/NLO/src_mf dry-run     -> will process ALL .f90 files' )
 
   sys.exit(1)
 
 config                 = sys.argv[1]
 EXETYPE                = sys.argv[2]
 DENSITY_SPWF_SUMMATION = int(sys.argv[3])
+source_location        = sys.argv[4]
+filename               = sys.argv[5]
+
+if(filename != 'dry-run' and not filename.endswith('.f90')):
+  print ("The specified filename must end with .f90 or be 'dry-run'.")
+  sys.exit(1)
 
 assert(EXETYPE == 'mf' or EXETYPE == 'fam')
 if(EXETYPE == 'mf'):  
@@ -57,6 +84,10 @@ else:
 
 if( not os.path.isfile('configs/' + config + '.py')):
   print ("Config file '%s' does not exist."%config)
+  sys.exit(1)
+
+if( not os.path.isdir(source_location)):
+  print ("The directory you specified for the generated code does not exist.")
   sys.exit(1)
 
 configmod = importlib.import_module('configs.' + config)
@@ -106,103 +137,61 @@ try:
 except AttributeError:
   PH_PP_DECOUPL = True
 
-
-print (line)
-print (' Configuration file                    : %s'%config)
-print ('    Functional file                    : %s'%FUNC_FILE)
-print ('    PH-PP channel decoupling           : %s'%PH_PP_DECOUPL)
-print ('    Symmetry string                    : %s'%SYMSTRING)
-print ('    Axis reduction                     : %s'%REDUCE)
-print ('    Symmetry string                    : %s'%INSYM)
-print ('    Axis reduction                     : %s'%INREDUCE)
-print ('    Quantisation axis                  : %s'%QUANT_AXIS)
-print ('    Secondary    axis                  : %s'%SECOND_AXIS)
-print ('    Sum density derivatives from spwfs : %s'%DENSITY_SPWF_SUMMATION)
-print (line)
+if(filename == 'dry-run'):
+  print (heph_name)
+  print (line)
+  print (' Configuration file                    : %s'%config)
+  print ('    Functional file                    : %s'%FUNC_FILE)
+  print ('    PH-PP channel decoupling           : %s'%PH_PP_DECOUPL)
+  print ('    Symmetry string                    : %s'%SYMSTRING)
+  print ('    Axis reduction                     : %s'%REDUCE)
+  print ('    Symmetry string                    : %s'%INSYM)
+  print ('    Axis reduction                     : %s'%INREDUCE)
+  print ('    Quantisation axis                  : %s'%QUANT_AXIS)
+  print ('    Secondary    axis                  : %s'%SECOND_AXIS)
+  print ('    Sum density derivatives from spwfs : %s'%DENSITY_SPWF_SUMMATION)
+  print (line)
 #-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
-SRCPATH = 'src_orig/'
-# Path to put the generated source for compilation
-if(EXETYPE == 'mf'):
-  GENPATH = 'src/'
-else:
-  GENPATH = 'src_fam/'
-
-#List of FORTRAN files needed for a functional code.
-FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90',
-              'constants.f90'     , 'diaglib.f90'      ,  'printing.f90'     , 'HFB.f90',
-              'HFB_gradient.f90'  , 'HFB_direct.f90'   , 'folding.f90' ,
-              'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   ,
-              'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',
-              'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
-              'momentsofinertia.f90', 'hdf5_auxiliary.f90',
-              'fission_MOI.f90'   ,  'densities.f90'      ,
-              'moments.f90'       , 'pairing.f90'       , 'pairing_strengths.f90',
-              'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   ,
-              'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,
-              'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' ,
-              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
-              'vectors.f90', 'IO_aux.f90', 'IO_wf.f90', 'version.f90', 
-              'fam_gmres.f90', 'fam.f90', 'fam_run.f90', 'fam_testing.f90']
-
-#-------------------------------------------------------------------------------
-# Check for the existence of all the source code files in SRCPATH
-FOUND=True
-for fname in FORTRANFILES:
-    if(not isfile(SRCPATH + fname)):
-        print ('You are missing %s%s'%(SRCPATH, fname))
-        FOUND=False
-
-if(not FOUND):
-    print ('Go find the source files, then come back.')
-    quit()
+SRCPATH = '' #'src_orig/'
+GENPATH = source_location 
+if(not GENPATH.endswith('/')):
+  GENPATH += '/'
 
 #-------------------------------------------------------------------------------
 # First we identify all the relevant symmetry options
 so    = heph_symmetries.initsymmetries(SYMSTRING,REDUCE,QUANT_AXIS,SECOND_AXIS)
 oldso = heph_symmetries.initsymmetries(INSYM,INREDUCE,QUANT_AXIS,SECOND_AXIS)
 
-print ("  Symmetry information" )
-heph_symmetries.printsymmetryoption(so)
-print(line)
-print ("  Symmetry information" )
-heph_symmetries.printsymmetryoption(oldso)
-print(line)
+if(filename == 'dry-run'):
+  print ("  Symmetry information" )
+  heph_symmetries.printsymmetryoption(so)
+  print(line)
+  print ("  Symmetry information" )
+  heph_symmetries.printsymmetryoption(oldso)
+  print(line)
 
 # Initialize the densities module, setting up the properties of all the
 # operators
 heph_densities.initdensities()
 #-------------------------------------------------------------------------------
 # Next, we read all the functional information
-description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active)
-## ... and initialize the fields module
-#heph_fields.initfields(so)
+description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION, fam_active, print_stdout=(filename == 'dry-run'))
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.
-for fname in FORTRANFILES:
-#     print ("Preprocessing " + fname)
-     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL,
-                   fam_active, DENSITY_SPWF_SUMMATION)
+if( filename == 'dry-run'):
+  # This is a dry-run: we will simulate tackling ALL files and print output 
+  #    but we will NOT generate any final source code files.
+  for fname in FORTRANFILES:
+    pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=True)
+else: 
+  # Process the one specific file we have been asked for
+  split = filename.split('/')
+  fname = split[-1]
+  SRCPATH = '/'.join(split[0:-1]) + '/'
+  pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, fam_active, DENSITY_SPWF_SUMMATION, dry_run=False)
 
-#-------------------------------------------------------------------------------
-# Output all of the relevant things into .tex files.
-#latex.Build(FUNC_FILE, description)
 
-#-------------------------------------------------------------------------------
-# Check if all files got generated correctly.
-print (line)
-FOUND=True
-for fname in FORTRANFILES:
-    if(not isfile(GENPATH + fname)):
-        print ('You are missing %s%s'%(GENPATH, fname))
-        FOUND=False
-if(not FOUND):
-    print ('     Hephaestos did not treat all the source code files.')
-else :
-    print ('     All source files processed.')
-    print ('     Ready for compilation.')
-    print ('     Happy calculations!')
-print (line)
 sys.exit(0)

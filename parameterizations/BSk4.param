@@ -1,0 +1,45 @@
+!-------------------------------------------------- 
+! BSk4 parameterization 
+! 
+! As obtained from 
+!  S. Goriely, M. Samyn, M. Bender and J.M. Pearson 
+!  Phys. Rev. C 67, 054325 (2003) 
+!  
+!  ATTENTION: work in progress, not to be trusted yet!
+!-------------------------------------------------- 
+&skf
+  name = 'BSk4' 
+  func_file = 'NLO.func' 
+  t0 = -1776.9376
+  t1 = 306.884
+  t2 = -105.67
+  t3 = 12302.1
+  x0 = 0.542594
+  x1 = -0.535165
+  x2 = 0.494738
+  x3 = 0.759028
+  wso = 129.5
+  sigma = 0.3333333333
+  wsoq     =      129.5 
+  x3b      =      0.0 
+  t3b      =      0.0 
+  sigma_b  =      0.0 
+! Pairing parameters set to zero; the original pairing is not reproducible 
+  Vn = 0.0 
+  Vp = 0.0 
+  alpha  = 1.0 
+  sigmap = 1.0 
+  COM1Body = 2 
+  COM2Body = 1 
+  CSDS0    = 0 
+  CSDS1    = 0 
+  CT0      = -52.84869254 
+  CT1      = -25.784625000000002 
+ hbm(1)   = 20.72126890,20.74983164 
+ e2       = 1.43996446 
+ Protonsize    = 0.895, 0.0   
+ Neutronsize   = 0.387, 0.467 
+ HOcomform     = .true. 
+ nucleonsize_selfconsistent=.false. 
+ CoulTreatment = 2 
+/

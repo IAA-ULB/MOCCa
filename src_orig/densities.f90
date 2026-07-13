@@ -1,17 +1,28 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module densities
 !===============================================================================
-!_________ _______  _       _________ _______  _                 _______ 
-!\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
-!   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
-!   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
-!   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
-!   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
-!   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
-!   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
-!                                                                       
-!  Copyright W. Ryssens & M. Bender
-!
-!=============================================================================== 
 ! Module that defines, calculates and generally deals with all densities. 
 ! 
 !=============================================================================== 
@@ -700,27 +711,34 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
-subroutine densit_offdiag(rho, kappa, Rs, Ra)
+subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_minus)
     !----------------------------------------------------------------------------
     ! Calculate normal and anomalous densities through a double sum across spwfs
     ! by summing symmetric and antisymmetric parts.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
-    !   rho      real/complex matrix
-    !   kappa    real/complex matrix
+    !   rho        :  complex matrix
+    !   kappa_plus : (antisymmetric) complex matrix
+    !   kappa_minus: (antisymmetric) complex matrix 
     !
     ! Output:
     !   Rs   : density vector containing the symmetric part of the densities
     !   Ra   : density vector containing the antisymmetric part of the densities
+    !   R_pp_plus  : density vector containing the pairing densities for
+    !                 kappa_plus
+    !   R_pp_minus : density vector containing the pairing densities for
+    !                 kappa_minus
     !----------------------------------------------------------------------------
-    complex(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
-    type(DensityVector), intent(out) :: Rs, Ra
+    complex(KIND=dp), intent(in)     :: rho(:,:), kappa_plus(:,:), kappa_minus(:,:)
+    type(DensityVector), intent(out) :: Rs, Ra, R_pp_plus, R_pp_minus
 
     call start_timer(T_den_perturbed)
 
-    Rs = densit_offdiag_symmetric(rho,kappa)
-    Ra = densit_offdiag_antisymmetric(rho,kappa)
-
+    ! building the ph densities
+    Rs = densit_offdiag_ph_symmetric(rho)      ! symmetric ph densities
+    Ra = densit_offdiag_ph_antisymmetric(rho)  ! antisymmetric ph densities
+    R_pp_plus = densit_offdiag_pp(kappa_plus)  ! pp densities for kappa_plus 
+    R_pp_minus= densit_offdiag_pp(kappa_minus) ! pp densities for kappa_minus
     call stop_timer(T_den_perturbed)
 
     !call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
@@ -734,6 +752,38 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
     !call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
 
 end subroutine densit_offdiag
+
+function densit_offdiag_restricted(rho, kappa) result(R)
+  !----------------------------------------------------------------------------
+  ! Calculate the mean-field densities for the restricted set of density
+  ! matrices, i.e., diagonal rho and kappa in the canonical basis.
+  !
+  ! TODO: document
+  !
+  ! Input :
+  !   rho      : real matrix
+  !   kappa    : real matrix
+  !
+  ! Output:
+  !   R        : densityvector, values for the ph and pp densities
+  !----------------------------------------------------------------------------
+    
+  real(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
+  complex(KIND=dp), allocatable :: rho_temp(:,:), kappa_plus_temp(:,:), kappa_minus_temp(:,:)
+  type(DensityVector)           :: R
+  type(DensityVector)           :: Rs, Ra, R_pp_plus, R_pp_minus
+
+  allocate(rho_temp(nwt,nwt), kappa_plus_temp(nwt,nwt), kappa_minus_temp(nwt,nwt))
+  rho_temp         = rho 
+
+  kappa_plus_temp  = kappa
+  kappa_minus_temp = 0.0d0
+
+  call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
+  ! Combine the correct densities
+  R = Rs + R_pp_plus
+
+end function densit_offdiag_restricted
 
 subroutine print_maxval(name, den_sym, den_asym)
   !
@@ -752,22 +802,131 @@ subroutine print_maxval(name, den_sym, den_asym)
   print *
 end subroutine print_maxval
 
-function densit_offdiag_symmetric(rho, kappa) result(R)
+function densit_offdiag_pp(kappa) result(R)
+    !----------------------------------------------------------------------------
+    ! Calculate the pairing mean-field densities, based on arbitrary
+    ! anomalous density matrix kappa.
+    !
+    ! Input :
+    !   kappa    : complex matrix
+    !   R        : densityvector, values for the ph densities will be maintained
+    !
+    ! Output:
+    !   R        : densityvector, this time with values for the pp densities
+    !              added. 
+    !----------------------------------------------------------------------------
+    COMPLEX(KIND=dp), intent(in)       :: kappa(:,:)
+    type(DensityVector)                :: R
+
+    integer                            :: wave, wave2, i, B, it, N, si, N2, T
+    INTEGER                            :: wave_global, wave2_global, der_index
+    complex(KIND=dp)                   :: weight
+    complex(KIND=dp), allocatable      :: kappa_cut(:,:)
+    ! TODO: this for sure declares too much
+$SPWF_DECLARATION
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+
+
+    ! Ensure allocation of charge density to avoid trouble when combining with
+    !  other density vectors
+    allocate(R%chargedensity(nx,ny,nz)) ; R%chargedensity = 0.0d0
+
+    call start_timer(T_den_perturbed_pp)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! PAIRING DENSITIES
+    select case (PairingType) 
+    case(0)
+      !----------------------------------------
+      ! HF calculation, no need to sum pairing densities
+      !----------------------------------------
+    case(1)
+      call stp('Linear response calculations for HF+BCS not implemented yet.')
+    case(2)
+      !-------------------------------------------------------------------------
+      ! HFB calculations: full summations.
+      !-------------------------------------------------------------------------
+      ! Sum the pairing densities in the HFbasis. This could be done in the 
+      ! canonical basis, but this would surely be less straightforward because
+      ! of the presence of pairing cutoffs.
+      DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
+      DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
+
+      ! a) start out by "just" copying kappa
+      allocate(kappa_cut(nwt,nwt))
+      kappa_cut = kappa
+
+      si = 0
+      do B=1,8,2  ! <------- this loop ranges over the global set of spwfs
+        N = HFBlocks_global(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
+        T = N+N2
+        it = 2          
+        if( B.le. 4) it = 1
+
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Calculation of the pairing cutoffs * kappa
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        do wave=1,T
+          do wave2=1,T
+            kappa_cut(si+wave,si+wave2) = kappa_cut(si+wave,si+wave2) &
+            &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+          enddo
+        enddo
+        si = si + N + N2
+      enddo
+      ! with kappa_cut in hand, we can turn to the summation of the densities.
+      si = 0
+      do B=1,8,2  ! <------- this loop ranges over the LOCAL set of spwfs
+        N = HFBlocks(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        T = N+N2
+        it = 2          
+        if( B.le. 4) it = 1
+
+        do wave=1,N                         ! local index of the spwf
+          wave_global = spwf_map(si+wave)   ! global index of the spwf
+$TR          do wave2=wave,N               
+$NTR          do wave2=N+1,N+N2      
+                wave2_global = spwf_map(si+wave2)
+
+                ! This factor two is the antisymmetry of \kappa_cut
+                weight=2*kappa_cut(wave_global,wave2_global)
+                ! TODO: think about whether this factor two is appropriate here
+$TR             if(wave.ne.wave2) weight = 2 * weight  
+                ! 
+            do i=1,mv
+$HFBEXPRESSION  
+            enddo
+          enddo
+        enddo
+        si = si + N + N2
+      enddo
+    end select
+
+    call stop_timer(T_den_perturbed_pp)
+end function densit_offdiag_pp
+
+function densit_offdiag_ph_symmetric(rho) result(R)
     !------------------------------ ---------------------------------------------
-    ! Calculate the symmetric part(*) of the mean-field densities, both normal
-    ! and pairing, based on arbitrary matrices rho and kappa.
+    ! Calculate the symmetric part(*) of the particle-hole mean-field densities, 
+    ! based on arbitrary matrix rho.
     !
     ! TODO: explain "symmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !   rho      real/complex matrix
-    !   kappa    real/complex matrix
     !
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
 
-    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    complex(KIND=dp), intent(in) :: rho(:,:)
     type(DensityVector)          :: R
 
     complex(KIND=dp)          :: weight_sym
@@ -852,23 +1011,22 @@ $ISOSPINCOUPL_SYMMETRIC
 
     call stop_timer(T_den_perturbed_sym)
 
-end function densit_offdiag_symmetric
+end function densit_offdiag_ph_symmetric
 
-function densit_offdiag_antisymmetric(rho, kappa) result(R)
+function densit_offdiag_ph_antisymmetric(rho) result(R)
     !------------------------------ ---------------------------------------------
-    ! Calculate the antisymmetric part(*) of the mean-field densities, both normal
-    ! and pairing, based on arbitrary matrices rho and kappa.
+    ! Calculate the antisymmetric part(*) of the particle-hole mean-field densities, 
+    ! based on arbitrary matrix rho
     !
     ! TODO: explain "antisymmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !   rho      real/complex matrix
-    !   kappa    real/complex matrix
     !
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    complex(KIND=dp), intent(in) :: rho(:,:)
     type(DensityVector)          :: R
 
     complex(KIND=dp)          :: weight_asym
@@ -953,7 +1111,7 @@ $ISOSPINCOUPL_ANTISYMMETRIC
 
     call stop_timer(T_den_perturbed_asym)
 
-end function densit_offdiag_antisymmetric
+end function densit_offdiag_ph_antisymmetric
 
 function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sphamil_me)
     !------------------------------------------------------------------------------------
@@ -1006,25 +1164,6 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
     sphamil_me = sp_sym + sp_asym
     call stop_timer(T_spme_perturbed)
-
-    !si = 0
-    !do B=1,8
-    !  N = HFBlocks(B)!
-
-    !  print *, 'B = ', B, ' symmetric '
-    !  do i=1, N
-    !    print ('(99f10.3)'), sp_sym(si+i, si+1:si+N)
-    !  enddo
-    !  print *
-    !  print *, 'B = ', B, ' antisymmetric '
-    !  do i=1, N
-    !    print ('(99f10.3)'), sp_asym(si+i, si+1:si+N)
-    !  enddo
-    !  print *
-    !  print *
-!
-     ! si = si + N
-    !enddo
 
 end function calc_sphamil_me
 
@@ -1175,6 +1314,88 @@ $EXPRESSION_SPH_ANTISYM
 
   end function calc_sphamil_me_antisym
 
+  function calc_delta_me( denpsi, dendpsi, denddpsi, F,  onthefly) result(delta_me)
+    !------------------------------------------------------------------------
+    ! Calculate the matrix elements of \Delta in the Hartree-Fock basis.
+    !     
+    ! Attention: the pairing cutoffs figure in this function and those 
+    !            are calculated in the Hartree-Fock basis. Even if this function 
+    !            takes denpsi, dendpsi, denddpsi as input, these should be
+    !            the Hartree-Fock wavefunctions!
+    !
+    ! Input:
+    ! -------
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !    F      : potential vector containing the linearised pairing potentials
+    !   onthefly: [NOT IMPLEMENTED YET ]
+    !
+    !
+    ! Output:
+    ! -------
+    !  delta_me : matrix elements of the pairing tensor Delta.
+    !
+    !
+    ! TODO: 
+    ! - implement MPI parallelisation
+    !
+    !------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: F
+    complex(KIND=dp), allocatable     :: delta_me(:,:)
+    integer                           :: it, B, si, N, N2, wave_i, wave_j, i, T
+$SPWF_DECLARATION
+    call start_timer(T_spme_perturbed_pp)
+
+    ! initialize
+    allocate(delta_me(nwt,nwt)) ; delta_me = 0.0d0
+
+    si = 0
+    do B=1,8,2
+      N = HFBlocks(B) ;  if (N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+
+      !---------------------------------------------------------------------------
+      ! Determine the isospin index
+      if(B.ge.5) then
+        it = 2
+      else
+        it = 1
+      endif
+      do wave_i=si+1,si+N                       ! local index of the spwf
+$TR          do wave_j=wave_i,si+N              ! symmetry-reduced
+$NTR          do wave_j=si+N+1,si+N+N2      
+          do i=1,mv
+$EXPRESSION_DELTA_PP
+          enddo
+          ! The minus sign is because Hephaestos generates the expression for 
+          ! 
+          ! \tilde \rho_ji = \sum_{\sigma} \sigma psi_j(r',\sigma) \psi_i(r,-\sigma)
+          !   
+          ! whereas Delta is proportional to 
+          !
+          !  \Delta_ji \sim \tilde \rho_ij
+          !
+          ! This should be corrected in Hephaestos, but it is much harder than including this minus sign.
+          delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) * dv * Pcutoffs(wave_i) * PCutoffs(wave_j)
+          ! Sign to be clarified with better documentation of Hephaestos
+$TR       delta_me(wave_j, wave_i) =  - delta_me(wave_j, wave_i) 
+          ! Delta is globally antisymmetric in the case of time-reversal symmetry, but we 
+          !  represent only half of the matrix explicitly!
+$TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i) 
+$NTR      delta_me(wave_i, wave_j) = -delta_me(wave_j, wave_i) 
+        enddo
+      enddo
+      si = si + N + N2
+    enddo
+
+    call stop_timer(T_spme_perturbed_pp)
+
+  end function calc_delta_me
+
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------
     ! Calculate the
@@ -1292,24 +1513,26 @@ function couple_iso(density, iso) result(coupled)
 
 end function couple_iso
 
-function CompNablaMelements() result(NablaMelements)
+function CompNablaMelements(spwf_basis) result(NablaMelements)
     !---------------------------------------------------------------------------
     ! Computes the matrix elements of Nabla
     !
-    !   < Psi_i | \nabla | \Psi_j >
-    !
-    ! In the basis from which the densities are constructed:
-    !    (a) HF-basis for HF and BCS calculations
-    !    (b) Canonical basis for HFB calculations
+    !   NablaMElements(mu,1,i,j) = Re < Psi_i | \nabla_{\mu} | \Psi_j >
+    !   NablaMElements(mu,2,i,j) = Im < Psi_i | \nabla_{\mu} | \Psi_j >
+    !    (mu = x/1 ,y/2, z/3)
+    ! 
+    ! for a given single-particle spwf_basis = HF/CAN/DEN. The corresponding 
+    ! argument is optional, and defaults to 'DEN'.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! The current MPI parallelization strategy to calculate a given matrix 
     ! element is simple: transfer all relevant spwfs to an indicated rank.
     !    1) find out the MPI ranks that store psi_i and psi_j, rank_i and rank_j
     !    2) send both to the designated rank
     !    3) which integrates psi_i \nabla_mu psi_j 
-    !    4) at this point we use the symmetry of the operator, I.e.
-    !          <psi_i |\nabla_mu |psi_j> = <psi_j| \nabla_mu| psi_i>^*
-    !
+    !    4) at this point we use the symmetry of the operator, i.e.
+    !          <psi_i |\nabla_mu |psi_j> = - <psi_j| \nabla_mu| psi_i>^*
+    !       Do NOT forget that \nabla is an antihermitian operator!
+    ! 
     ! This does not load balance very well, but at least we take the effort of
     ! load balancing the protons and neutrons. 
     !    Sequential : everything done by rank 0 
@@ -1318,12 +1541,14 @@ function CompNablaMelements() result(NablaMelements)
     !                 only store neutron/proton spwfs respectively and should
     !                 hence never communicate.
     !    5) MPI_BCAST creates the complete array for all ranks
-    ! 
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! TODO: this routine can be refactored by
     !       - adding a bunch of small functions for repeated instructions!
-    !
+    !       - removing the MPI, as this is functionality that is not 
+    !         currently used.
+    ! .... but what should really be done is abstracting the concept of a 
+    !      single-particle operator with different symmetry properties.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Some notes:
     ! 1) These matrix elements are, in general, complex numbers!
@@ -1349,6 +1574,9 @@ function CompNablaMelements() result(NablaMelements)
     ! calculations describe essentially infinite systems which are well-located
     ! in space.
     !---------------------------------------------------------------------------
+    character(len=*), intent(in), optional :: spwf_basis
+    character(len=3) :: basis
+
     integer       :: i, j, B, N, si, N2, N3, N4, wave, wave2
     integer       :: ranki, rankj, wave_global, wave2_global
     integer       :: designated_rank(2), calc_rank, T
@@ -1360,7 +1588,17 @@ function CompNablaMelements() result(NablaMelements)
 #endif
 
     call start_timer(T_NablaMElements)
-    !---------------------------------------------------------------------------
+    if(present(spwf_basis)) then
+      if(      (spwf_basis.ne.'DEN') &
+      &  .and. (spwf_basis.ne.'HF' ) &
+      &  .and. (spwf_basis.ne.'CAN')) then ! always sanity check
+        call stp('NablaMElements needs a single-particle basis to work with.')
+      endif
+      basis = spwf_basis
+   else 
+      basis = 'DEN'
+    endif
+
     NablaMElements= 0.0_dp
 
     designated_rank(1) = 0
@@ -1400,9 +1638,9 @@ function CompNablaMelements() result(NablaMelements)
 
         ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-        call transfer_derpsi(derz, wave2, 3,'DEN',.false., rankj, calc_rank)
+        call transfer_derpsi(derz, wave2, 3,basis,.false., rankj, calc_rank)
 #else
-        call transfer_derpsi(derz, wave2, 3,'DEN',.false.)
+        call transfer_derpsi(derz, wave2, 3,basis,.false.)
 #endif
         do i=1,N
           wave_global = si+i  ! this is the global index of the spwf
@@ -1411,9 +1649,9 @@ function CompNablaMelements() result(NablaMelements)
           wave  = spwf_inverse(wave_global)
           ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_psi(psi, wave, 'DEN',ranki, calc_rank )
+          call transfer_psi(psi, wave, basis,ranki, calc_rank )
 #else
-          call transfer_psi(psi, wave, 'DEN')
+          call transfer_psi(psi, wave, basis)
 #endif
           if(MPI_RANK .eq. calc_rank) then
             ! Perform the calculation with the rank designated to calculate
@@ -1422,11 +1660,11 @@ function CompNablaMelements() result(NablaMelements)
             &                    +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
 
             NablaMElements(3,1,wave2_global,wave_global) =&
-            &                       NablaMElements(3,1,wave_global,wave2_global)
+            &                     - NablaMElements(3,1,wave_global,wave2_global)
           endif
         enddo
-      enddo
-      
+      enddo     
+
       ! Block 1 with block 1 (parity broken)
 $PBROKEN   do j=1,N
 $PBROKEN     wave2_global = si+j
@@ -1435,9 +1673,9 @@ $PBROKEN     wave2        = spwf_inverse(wave2_global)
 $PBROKEN
 $PBROKEN     ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-$PBROKEN     call transfer_derpsi(derz,wave2, 3,'DEN',.false.,rankj,calc_rank)
+$PBROKEN     call transfer_derpsi(derz,wave2, 3,basis,.false.,rankj,calc_rank)
 #else
-$PBROKEN     call transfer_derpsi(derz,wave2, 3,'DEN',.false.)
+$PBROKEN     call transfer_derpsi(derz,wave2, 3,basis,.false.)
 #endif
 $PBROKEN     do i=1,N
 $PBROKEN       wave_global = si+i  ! this is the global index of the spwf
@@ -1445,9 +1683,9 @@ $PBROKEN       ! .... and we have to find the MPI RANK and the index it is on
 $PBROKEN       ranki = rank_map(wave_global)
 $PBROKEN       wave  = spwf_inverse(wave_global)
 #if(USE_MPI>0)
-$PBROKEN       call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN       call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-$PBROKEN       call transfer_psi(psi, wave, 'DEN')
+$PBROKEN       call transfer_psi(psi, wave, basis)
 #endif
 $PBROKEN
 $PBROKEN       if(MPI_RANK .eq. calc_rank) then
@@ -1456,7 +1694,7 @@ $PBROKEN         & sum(             derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
 $PBROKEN         &               +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
 $PBROKEN
 $PBROKEN         NablaMElements(3,1,wave2_global,wave_global) = &
-$PBROKEN         &                  NablaMElements(3,1,wave_global,wave2_global)
+$PBROKEN         &               -  NablaMElements(3,1,wave_global,wave2_global)
 $PBROKEN        endif
 $PBROKEN     enddo
 $PBROKEN   enddo
@@ -1469,9 +1707,9 @@ $PBROKEN   enddo
 
         ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-        call transfer_derpsi(derz, wave2, 3, 'DEN',.false., rankj, calc_rank)
+        call transfer_derpsi(derz, wave2, 3, basis,.false., rankj, calc_rank)
 #else
-        call transfer_derpsi(derz, wave2, 3, 'DEN',.false.)
+        call transfer_derpsi(derz, wave2, 3, basis,.false.)
 #endif
         do i=1,N2
           wave_global  = si+N+i
@@ -1479,9 +1717,9 @@ $PBROKEN   enddo
           wave         = spwf_inverse(wave_global)
           ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+          call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-          call transfer_psi(psi, wave, 'DEN')
+          call transfer_psi(psi, wave, basis)
 #endif
           if(MPI_RANK.eq.calc_rank) then
           ! Re < p_z > 
@@ -1490,7 +1728,7 @@ $PBROKEN   enddo
             &                    +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
 
             NablaMElements(3,1,wave2_global,wave_global) = &
-            &                       NablaMElements(3,1,wave_global,wave2_global)
+            &                    -  NablaMElements(3,1,wave_global,wave2_global)
           endif
         enddo
       enddo
@@ -1502,9 +1740,9 @@ $PBROKEN     rankj        = rank_map(wave2_global)
 $PBROKEN     wave2        = spwf_inverse(wave2_global)
 $PBROKEN
 #if(USE_MPI>0)
-$PBROKEN     call transfer_derpsi(derz,wave2,3,'DEN',.false.,rankj,calc_rank)
+$PBROKEN     call transfer_derpsi(derz,wave2,3,basis,.false.,rankj,calc_rank)
 #else
-$PBROKEN     call transfer_derpsi(derz,wave2,3,'DEN',.false.)
+$PBROKEN     call transfer_derpsi(derz,wave2,3,basis,.false.)
 #endif
 $PBROKEN     do i=1,N2
 $PBROKEN       wave_global = si+N+i  ! this is the global index of the spwf
@@ -1512,9 +1750,9 @@ $PBROKEN       ! .... and we have to find the MPI RANK and the index it is on
 $PBROKEN       ranki = rank_map(wave_global)
 $PBROKEN       wave  = spwf_inverse(wave_global)
 #if(USE_MPI>0)
-$PBROKEN       call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN       call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-$PBROKEN       call transfer_psi(psi, wave, 'DEN')
+$PBROKEN       call transfer_psi(psi, wave, basis)
 #endif
 $PBROKEN 
 $PBROKEN       if(MPI_RANK.eq.calc_rank) then
@@ -1524,7 +1762,7 @@ $PBROKEN         & sum(             derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
 $PBROKEN         &               +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
 $PBROKEN
 $PBROKEN         NablaMElements(3,1,wave2_global,wave_global) = &
-$PBROKEN         &                  NablaMElements(3,1,wave_global,wave2_global)
+$PBROKEN         &               -  NablaMElements(3,1,wave_global,wave2_global)
 $PBROKEN       endif
 $PBROKEN     enddo
 $PBROKEN   enddo
@@ -1555,11 +1793,11 @@ $TR     wave2_global = si+N+j
         rankj        = rank_map(wave2_global)
         wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
-        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(derx, wave2, 1,basis,hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(dery, wave2, 2,basis,hidden_TR,rankj,calc_rank)
 #else
-        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
-        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
+        call transfer_derpsi(derx, wave2, 1,basis,hidden_TR)
+        call transfer_derpsi(dery, wave2, 2,basis,hidden_TR)
 #endif
         do i=1,N
           wave_global  = si+i
@@ -1567,9 +1805,9 @@ $TR     wave2_global = si+N+j
           wave         = spwf_inverse(wave_global)
           ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+          call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-          call transfer_psi(psi, wave, 'DEN')
+          call transfer_psi(psi, wave, basis)
 #endif
           if(MPI_RANK.eq.calc_rank) then
 
@@ -1595,11 +1833,11 @@ $PBROKEN $NTR   wave2_global = si+N+j
 $PBROKEN $NTR   rankj        = rank_map(wave2_global)
 $PBROKEN $NTR   wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,basis,hidden_TR,rankj,calc_rank)
+$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,basis,hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
+$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,basis,hidden_TR)
+$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,basis,hidden_TR)
 #endif
 
               ! Block 1 with block 1  (T-conserved, P-broken)
@@ -1608,11 +1846,11 @@ $PBROKEN $TR    wave2_global = si+j
 $PBROKEN $TR    rankj        = rank_map(wave2_global)
 $PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,basis,hidden_TR,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,basis,hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,basis,hidden_TR)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,basis,hidden_TR)
 #endif
 $PBROKEN        do i=1,N
 $PBROKEN          wave_global  = si+i
@@ -1620,9 +1858,9 @@ $PBROKEN          ranki        = rank_map(wave_global)
 $PBROKEN          wave         = spwf_inverse(wave_global)
 $PBROKEN          ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-$PBROKEN          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN          call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-$PBROKEN          call transfer_psi(psi, wave, 'DEN')
+$PBROKEN          call transfer_psi(psi, wave, basis)
 #endif
 
 $PBROKEN        if(MPI_RANK .eq. calc_rank) then
@@ -1651,11 +1889,11 @@ $TR     wave2_global = si+N+N2+N3+j
         rankj        = rank_map(wave2_global)
         wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
-        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(derx, wave2, 1,basis,hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(dery, wave2, 2,basis,hidden_TR,rankj,calc_rank)
 #else
-        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
-        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
+        call transfer_derpsi(derx, wave2, 1,basis,hidden_TR)
+        call transfer_derpsi(dery, wave2, 2,basis,hidden_TR)
 #endif
         do i=1,N2
           wave_global  = si+N+i
@@ -1663,9 +1901,9 @@ $TR     wave2_global = si+N+N2+N3+j
           wave         = spwf_inverse(wave_global)
           ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+          call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-          call transfer_psi(psi, wave, 'DEN')
+          call transfer_psi(psi, wave, basis)
 #endif
           if(MPI_RANK.eq.calc_rank) then
             NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
@@ -1693,11 +1931,11 @@ $PBROKEN $TR   wave2_global = si+N+j
 $PBROKEN $TR   rankj        = rank_map(wave2_global)
 $PBROKEN $TR   wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
-$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,basis,hidden_TR,rankj,calc_rank)
+$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,basis,hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
-$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
+$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,basis,hidden_TR)
+$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,basis,hidden_TR)
 #endif
 
 $PBROKEN $TR   do i=1,N2
@@ -1705,9 +1943,9 @@ $PBROKEN $TR      wave_global  = si+N+i
 $PBROKEN $TR      ranki        = rank_map(wave_global)
 $PBROKEN $TR      wave         = spwf_inverse(wave_global)
 #if(USE_MPI>0)
-$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN $TR      call transfer_psi(psi, wave, basis, ranki, calc_rank)
 #else
-$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN')
+$PBROKEN $TR      call transfer_psi(psi, wave, basis)
 #endif
 $PBROKEN $TR      if(MPI_RANK.eq.calc_rank) then
 $PBROKEN $TR        NablaMElements(1,1,wave_global,wave2_global) = dv*           &
@@ -1751,6 +1989,9 @@ $PBROKEN $TR  enddo
 
 end function CompNablaMelements
 
+#if($FAM == 0) 
+! We don't define this routine for FAM calculations because the pointer remapping
+! does not play nice with the complex-valued densities.
 subroutine print_boxsize_check(R)
   !-----------------------------------------------------------------------------
   ! Print the maximum values of the densities D_I_I and DP_I_I at the edges of 
@@ -1771,27 +2012,27 @@ subroutine print_boxsize_check(R)
 
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
-  
-!  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
-!  
-!  print 1
-!  print 11
-!  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
-!  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
-!  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
-!$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
-!  if(pairingtype .ne. 0) then
-!    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
-
-!    print 12
-!    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
-!    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
-!    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
-!$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
-!  endif
+  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
   
+  print 1
+  print 11
+  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+
+  if(pairingtype .ne. 0) then
+    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
+
+    print 12
+    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
+  endif
 end subroutine print_boxsize_check
+#endif 
 
 #if(USE_HDF5>0 && $FAM == 0) 
 ! There is no need to write densities to file in a FAM code

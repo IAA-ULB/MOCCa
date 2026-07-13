@@ -6,7 +6,7 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 # Module governing the treatment of the functional in Hephaestos, for writing to
-# Tantalus source files. 
+# MOCCa source files.
 #-------------------------------------------------------------------------------
 
 import itertools
@@ -82,7 +82,7 @@ vmicro_found          = False # Whether or not this functional file will
 #-------------------------------------------------------------------------------
 #assume_locality = 0
 
-def initfunctional(fname, so, density_spwf_summation, fam_active):
+def initfunctional(fname, so, density_spwf_summation, fam_active, print_stdout):
     """
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       Initialize everything relevant about this module
@@ -100,6 +100,8 @@ def initfunctional(fname, so, density_spwf_summation, fam_active):
         density_spwf_summation : logical determining whether derivatives of 
                                  densities get calculated through summation 
                                  over spwfs or derivative calls.
+        print_stdout           : logical determining whether to print info to
+                                  STDOUT
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
     global Functional_terms, Densities_needed, derivative_order, func_name
@@ -304,20 +306,21 @@ def initfunctional(fname, so, density_spwf_summation, fam_active):
         vmicro_found = True
     #---------------------------------------------------------------------------
     # Print some information to STDOUT
-    print (' Functional form taken from file %s'%fname)
-    print (' Description from file:')
-    print ( description.replace('#', tab))
-    print (' Number of terms     : %d'%len(Functional_terms))
-    if(so.timelike):
-      print (' ! Attention: terms with time-odd densities dropped. ' )
-    print (' Order of derivatives: %d'%derivative_order)
-    print (' Microscopic pairing treatment: ', vmicro_found)
-    print (' # Parameters        : %d'%len(paramparameters))
-    #print   paramparameters
-    for i in range(int(len(paramparameters)/3)):
-        print ('  ', paramparameters[3*i:3*i+3])
-    if(len(paramparameters)%3 != 0):
-        print ('  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3])
+    if(print_stdout):
+      print (' Functional form taken from file %s'%fname)
+      print (' Description from file:')
+      print ( description.replace('#', tab))
+      print (' Number of terms     : %d'%len(Functional_terms))
+      if(so.timelike):
+        print (' ! Attention: terms with time-odd densities dropped. ' )
+      print (' Order of derivatives: %d'%derivative_order)
+      print (' Microscopic pairing treatment: ', vmicro_found)
+      print (' # Parameters        : %d'%len(paramparameters))
+      #print   paramparameters
+      for i in range(int(len(paramparameters)/3)):
+          print ('  ', paramparameters[3*i:3*i+3])
+      if(len(paramparameters)%3 != 0):
+          print ('  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3])
 
     return (description)
     
@@ -652,7 +655,7 @@ def ParseDensities(term):
     #---------------------------------------------------------------------------
     return (densities, coupling)
 
-def ProcessParameterization(fname, src, target):
+def ProcessParameterization(fname, src, target, dry_run=False):
     """
      Process the parameterization.f90 file to include the different parameters.
     """
@@ -700,14 +703,11 @@ def ProcessParameterization(fname, src, target):
     dic['RESETPARAMS'] = resetparam
     dic['BCASTPARAMS'] = bcastparam
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #     with open(target+fname, 'w') as generated:
-    #         for line in template:
-    #             generated.write(Template(line).substitute(dic))  
+    if(not dry_run):
+      substitute(src+fname, target+fname, dic)
 
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
-                      fam_active, density_spwf_summation):
+                      fam_active, density_spwf_summation, dry_run=False):
     """
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Master routine calling the other ones to generate a functional.
@@ -726,6 +726,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       - density_spwf_summation: boolean determining whether derivatives of 
                                densities are calculated through summation over 
                                spwfs or derivative calls.
+      - dry_run: if True, do not write any files, just return the pot_declaration
+
      Output:
       - pot_declaration: a (large) string containing the fortran code for the
                          declaration of mean-field potentials in vectors.f90
@@ -855,9 +857,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
                                  =  GenerateFields(so, oldso,ph_pp_decoupl, fam_active)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
-    writing_hdf5     = writing_hdf5     + fieldwrite_hdf5
+    writing_hdf5= writing_hdf5     + fieldwrite_hdf5
     reading     = reading     + fieldread
-    reading_hdf5     = reading_hdf5     + fieldread_hdf5
+    reading_hdf5= reading_hdf5     + fieldread_hdf5
     precond     = precond     + fieldprecon
     init        = init        + fieldini
     add         = add         + fieldadd
@@ -1087,11 +1089,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       
     dic['PVECTORINPRODUCT'] = inproduct
 
-    substitute(src+fname, target+fname, dic)    
-    # with open(src+fname, 'r') as template:
-    #   with open(target+fname, 'w') as generated:
-    #     for line in template:
-    #       generated.write(Template(line).substitute(dic))
+    if(not dry_run):  
+      substitute(src+fname, target+fname, dic)    
 
     return pot_declaration
 

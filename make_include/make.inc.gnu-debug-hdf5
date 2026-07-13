@@ -12,13 +12,7 @@
 # Directory names  (will be created if they don't exist)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - EXECDIR = directory for storage of the final executables
-# - SRCDIR  = source code as processed by Hephaestos
-# - OBJDIR  = storage for intermediate object files
-# - MODDIR  = storage for final module files
 EXECDIR =  exec
-SRCDIR  =   src
-OBJDIR  =   obj
-MODDIR  =   mod
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Python interpreter with which to invoke Hephaestos

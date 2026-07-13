@@ -9,7 +9,7 @@ from string          import Template
 from src_heph.heph_symmetries import symmetryencoding
 from src_heph.heph_functional import Densities_needed
 
-def ProcessIO(fname, src, target, so, oldso, fam_active):
+def ProcessIO(fname, src, target, so, oldso, fam_active, dry_run=False):
     """
     Preprocess the IO.f90 file.
     
@@ -21,6 +21,8 @@ def ProcessIO(fname, src, target, so, oldso, fam_active):
       oldso:       symmetry object characterising a previous mf run
       fam_active:  whether we are compiling a mean-field code (False)
                    or a finite amplitude linear response code (True)
+      dry_run:    if True, do not write any files (default: False)
+    
     """
     from src_heph.heph_substitute import substitute
 
@@ -68,31 +70,27 @@ def ProcessIO(fname, src, target, so, oldso, fam_active):
     else:
       dic['FAM'] = '0'
 
-    substitute(src+fname, target+fname, dic)
-    # with open(src+fname, 'r') as template:
-    #   with open(target+fname, 'w') as generated:
-    #     for line in template:
-    #         generated.write(Template(line).substitute(dic))  
-
-def ProcessIO_wf(fname, src, target, so, oldso, fam_active):
-    """
-      
-    """
+    if(not dry_run):
+      substitute(src+fname, target+fname, dic)
+  
+def ProcessIO_wf(fname, src, target, so, oldso, fam_active, dry_run=False):
+  """
     
-    dic = {}
+  """
+  from src_heph.heph_substitute import substitute
 
-    SYM_CODE   = symmetryencoding(so)
-    TRANS_CODE = symmetryencoding(oldso)
+  dic = {}
 
-    dic['SYM_CODE'] = SYM_CODE
-    dic['TRANS_CODE'] = TRANS_CODE
-          
-    if(fam_active):
-      dic['FAM'] = 1
-    else:
-      dic['FAM'] = 0
+  SYM_CODE   = symmetryencoding(so)
+  TRANS_CODE = symmetryencoding(oldso)
 
-    with open(src+fname, 'r') as template:
-      with open(target+fname, 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))  
+  dic['SYM_CODE'] = SYM_CODE
+  dic['TRANS_CODE'] = TRANS_CODE
+        
+  if(fam_active):
+    dic['FAM'] = 1
+  else:
+    dic['FAM'] = 0
+
+  if(not dry_run):
+    substitute(src+fname, target+fname, dic)

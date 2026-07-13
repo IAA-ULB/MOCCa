@@ -50,8 +50,9 @@ kappa_n  =      0.0,
 kappa_p  =      0.0, 
 alpha    =      1.0
 sigmap   =      1.0
-ptype       = 0  
-intertype   = 1  
+interpolationtype = 0
+integrationtype   = 1
+ptype             = 0
 !-------------------------------------------------------------------------------
 ! Options for the treatment of collective motion
 COM1Body    = 2

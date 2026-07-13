@@ -11,20 +11,7 @@
 # Directory names  (will be created if they don't exist)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - EXEC_DIR = directory for storage of the final executables
-# - MF_SRC_DIR  = source code for mean-field calculations as processed by Hephaestos
-# - MF_OBJ_DIR  = storage for mean-field object files
-# - MF_MOD_DIR  = storage for mean-field module files
-# - FAM_SRC_DIR  = source code for linear-response calculations as processed by Hephaestos
-# - FAM_OBJ_DIR  = storage for linear-response object files
-# - FAM_MOD_DIR  = storage for linear-response module files
 EXEC_DIR    =  exec
-MF_SRC_DIR  =   src
-MF_OBJ_DIR  =   obj
-MF_MOD_DIR  =   mod
-FAM_SRC_DIR =   src_fam
-FAM_OBJ_DIR =   obj_fam
-FAM_MOD_DIR =   mod_fam
-
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Python interpreter with which to invoke Hephaestos

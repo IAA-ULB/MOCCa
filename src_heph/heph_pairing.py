@@ -9,7 +9,7 @@ from string                    import Template
 from src_heph.heph_symmetries  import *
 from src_heph.heph_functional  import *
 
-def ProcessPairing(fname, src, target, so):
+def ProcessPairing(fname, src, target, so, dry_run=False):
   """
    We process pairing.f90, depending on the symmetries imposed.
   """
@@ -49,14 +49,10 @@ def ProcessPairing(fname, src, target, so):
     if (sym == symdic['P']):
      dic['PBROKEN'] = '!'
 
-  substitute(src+fname, target+fname, dic)    
-  # with open(src+fname, 'r') as template:
-  #   with open(target+fname, 'w') as generated:
-  #       for line in template:
-  #           generated.write(Template(line).substitute(dic))  
-
-
-def ProcessHFB(fname, src, target, so):
+  if(not dry_run):
+    substitute(src+fname, target+fname, dic)    
+  
+def ProcessHFB(fname, src, target, so, dry_run=False):
   """  
    We process HFB.f90, depending on the symmetries imposed and some choices
    made for the pairing functional.
@@ -107,14 +103,10 @@ def ProcessHFB(fname, src, target, so):
      dic['PBROKEN']    = '!'
      dic['PCONSERVED'] = ' '
 
-  substitute(src+fname, target+fname, dic)    
-  # with open(src+fname, 'r') as template:
-  #   with open(target+fname, 'w') as generated:
-  #       for line in template:
-  #           generated.write(Template(line).substitute(dic))  
+  if(not dry_run):
+    substitute(src+fname, target+fname, dic)    
 
-
-def ProcessHartreeFock(fname, src, target, so):
+def ProcessHartreeFock(fname, src, target, so, dry_run=False):
   """  
    We process HartreeFock.f90, depending on the symmetries imposed.
   """
@@ -134,12 +126,5 @@ def ProcessHartreeFock(fname, src, target, so):
     dic["TR"]  = '!'
     dic["NTR"] = ' '
 
-  substitute(src+fname, target+fname, dic)
-  # with open(src+fname, 'r') as template:
-  #   with open(target+fname, 'w') as generated:
-  #       for line in template:
-  #           generated.write(Template(line).substitute(dic))  
-
-
-# Note: the BCS module needs no processing at the moment.
-# def ProcessBCS(fname, src, target, so): 
+  if(not dry_run):
+    substitute(src+fname, target+fname, dic)

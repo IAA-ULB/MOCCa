@@ -1,16 +1,27 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module Printing
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
  !==============================================================================
  ! Hephaestos keywords
  !
@@ -227,7 +238,11 @@ $TR     sumocc = 2*k
     if(allocated(HF_gaps)) deallocate( HF_gaps)  
     !---------------------------------------------------------------------------
     ! Return if we are not doing a HFB calculation
+#if($FAM == 0)
     if(PairingType.ne.2) return
+#else 
+    return ! there is no canonical basis for FAM calculations
+#endif
     !---------------------------------------------------------------------------
     ! Otherwise, print the properties of the canonical basis
     print 13

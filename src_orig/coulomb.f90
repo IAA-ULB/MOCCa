@@ -1,16 +1,27 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module Coulombmod
- !==============================================================================
- !_________ _______  _       _________ _______  _                 _______
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !
- !  Copyright W. Ryssens & M. Bender
- !
  !==============================================================================
  ! Module that solves the Coulomb problem for the charge density (and is able
  ! to construct said charge density.)
@@ -68,7 +79,7 @@ module Coulombmod
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and
  ! has been shown to be sufficient in MOCCa.
- integer, parameter :: max_moment_coulomb=8
+ integer, parameter :: max_moment_coulomb=8 ! 2 for Kouhei, 8 default
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z
@@ -844,7 +855,13 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ! Note that these boundary conditions are not touched by this procedure.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) ::  f(:,:,:)
-    real(KIND=dp), allocatable:: lf(:,:,:)
+    real(KIND=dp)             :: lf(nx+BC+coul_offset_x, &
+    &                               ny+BC+coul_offset_y, & 
+    &                               nz+BC+coul_offset_z)
+    ! The array lf cannot be allocatable, because the function results are 
+    !  often assigned to non-allocatable arrays; if this happens IFORT 
+    !  compilers tend to generate memory leaks. 
+
     integer, intent(in)       :: sx, sy, sz
     integer                   :: i,j,k,l, ox, oy, oz, trash
 
@@ -853,8 +870,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
 
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
-    allocate(lf(nx+BC+ox, ny+BC+oy, nz+BC+oz)) ;  lf = 0.0_dp
-
+    lf = 0.0_dp
 #if(USE_Periodic==0)
     !---------------------------------------------------------------------------
     ! X-direction

@@ -1,17 +1,28 @@
+!===============================================================================
+!     __  __  ___   ____ ____
+!    |  \/  |/ _ \ / ___/ ___|__ _
+!    | |\/| | | | | |  | |   / _` |
+!    | |  | | |_| | |__| |__| (_| |
+!    |_|  |_|\___/ \____\____\__,_|
+!
+!    Copyright (C) 2026 W. Ryssens and M. Bender
+!
+!    This program is free software: you can redistribute it and/or modify
+!    it under the terms of the GNU Affero General Public License as published
+!    by the Free Software Foundation, either version 3 of the License, or
+!    (at your option) any later version.
+!
+!    This program is distributed in the hope that it will be useful,
+!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!    GNU Affero General Public License for more details.
+!
+!    You should have received a copy of the GNU Affero General Public License
+!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+!
+!===============================================================================
 module IO
  !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
- !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
- !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
- !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
- !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
- !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
- !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
- !  Copyright W. Ryssens & M. Bender
- !
- !============================================================================== 
  ! High-level module governing all aspects of in- and output. 
  ! The lower-level functions that this module relies on are grouped into
  !   - hdf5_auxiliary.f90 : auxiliary routines for hdf5 reading/writing
@@ -60,15 +71,19 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
+  ! Flag governing the reading of potentials from file
+  ! If .true.  => attempt to read the potentials from file and use them
+  !               to start iterating
+  logical             :: potentials_from_file = .true.
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile='', famfile='', xyfile=''
+  character(len=80)   :: inertfile='', famfile='', xyfile='', xyinfile=''
+  character(len=80)   :: finfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
   logical                       :: passed_block_test = .true.
-
 
 contains
 
@@ -138,6 +153,11 @@ contains
 
 #if($FAM == 1)
     call readfam(file_number)
+
+    if(xyfile .ne. '' .and. xyfile == xyinfile) then 
+      print * ,"ERROR : XYfile and XYinfile carry the same name. Stopping ..."
+      stop
+    endif
 #endif
 
     if(present(file_number)) then
@@ -167,7 +187,8 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile,  famfile, xyfile, N_inertia
+    &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
+    &           finfile, N_inertia, potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -215,7 +236,9 @@ contains
 
     call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
-#endif  
+    call MPI_Bcast(potentials_from_file, 1            , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
   
 #if(USE_MPI == 0) 
   if(N_inertia .lt. 4) then
@@ -275,16 +298,17 @@ contains
     &          '  outputfilename =', a32)
     
   101 format ( ' Information obtained from file ')  
-  102 format ( '      - version number          : ', i5)  
- 1021 format ( '      - param. used on file     : ', 20a)
-  103 format ( '      - Bogoliubov transfo read?: ', l5)  
- 1031 format ( '      - Bogoliubov transfo used?: ', l5)  
-  104 format ( '      - Blocking type           : ', i5)
-  105 format ( '      - Blocknumber             : ', i5)
-  106 format ( '      - Block indices           : ', 10i4)
-  107 format ( '      - Block lowest            : ', 10a2)
-  108 format ( '      - Passed blocking test    : ', l5)
-    
+  102 format ( '      - version number            : ', i5)
+ 1021 format ( '      - param. used on file       : ', 20a)
+  103 format ( '      - Bogoliubov transfo read?  : ', l5)
+ 1031 format ( '      - Bogoliubov transfo used?  : ', l5)
+  104 format ( '      - Blocking type             : ', i5)
+  105 format ( '      - Blocknumber               : ', i5)
+  106 format ( '      - Block indices             : ', 10i4)
+  107 format ( '      - Block lowest              : ', 10a2)
+  108 format ( '      - Passed blocking test      : ', l5)
+  109 format ( '      - Potentials read from file : ', l5)
+
    11 format ( ' Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a80, / &
              & '    DEN file       = ', a80, / &
@@ -296,8 +320,11 @@ contains
              & '    INERT file     = ', a80, / &
              & '    FAM file       = ', a80, / &
              & '    XY file        = ', a80) 
- 1111 format ( '    Input data     = ', a26, / &
+  111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
+ 1111 format ( ' Filename for FAM input (not used if empty): ', /     &
+             & '    XY init file   = ', a80, / &
+             & '    Ext.field file = ', a80)
   112 format ( ' Checkpointiter =', i10)
   113 format (' Printing spwf details during iterations: ', l5)
    12 format ( ' Convergence required', / &
@@ -355,6 +382,8 @@ contains
             print 107, fileblocklowest
         end select
         print 108, passed_block_test
+
+        print 109, potentials_from_file
       endif 
 
       print 112, checkpointiter
@@ -362,8 +391,11 @@ contains
 
       print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE
       if(present(file_number)) then
-        print 1111,  adjustl(trim(input_file)), file_number
+        print 111,  adjustl(trim(input_file)), file_number
       endif
+#if( $FAM == 1 )
+        print 1111,  XYINFILE, FINFILE
+#endif    
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
       
@@ -420,7 +452,7 @@ contains
     ! etc and is for this reason no performed "centrally". Rather, it is done
     ! within each kind of subroutine. 
     !    - iniwavefunctions => load balance based on the EV8 symmetries
-    !    - readtantalus     => load balance based on the symmetries on file
+    !    - readMOCCa        => load balance based on the symmetries on file
     !    - transformspwfs   => load balance based on the actual symmetries
     !                          of the calculation.
     ! This kind of approach incurs some communication overheads that can 
@@ -428,9 +460,9 @@ contains
     ! like an inefficient use of human time since it concerns only the set-up
     ! of a given calculation.
     !---------------------------------------------------------------------------
-    use IO_wf, only : read_tantalus_wf, file_HFB_blocks
+    use IO_wf, only : read_mocca_wf, file_HFB_blocks
 #if(USE_HDF5 == 1)
-    use IO_wf, only : read_tantalus_hdf5
+    use IO_wf, only : read_mocca_hdf5
 #endif
     use IO_wf, only : file_rank_map, file_spwf_map, file_spwf_inverse 
     use IO_wf, only : filenx, fileny, filenz, filenwn, filenwp,filedx, filemv
@@ -504,13 +536,13 @@ contains
     else if(inputoption.eq.2) then
 #if (USE_HDF5 > 0)
       ! Option 2a) start from a previous calculation with hdf5 input file
-      call read_tantalus_hdf5(inputfilename, sym_transfo_needed)
+      call read_mocca_hdf5(inputfilename, sym_transfo_needed)
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
     else
       ! Option 2b) start from a previous calculation with .wf input file
-      call read_tantalus_wf(12, inputfilename)
+      call read_mocca_wf(12, inputfilename)
       ! No need to guess gaps every time (unless the user asked for it)
     endif
     !---------------------------------------------------------------------------
@@ -673,9 +705,9 @@ subroutine write_header(iochannel)
     !          If this ends in "HDF5" (case-insensitive), then the code will write an HDF5 file.
     !          If not, then a simple fortran unformatted file will be written.
     !--------------------------------------------------------------------------------------------
-    use IO_wf, only: write_tantalus_wf
+    use IO_wf, only: write_mocca_wf
 #if(USE_HDF5 == 1)
-    use IO_wf, only : write_tantalus_hdf5
+    use IO_wf, only : write_mocca_hdf5
 #endif
 
     integer, intent(in)          :: chan
@@ -683,12 +715,12 @@ subroutine write_header(iochannel)
 
     if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
-      call write_tantalus_hdf5(ofn) !new hdf5 format
+      call write_mocca_hdf5(ofn) !new hdf5 format
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
     else
-      call write_tantalus_wf(chan, ofn) ! old style in .wf file
+      call write_mocca_wf(chan, ofn) ! old style in .wf file
     endif
 
   end subroutine WriteWaveFunction
@@ -1747,7 +1779,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
 
 
-    open(1,file=fname, status='new', iostat=io)
+    open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'filename = ', fname
       call stp('')
@@ -1794,7 +1826,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &  'S_tot') 
 
 
-    open(1,file=fname, status='new', iostat=io)
+    open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'filename = ', fname
       call stp('')
@@ -1862,8 +1894,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     ! as well as the perturbing operator F. 
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
-    ! The complex matrices X_ph Y_ph are written in a sparse format as 
-    !    p    h    X_ph%re   X_ph%im     Y_ph%re   Y_ph%im
+    ! The complex matrices X_mn Y_mn are written in a sparse format as 
+    !    m    n    X_mn%re   X_mn%im     Y_mn%re   Y_mn%im
     ! The file is appended for each FAM frequency, different blocks seperated by 
     ! a single line:
     !   & omega = [omega]  [smear]
@@ -1881,7 +1913,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &          '#    proton eff charge  = ', f10.3, ' e')
 
     2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
-    3 format('#', 5x, 'p', 6x, 'h',14x, 'X(/F)_ph_re', 14x, 'X(/F)_ph_im', 14x, 'Y(/F)_ph_re', 14x, 'Y(/F)_ph_im') 
+    3 format('#', 5x, 'm', 6x, 'n',14x, 'X(/F)_mn_re', 14x, 'X(/F)_mn_im', 14x, 'Y(/F)_mn_re', 14x, 'Y(/F)_mn_im') 
 
 
     open(1,file=fname, iostat=io)
@@ -1902,11 +1934,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   end subroutine init_xy_file
 
 
-  subroutine append_xy_file(fname, O_ph, O_hp)
+  subroutine append_xy_file(fname, O20, O02)
     use fam
     character(len=*), intent(in)           :: fname
-    complex(KIND=dp), intent(in), optional :: O_ph(:,:), O_hp(:,:)
-    integer                                :: io, h, p
+    complex(KIND=dp), intent(in), optional :: O20(:,:), O02(:,:)
+    integer                                :: io, mu, nu
 
     1 format ( '& omega = ', f10.3, f10.3) 
     2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
@@ -1920,11 +1952,11 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     endif
     
 
-    if (present(O_ph)) then
-      do h = 1, nwt
-        do p = 1, nwt
-          if(abs(O_ph(p,h)) > 1e-10 .or. abs(O_hp(p,h)) > 1e-10) then
-            write(1, fmt=2) p, h, O_ph(p,h)%re, O_ph(p,h)%im, O_hp(p,h)%re, O_hp(p,h)%im
+    if (present(O20) .and. present(O02)) then
+      do nu = 1, nwt
+        do mu = 1, nwt
+          if(abs(O20(mu,nu)) > 1e-10 .or. abs(O02(mu,nu)) > 1e-10) then
+            write(1, fmt=2) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
           end if
         enddo
       enddo
@@ -1932,10 +1964,10 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     else
       write(1, fmt=1) omega_fam, smear
 
-      do h = 1, nwt
-        do p = 1, nwt
-          if(abs(X(p,h)) > 1e-10 .or. abs(Y(p,h)) > 1e-10) then
-            write(1, fmt=2) p, h, X(p,h)%re, X(p,h)%im, Y(p,h)%re, Y(p,h)%im
+      do nu = 1, nwt
+        do mu = 1, nwt
+          if(abs(X(mu,nu)) > 1e-10 .or. abs(Y(mu,nu)) > 1e-10) then
+            write(1, fmt=2) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
           end if
         enddo
       enddo
