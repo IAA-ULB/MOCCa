@@ -1,0 +1,38 @@
+#-------------------------------------------------------------------------------
+# Reusable workflow: Compile mean-field executables for nuclei calculations
+#-------------------------------------------------------------------------------
+name: Compile MF Nuclei
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [ LO, LO-P, LO-T, NLO, NLO-T, NLO-P, BXL, BXL-T, BXL-P, BXL-TP, N2LO, N2LO-T, N2LO-P, N2LO-TP, BXL-N2LO ]
+        COMPILER: [ gfortran ]
+        CALCTYPE: [ NUCLEI ]
+        MPI: [ false ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Compile and upload
+        uses: ./.github/actions/compile-and-upload
+        with:
+          target: mf
+          config: ${{ matrix.CONFIG }}
+          compiler: ${{ matrix.COMPILER }}
+          calctype: ${{ matrix.CALCTYPE }}
+          mpi: ${{ matrix.MPI }}
+          compfam: 'gnu'
+          hdf5suffix: '-hdf5'
+          execname_prefix: 'MOCCa'

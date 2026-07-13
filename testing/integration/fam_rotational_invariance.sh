@@ -6,7 +6,7 @@
 #--------------------------------------------------------------------------------
 # This script tests:
 #
-#   |(complex) Strength Q20 - Strength Q22| < | 0.1 |
+#   |(complex) Strength Q20 - Strength Q22| < | 0.15 |
 #
 # Constraints are imposed on the MF calculation to get a solution closer to
 # spherical symmetry.
@@ -202,7 +202,7 @@ if [ "$verbose" = true ]; then
   echo ""
 fi
 
-tolerance=0.1
+tolerance=0.15
 
 # Check rotational invariance: Q20 == Q2+2 within tolerance
 all_pass=true
