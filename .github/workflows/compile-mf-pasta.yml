@@ -6,6 +6,10 @@ name: Compile MF Pasta
 on:
   workflow_call:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   compile:
     runs-on: ubuntu-latest

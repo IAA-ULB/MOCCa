@@ -22,6 +22,10 @@ on:
       - development
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   compile-mf-nuclei:
     uses: ./.github/workflows/compile-mf-nuclei.yml
