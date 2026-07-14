@@ -20,6 +20,13 @@ jobs:
         COMPILER: [ gfortran ]
         CALCTYPE: [ NUCLEI ]
         MPI: [ false ]
+        OMP: [ false ]
+        include:
+          - CONFIG: LO
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
 
     steps:
       - name: Checkout code
@@ -33,6 +40,7 @@ jobs:
           compiler: ${{ matrix.COMPILER }}
           calctype: ${{ matrix.CALCTYPE }}
           mpi: ${{ matrix.MPI }}
+          omp: ${{ matrix.OMP }}
           compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
-          hdf5suffix: ''
+          hdf5suffix: ${{ matrix.OMP == true && '-hdf5' || '' }}
           execname_prefix: 'fam'

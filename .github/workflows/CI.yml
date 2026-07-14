@@ -2,10 +2,11 @@
 # CI deployment for MOCCa on GitHub-hosted runners
 #
 # Main workflow that orchestrates:
-#   - compile-mf-nuclei: Compile mean-field executables for nuclei
-#   - compile-fam-nuclei: Compile FAM executables for nuclei
+#   - compile-mf-nuclei: Compile mean-field executables for nuclei (serial, MPI, OpenMP)
+#   - compile-fam-nuclei: Compile FAM executables for nuclei (serial, MPI, OpenMP)
 #   - compile-mf-pasta: Compile mean-field executables for pasta
 #   - minimal: Run minimal test
+#   - Various integration and unit tests including OpenMP scaling tests
 #
 # Uses reusable workflows for each compilation type to maximize code reuse.
 #-------------------------------------------------------------------------------
@@ -16,6 +17,7 @@ on:
     branches:
       - master
       - development
+      - OpenMP
   pull_request:
     branches:
       - master
@@ -492,7 +494,7 @@ jobs:
       - name: Run fam_t0t3 test
         run: |
           cd testing/integration/
-          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P --verbose
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P 1 --verbose
 
       - name: Upload test results
         if: success() || failure()
@@ -500,11 +502,87 @@ jobs:
         with:
           name: fam_t0t3.${{ env.SUFFIX }}.logs
           path: |
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out.bis
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_P }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_t0t3_OpenMP:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        NTHREADS: [1, 4, 8]
+    env:
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.OpenMP
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_t0t3 test with OpenMP
+        run: |
+          cd testing/integration/
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P ${{ matrix.NTHREADS }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_t0t3_OpenMP.${{ env.SUFFIX }}.Nthreads=${{ matrix.NTHREADS }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_P }}.fam.out
           retention-days: 2
 
   fam_strength_symmetry:
