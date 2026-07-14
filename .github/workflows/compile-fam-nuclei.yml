@@ -27,6 +27,16 @@ jobs:
             CALCTYPE: NUCLEI
             MPI: false
             OMP: true
+          - CONFIG: LO-P
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: LO-T
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
 
     steps:
       - name: Checkout code
