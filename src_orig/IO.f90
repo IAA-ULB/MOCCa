@@ -1781,7 +1781,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
-      print *, 'filename = ', fname
+      print *, 'filename = ', fname, 'io error', io
       call stp('')
     endif
     

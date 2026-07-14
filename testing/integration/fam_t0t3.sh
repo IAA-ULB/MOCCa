@@ -5,12 +5,16 @@
 #  - and redo it for an explicitly parity broken FAM calculation
 #  - and redo it for an explicitly particle-number broken QFAM calculation
 #  - and redo it for an explicitly particle-number + time-reversal broken QFAM calculation
+# In addition, you can specify a number of OpenMP threads to be used; if you
+# do not provide an OpenMP-enabled executable, then this will simply be ignored.
+# 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001     MeV               1     keV
 #  - strength S_20 @ 25.0 MeV          1.661155     fm^4 MeV^-1       1e-4  fm^4 MeV^-1
+# 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
@@ -27,7 +31,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [-v/--verbose]
+#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [Nthreads] [-v/--verbose]
 #
 # where EXESUFFIX,  EXESUFFIX_T, EXESUFFIX_P specify executables to be used: 
 # maximally symmetric, a time-reversal breaking and a parity breaking one.
@@ -71,13 +75,15 @@ if $verbose; then
     echo
 fi 
 
-# set -e # exit immediately if command gives non-zero exit status
+Nthreads=$4
+export OMP_NUM_THREADS=$Nthreads
+set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[0]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[0]}" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -200,7 +206,8 @@ famfile='S_20.fam'
 &Cranking
 /
 &fam
-omega=25.0
+omega_min=25
+omega_max=25.0
 smear=1.0
 l=2
 m=0
@@ -245,7 +252,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO-T FAM calculation
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[1]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[1]}" "t0t3"
 cp ../mf.wf .
 
 # Create runtime data
@@ -311,7 +318,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-P FAM calculation
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[2]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[2]}" "t0t3"
 mv ../mf.wf .
 
 # Create runtime data
@@ -621,6 +628,8 @@ fail=$(($mocca_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_chec
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
+	echo -e "  tantalus : $tantalus_check, fam    : $fam_check, fam_T : $fam_T_check, fam_P : $fam_P_check"
+	echo -e "  E_hf     : $check_energy, S20    : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P"
 else
 	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $mocca_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
 	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, , S20_QRPA_T = $check_strength_QRPA_T \033[0m"
