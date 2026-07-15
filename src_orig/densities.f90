@@ -803,7 +803,7 @@ subroutine print_maxval(name, den_sym, den_asym)
   print *
 end subroutine print_maxval
 
-function densit_offdiag_pp(kappa) result(R)
+function densit_offdiag_pp(kappa) result(R_total)
     !----------------------------------------------------------------------------
     ! Calculate the pairing mean-field densities, based on arbitrary
     ! anomalous density matrix kappa.
@@ -817,7 +817,7 @@ function densit_offdiag_pp(kappa) result(R)
     !              added. 
     !----------------------------------------------------------------------------
     COMPLEX(KIND=dp), intent(in)       :: kappa(:,:)
-    type(DensityVector)                :: R
+    type(DensityVector)                :: R, R_total
 
     integer                            :: wave, wave2, i, B, it, N, si, N2, T
     INTEGER                            :: wave_global, wave2_global, der_index
@@ -832,11 +832,13 @@ $INITIALIZATION
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Zero the current density
 $ZEROING
-
-
     ! Ensure allocation of charge density to avoid trouble when combining with
     !  other density vectors
     allocate(R%chargedensity(nx,ny,nz)) ; R%chargedensity = 0.0d0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make a copy to ensure everything is allocated and zero'd
+    R_total = R
 
     call start_timer(T_den_perturbed_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -862,15 +864,16 @@ $ZEROING
       allocate(kappa_cut(nwt,nwt))
       kappa_cut = kappa
 
+      ! ... and then generating the entirety of kappa_cut
       si = 0
       do B=1,8,2  ! <------- this loop ranges over the global set of spwfs
         N = HFBlocks_global(B) ;  if (N.eq.0) cycle
         N2= HFBlocks_global(B+1)
         T = N+N2
-        it = 2          
+        it = 2
         if( B.le. 4) it = 1
 
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Calculation of the pairing cutoffs * kappa
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         do wave=1,T
@@ -881,33 +884,50 @@ $ZEROING
         enddo
         si = si + N + N2
       enddo
+
+!$OMP PARALLEL PRIVATE(si, B, N, N2, T, it,           &
+!$OMP                  wave      , wave2          ,   &
+!$OMP                  wave_global, wave2_global  ,   &
+!$OMP                  i, weight,                     &
+!$OMP                  $OMP_DENSITY_VARS              &
+!$OMP                 )                               &
+!$OMP          FIRSTPRIVATE (R)                       &
+!$OMP          SHARED ( kappa_cut, HFBlocks, R_total, &
+!$OMP                   spwf_map, denpsi, dendpsi,    &
+!$OMP                   mv, denddpsi) DEFAULT(PRIVATE)
+
       ! with kappa_cut in hand, we can turn to the summation of the densities.
-      si = 0
       do B=1,8,2  ! <------- this loop ranges over the LOCAL set of spwfs
         N = HFBlocks(B) ;  if (N.eq.0) cycle
         N2= HFBlocks(B+1)
         T = N+N2
-        it = 2          
+
+        si = sum(HFBlocks(1:B-1)) ! OMP requires the direct calculation of offset
+        it = 2
         if( B.le. 4) it = 1
-
+!$OMP DO
+!       Note: these loops cannot be OMP COLLAPSEd, as they form a
+!       non-rectangular iteration space. Some compilers would accept this,
+!       but not all.
         do wave=1,N                         ! local index of the spwf
-          wave_global = spwf_map(si+wave)   ! global index of the spwf
-$TR          do wave2=wave,N               
+$TR          do wave2=wave,N
 $NTR          do wave2=N+1,N+N2      
+                wave_global  = spwf_map(si+wave)   ! inside the wave2_loop to make the COLLAPSE statement work
                 wave2_global = spwf_map(si+wave2)
-
                 ! This factor two is the antisymmetry of \kappa_cut
                 weight=2*kappa_cut(wave_global,wave2_global)
-                ! TODO: think about whether this factor two is appropriate here
-$TR             if(wave.ne.wave2) weight = 2 * weight  
-                ! 
+$TR             if(wave.ne.wave2) weight = 2 * weight
             do i=1,mv
 $HFBEXPRESSION  
             enddo
           enddo
         enddo
-        si = si + N + N2
+!$OMP END DO
       enddo
+!$OMP CRITICAL
+    R_total = R_total + R
+!$OMP END CRITICAL
+!$OMP END PARALLEL
     end select
 
     call stop_timer(T_den_perturbed_pp)
@@ -1266,7 +1286,7 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
-!$OMP DO COLLAPSE (2)
+!$OMP DO COLLAPSE(2)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1346,7 +1366,7 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
-!$OMP DO COLLAPSE (2)
+!$OMP DO COLLAPSE(2)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1400,12 +1420,19 @@ $SPWF_DECLARATION
     ! initialize
     allocate(delta_me(nwt,nwt)) ; delta_me = 0.0d0
 
-    si = 0
+!$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
+!$OMP                  wave_i, wave_j,              &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )                             &
+!$OMP          SHARED ( HFBlocks, F, mv, dv,        &
+!$OMP                   delta_me,                   &
+!$OMP                   denpsi, dendpsi, denddpsi) DEFAULT(PRIVATE)
     do B=1,8,2
       N = HFBlocks(B) ;  if (N.eq.0) cycle
       N2= HFBlocks(B+1)
       T = N+N2
 
+      si = sum(HFBlocks(1:B-1)) ! OMP requires explicit offset calculation
       !---------------------------------------------------------------------------
       ! Determine the isospin index
       if(B.ge.5) then
@@ -1413,6 +1440,10 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
+!$OMP DO
+!     Technical note: unfortunately, these two loops cannot be OpenMP
+!     COLLAPSED as they form a non-rectangular iteration space. This is only
+!     accepted by SOME compilers.
       do wave_i=si+1,si+N                       ! local index of the spwf
 $TR          do wave_j=wave_i,si+N              ! symmetry-reduced
 $NTR          do wave_j=si+N+1,si+N+N2      
@@ -1437,9 +1468,9 @@ $TR       delta_me(wave_i, wave_j) =  delta_me(wave_j, wave_i)
 $NTR      delta_me(wave_i, wave_j) = -delta_me(wave_j, wave_i) 
         enddo
       enddo
-      si = si + N + N2
-    enddo
-
+!$OMP END DO
+   enddo
+!$OMP END PARALLEL
     call stop_timer(T_spme_perturbed_pp)
 
   end function calc_delta_me
