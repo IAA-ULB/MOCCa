@@ -889,7 +889,7 @@ $ZEROING
 !$OMP                  wave      , wave2          ,   &
 !$OMP                  wave_global, wave2_global  ,   &
 !$OMP                  i, weight,                     &
-!$OMP                  $OMP_DENSITY_VARS              &
+$OMP_DENSITY_VARS
 !$OMP                 )                               &
 !$OMP          FIRSTPRIVATE (R)                       &
 !$OMP          SHARED ( kappa_cut, HFBlocks, R_total, &
@@ -988,7 +988,7 @@ $ZEROING
 !$OMP                  wave_global_i,wave_global_j, &
 !$OMP                  der_index_i  ,der_index_j,i, &
 !$OMP                  weight_sym,                  &
-!$OMP                  $OMP_DENSITY_VARS            &
+$OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          FIRSTPRIVATE (R)                     &
 !$OMP          SHARED ( rho, HFBlocks, R_total,     &
@@ -1104,7 +1104,7 @@ $ZEROING
 !$OMP                  wave_global_i,wave_global_j, &
 !$OMP                  der_index_i  ,der_index_j,i, &
 !$OMP                  weight_asym,                 &
-!$OMP                  $OMP_DENSITY_VARS            &
+$OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          FIRSTPRIVATE (R)                     &
 !$OMP          SHARED ( rho, HFBlocks, R_total,     &
@@ -1271,7 +1271,7 @@ $SPWF_DECLARATION
 
 !$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
 !$OMP                  wave_i, wave_j,              &
-!$OMP                  $OMP_DENSITY_VARS            &
+$OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          SHARED ( HFBlocks, F, mv, dv,        &
 !$OMP                   sphamil_me,                 &
@@ -1350,7 +1350,7 @@ $SPWF_DECLARATION
 
 !$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
 !$OMP                  wave_i, wave_j,              &
-!$OMP                  $OMP_DENSITY_VARS            &
+$OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          SHARED ( HFBlocks, F, mv, dv,        &
 !$OMP                   sphamil_me,                 &
@@ -1422,7 +1422,7 @@ $SPWF_DECLARATION
 
 !$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
 !$OMP                  wave_i, wave_j,              &
-!$OMP                  $OMP_DENSITY_VARS            &
+$OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          SHARED ( HFBlocks, F, mv, dv,        &
 !$OMP                   delta_me,                   &

@@ -460,7 +460,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation,
         Multiply       = Multiply       + '\n' + multi
         Memory         = Memory         + '\n' + memi
         Write          = Write          + '\n' + writei
-        OMP_sharing    = OMP_sharing    + ',' +  ompi
+        OMP_sharing    = OMP_sharing    + '\n' + ompi
     
     if(verbose):
         print (line)
@@ -472,7 +472,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation,
 
     # OMP things
     dic['OMP'] = '$OMP'
-    dic['OMP_DENSITY_VARS'] = OMP_sharing[1:]  # remove leading comma
+    dic['OMP_DENSITY_VARS'] = OMP_sharing[1:-3]  + '&' # remove leading newline and final ', &' and readd '&'
     if(fam_active):
         dic['FAM'] = 1
     else:   
@@ -922,7 +922,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         # memory requirement for this density
         Memory         = ta.Memory.substitute(dic)
     spwf_dec    = ta.Dec_spwf.substitute(dic)
-    omp         = dic['NAME']
+    omp         = ta.OMP_VAR.substitute(dic)
 
     for c in derivative_combinations:
         l = c[0]
