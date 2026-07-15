@@ -951,44 +951,46 @@ $INITIALIZATION
 $ZEROING
     R%chargedensity = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make a copy to ensure everything is allocated and zero'd
+    R_total = R
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! This should always be the HF basis!
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
     DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Make a copy to ensure everything is allocated
-    R_total = R
     call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!$OMP PARALLEL PRIVATE(si, B, N, it,                & 
+!$OMP PARALLEL PRIVATE(si, B, N, it,                &
 !$OMP                  wave_i       ,wave_j       , &
-!$OMP                  wave_global_i,wave_global_j, & 
+!$OMP                  wave_global_i,wave_global_j, &
 !$OMP                  der_index_i  ,der_index_j,i, &
-!$OMP                  weight_sym, R,               &
+!$OMP                  weight_sym,                  &
 !$OMP                  $OMP_DENSITY_VARS            &
 !$OMP                 )                             &
-!$OMP          SHARED ( rho, HFBlocks, R_total,     & 
-!$OMP                   spwf_map, denpsi, dendpsi,  & 
-!$OMP                   mv, denddpsi) DEFAULT(NONE)
-
-    ! TODO: ensure that this loop can deal with more different symmetries
-!$OMP DO
+!$OMP          FIRSTPRIVATE (R)                     &
+!$OMP          SHARED ( rho, HFBlocks, R_total,     &
+!$OMP                   spwf_map, denpsi, dendpsi,  &
+!$OMP                   mv, denddpsi) DEFAULT(PRIVATE)
+    ! Note: R is FIRSTPRIVATE, to ensure it is correctly ZERO'd in EVERY
+    !       thread.
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
       si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
+!$OMP DO COLLAPSE(2)
       do wave_i=si+1,si+N                ! Loop over the local spwf index
-        wave_global_i = spwf_map(wave_i)     ! Global spwf index
-        ! TODO: enable store_derivatives option
-        der_index_i = wave_i
         do wave_j=si+1,si+N
-          wave_global_j = spwf_map(wave_j) ! Global spwf index
-          ! TODO: enable store_derivatives option
+          ! Note: the i-based indexing could be moved to the i-loop, but not all
+          !       compiler versions then accept the COLLAPSE statement in the
+          !       OpenMP clause.
+          wave_global_i = spwf_map(wave_i)  ! Global spwf index
+          der_index_i = wave_i
+          wave_global_j = spwf_map(wave_j)  ! Global spwf index
           der_index_j = wave_j
           !----------------------------------------------------------------------------
           ! The summation weights for particle-hole densities
@@ -1001,8 +1003,8 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
           enddo
         enddo
       enddo
+      !$OMP END DO
     enddo
-!$OMP END DO      
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
@@ -1077,35 +1079,37 @@ $ZEROING
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: make this double loop more intelligent wrt to symmetries
+!$OMP PARALLEL PRIVATE(si, B, N, it,                &
+!$OMP                  wave_i       ,wave_j       , &
+!$OMP                  wave_global_i,wave_global_j, &
+!$OMP                  der_index_i  ,der_index_j,i, &
+!$OMP                  weight_asym,                 &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )                             &
+!$OMP          FIRSTPRIVATE (R)                     &
+!$OMP          SHARED ( rho, HFBlocks, R_total,     &
+!$OMP                   spwf_map, denpsi, dendpsi,  &
+!$OMP                   mv, denddpsi) DEFAULT(PRIVATE)
+    ! Note: R is FIRSTPRIVATE, to ensure it is correctly ZERO'd in EVERY
+    !       thread.
+
     si = 0
     do B=1,8
       N = HFBLocks(B) ; if(N.eq.0) cycle
+      si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
-
-!$OMP PARALLEL PRIVATE(wave_i       ,wave_j       , &
-!$OMP                  wave_global_i,wave_global_j, & 
-!$OMP                  der_index_i  ,der_index_j,i, &
-!$OMP                  weight_asym, R,              &
-!$OMP                  $OMP_DENSITY_VARS            &
-!$OMP                 )  SHARED (si, N, rho, it, R_total, spwf_map, denpsi, dendpsi,mv, denddpsi) DEFAULT(NONE)
-      !
-      ! Ensure that the partial R is correctly zero-d.
-      !
-$ZEROING
-!$OMP DO
+!$OMP DO COLLAPSE(2)
       do wave_i=si+1,si+N                ! Loop over the local spwf index
-        wave_global_i = spwf_map(wave_i) ! Global spwf index
-        der_index_i = wave_i
-        ! TODO: enable store_derivatives option
-
         do wave_j=si+1,si+N
+          ! Note: the i-based indexing could be moved to the i-loop, but not all
+          !       compiler versions then accept the COLLAPSE statement in the
+          !       OpenMP clause.
+          wave_global_i = spwf_map(wave_i) ! Global spwf index
+          der_index_i = wave_i
           wave_global_j = spwf_map(wave_j) ! Global spwf index
-          ! TODO: enable store_derivatives option
           der_index_j = wave_j
-
           !----------------------------------------------------------------------------
           ! The summation weights for particle-hole densities
           weight_asym = 0.5d0*( &
@@ -1117,14 +1121,8 @@ $EXPRESSION_OFFDIAG_ANTISYMMETRIC
           enddo
         enddo
       enddo
-!$OMP END DO      
-!$OMP CRITICAL
-      R_total = R_total + R
-!$OMP END CRITICAL
-!$OMP END PARALLEL
-      si = si + N
+!$OMP END DO
     enddo
-    call stop_timer(T_den_ph)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by
@@ -1138,9 +1136,14 @@ $DERIVATION_OFFDIAG_ANTISYMMETRIC
     ! Calculate the densities in isospin representation
 $ISOSPINCOUPL_ANTISYMMETRIC
 
+!$OMP CRITICAL
+    R_total = R_total + R
+!$OMP END CRITICAL
+!$OMP END PARALLEL
+    call stop_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call construct_charge_density(R, sx_rho_antisym, sy_rho_antisym, sz_rho_antisym)
+    call construct_charge_density(R_total, sx_rho_antisym, sy_rho_antisym, sz_rho_antisym)
 
     call stop_timer(T_den_perturbed_asym)
 
