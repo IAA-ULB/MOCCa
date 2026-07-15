@@ -905,7 +905,7 @@ $OMP_DENSITY_VARS
         si = sum(HFBlocks(1:B-1)) ! OMP requires the direct calculation of offset
         it = 2
         if( B.le. 4) it = 1
-!$OMP DO
+!$OMP DO SCHEDULE(STATIC)
 !       Note: these loops cannot be OMP COLLAPSEd, as they form a
 !       non-rectangular iteration space. Some compilers would accept this,
 !       but not all.
@@ -1002,7 +1002,7 @@ $OMP_DENSITY_VARS
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
-!$OMP DO COLLAPSE(2)
+!$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         do wave_j=si+1,si+N
           ! Note: the i-based indexing could be moved to the i-loop, but not all
@@ -1120,7 +1120,7 @@ $OMP_DENSITY_VARS
       ! Isospin is neutron in the first half of blocks, proton in the rest
       it = 1
       if(B .ge. 5) it = 2
-!$OMP DO COLLAPSE(2)
+!$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
       do wave_i=si+1,si+N                ! Loop over the local spwf index
         do wave_j=si+1,si+N
           ! Note: the i-based indexing could be moved to the i-loop, but not all
@@ -1286,7 +1286,7 @@ $OMP_DENSITY_VARS
       else
         it = 1
       endif
-!$OMP DO COLLAPSE(2)
+!$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1366,7 +1366,7 @@ $OMP_DENSITY_VARS
       else
         it = 1
       endif
-!$OMP DO COLLAPSE(2)
+!$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1425,7 +1425,7 @@ $SPWF_DECLARATION
 $OMP_DENSITY_VARS
 !$OMP                 )                             &
 !$OMP          SHARED ( HFBlocks, F, mv, dv,        &
-!$OMP                   delta_me,                   &
+!$OMP                   delta_me, Pcutoffs,         &
 !$OMP                   denpsi, dendpsi, denddpsi) DEFAULT(PRIVATE)
     do B=1,8,2
       N = HFBlocks(B) ;  if (N.eq.0) cycle
@@ -1440,7 +1440,7 @@ $OMP_DENSITY_VARS
       else
         it = 1
       endif
-!$OMP DO
+!$OMP DO SCHEDULE(STATIC)
 !     Technical note: unfortunately, these two loops cannot be OpenMP
 !     COLLAPSED as they form a non-rectangular iteration space. This is only
 !     accepted by SOME compilers.

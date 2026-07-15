@@ -147,6 +147,11 @@ module GenInfo
   ! moments module modifies this number.
   integer :: min_iter_conv = -1
   !=============================================================================
+  ! OpenMP parallelization variables
+  ! OpenMP compilation
+  ! Number of threads allowed
+  integer :: OMP_THREADS = 1
+  !=============================================================================
   ! MPI parallelization variables
   !  NPROCS   = the number of MPI processes we are working with
   !  MPI_RANK = the rank of the current core
