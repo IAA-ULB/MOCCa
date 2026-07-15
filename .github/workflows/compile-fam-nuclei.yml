@@ -16,7 +16,7 @@ jobs:
     container: ghcr.io/iaa-ulb/mocca-ci:latest
     strategy:
       matrix:
-        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL ]
+        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL, N2LO ]
         COMPILER: [ gfortran ]
         CALCTYPE: [ NUCLEI ]
         MPI: [ false ]
@@ -33,6 +33,16 @@ jobs:
             MPI: false
             OMP: true
           - CONFIG: LO-T
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: BXL
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: N2LO
             COMPILER: gfortran
             CALCTYPE: NUCLEI
             MPI: false

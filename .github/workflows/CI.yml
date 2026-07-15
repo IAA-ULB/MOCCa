@@ -843,6 +843,68 @@ jobs:
             testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q22.out
           retention-days: 2
 
+  fam_omp_invariance:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4
+            SERIAL_SUFFIX: NLO.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: NLO.gfortran.NUCLEI.OpenMP
+          - CONFIG: BXL
+            PARAM: BSkG1
+            SERIAL_SUFFIX: BXL.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: BXL.gfortran.NUCLEI.OpenMP
+          - CONFIG: N2LO
+            PARAM: SN2LO1
+            SERIAL_SUFFIX: N2LO.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: N2LO.gfortran.NUCLEI.OpenMP
+        COMPILER: [gfortran]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download serial MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download serial FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download OpenMP FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.OMP_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.OMP_SUFFIX }}.exe
+
+      - name: Run fam_omp_invariance test
+        run: |
+          cd testing/integration/
+          bash fam_omp_invariance.sh ${{ matrix.SERIAL_SUFFIX }} ${{ matrix.PARAM }} HFB 2 1.0 ${{ matrix.OMP_SUFFIX }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_omp_invariance.${{ matrix.SERIAL_SUFFIX }}.logs
+          path: testing/integration/logs/
+          retention-days: 2
+
   #-----------------------------------------------------------------------------
   # Batch 3: PASTA Tests
   #-----------------------------------------------------------------------------
