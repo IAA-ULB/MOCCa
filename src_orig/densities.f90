@@ -1249,10 +1249,16 @@ $SPWF_DECLARATION
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
 
-    si = 0
+!$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
+!$OMP                  wave_i, wave_j,              &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )                             &
+!$OMP          SHARED ( HFBlocks, F, mv, dv,        &
+!$OMP                   sphamil_me,                 &
+!$OMP                   denpsi, dendpsi, denddpsi) DEFAULT(PRIVATE)
     do B=1,8
-      N = HFBlocks(B)
-
+      N = HFBlocks(B); if(N.eq.0) cycle
+      si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
       !---------------------------------------------------------------------------
       ! Determine the isospin index
       if(B.ge.5) then
@@ -1260,7 +1266,7 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
-
+!$OMP DO COLLAPSE (2)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1269,9 +1275,9 @@ $EXPRESSION_SPH_SYM
           sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
-      si = si + N
+      !$OMP END DO
     enddo
-
+!$OMP END PARALLEL
     call stop_timer(T_spme_perturbed_sym)
 
   end function calc_sphamil_me_sym
@@ -1322,11 +1328,17 @@ $SPWF_DECLARATION
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
 
-
-    si = 0
+!$OMP PARALLEL PRIVATE(si, B, N, it, i,             &
+!$OMP                  wave_i, wave_j,              &
+!$OMP                  $OMP_DENSITY_VARS            &
+!$OMP                 )                             &
+!$OMP          SHARED ( HFBlocks, F, mv, dv,        &
+!$OMP                   sphamil_me,                 &
+!$OMP                   denpsi, dendpsi, denddpsi) DEFAULT(PRIVATE)
     do B=1,8
       N = HFBlocks(B)
-
+      N = HFBlocks(B); if(N.eq.0) cycle
+      si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
       !---------------------------------------------------------------------------
       ! Determine the isospin index
       if(B.ge.5) then
@@ -1334,7 +1346,7 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
-
+!$OMP DO COLLAPSE (2)
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N
           do i=1,mv
@@ -1343,9 +1355,9 @@ $EXPRESSION_SPH_ANTISYM
           sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
-      si = si + N
+!$OMP END DO
     enddo
-
+!$OMP END PARALLEL
     call stop_timer(T_spme_perturbed_asym)
 
   end function calc_sphamil_me_antisym
