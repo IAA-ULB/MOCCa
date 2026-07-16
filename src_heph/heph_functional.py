@@ -912,6 +912,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     erear             = LineFormat(erear)
     reading           = LineFormat(reading)
     writing           = LineFormat(writing)
+    reading_hdf5      = LineFormat(reading_hdf5)
+    writing_hdf5      = LineFormat(writing_hdf5)
     init              = LineFormat(init)
     add               = LineFormat(add)
     multiply          = LineFormat(multiply)

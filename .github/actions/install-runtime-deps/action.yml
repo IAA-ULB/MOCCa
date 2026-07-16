@@ -1,0 +1,23 @@
+name: 'Install runtime dependencies'
+description: 'Install minimal runtime dependencies for MOCCa tests including HDF5 support'
+
+inputs:
+  with-python:
+    description: 'Install Python dependencies (for tests that need numpy/scipy)'
+    required: false
+    type: boolean
+    default: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install runtime dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y liblapack-dev libblas-dev \
+            libhdf5-dev hdf5-tools \
+            time bc
+        if [ "${{ inputs.with-python }}" = "true" ]; then
+          sudo apt-get install -y python3 python3-numpy python3-scipy
+        fi
+      shell: bash
