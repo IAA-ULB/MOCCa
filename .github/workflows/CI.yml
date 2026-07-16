@@ -280,11 +280,9 @@ jobs:
     container: ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
     strategy:
       matrix:
-        CONFIG: [BXL, NLO]
+        CONFIG: [ NLO]
         COMPILER: [ifx]
         include:
-          - CONFIG: BXL
-            PARAM: BSkG3
           - CONFIG: NLO
             PARAM: SLy4
     env:
@@ -370,6 +368,213 @@ jobs:
           path: |
             testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
             testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  blocking:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: BXL-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download regular executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download T-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run blocking test
+        run: |
+          cd testing/integration/
+          bash blocking.sh $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: blocking-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/blocking_FV.out
+            testing/integration/logs/blocking_EFA.out
+            testing/integration/logs/blocking_EFA_T.out
+            testing/integration/logs/blocking_full.out
+          retention-days: 2
+
+  store_derivatives:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [BXL]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run store_derivatives test
+        run: |
+          cd testing/integration/
+          bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ env.SUFFIX }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: store_derivatives-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
+            testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  symmetries:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [BXL, N2LO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+    env:
+      EXEC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      EXEC_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      EXEC_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      EXEC_TP: ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download symmetric executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.EXEC }}
+          path: exec/
+
+      - name: Download parity-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.EXEC_P }}
+          path: exec/
+
+      - name: Download time-reversal-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.EXEC_T }}
+          path: exec/
+
+      - name: Download TP-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.EXEC_TP }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.EXEC }}.exe
+          chmod +x exec/MOCCa.${{ env.EXEC_P }}.exe
+          chmod +x exec/MOCCa.${{ env.EXEC_T }}.exe
+          chmod +x exec/MOCCa.${{ env.EXEC_TP }}.exe
+
+      - name: Run symmetries test
+        run: |
+          cd testing/integration/
+          bash symmetries.sh ${{ matrix.PARAM }} ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: symmetries-${{ env.EXEC }}.logs
+          path: |
+            testing/integration/logs/symmetries.${{ env.EXEC }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_P }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_T }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_TP }}.out
+          retention-days: 2
+
+  magmoment_Sc41:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      T_SUFFIX: NLO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download regular executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download T-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.T_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.T_SUFFIX }}.exe
+
+      - name: Run magmoment_Sc41 test
+        run: |
+          cd testing/integration/
+          bash magmoment_Sc41.sh $SUFFIX $T_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: magmoment_Sc41-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/magmoment_Sc41_FV.out
+            testing/integration/logs/magmoment_Sc41_blocked.out
           retention-days: 2
 
   #-----------------------------------------------------------------------------
