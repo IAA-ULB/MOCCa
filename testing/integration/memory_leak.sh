@@ -15,7 +15,7 @@
 #
 #   -v, --verbose: Report memory used as a function of iteration count in a table
 #
-# Dependencies: /usr/bin/time, bc
+# Dependencies: ps, bc
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner: Memory leak detection test
 #-------------------------------------------------------------------------------
@@ -54,7 +54,7 @@ declare -a MEMORY_USAGE
 declare -a ITERATION_COUNT
 
 export MKL_NUM_THREADS=1
-
+export OMP_NUM_THREADS=1
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
@@ -69,8 +69,9 @@ echo ""
 run_memory_test() {
     local maxiter=$1
     local out_file=$2
-    local time_file
-    local max_rss
+    local pid
+    local max_rss=0
+    local current_rss
 
     # Set up test environment
     setup_test_env "memory_leak_${maxiter}" "$EXESUFFIX" "SLy4"
@@ -108,18 +109,26 @@ OutputFilename='trash'
 /
 EOF
 
-    # Create temp file for time output
-    time_file=$(mktemp)
+    # Run the calculation in the background
+    ./$exe <mocca.data >"$out_file" 2>/dev/null &
+    pid=$!
 
-    # Run the calculation with /usr/bin/time -v to get memory stats
-    # /usr/bin/time writes its stats to stderr, so we redirect that to our temp file
-    # Program's stdout goes to outfile, program's stderr is discarded (or could be logged)
-    /usr/bin/time -v ./$exe <mocca.data >"$out_file" 2>"$time_file"
+    # Monitor memory usage until process completes
+    while kill -0 $pid 2>/dev/null; do
+        # Get current RSS in KB (ps outputs in KB)
+        current_rss=$(ps -o rss= -p $pid 2>/dev/null | tr -d ' ')
+        
+        # Update max_rss if current is larger
+        if [ -n "$current_rss" ] && [ "$current_rss" -gt "$max_rss" ]; then
+            max_rss=$current_rss
+        fi
+        
+        sleep 0.1
+    done
+
+    # Get exit code of the MOCCa process
+    wait $pid
     mocca_check=$?
-
-    # Extract maximum resident set size (in KB) from time output
-    max_rss=$(grep "Maximum resident set size" "$time_file" | awk '{print $6}')
-    rm -f "$time_file"
 
     # Clean up
     teardown_test_env
