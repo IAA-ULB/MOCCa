@@ -22,15 +22,16 @@
 !
 !===============================================================================
 module constants
-    use compilation
 
-    implicit none
+    use compilation, only : dp
+    implicit none(external)
+    public
     !---------------------------------------------------------------------------
     ! Physical constants.
     real(KIND=dp):: e2             =  1.43996446_dp
     real(KIND=dp):: clum           = 29.9792458_dp
-    real(KIND=dp):: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
-    
-contains 
+    real(KIND=dp):: nucleonmass(2) = [939.565379_dp , 938.272046_dp ]
 
-end module 
+contains
+
+end module constants

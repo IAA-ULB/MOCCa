@@ -53,7 +53,7 @@ module GenInfo
 
   use compilation , only : dp
 
-  implicit none 
+  implicit none (external)
 
   public
 
@@ -154,7 +154,7 @@ module GenInfo
   !
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
-  integer :: NPROCS = 1, MPI_RANK    = 0 
+  integer :: NPROCS = 1, MPI_RANK    = 0
   !-----------------------------------------------------------------------------
   ! The maximum number of spwfs that can get attributed to each process in an
   ! MPI calculation. However, the code does not strictly enforce this limit, and
@@ -250,12 +250,13 @@ contains
         read (unit=file_number, nml=mesh)
       else
         read (unit=*, nml=mesh)
-      endif   
+      endif
 
       if(fixfermi .and. (mun==-10d8 .or.mup==-10d8) )then
         call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
         stop
       endif
+
 
 !     W.R.: I don't remember why I enforced this...
 !       TODO: reenable in case of broken symmetries.
@@ -313,7 +314,7 @@ contains
     k_shx=pi/($LINESIZEX*dx)
     k_shy=pi/($LINESIZEY*dx)
     k_shz=pi/($LINESIZEZ*dx)
-    
+
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! redo the initialisation for the shifted coordinates for a COM at the origin
@@ -513,7 +514,7 @@ contains
     call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
                                              ! with error code 1
 #endif
-    stop 
+    stop
   end subroutine stp
 
   function transform_memory(N) result (mem)
@@ -609,7 +610,7 @@ contains
     character(len=length)        :: r
 
     r = adjustl(string)
-  end function rps 
+  end function rps
 
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------
