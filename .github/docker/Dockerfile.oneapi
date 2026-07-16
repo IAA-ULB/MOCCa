@@ -13,7 +13,7 @@
 #   docker build -t ghcr.io/iaa-ulb/mocca-ci-oneapi:latest -f .github/docker/Dockerfile.oneapi .
 #   docker push ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
 
-FROM intel/oneapi-hpckit:latest
+FROM intel/oneapi-toolkit:latest
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
