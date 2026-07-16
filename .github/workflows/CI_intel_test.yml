@@ -1,0 +1,107 @@
+name: Intel OneAPI Compilation Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Test Intel OneAPI compilation'
+        required: false
+        default: 'Manual trigger for Intel compiler test'
+
+  push:
+    branches:
+      - 'enable_ifort_CI'
+    paths:
+      - 'Makefile'
+      - 'make.inc'
+      - 'make_include/make.inc.intel*'
+      - '.github/workflows/CI_intel_test.yml'
+      - '.github/docker/Dockerfile.oneapi'
+
+  pull_request:
+    branches:
+      - 'enable_ifort_CI'
+    paths:
+      - 'Makefile'
+      - 'make.inc'
+      - 'make_include/make.inc.intel*'
+      - '.github/workflows/CI_intel_test.yml'
+      - '.github/docker/Dockerfile.oneapi'
+
+jobs:
+  intel-compile-test:
+    name: Intel OneAPI (NLO, SERIAL, no parallel)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Show Intel compiler versions
+        run: |
+          echo "=== Intel OneAPI Compiler Versions ==="
+          ifx --version
+          icx --version
+          mpiifx --version 2>/dev/null || echo "mpiifx not available"
+          echo ""
+          echo "=== MKL Information ==="
+          echo "MKLROOT: ${MKLROOT:-not set}"
+          echo ""
+
+      - name: Compile NLO with Intel ifx (serial, no parallel)
+        env:
+          OMP_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
+          MAKEFLAGS: -j1
+        run: |
+          echo "=== Starting Intel OneAPI Compilation Test ==="
+          echo "CONFIG: NLO"
+          echo "CALCTYPE: NUCLEI"
+          echo "Parallelization: DISABLED (OMP_NUM_THREADS=1, MKL_NUM_THREADS=1, MAKEFLAGS=-j1)"
+          echo ""
+          
+          # Use the existing intel-serial make.inc
+          cp make_include/make.inc.intel-serial make.inc
+          
+          # Clean any previous build
+          make clean 2>/dev/null || true
+          
+          # Compile mean-field executable with explicit executable name
+          # The Makefile defaults to MOCCa.$(CONFIG).exe, so with CONFIG=NLO it would be MOCCa.NLO.exe
+          # But we want to match the naming convention: CONFIG.COMPILER.CALCTYPE.MPI_LABEL
+          echo "Compiling with: make mf CONFIG=NLO CALCTYPE=NUCLEI EXENAME=MOCCa.NLO.ifx.NUCLEI.SERIAL.exe"
+          make mf CONFIG=NLO CALCTYPE=NUCLEI EXENAME=MOCCa.NLO.ifx.NUCLEI.SERIAL.exe
+          
+          # Verify executable was created
+          echo ""
+          echo "=== Checking for Executable ==="
+          EXENAME="MOCCa.NLO.ifx.NUCLEI.SERIAL.exe"
+          if [ -f "exec/${EXENAME}" ]; then
+            ls -lh "exec/${EXENAME}"
+            echo "SUCCESS: Executable created!"
+          else
+            echo "ERROR: Executable not found!"
+            echo "Contents of exec/:"
+            ls -la exec/ || true
+            exit 1
+          fi
+
+      - name: Upload executable
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: MOCCa-NLO-Intel-OneAPI
+          path: exec/MOCCa.NLO.ifx.NUCLEI.SERIAL.exe
+          retention-days: 2
+
+      - name: Upload build logs
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: intel-test-logs
+          path: |
+            build/NLO/
+            exec/
+          retention-days: 2
