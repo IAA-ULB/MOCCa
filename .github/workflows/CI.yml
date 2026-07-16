@@ -472,6 +472,8 @@ jobs:
         include:
           - CONFIG: BXL
             PARAM: BSkG3
+          - CONFIG: N2LO
+            PARAM: SN2LO1
     env:
       EXEC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
       EXEC_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
@@ -1129,7 +1131,7 @@ jobs:
     container: ${{ matrix.COMPILER == 'gfortran' && 'ghcr.io/iaa-ulb/mocca-ci:latest' || 'ghcr.io/iaa-ulb/mocca-ci-oneapi:latest' }}
     strategy:
       matrix:
-        COMPILER: [gfortran, ifx]
+        COMPILER: [gfortran] # ifx support cannot be enabled at the moment, as the oneapi container does not contain HDF5 support at the moment
         CONFIG: [BXL]
     env:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
