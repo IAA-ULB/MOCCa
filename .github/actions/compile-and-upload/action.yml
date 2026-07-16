@@ -46,14 +46,19 @@ runs:
         EXENAME="${{ inputs.execname_prefix }}.$SUFFIX.exe"
         MPISUFFIX="${{ inputs.mpi == true && 'parallel' || 'serial' }}"
         
+        # HDF5 support: only append suffix for GNU compilers (gfortran)
+        # Intel compilers use standard make.inc files without hdf5 suffix
+        HDF5_SUFFIX="${{ inputs.compfam == 'gnu' && inputs.hdf5suffix || '' }}"
+        
         echo "SUFFIX=$SUFFIX" >> $GITHUB_ENV
         echo "EXENAME=$EXENAME" >> $GITHUB_ENV
         echo "MPISUFFIX=$MPISUFFIX" >> $GITHUB_ENV
+        echo "HDF5_SUFFIX=$HDF5_SUFFIX" >> $GITHUB_ENV
       shell: bash
 
     - name: Compile MOCCa
       run: |
-        cp make_include/make.inc.${{ inputs.compfam }}-${{ env.MPISUFFIX }}${{ inputs.hdf5suffix }} make.inc
+        cp make_include/make.inc.${{ inputs.compfam }}-${{ env.MPISUFFIX }}$HDF5_SUFFIX make.inc
         if [ "${{ inputs.target }}" = "mf" ]; then
           make mf CONFIG=${{ inputs.config }} EXENAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
         else

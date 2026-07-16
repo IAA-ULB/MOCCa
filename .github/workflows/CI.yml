@@ -43,10 +43,10 @@ jobs:
   minimal:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    container: ${{ matrix.COMPILER == 'gfortran' && 'ghcr.io/iaa-ulb/mocca-ci:latest' || 'ghcr.io/iaa-ulb/mocca-ci-oneapi:latest' }}
     strategy:
       matrix:
-        COMPILER: [gfortran]
+        COMPILER: [gfortran, ifx]
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
 
@@ -83,10 +83,10 @@ jobs:
   memory_leak:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    container: ${{ matrix.COMPILER == 'gfortran' && 'ghcr.io/iaa-ulb/mocca-ci:latest' || 'ghcr.io/iaa-ulb/mocca-ci-oneapi:latest' }}
     strategy:
       matrix:
-        COMPILER: [gfortran]
+        COMPILER: [gfortran, ifx]
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
 
@@ -238,7 +238,7 @@ jobs:
   cranking:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest
-    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    container: ${{ matrix.COMPILER == 'gfortran' && 'ghcr.io/iaa-ulb/mocca-ci:latest' || 'ghcr.io/iaa-ulb/mocca-ci-oneapi:latest' }}
     strategy:
       matrix:
         CONFIG: [NLO-T]
@@ -867,10 +867,10 @@ jobs:
   spaghetti:
     needs: compile-mf-pasta
     runs-on: ubuntu-latest
-    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    container: ${{ matrix.COMPILER == 'gfortran' && 'ghcr.io/iaa-ulb/mocca-ci:latest' || 'ghcr.io/iaa-ulb/mocca-ci-oneapi:latest' }}
     strategy:
       matrix:
-        COMPILER: [gfortran]
+        COMPILER: [gfortran, ifx]
         CONFIG: [BXL]
     env:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
