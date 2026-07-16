@@ -3,10 +3,8 @@ make.inc
 build/ 
 build*
 
-# compiled executables
-*.exe 
-# Cray optimisation reports
-*.i 
+*exe
+*i
 # Do not track the make.inc currently in use
 make.inc
 
@@ -21,3 +19,24 @@ testing/*/logs/
 
 # Do not track the documentation builds
 site/ 
+
+tantalus_examples/out/
+tantalus_examples/diffs/
+tantalus_examples/work/*
+
+compilation_logs/*
+
+manual/tex_source/*.aux
+manual/tex_source/*.log
+manual/tex_source/*.bib
+manual/tex_source/*.pdf
+manual/tex_source/*.out
+
+manual/tex_source_heph/*.aux
+manual/tex_source_heph/*.log
+manual/tex_source_heph/*.bib
+manual/tex_source_heph/*.pdf
+manual/tex_source_heph/*.out
+
+auxiliary/decomposition/mod/
+auxiliary/decomposition/obj/
