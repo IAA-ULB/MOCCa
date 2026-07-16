@@ -11,7 +11,7 @@ permissions:
   packages: read
 
 jobs:
-  compile-gfortran:
+  compile:
     runs-on: ubuntu-latest
     container: ghcr.io/iaa-ulb/mocca-ci:latest
     strategy:
@@ -33,39 +33,6 @@ jobs:
           compiler: ${{ matrix.COMPILER }}
           calctype: ${{ matrix.CALCTYPE }}
           mpi: ${{ matrix.MPI }}
-          compfam: 'gnu'
-          hdf5suffix: '-hdf5'
-          execname_prefix: 'MOCCa'
-
-  compile-intel:
-    runs-on: ubuntu-latest
-    container: ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
-    strategy:
-      matrix:
-        include:
-          # Intel OneAPI: BXL MPI for PASTA
-          - CONFIG: BXL
-            COMPILER: ifx
-            CALCTYPE: PASTA
-            MPI: true
-          # Intel OneAPI: BXL serial for PASTA
-          - CONFIG: BXL
-            COMPILER: ifx
-            CALCTYPE: PASTA
-            MPI: false
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Compile and upload
-        uses: ./.github/actions/compile-and-upload
-        with:
-          target: mf
-          config: ${{ matrix.CONFIG }}
-          compiler: ${{ matrix.COMPILER }}
-          calctype: ${{ matrix.CALCTYPE }}
-          mpi: ${{ matrix.MPI }}
-          compfam: 'intel'
-          hdf5suffix: ''
+          compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+          hdf5suffix: '-hdf5' #${{ matrix.COMPILER == 'gfortran' && '-hdf5' || '' }}
           execname_prefix: 'MOCCa'

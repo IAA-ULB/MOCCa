@@ -11,7 +11,7 @@ permissions:
   packages: read
 
 jobs:
-  compile-gfortran:
+  compile:
     runs-on: ubuntu-latest
     container: ghcr.io/iaa-ulb/mocca-ci:latest
     strategy:
@@ -33,41 +33,6 @@ jobs:
           compiler: ${{ matrix.COMPILER }}
           calctype: ${{ matrix.CALCTYPE }}
           mpi: ${{ matrix.MPI }}
-          compfam: 'gnu'
+          compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
           hdf5suffix: ''
           execname_prefix: 'fam'
-
-# NOT used in tests at the moment 
-#
-#  compile-intel:
-#    runs-on: ubuntu-latest
-#    container: ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
-#    strategy:
-#      matrix:
-#        include:
-#          # Intel OneAPI: NLO serial for FAM
-#          - COMPILER: ifx
-#            CONFIG: NLO
-#            CALCTYPE: NUCLEI
-#            MPI: false
-#          # Intel OneAPI: NLO MPI for FAM
-#          - COMPILER: ifx
-#            CONFIG: NLO
-#            CALCTYPE: NUCLEI
-#            MPI: true
-
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v6
-#
-#      - name: Compile and upload
-#        uses: ./.github/actions/compile-and-upload
-#        with:
-#          target: fam
-#          config: ${{ matrix.CONFIG }}
-#          compiler: ${{ matrix.COMPILER }}
-#          calctype: ${{ matrix.CALCTYPE }}
-#          mpi: ${{ matrix.MPI }}
-#          compfam: 'intel'
-#          hdf5suffix: ''
-#          execname_prefix: 'fam'
