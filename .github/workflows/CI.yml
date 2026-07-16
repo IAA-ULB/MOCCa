@@ -274,6 +274,60 @@ jobs:
             testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
           retention-days: 2
 
+  parallel:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci-oneapi:latest
+    strategy:
+      matrix:
+        CONFIG: [BXL, NLO]
+        COMPILER: [ifx]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.MPI
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download serial executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.S_SUFFIX }}
+          path: exec/
+
+      - name: Download MPI executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.P_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.S_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.P_SUFFIX }}.exe
+
+      - name: Run parallel test
+        run: |
+          cd testing/integration/
+          bash parallel.sh -p ${{ matrix.PARAM }} -s $S_SUFFIX -m $P_SUFFIX -r 4 -q 8
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: parallel-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/serial.${{ env.S_SUFFIX }}.out
+            testing/integration/logs/parallel_1.${{ env.P_SUFFIX }}.out
+            testing/integration/logs/parallel_2.${{ env.P_SUFFIX }}.out
+          retention-days: 2
+
   gradient_vs_direct:
     needs: compile-mf-nuclei
     runs-on: ubuntu-latest

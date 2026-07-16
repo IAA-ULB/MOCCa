@@ -43,14 +43,26 @@ jobs:
     strategy:
       matrix:
         include:
+          # Intel OneAPI: NLO serial
           - CONFIG: NLO
             COMPILER: ifx
             CALCTYPE: NUCLEI
             MPI: false
+          # Intel OneAPI: NLO MPI
           - CONFIG: NLO
             COMPILER: ifx
             CALCTYPE: NUCLEI
             MPI: true
+          # Intel OneAPI: BXL MPI for parallel tests
+          - CONFIG: BXL
+            COMPILER: ifx
+            CALCTYPE: NUCLEI
+            MPI: true
+          # Intel OneAPI: NLO-T serial for cranking tests
+          - CONFIG: NLO-T
+            COMPILER: ifx
+            CALCTYPE: NUCLEI
+            MPI: false
 
     steps:
       - name: Checkout code
