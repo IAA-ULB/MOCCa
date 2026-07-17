@@ -21,18 +21,18 @@
 !    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 !
 !===============================================================================
-module HDF5_auxiliary 
+module HDF5_auxiliary
  !==============================================================================
- ! Module providing auxiliary routines for HDF5 I/O. 
- ! Notes: 
+ ! Module providing auxiliary routines for HDF5 I/O.
+ ! Notes:
  !  - this file needs no preprocessing by Hephaestos
  !  - this file does not have a preprocessor directive because the Makefile
  !    ensures that it is only compiled when HDF5 is enabled.
  !
  ! Most of this module is the work of Nikolai Shchechilin.
- ! 
  !
- ! TODO: 
+ !
+ ! TODO:
  ! - refactor the code to overload subroutines instead of having separate
  !   routines for different data types
  ! - look into the possibility of writing scalar attributes as 1d attributes
@@ -43,7 +43,9 @@ module HDF5_auxiliary
   use HDF5
   use geninfo, only : dp, stp
 
-  implicit none
+  implicit none (external)
+
+  public
 
   ! The compression level of compression for hdf5
   !  - only active for potentials and densities, not for spwfs
@@ -51,15 +53,15 @@ module HDF5_auxiliary
   integer, parameter  :: comprlvl = 6
 
   ! NOTE: there is currently NO interface that overloads hdf5_write_dataset_1d
-  !       because that would invalidate the use of hdf5_write_dataset_1d for 
+  !       because that would invalidate the use of hdf5_write_dataset_1d for
   !       real arrays of arbitrary rank.
   !interface hdf5_write_dataset_1d
   !    module procedure hdf5_write_dataset_1d_real
   !    module procedure hdf5_write_dataset_1d_integer
   !end interface hdf5_write_dataset_1d
 
-contains 
-  
+contains
+
   subroutine hdf5_write_attr_char(id, name, attribute)
     !----------------------------------------------------------------------------
     ! This routine writes a character scalar attribute with to an open hdf5 file
@@ -82,7 +84,7 @@ contains
 
     dims(1)=1
     alen=len(attribute)
-    if(alen.eq.0) call stp('ERROR: zero length attribute in hdf5_write_attr_char')
+    if(alen==0) call stp('ERROR: zero length attribute in hdf5_write_attr_char')
     !creating datatype
     call h5tcopy_f(h5t_native_character, type_id, error)
     call h5tset_size_f(type_id, alen, error)
@@ -99,7 +101,7 @@ contains
     !close type
     call h5tclose_f(type_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_char
 
   subroutine hdf5_write_attr_char_1d(id, name, attribute, n, alen)
@@ -123,11 +125,11 @@ contains
     character(len=alen), intent(in) :: attribute(n)
     Integer(hsize_t), dimension (1) :: dims
     integer                        :: error
-    integer(HID_T)             :: space_id, attribute_id, type_id, alen_hdf5 
+    integer(HID_T)             :: space_id, attribute_id, type_id, alen_hdf5
 
     dims(1)=n
     alen_hdf5 = int(alen, kind=hid_t) ! type conversion for hdf5
-    if(alen.eq.0) call stp('ERROR: zero length attribute in hdf5_write_attr_char_1d')
+    if(alen==0) call stp('ERROR: zero length attribute in hdf5_write_attr_char_1d')
     !creating datatype
     call h5tcopy_f(h5t_native_character, type_id, error)
     call h5tset_size_f(type_id, alen_hdf5, error)
@@ -144,7 +146,7 @@ contains
     !close type
     call h5tclose_f(type_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_char_1d
 
   subroutine hdf5_write_attr_integer(id, name, attribute)
@@ -155,17 +157,18 @@ contains
     ! id        : hid_t,  identifier of the hdf5 object (file, group, dataset)
     ! name      : string, name of the attribute
     ! attribute : integer, value of the attribute
-    ! 
+    !
     ! Output:
     ! none
     !----------------------------------------------------------------------------
-    integer(hid_t), intent(in) :: id
-    integer(hid_t)             :: space_id, attribute_id !identifiers
-    integer, intent(in)        :: attribute
-    integer                    :: error
-    character(len=*), intent(in) :: name
-    Integer(size_t), dimension (1)        :: dims=(/0/)
+    integer(hid_t), intent(in)     :: id
+    integer(hid_t)                 :: space_id, attribute_id !identifiers
+    integer, intent(in)            :: attribute
+    integer                        :: error
+    character(len=*), intent(in)   :: name
+    Integer(size_t), dimension (1) :: dims
 
+    dims=[0]
     !create space
     call h5screate_f(h5s_scalar_f, space_id, error)
     !create attribute
@@ -177,11 +180,11 @@ contains
     !close space
     call h5sclose_f(space_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_integer
-  
+
   subroutine hdf5_write_attr_integer_1d(id, name, attribute, n)
-    !---------------------------------------------------------------------------- 
+    !----------------------------------------------------------------------------
     ! This routine writes integer array attribute to an open hdf5 file
     !
     ! Input:
@@ -200,8 +203,8 @@ contains
     integer                    :: error
     character(len=*), intent(in) :: name
     Integer(size_t), dimension (1) :: dims
-    
-    dims=(/n/)
+
+    dims=[n]
     !create space
     call h5screate_simple_f(1, dims, space_id, error)
     !create attribute
@@ -213,7 +216,7 @@ contains
     !close space
     call h5sclose_f(space_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_integer_1d
 
   subroutine hdf5_write_attr_double(id, name, attribute)
@@ -228,13 +231,14 @@ contains
     ! Output:
     ! none
     !----------------------------------------------------------------------------
-    integer(hid_t), intent(in) :: id
-    integer(hid_t)             :: space_id, attribute_id !identifiers
-    real(kind=dp), intent(in)  :: attribute
-    integer                    :: error
-    character(len=*), intent(in) :: name
-    Integer(size_t), dimension (1)        :: dims=(/0/)
+    integer(hid_t), intent(in)     :: id
+    integer(hid_t)                 :: space_id, attribute_id !identifiers
+    real(kind=dp), intent(in)      :: attribute
+    integer                        :: error
+    character(len=*), intent(in)   :: name
+    Integer(size_t), dimension (1) :: dims
 
+    dims=[0]
     !create space
     call h5screate_f(h5s_scalar_f, space_id, error)
     !create attribute
@@ -246,7 +250,7 @@ contains
     !close space
     call h5sclose_f(space_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_double
 
   subroutine hdf5_write_attr_double_1d(id, name, attribute, n)
@@ -269,7 +273,7 @@ contains
     character(len=*), intent(in) :: name
     Integer(size_t), dimension (1) :: dims
 
-    dims=(/n/)
+    dims=[n]
     !create space
     call h5screate_f(h5s_scalar_f, space_id, error)
     !create attribute
@@ -281,7 +285,7 @@ contains
     !close space
     call h5sclose_f(space_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_attr_double_1d
 
   subroutine hdf5_write_dataset_1d(id, name, dset, n, groupname)
@@ -293,7 +297,7 @@ contains
     ! name      : string, name of the dataset; will get trimmed for superfluous spaces
     ! dset      : double precision array, value of the dataset
     ! n         : integer, length of the array
-    ! groupname : optional string, name of the group to write the dataset in 
+    ! groupname : optional string, name of the group to write the dataset in
     !
     ! Output:
     ! none
@@ -307,40 +311,52 @@ contains
     integer                    :: error
     integer(hsize_t), dimension(1) :: dims,data_dims
 
-    dims=(/n/)
-    data_dims=(/n/)
-    ! Create dataspace for data_set 
+    dims=[n]
+    data_dims=[n]
+    ! Create dataspace for data_set
     call h5screate_simple_f(1, dims, space_id, error)
     ! create property list
     call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
-    if(error.ne.0) call stp('ERROR: h5pcreate_f failed in hdf5_write_dataset_1d for name='//trim(name))
-    ! create chunks with property list for compression, as of now size of chunk      
+    if(error/=0) then
+       call stp('ERROR: h5pcreate_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    endif
+    ! create chunks with property list for compression, as of now size of chunk
     ! is just equal to the size of array. Modify for MPI reading?
     call h5pset_chunk_f(plist_id, 1, dims, error)
-    if(error.ne.0) call stp('ERROR: h5pset_chunk_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    if(error/=0) then
+       call stp('ERROR: h5pset_chunk_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    endif
     ! shuffling for better compression?
     call h5pset_shuffle_f(plist_id, error)
-    if(error.ne.0) call stp('ERROR: h5pset_shuffle_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    if(error/=0) then
+       call stp('ERROR: h5pset_shuffle_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    endif
     ! zlib compression with deflate
     call h5pset_deflate_f(plist_id, comprlvl, error)
-    if(error.ne.0) call stp('ERROR: h5pset_deflate_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    if(error/=0) then
+       call stp('ERROR: h5pset_deflate_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    endif
     ! Create dataset with default properties "dset_id" is returned
     if(present(groupname)) then
-      call h5dcreate_f(id,groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
-    else 
-      call h5dcreate_f(id,trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)    
+      call h5dcreate_f(id, &
+           & groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
+    else
+      call h5dcreate_f(id, &
+           & trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
     endif
-    ! Write dataset 
+    ! Write dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    if(error.ne.0) call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_1d for name='//trim(name))
-    ! Close access to dataset 
+    if(error/=0) then
+       call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_1d for name='//trim(name))
+    endif
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
-    ! Close access to data space 
+    ! Close access to data space
     call h5sclose_f(space_id, error)
     ! close access to plist
     call h5pclose_f(plist_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_dataset_1d
 
   subroutine hdf5_write_dataset_1d_integer(id, name, dset, n, groupname)
@@ -352,7 +368,7 @@ contains
     ! name      : string, name of the dataset; will get trimmed for superfluous spaces
     ! dset      : integer array, value of the dataset
     ! n         : integer, length of the array
-    ! groupname : optional string, name of the group to write the dataset in 
+    ! groupname : optional string, name of the group to write the dataset in
     !
     ! Output:
     ! none
@@ -366,24 +382,26 @@ contains
     integer                    :: error
     integer(hsize_t), dimension(1) :: dims,data_dims
 
-    dims=(/n/)
-    data_dims=(/n/)
-    ! Create dataspace for data_set 
+    dims=[n]
+    data_dims=[n]
+    ! Create dataspace for data_set
     call h5screate_simple_f(1, dims, space_id, error)
     if(present(groupname)) then
       call h5dcreate_f(id,groupname//'/'//trim(name),H5T_NATIVE_INTEGER,space_id,dset_id,error)
-    else 
-      call h5dcreate_f(id,trim(name),H5T_NATIVE_INTEGER,space_id,dset_id,error)    
+    else
+      call h5dcreate_f(id,trim(name),H5T_NATIVE_INTEGER,space_id,dset_id,error)
     endif
-    ! Write dataset 
+    ! Write dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, dset, data_dims, error)
-    if(error.ne.0) call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_1d_integer for name='//trim(name))
-    ! Close access to dataset 
+    if(error/=0) then
+       call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_1d_integer for name='//trim(name))
+    endif
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
-    ! Close access to data space 
+    ! Close access to data space
     call h5sclose_f(space_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_dataset_1d_integer
 
   subroutine hdf5_write_dataset_2d(id, name, dset, n1, n2, groupname)
@@ -395,7 +413,7 @@ contains
     ! name      : string, name of the dataset; will get trimmed for superfluous spaces
     ! dset      : double precision array, value of the dataset
     ! n         : integer, length of the array
-    ! groupname : optional string, name of the group to write the dataset in 
+    ! groupname : optional string, name of the group to write the dataset in
     !
     ! Output:
     ! none
@@ -409,32 +427,33 @@ contains
     integer                    :: error
     integer(hsize_t), dimension(2) :: dims,data_dims
 
-    dims=(/n1, n2/)
-    data_dims=(/n1, n2/)
-    ! Create dataspace for data_set 
+    dims=[n1, n2]
+    data_dims=[n1, n2]
+    ! Create dataspace for data_set
     call h5screate_simple_f(2, dims, space_id, error)
-    if(error.ne.0) call stp('ERROR: h5screate_simple_f failed in hdf5_write_dataset_2d')
+    if(error/=0) call stp('ERROR: h5screate_simple_f failed in hdf5_write_dataset_2d')
     ! create property list
     call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
-    if(error.ne.0) call stp('ERROR: h5pcreate_f failed in hdf5_write_dataset_2d')
+    if(error/=0) call stp('ERROR: h5pcreate_f failed in hdf5_write_dataset_2d')
     ! Create dataset with default properties "dset_id" is returned
     if(present(groupname)) then
-      call h5dcreate_f(id,groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
-    else 
-      call h5dcreate_f(id,trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)    
+      call h5dcreate_f(id, &
+           & groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
+    else
+      call h5dcreate_f(id,trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
     endif
-    if(error.ne.0) call stp('ERROR: h5dcreate_f failed in hdf5_write_dataset_2d')
-    ! Write dataset 
+    if(error/=0) call stp('ERROR: h5dcreate_f failed in hdf5_write_dataset_2d')
+    ! Write dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    if(error.ne.0) call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_2d')
-    ! Close access to dataset 
+    if(error/=0) call stp('ERROR: h5dwrite_f failed in hdf5_write_dataset_2d')
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
-    ! Close access to data space 
+    ! Close access to data space
     call h5sclose_f(space_id, error)
     ! close access to plist
     call h5pclose_f(plist_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'writing')
+    if (error/=0) call report_hdf5_error(id, name, 'writing')
   end subroutine hdf5_write_dataset_2d
 
   subroutine hdf5_read_attr_char(id, name, attribute, n)
@@ -449,14 +468,14 @@ contains
     ! Output:
     ! none
     !----------------------------------------------------------------------------
-    integer(hid_t), intent(in) :: id
-    integer(HID_T)             :: attribute_id !identifiers
-    integer(HID_T)             :: type_id !identifiers
-    integer                    :: error
-    integer(size_t)            :: n
-    character(len=*), intent(in) :: name
-    character(len=*), intent(inout) :: attribute
-    Integer(hsize_t), dimension (1) :: dims
+    integer(hid_t), intent(in)                 :: id
+    integer(size_t), intent(in)                :: n
+    character(len=*), intent(in)               :: name
+    character(len=n), intent(out)              :: attribute
+    integer(HID_T)                             :: attribute_id !identifiers
+    integer(HID_T)                             :: type_id !identifiers
+    integer                                    :: error
+    Integer(hsize_t), dimension (1)            :: dims
 
     dims(1)=n
     !open attribute
@@ -468,9 +487,9 @@ contains
     !close the attribute
     call h5aclose_f(attribute_id,error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_char
-  
+
   subroutine hdf5_read_attr_integer(id, name, attribute)
     !----------------------------------------------------------------------------
     ! reads integer scalar attribute with some name from the hdf5 file
@@ -497,9 +516,9 @@ contains
     !close the attribute
     call h5aclose_f(attribute_id,error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_integer
-  
+
   subroutine hdf5_read_attr_integer_1d(id, name, attribute, n)
     !----------------------------------------------------------------------------
     ! reads integer array attribute with some name from the hdf5 file
@@ -529,7 +548,7 @@ contains
     !close the attribute
     call h5aclose_f(attribute_id,error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_integer_1d
 
   subroutine hdf5_read_attr_double(id, name, attribute)
@@ -558,7 +577,7 @@ contains
     !close the attribute
     call h5aclose_f(attribute_id,error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_double
 
   subroutine hdf5_read_attr_double_1d(id, name, attribute, n)
@@ -589,9 +608,9 @@ contains
     !close the attribute
     call h5aclose_f(attribute_id,error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_double_1d
-    
+
   subroutine hdf5_read_dataset_1d(id, name, dset, n, groupname)
     !----------------------------------------------------------------------------
     ! reads double precision dataset array of length n with some name in the hdf5 file
@@ -613,20 +632,20 @@ contains
     integer(hid_t)               :: dset_id !identifiers
     integer(size_t), dimension(1):: dims, data_dims
     integer                      :: error
-    dims=(/n/)
+    dims=[n]
     data_dims(1)=n
     ! open dataset, "dset_id" is returned
     if(present(groupname)) then
       call h5dopen_f(id,groupname//'/'//trim(name), dset_id, error)
-    else 
+    else
       call h5dopen_f(id,trim(name), dset_id, error)
     endif
-    ! read dataset 
+    ! read dataset
     call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    ! Close access to dataset 
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
 
   end subroutine hdf5_read_dataset_1d
 
@@ -652,26 +671,26 @@ contains
     integer(hid_t)               :: dset_id !identifiers
     integer(size_t), dimension(1):: dims, data_dims
     integer                      :: error
-    dims=(/n/)
+    dims=[n]
     data_dims(1)=n
     ! open dataset, "dset_id" is returned
     if(present(groupname)) then
       call h5dopen_f(id,groupname//'/'//trim(name), dset_id, error)
-    else 
+    else
       call h5dopen_f(id,trim(name), dset_id, error)
     endif
-    ! read dataset 
+    ! read dataset
     call h5dread_f(dset_id, H5T_NATIVE_INTEGER, dset, data_dims, error)
-    ! Close access to dataset 
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
 
   end subroutine hdf5_read_dataset_1d_integer
 
   subroutine hdf5_read_dataset_2d(id, name, dset, n1,n2)
     !----------------------------------------------------------------------------
-    ! reads double precision dataset rank 2 ALLOCATABLE array of dimension 
+    ! reads double precision dataset rank 2 ALLOCATABLE array of dimension
     ! (n1,n2) with some name in the hdf5 file
     !
     ! Input:
@@ -691,20 +710,20 @@ contains
     integer(hid_t)               :: dset_id !identifiers
     integer(size_t), dimension(2):: dims, data_dims
     integer                      :: error
-    dims     =(/n1,n2/)
-    data_dims=(/n1,n2/)
+    dims     =[n1,n2]
+    data_dims=[n1,n2]
 
     allocate(dset(n1,n2)) ; dset = 0.0d0
     ! open dataset, "dset_id" is returned
     call h5dopen_f(id, name, dset_id, error)
-    if(error.ne.0) call stp('ERROR: h5dopen_f failed in hdf5_read_dataset_2d')
-    ! read dataset 
+    if(error/=0) call stp('ERROR: h5dopen_f failed in hdf5_read_dataset_2d')
+    ! read dataset
     call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    if(error.ne.0) call stp('ERROR: h5dread_f failed in hdf5_read_dataset_2d')
-    ! Close access to dataset 
+    if(error/=0) call stp('ERROR: h5dread_f failed in hdf5_read_dataset_2d')
+    ! Close access to dataset
     call h5dclose_f(dset_id, error)
 
-    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+    if (error/=0) call report_hdf5_error(id, name, 'reading')
 
   end subroutine hdf5_read_dataset_2d
 
@@ -730,7 +749,7 @@ contains
     character(len=7), intent(in)  :: operation
     CHARACTER(len=70)             :: msg
 
-    write(msg,fmt=1) trim(operation), trim(name), id 
+    write(msg,fmt=1) trim(operation), trim(name), id
     call stp(msg)
   end subroutine report_hdf5_error
 end module hdf5_auxiliary

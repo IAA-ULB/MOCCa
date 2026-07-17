@@ -454,8 +454,8 @@ contains
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
       do r = 0, NPROCS-1
          ! Searching for the first rank assigned to this symmetry block
-         if(MPI_BLOCK_ASSIGNMENTS(r+1) .eq. B ) then
-            if(MPI_RANK .eq. r) then
+         if(MPI_BLOCK_ASSIGNMENTS(r+1) == B ) then
+            if(MPI_RANK == r) then
                print *,'------------------------------------------------------------------------------'
                print *, 'Timers of rank ', r, ' which deals with block B = ', B
                print *,'------------------------------------------------------------------------------'

@@ -2,12 +2,14 @@
 # CI deployment for MOCCa on GitHub-hosted runners
 #
 # Main workflow that orchestrates:
+#   - lint-and-format: Run fortitude linter and fprettify formatter on source code
 #   - compile-mf-nuclei: Compile mean-field executables for nuclei
 #   - compile-fam-nuclei: Compile FAM executables for nuclei
 #   - compile-mf-pasta: Compile mean-field executables for pasta
 #   - minimal: Run minimal test
 #
 # Uses reusable workflows for each compilation type to maximize code reuse.
+# Linting and formatting runs before all compilation jobs.
 #-------------------------------------------------------------------------------
 name: MOCCa CI
 
@@ -34,7 +36,11 @@ permissions:
   packages: read
 
 jobs:
+  lint-and-format:
+    uses: ./.github/workflows/lint-and-format.yml
+
   compile-mf-nuclei:
+    needs: lint-and-format
     uses: ./.github/workflows/compile-mf-nuclei.yml
 
   compile-fam-nuclei:

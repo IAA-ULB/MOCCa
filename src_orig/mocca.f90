@@ -47,7 +47,7 @@ contains
       use fission_MOI
       use version, only: print_header
 
-      implicit none
+      implicit none (external)
       !------------------------------------------------------------------------------
       ! Convergence signals
       ! Iteration counter
