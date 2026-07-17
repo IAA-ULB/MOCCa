@@ -471,7 +471,7 @@ contains
     integer(hid_t), intent(in)                 :: id
     integer(size_t), intent(in)                :: n
     character(len=*), intent(in)               :: name
-    character(len=:), allocatable, intent(out) :: attribute
+    character(len=n), intent(out)              :: attribute
     integer(HID_T)                             :: attribute_id !identifiers
     integer(HID_T)                             :: type_id !identifiers
     integer                                    :: error

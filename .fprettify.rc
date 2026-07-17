@@ -1,0 +1,35 @@
+# fprettify configuration for MOCCa
+# https://fprettify.readthedocs.io/en/latest/config.html
+
+[fortran]
+# Indentation
+indent = 2
+strict_indent = True
+
+# Line length
+line_length = 132
+
+# Whitespace settings
+whitespace_comma = True
+whitespace_assignment = True
+whitespace_decl = True
+whitespace_relational = True
+whitespace_logical = True
+whitespace_plusminus = True
+whitespace_multdiv = True
+whitespace_print = True
+whitespace_type = True
+whitespace_intrinsics = True
+
+# Enable/disable features
+enable_decl = True
+disable_indent = False
+disable_whitespace = False
+
+# Case handling
+case = lower
+
+# Other settings
+strip_comments = False
+disable_fypp = False
+disable_indent_mod = False
