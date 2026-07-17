@@ -51,40 +51,40 @@ module GenInfo
   ! 'only'-list seems to generate behaviour that is not consistent across compilers.
 #endif
 
-  use compilation , only : dp
+  use compilation, only: dp
 
-  implicit none (external)
+  implicit none(external)
 
   public
 
-  character(len=$SYMLEN), parameter      :: SYMSTRING  = "$SYMSTRING"
-  integer, parameter                     :: reduX      = $REDUX
-  integer, parameter                     :: reduY      = $REDUY
-  integer, parameter                     :: reduZ      = $REDUZ
+  character(len=$SYMLEN), parameter      :: SYMSTRING = "$SYMSTRING"
+  integer, parameter                     :: reduX = $REDUX
+  integer, parameter                     :: reduY = $REDUY
+  integer, parameter                     :: reduZ = $REDUZ
   !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points
-  integer :: nx=30,ny=30,nz=30, mv
+  integer :: nx = 30, ny = 30, nz = 30, mv
   !-----------------------------------------------------------------------------
   !Number of protons and neutrons in the nucleus
-  real(KIND=dp) :: Neutrons=10, Protons=10
+  real(KIND=dp) :: Neutrons = 10, Protons = 10
   ! .... or alternatively a fixed chemical potential/fermi energy
   real(KIND=dp) :: mun = -10d8, mup = -10d8
   ! .... which is signalled by this particular flag
   logical       :: fixfermi = .false.
   !-----------------------------------------------------------------------------
   ! Line element and volume element of the box. dx is in fm, dv in fm^3.
-  real(KIND=dp)  :: dx=0.8_dp
-  real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
+  real(KIND=dp)  :: dx = 0.8_dp
+  real(KIND=dp)  :: dv = (0.8_dp**3)*(2**$NUMSYM)
   !-----------------------------------------------------------------------------
   ! Pi is always practical (delicious) to have.
-  real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
+  real(KIND=dp), parameter  :: pi = 4.0_dp*atan2(1.0_dp, 1.0_dp)
   !-----------------------------------------------------------------------------
   ! k_sh -- shift of the wavefunctions to be periodic
   real(KIND=dp) :: k_shx, k_shy, k_shz
   !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
-  integer :: MaxIter=100, PrintIter=100
+  integer :: MaxIter = 100, PrintIter = 100
   !---------------------------------------------------------------------------
   ! This is the number of iterations during which the selfconsistent
   ! potentials are not changed. The TOTAL number of iterations remains
@@ -93,17 +93,17 @@ module GenInfo
   !---------------------------------------------------------------------------
   ! Alternatively, one can check for the convergence of the linear subproblem
   ! by keeping the potentials frozen until d2H passes this limit.
-  real(KIND=dp) :: d2H_freeze =1e20
+  real(KIND=dp) :: d2H_freeze = 1e20
   !---------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
-  real(KIND=dp), allocatable, target :: meshgrid(:,:)
+  real(KIND=dp), allocatable, target :: meshgrid(:, :)
   ! Coordinates of the mesh points in the inertial frame of the nucleus, i.e.
   ! with the origin at the center-of-mass.
   real(KIND=dp), allocatable         :: meshx_shifted(:), meshy_shifted(:)
   real(KIND=dp), allocatable         :: meshz_shifted(:)
-  real(KIND=dp), allocatable, target :: meshgrid_shifted(:,:)
+  real(KIND=dp), allocatable, target :: meshgrid_shifted(:, :)
   !-----------------------------------------------------------------------------
   ! Inverse temperature Beta = (k_b T)^{-1}.
   ! Negative values are used to indicate an infinite value, i.e. T = 0.
@@ -131,7 +131,7 @@ module GenInfo
   !                                    for all cartesian directions
   !-----------------------------------------------------------------------------
   real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
-  real(KIND=dp) :: fermi_prec = 1d-3, angmom_prec   = 1d-3, gradient_prec=1d+0
+  real(KIND=dp) :: fermi_prec = 1d-3, angmom_prec = 1d-3, gradient_prec = 1d+0
   !-----------------------------------------------------------------------------
   ! Pairing tolerance
   ! Tolerance passed into the pairing solver. What exactly this determines
@@ -154,12 +154,12 @@ module GenInfo
   !
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
-  integer :: NPROCS = 1, MPI_RANK    = 0
+  integer :: NPROCS = 1, MPI_RANK = 0
   !-----------------------------------------------------------------------------
   ! The maximum number of spwfs that can get attributed to each process in an
   ! MPI calculation. However, the code does not strictly enforce this limit, and
   ! this variable functions more as a rough guideline for the load balancing.
-  integer :: max_spwf_per_rank       = 10000000
+  integer :: max_spwf_per_rank = 10000000
   !-----------------------------------------------------------------------------
   ! Logical indicating whether to keep all derivatives of the spwfs in memory
   ! or not. Putting this to .false. allows one to save a lot of memory at the
@@ -180,7 +180,7 @@ module GenInfo
   integer              :: MPI_BLOCK_NPROCS    ! size of the local team in 1D
   integer              :: MPI_BLOCK_NPROCS_2D ! size of the local team in 2D
   integer, allocatable :: MPI_BLOCK_ASSIGNMENTS(:)
-  integer, allocatable :: MPI_2D_COORDINATES(:,:)
+  integer, allocatable :: MPI_2D_COORDINATES(:, :)
   !-----------------------------------------------------------------------------
   ! BLACS information for the communication between 1D and 2D grids
   !-----------------------------------------------------------------------------
@@ -222,41 +222,40 @@ contains
     integer(dp), intent(in), optional   :: file_number
     integer                             :: io
 #if(USE_MPI>0)
-     integer                            :: mpi_err
+    integer                            :: mpi_err
 #endif
 
-    Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
+    Namelist /nucleus/ neutrons, protons, inversetemp, mun, mup, fixfermi,     &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
     &                  block_factor_col, simulate_spherical_bc, angmom_prec
-    Namelist /mesh/    nx,ny,nz, dx
+    Namelist /mesh/ nx, ny, nz, dx
 
-    if(MPI_rank == 0) then
+    if (MPI_rank == 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reading the information on the nucleus by the first MPI rank
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-      if(present(file_number)) then
+      if (present(file_number)) then
         read (unit=file_number, nml=nucleus, iostat=io)
       else
         read (unit=*, nml=nucleus, iostat=io)
-      endif
-      if(io /= 0) then
+      end if
+      if (io /= 0) then
         call find_nml_error('nucleus', int(file_number))
-      endif
+      end if
 
       ! Reading information on the mesh
-      if(present(file_number)) then
+      if (present(file_number)) then
         read (unit=file_number, nml=mesh)
       else
         read (unit=*, nml=mesh)
-      endif
+      end if
 
-      if(fixfermi .and. (mun==-10d8 .or.mup==-10d8) )then
-        call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
+      if (fixfermi .and. (mun == -10d8 .or. mup == -10d8)) then
+        call stp('You should fix an appropriate Lambda_N and Lambda_P.')
         stop
-      endif
-
+      end if
 
 !     W.R.: I don't remember why I enforced this...
 !       TODO: reenable in case of broken symmetries.
@@ -270,7 +269,7 @@ contains
 !       if(mod(nz,2) .ne. 0) then
 !         call stp('NZ must be even')
 !       endif
-    endif
+    end if
 
 #if(USE_MPI > 0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -280,51 +279,51 @@ contains
     call MPI_BCAST(nx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(ny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(nz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(dx, 1, MPI_REAL8,   0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dx, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! content of /nucleus/ namelist
     ! a) particle numbers
-    call MPI_BCAST(protons , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(protons, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(neutrons, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     ! b) fermi level options
-    call MPI_BCAST(mun     , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(mup     , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(mun, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(mup, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fixfermi, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
     ! c) convergence parameters
     ! Note: convergence checking is likely to be done by a single MPI_RANK
     !       but this duplication just makes future programming errors
     !       less likely.
-    call MPI_BCAST(energy_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(moment_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(disp_prec   , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(energy_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(moment_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(disp_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(pairing_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(angmom_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fermi_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(angmom_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     ! d) Other calculational details...
-    call MPI_BCAST(store_derivatives ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(store_derivatives, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(block_factor_row, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(block_factor_col, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
 
     ! Some bookkeeping operations, to be executed by all MPIranks
-    mv = nx * ny * nz
+    mv = nx*ny*nz
     dv = (dx**3)*(2**$NUMSYM)
     ! NS: Shift of the wavefunctions applied
-    k_shx=pi/($LINESIZEX*dx)
-    k_shy=pi/($LINESIZEY*dx)
-    k_shz=pi/($LINESIZEZ*dx)
+    k_shx = pi/($LINESIZEX*dx)
+    k_shy = pi/($LINESIZEY*dx)
+    k_shz = pi/($LINESIZEZ*dx)
 
-    call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
+    call inimesh(meshx, meshy, meshz, nx, ny, nz, meshgrid, 0.0d0, 0.0d0, 0.0d0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! redo the initialisation for the shifted coordinates for a COM at the origin
     ! This is just to make sure these arrays are allocated at the start ....
-    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz, &
-    &            meshgrid_shifted,0.0d0,0.0d0,0.0d0)
+    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny, nz, &
+    &            meshgrid_shifted, 0.0d0, 0.0d0, 0.0d0)
 
   end subroutine ReadGenInfo
 
-  function vector_product( mu ) result(indices)
+  function vector_product(mu) result(indices)
     !---------------------------------------------------------------------------
     ! Function that returns the indices of the vector product with index mu
     ! meaning that in the expression
@@ -342,21 +341,21 @@ contains
     integer :: indices(2)
     integer, intent(in) :: mu
 
-    select case(mu)
-    case(1)
+    select case (mu)
+    case (1)
       ! (v1 x v2)_x = v1_y v2_z - v1_z v2_y
-      indices = [ 2, 3 ]
-    case(2)
+      indices = [2, 3]
+    case (2)
       ! (v1 x v2)_y = v1_z v2_x - v1_x v2_z
-      indices = [ 3, 1 ]
-    case(3)
+      indices = [3, 1]
+    case (3)
       ! (v1 x v2)_z = v1_x v2_y - v1_y v2_z
-      indices = [ 1, 2 ]
+      indices = [1, 2]
     end select
 
   end function vector_product
 
-  subroutine inimesh(x,y,z, mx, my, mz, mesh, shiftx, shifty, shiftz)
+  subroutine inimesh(x, y, z, mx, my, mz, mesh, shiftx, shifty, shiftz)
     !---------------------------------------------------------------------------
     ! Generate the coordinates of the mesh points for the Lagrange mesh.
     !
@@ -371,91 +370,91 @@ contains
     !
     ! All distances in units of [fm].
     !---------------------------------------------------------------------------
-    integer                                         :: i,j,k
+    integer                                         :: i, j, k
     integer, intent(in)                             :: mx, my, mz
     real(KIND=dp), intent(in)                       :: shiftx, shifty, shiftz
     real(KIND=dp), intent(out), allocatable         :: x(:), y(:), z(:)
-    real(KIND=dp), intent(out), allocatable, target :: mesh(:,:)
+    real(KIND=dp), intent(out), allocatable, target :: mesh(:, :)
 
     real(KIND=dp)          :: startx, starty, startz
-    real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)
+    real(KIND=dp), pointer :: gridx(:, :, :), gridY(:, :, :), gridZ(:, :, :)
 
-    allocate( x(mx), y(my),z(mz))
-    allocate(mesh(mx*my*mz,3))
+    allocate (x(mx), y(my), z(mz))
+    allocate (mesh(mx*my*mz, 3))
 
-    if(reduX ==1) then
+    if (reduX == 1) then
       startX = 1/2.0_dp
     else
-      startX = -(mx/2-1/2.0_dp) - shiftx/dx
-                                ! divided by dx, because we will multiply after
-    endif
+      startX = -(mx/2 - 1/2.0_dp) - shiftx/dx
+      ! divided by dx, because we will multiply after
+    end if
 
-    if(reduY ==1) then
+    if (reduY == 1) then
       startY = 1/2.0_dp
     else
-      startY = -(my/2-1/2.0_dp) - shifty/dx
-                                ! divided by dx, because we will multiply after
-    endif
+      startY = -(my/2 - 1/2.0_dp) - shifty/dx
+      ! divided by dx, because we will multiply after
+    end if
 
-    if(reduZ ==1) then
+    if (reduZ == 1) then
       startZ = 1/2.0_dp
     else
-      startZ = -(mz/2-1/2.0_dp) - shiftz/dx
-                                ! divided by dx, because we will multiply after
-    endif
+      startZ = -(mz/2 - 1/2.0_dp) - shiftz/dx
+      ! divided by dx, because we will multiply after
+    end if
 
-    do i=1,mx
-      x(i) = (startx +(i-1))*dx
-    enddo
+    do i = 1, mx
+      x(i) = (startx + (i - 1))*dx
+    end do
 
-    do i=1,my
-      y(i) = (starty +(i-1))*dx
-    enddo
-    do i=1,mz
-      z(i) = (startz +(i-1))*dx
-    enddo
+    do i = 1, my
+      y(i) = (starty + (i - 1))*dx
+    end do
+    do i = 1, mz
+      z(i) = (startz + (i - 1))*dx
+    end do
 
     mesh = 0
-    gridx(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,1)
-    gridy(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,2)
-    gridz(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,3)
+    gridx(1:mx, 1:my, 1:mz) => mesh(1:mx*my*mz, 1)
+    gridy(1:mx, 1:my, 1:mz) => mesh(1:mx*my*mz, 2)
+    gridz(1:mx, 1:my, 1:mz) => mesh(1:mx*my*mz, 3)
 
-    do k=1,mz
-      do j=1,my
-        do i=1,mx
-          gridx(i,j,k) = x(i)
-          gridy(i,j,k) = y(j)
-          gridz(i,j,k) = z(k)
-        enddo
-      enddo
-    enddo
+    do k = 1, mz
+      do j = 1, my
+        do i = 1, mx
+          gridx(i, j, k) = x(i)
+          gridy(i, j, k) = y(j)
+          gridz(i, j, k) = z(k)
+        end do
+      end do
+    end do
 
   end subroutine inimesh
 
-  integer function meshindex(i,j,k)
-      !-------------------------------------------------------------------------
-      ! The code relies on two types of mesh storage
-      !   1) (i,j,k): indices used for arrays stored on a three-dimensional
-      !               mesh such as for example the Coulomb potential.
-      !               we have 1 <= i <= nx
-      !                       1 <= j <= ny
-      !                       1 <= k <= nz
-      !   2) (i)    : one-dimensional indices that are used for efficiency
-      !               to index the whole mesh.
-      !                       1 <= i <= nx*ny*nz
-      !
-      ! This routine translates a set of indices (i,j,k) into the corresponding
-      ! index in a one-dimensional mapping.
-      !
-      ! Input:
-      !   i,j,k : x/y/z mesh-indices in a three-dimensional mapping
-      ! Output:
-      !   meshindex : the equivalent index in a 1D mapping in FORTRAN order
-      !               i+(j-1)*nx+(k-1)*ny*nx
-      !-------------------------------------------------------------------------
-      integer, intent(in) :: i,j,k
+  integer function meshindex(i, j, k)
+    !-------------------------------------------------------------------------
+    ! The code relies on two types of mesh storage
+    !   1) (i,j,k): indices used for arrays stored on a three-dimensional
+    !               mesh such as for example the Coulomb potential.
+    !               we have 1 <= i <= nx
+    !                       1 <= j <= ny
+    !                       1 <= k <= nz
+    !   2) (i)    : one-dimensional indices that are used for efficiency
+    !               to index the whole mesh.
+    !                       1 <= i <= nx*ny*nz
+    !
+    ! This routine translates a set of indices (i,j,k) into the corresponding
+    ! index in a one-dimensional mapping.
+    !
+    ! Input:
+    !   i,j,k : x/y/z mesh-indices in a three-dimensional mapping
+    ! Output:
+    !   meshindex : the equivalent index in a 1D mapping in FORTRAN order
+    !               i+(j-1)*nx+(k-1)*ny*nx
+    !-------------------------------------------------------------------------
+    integer, intent(in) :: i, j, k
 
-      meshindex = i+(j-1)*nx+(k-1)*ny*nx
+    meshindex = i + (j - 1)*nx + (k - 1)*ny*nx
 
   end function meshindex
 
@@ -475,8 +474,8 @@ contains
 
     character(len=1000) :: line
 
-    backspace(iunit)
-    read(iunit,fmt='(A)') line
+    backspace (iunit)
+    read (iunit, fmt='(A)') line
 
     print *, '--------------------------------------------------------------'
     print *, 'Input problem encountered for namelist ', nmlname
@@ -509,15 +508,15 @@ contains
 #else
     print *, msg
 #endif
-    if(present(routine)) print *, "Error occurred in routine ", routine
+    if (present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)
-    call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
-                                             ! with error code 1
+    call MPI_ABORT(MPI_COMM_WORLD, 1, mpi_err) ! force all MPI ranks to stop
+    ! with error code 1
 #endif
     stop
   end subroutine stp
 
-  function transform_memory(N) result (mem)
+  function transform_memory(N) result(mem)
     !--------------------------------------------------------------------
     ! Calculate the total memory requirement to store N real numbers in
     ! double precision in units of Gigabytes.
@@ -527,31 +526,31 @@ contains
     integer(kind=int64), intent(in) :: N
     real(KIND=dp)                      :: mem
 
-    mem = (N * 8.0d0)/1024/1024/1024
+    mem = (N*8.0d0)/1024/1024/1024
   end function transform_memory
 
-  pure integer function LeviCivita(i,j,k)
+  pure integer function LeviCivita(i, j, k)
     !---------------------------------------------------------------------------
     ! This function is a quick & dirty implementation of the LeviCivita symbol
     ! epsilon_{ijk}
     !---------------------------------------------------------------------------
-    integer, intent(in) :: i,j,k
+    integer, intent(in) :: i, j, k
 
-    if((i==j).or.(j==k).or.(k==i)) then
-        LeviCivita=0
+    if ((i == j) .or. (j == k) .or. (k == i)) then
+      LeviCivita = 0
 
-    elseif(((i==1).and.(j==2).and.(k==3)) &
-     & .or.((i==3).and.(j==1).and.(k==2)) &
-     & .or.((i==2).and.(j==3).and.(k==1))) then
-        LeviCivita=1
+    elseif (((i == 1) .and. (j == 2) .and. (k == 3)) &
+     & .or. ((i == 3) .and. (j == 1) .and. (k == 2)) &
+     & .or. ((i == 2) .and. (j == 3) .and. (k == 1))) then
+      LeviCivita = 1
     else
-        LeviCivita=-1
-    endif
+      LeviCivita = -1
+    end if
 
     return
   end function LeviCivita
 
-  function to_upper (str) result (string)
+  function to_upper(str) result(string)
     !---------------------------------------------------------------------------
     ! Subroutine that changes a string to uppercase.
     !---------------------------------------------------------------------------
@@ -565,17 +564,17 @@ contains
 
     string = str
     do i = 1, len_trim(str)
-    ic = INDEX(low, str(i:i)) !Note that ic = 0 when substring is not found
-    if (ic > 0) then
-    string(i:i) = cap(ic:ic)
-    else
-    string(i:i) = str(i:i)
-    endif
+      ic = INDEX(low, str(i:i)) !Note that ic = 0 when substring is not found
+      if (ic > 0) then
+        string(i:i) = cap(ic:ic)
+      else
+        string(i:i) = str(i:i)
+      end if
     end do
 
   end function to_upper
 
-  function to_lower (str) result (string)
+  function to_lower(str) result(string)
     !---------------------------------------------------------------------------
     ! Subroutine that changes a string to lowercase.
     !---------------------------------------------------------------------------
@@ -589,17 +588,17 @@ contains
 
     string = str
     do i = 1, len_trim(str)
-    ic = INDEX(cap, str(i:i)) !Note that ic = 0 when substring is not found
-    if (ic > 0) then
-    string(i:i) = low(ic:ic)
-    else
-    string(i:i) = str(i:i)
-    endif
+      ic = INDEX(cap, str(i:i)) !Note that ic = 0 when substring is not found
+      if (ic > 0) then
+        string(i:i) = low(ic:ic)
+      else
+        string(i:i) = str(i:i)
+      end if
     end do
 
   end function to_lower
 
-  function rps(string,length) result(r)
+  function rps(string, length) result(r)
     !--------------------------------------------------------------------------
     ! function rps (right-padded-string) to add blancs to a string such that
     ! it is printed left adjusted. Inspired by
@@ -618,10 +617,10 @@ contains
     !
     !---------------------------------------------------------------------------
 
-    if(allocated(meshx)) then
-      deallocate(meshx, meshy, meshz)
-      deallocate(meshgrid)
-    endif
+    if (allocated(meshx)) then
+      deallocate (meshx, meshy, meshz)
+      deallocate (meshgrid)
+    end if
 
   end subroutine clean_geninfo
 end module GenInfo

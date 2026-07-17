@@ -43,9 +43,9 @@ module HDF5_auxiliary
   use HDF5
   use geninfo, only : dp, stp
 
-  public
-
   implicit none (external)
+
+  public
 
   ! The compression level of compression for hdf5
   !  - only active for potentials and densities, not for spwfs
@@ -339,7 +339,7 @@ contains
     ! Create dataset with default properties "dset_id" is returned
     if(present(groupname)) then
       call h5dcreate_f(id, &
-           & groupname//dev/'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
+           & groupname//'/'//trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
     else
       call h5dcreate_f(id, &
            & trim(name),H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
