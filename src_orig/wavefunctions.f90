@@ -85,7 +85,7 @@ module wavefunctions
  use timing
 
 #if(USE_MPI > 0)
-  use MPI 
+  use geninfo
   ! This include statement is not particularly elegant, but appending it with an 
   ! 'only'-list seems to generate behaviour that is not consistent across compilers.
 #endif
@@ -594,7 +594,7 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
       !   redundant information of course, but nice to have
       MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
 
-      call MPI_ALLGATHER(MPI_SYM_BLOCK,1,MPI_INT,MPI_BLOCK_ASSIGNMENTS,1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      call MPI_ALLGATHER(MPI_SYM_BLOCK,1,MPI_INTEGER,MPI_BLOCK_ASSIGNMENTS,1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Constructing the BLACS 1D and 2D layouts
       ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
@@ -610,7 +610,7 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
       allocate(map_1D(1,MPI_BLOCK_NPROCS))
       allocate(team(MPI_BLOCK_NPROCS))
       ! every member of the MPI_COMM_BLOCK sends its reank into the array team
-      call MPI_ALLGATHER(MPI_RANK,1,MPI_INT,team,1,MPI_INT,MPI_COMM_BLOCK,mpi_err)
+      call MPI_ALLGATHER(MPI_RANK,1,MPI_INTEGER,team,1,MPI_INTEGER,MPI_COMM_BLOCK,mpi_err)
       map_1D(1,:) = team
       CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NPROCS)
       CALL BLACS_GRIDINFO(blacs_cntxt_1D,NROW_1D,NCOL_1D,MYROW_1D,MYCOL_1D)
@@ -664,8 +664,8 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
       enddo
       CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
       CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
-      call MPI_ALLGATHER(MYROW_2D,1,MPI_INT,MPI_2D_COORDINATES(:,1),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
-      call MPI_ALLGATHER(MYCOL_2D,1,MPI_INT,MPI_2D_COORDINATES(:,2),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      call MPI_ALLGATHER(MYROW_2D,1,MPI_INTEGER,MPI_2D_COORDINATES(:,1),1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+      call MPI_ALLGATHER(MYCOL_2D,1,MPI_INTEGER,MPI_2D_COORDINATES(:,2),1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! From the BLACS context, we now construct SCALAPACK descriptors
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

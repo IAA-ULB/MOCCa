@@ -33,7 +33,7 @@ module timing
   use geninfo,         only : MPI_RANK, NPROCS, MPI_BLOCK_ASSIGNMENTS
   use iso_fortran_env, only : int64, real64
 #if(USE_MPI > 0)
-  use MPI            , only : MPI_COMM_WORLD, MPI_BARRIER
+  use geninfo        , only : MPI_COMM_WORLD, MPI_BARRIER
 #endif
 
   implicit none (external)

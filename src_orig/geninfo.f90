@@ -46,7 +46,7 @@ module GenInfo
   !     periodic boundary conditions.
   !=============================================================================
 #if(USE_MPI > 0)
-  use MPI 
+  use mpi_f08
   ! This include statement is not particularly elegant, but appending it with an 
   ! 'only'-list seems to generate behaviour that is not consistent across compilers.
 #endif
@@ -171,7 +171,9 @@ module GenInfo
   logical :: simulate_spherical_bc = .false.
   !-----------------------------------------------------------------------------
   ! Additional MPI communicator for the assigned symmetry block
-  integer              :: MPI_COMM_BLOCK   ! communicator of the local team
+#if(USE_MPI > 0)
+  TYPE(MPI_Comm) :: MPI_COMM_BLOCK         ! communicator of the local team
+#endif
   integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
   integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
   integer              :: MPI_BLOCK_RANK   ! rank inside the local team
