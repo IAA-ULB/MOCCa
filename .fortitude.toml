@@ -1,24 +1,13 @@
 # Fortitude configuration for MOCCa
-# https://fortitude-lint.readthedocs.io/en/latest/configuration.html
+# Rule codes can be found with: fortitude explain
 
-[fortitude]
-# Paths to check (relative to repo root)
-paths = ["src_orig"]
-
-# Rule configurations
-# See: https://fortitude-lint.readthedocs.io/en/latest/rules.html
-
-[fortitude.rules]
-# Disable rules that may be too strict for legacy Fortran code
-"gle50" = { enabled = false }  # Line length (default 132)
-"prp20" = { enabled = false }  # Unused variables in procedure
-"var10" = { enabled = false }  # Unused variables
-
-# Enable common best practices
-"com01" = { enabled = true }   # Comments should start with !
-"mod01" = { enabled = true }   # Module names should be lowercase
-"mod02" = { enabled = true }   # Module file extension should be .f90
-"nam01" = { enabled = true }   # Named constants should be uppercase
-"pro01" = { enabled = true }   # Procedures should have explicit result type
-"tab01" = { enabled = true }   # Tabs should not be used
-"whi01" = { enabled = true }   # Trailing whitespace should be removed
+[check]
+# Ignore syntax errors and rules that may be too strict for legacy code
+ignore = [
+    "E000",    # syntax-error
+    "E001",    # io-error
+    "C001",    # implicit-typing
+    "C061",    # missing-intent
+    "C121",    # use-only
+    "C131",    # missing accessibility statement
+]

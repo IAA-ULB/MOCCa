@@ -51,7 +51,13 @@ jobs:
         id: format-check
         run: |
           echo "Running fprettify format check..."
-          fprettify --config-file .fprettify.rc --check --recursive src_orig/ 2>&1 | tee reports/fprettify-report.txt || true
+          # Use -d to show diff and -r for recursive, check if there's any output
+          fprettify -d -r -c .fprettify.rc src_orig/ > reports/fprettify-report.txt 2>&1 || true
+          if [ -s reports/fprettify-report.txt ]; then
+            echo "Files need formatting. Diff output saved to report."
+          else
+            echo "All files are properly formatted."
+          fi
           echo "fprettify check complete."
 
       - name: Upload lint and format reports
