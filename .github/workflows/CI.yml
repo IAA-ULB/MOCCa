@@ -115,7 +115,7 @@ jobs:
       - name: Run memory_leak test
         run: |
           cd testing/integration/
-          bash memory_leak.sh $SUFFIX
+          bash memory_leak.sh -n 3 $SUFFIX
 
       - name: Upload test results
         if: success() || failure()
