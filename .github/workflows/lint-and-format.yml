@@ -3,19 +3,12 @@
 #
 # Runs fortitude (linter) and fprettify (formatter) on Fortran source code
 # before compilation starts. Produces reports as artifacts.
+# Called by CI.yml via workflow_call
 #-------------------------------------------------------------------------------
 name: Lint and Format
 
 on:
-  push:
-    branches:
-      - master
-      - development
-      - fortitude_linter
-  pull_request:
-    branches:
-      - master
-      - development
+  workflow_call:
 
 jobs:
   lint-and-format:
