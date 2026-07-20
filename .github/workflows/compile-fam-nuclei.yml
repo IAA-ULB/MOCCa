@@ -78,7 +78,7 @@ jobs:
 #            CONFIG: NLO
 #            CALCTYPE: NUCLEI
 #            MPI: false
-#          # Intel OneAPI: NLO MPI for FAM
+#          # Intel OneAPI: NLO mpi for FAM
 #          - COMPILER: ifx
 #            CONFIG: NLO
 #            CALCTYPE: NUCLEI

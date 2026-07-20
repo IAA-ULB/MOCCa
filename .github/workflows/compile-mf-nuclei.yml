@@ -56,12 +56,12 @@ jobs:
             COMPILER: ifx
             CALCTYPE: NUCLEI
             MPI: false
-          # Intel OneAPI: NLO MPI
+          # Intel OneAPI: NLO mpi
           - CONFIG: NLO
             COMPILER: ifx
             CALCTYPE: NUCLEI
             MPI: true
-          # Intel OneAPI: BXL MPI for parallel tests
+          # Intel OneAPI: BXL mpi for parallel tests
           - CONFIG: BXL
             COMPILER: ifx
             CALCTYPE: NUCLEI

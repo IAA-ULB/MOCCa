@@ -47,9 +47,9 @@ runs:
     - name: Set environment
       run: |
         if [ "${{ inputs.omp }}" = "true" ]; then
-          PARALLEL_SUFFIX="OpenMP"
+          PARALLEL_SUFFIX="openmp"
         elif [ "${{ inputs.mpi }}" = "true" ]; then
-          PARALLEL_SUFFIX="MPI"
+          PARALLEL_SUFFIX="mpi"
         else
           PARALLEL_SUFFIX="serial"
         fi

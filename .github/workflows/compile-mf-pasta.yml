@@ -43,7 +43,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # Intel OneAPI: BXL MPI for PASTA
+          # Intel OneAPI: BXL mpi for PASTA
           - CONFIG: BXL
             COMPILER: ifx
             CALCTYPE: PASTA
