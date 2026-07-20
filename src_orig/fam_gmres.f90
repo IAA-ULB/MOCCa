@@ -61,6 +61,8 @@ module gmres
     logical           :: gmres_verbose = .false.
 
     procedure(vectovec), pointer          :: apply_A
+    procedure(vectovec), pointer          :: apply_left_precond
+
     complex(KIND=dp), allocatable         :: b(:), r0(:), beta(:), x_guess(:), x_gmres(:), y_minres(:)
     procedure(vectoreal), pointer         :: norm
     procedure(vecvectocmplx), pointer     :: dotprod
@@ -128,6 +130,7 @@ module gmres
     apply_A => A_proc
     norm => norm_proc
     dotprod => dotprod_proc
+    apply_left_precond => NULL()
 
 
     ! allocate the GMRES work space
@@ -173,6 +176,18 @@ module gmres
 
   end subroutine dealloc_gmres
 
+  subroutine set_left_precond(proc_left_precond)
+    ! Add left-preconditioning, i.e. solve P A x = P b
+    procedure(vectovec) :: proc_left_precond
+
+    ! set the pointer to the procedure
+    apply_left_precond => proc_left_precond
+
+    ! multiply the RHS by P
+    call apply_left_precond(b, b)
+
+  end subroutine set_left_precond
+
   subroutine init_gmres(x0)
     !-------------------------------------------------------------------------------
     ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1)
@@ -193,8 +208,15 @@ module gmres
 
     x_guess = x0
 
-    ! compute the initial residual vector r0 = b - A x0 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! compute the initial residual vector r0 = b - A x0
+
+
     call apply_A(x0, r0)
+
+    ! multiply by left-preconditioner if set
+    if(associated(apply_left_precond)) call apply_left_precond(r0, r0)
+
     gmres_iter = gmres_iter + 1
 
     r0 = b - r0
@@ -256,6 +278,9 @@ module gmres
     ! perform one Arnoldi iteration wj =  A(vj)
 
     call apply_A(Q(:,gmres_hist), wj)
+    if(associated(apply_left_precond)) call apply_left_precond(wj, wj)
+
+
     gmres_iter = gmres_iter + 1
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

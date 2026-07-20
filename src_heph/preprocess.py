@@ -171,6 +171,7 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
     from src_heph.heph_functional import derivative_order
     from src_heph.heph_substitute import substitute
     from src_heph.heph_densities  import Densities_needed
+    from src_heph.heph_symmetries  import populatesymmetries
 
     
     global derivative_order
@@ -214,6 +215,15 @@ def ProcessGeneric(fname, src, target, so, fam_active, dry_run=False):
       dic['TAUSCALAR']    = ' '
       dic['TAUTENSOR']    = '!'
       dic['TAUPRESENT']   = 1
+
+    # Ugly Hack to check for parity conservation  
+    symdic  = populatesymmetries()
+    dic['PBROKEN']    = ' '
+    dic['PCONSERVED'] = '!'
+    for sym in so.generators:
+      if (sym == symdic['P']):
+        dic['PBROKEN'] = '!'
+        dic['PCONSERVED'] = ''
 
     if(not dry_run):    
         substitute(src+fname, target+fname, dic)

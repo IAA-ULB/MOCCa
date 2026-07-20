@@ -2,10 +2,11 @@
 # CI deployment for MOCCa on GitHub-hosted runners
 #
 # Main workflow that orchestrates:
-#   - compile-mf-nuclei: Compile mean-field executables for nuclei
-#   - compile-fam-nuclei: Compile FAM executables for nuclei
+#   - compile-mf-nuclei: Compile mean-field executables for nuclei (serial, mpi, openmp)
+#   - compile-fam-nuclei: Compile FAM executables for nuclei (serial, mpi, openmp)
 #   - compile-mf-pasta: Compile mean-field executables for pasta
 #   - minimal: Run minimal test
+#   - Various integration and unit tests including openmp scaling tests
 #
 # Uses reusable workflows for each compilation type to maximize code reuse.
 #-------------------------------------------------------------------------------
@@ -16,10 +17,12 @@ on:
     branches:
       - master
       - development
+      - FAMQRPA
   pull_request:
     branches:
       - master
       - development
+      - FAMQRPA
   workflow_dispatch:
     inputs:
       target_test:
@@ -56,7 +59,7 @@ jobs:
       matrix:
         COMPILER: [gfortran, ifx]
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -97,7 +100,7 @@ jobs:
       matrix:
         COMPILER: [gfortran, ifx]
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -134,7 +137,7 @@ jobs:
       matrix:
         COMPILER: [gfortran]
     env:
-      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -177,7 +180,7 @@ jobs:
           - CONFIG: BXL-N2LO
             PARAM: BSkG5
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -217,7 +220,7 @@ jobs:
         COMPILER: [gfortran]
         CONFIG: [BXL]
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -257,7 +260,7 @@ jobs:
         CONFIG: [NLO-T]
         COMPILER: [gfortran]
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -300,8 +303,8 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.MPI
+      S_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      P_SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.mpi
 
     steps:
       - name: Checkout code
@@ -313,7 +316,7 @@ jobs:
           name: MOCCa.${{ env.S_SUFFIX }}
           path: exec/
 
-      - name: Download MPI executable
+      - name: Download mpi executable
         uses: actions/download-artifact@v7
         with:
           name: MOCCa.${{ env.P_SUFFIX }}
@@ -355,7 +358,7 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -394,8 +397,8 @@ jobs:
       matrix:
         COMPILER: [gfortran]
     env:
-      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      T_SUFFIX: BXL-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.serial
+      T_SUFFIX: BXL-T.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -448,7 +451,7 @@ jobs:
           - CONFIG: BXL
             PARAM: BSkG3
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -493,10 +496,10 @@ jobs:
           - CONFIG: N2LO
             PARAM: SN2LO1
     env:
-      EXEC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      EXEC_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      EXEC_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      EXEC_TP: ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      EXEC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      EXEC_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.serial
+      EXEC_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.serial
+      EXEC_TP: ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -559,8 +562,8 @@ jobs:
       matrix:
         COMPILER: [gfortran]
     env:
-      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      T_SUFFIX: NLO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.serial
+      T_SUFFIX: NLO-T.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -612,7 +615,7 @@ jobs:
         COMPILER: [gfortran]
         CONFIG: [LO]
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -675,7 +678,7 @@ jobs:
           - CONFIG: NLO-T
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -723,9 +726,9 @@ jobs:
       matrix:
         COMPILER: [gfortran]
     env:
-      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -775,7 +778,7 @@ jobs:
       - name: Run fam_t0t3 test
         run: |
           cd testing/integration/
-          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P --verbose
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P 1 --verbose
 
       - name: Upload test results
         if: success() || failure()
@@ -783,11 +786,87 @@ jobs:
         with:
           name: fam_t0t3.${{ env.SUFFIX }}.logs
           path: |
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.out.bis
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX }}.fam.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_T }}.fam.out
-            testing/integration/logs/fam_t0t3.${{ env.SUFFIX_P }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_t0t3_openmp:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        NTHREADS: [1, 4, 8]
+    env:
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.openmp
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.serial
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_t0t3 test with openmp
+        run: |
+          cd testing/integration/
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P ${{ matrix.NTHREADS }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_t0t3_OpenMP.${{ env.SUFFIX }}.Nthreads=${{ matrix.NTHREADS }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_P }}.fam.out
           retention-days: 2
 
   fam_strength_symmetry:
@@ -805,7 +884,7 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -863,9 +942,9 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -946,8 +1025,8 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -1013,7 +1092,7 @@ jobs:
           - CONFIG: NLO
             PARAM: SLy4
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
 
     steps:
       - name: Checkout code
@@ -1052,6 +1131,68 @@ jobs:
             testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q22.out
           retention-days: 2
 
+  fam_omp_invariance:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4
+            SERIAL_SUFFIX: NLO.gfortran.NUCLEI.serial
+            OMP_SUFFIX: NLO.gfortran.NUCLEI.openmp
+          - CONFIG: BXL
+            PARAM: BSkG1
+            SERIAL_SUFFIX: BXL.gfortran.NUCLEI.serial
+            OMP_SUFFIX: BXL.gfortran.NUCLEI.openmp
+          - CONFIG: N2LO
+            PARAM: SN2LO1
+            SERIAL_SUFFIX: N2LO.gfortran.NUCLEI.serial
+            OMP_SUFFIX: N2LO.gfortran.NUCLEI.openmp
+        COMPILER: [gfortran]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download serial MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download serial FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download openmp FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.OMP_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.OMP_SUFFIX }}.exe
+
+      - name: Run fam_omp_invariance test
+        run: |
+          cd testing/integration/
+          bash fam_omp_invariance.sh ${{ matrix.SERIAL_SUFFIX }} ${{ matrix.PARAM }} HFB 2 1.0 ${{ matrix.OMP_SUFFIX }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_omp_invariance.${{ matrix.SERIAL_SUFFIX }}.logs
+          path: testing/integration/logs/
+          retention-days: 2
+
   #-----------------------------------------------------------------------------
   # Batch 3: PASTA Tests
   #-----------------------------------------------------------------------------
@@ -1065,8 +1206,8 @@ jobs:
       matrix:
         COMPILER: [gfortran]
     env:
-      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.serial
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.serial
 
     steps:
       - name: Checkout code
@@ -1114,8 +1255,8 @@ jobs:
         COMPILER: [gfortran]
         CONFIG: [BXL]
     env:
-      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
-      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.serial
 
     steps:
       - name: Checkout code
@@ -1163,7 +1304,7 @@ jobs:
         COMPILER: [gfortran] # ifx support cannot be enabled at the moment, as the oneapi container does not contain HDF5 support at the moment
         CONFIG: [BXL]
     env:
-      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.serial
 
     steps:
       - name: Checkout code

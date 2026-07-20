@@ -266,7 +266,7 @@ contains
     use evolution
     use scfiteration
 #if( $FAM == 1 )
-    use fam, only : printfam
+    use fam, only : printfam_init
 #endif
     use IO_wf, only : fileblockindices, fileBlockLowest, fileblocknumber, &
     &                 fileblocktype, file_version, readHFBinfofile
@@ -405,7 +405,7 @@ contains
       call printmoment_init
       call printcranking_init
 #if( $FAM == 1 )
-      call printfam
+      call printfam_init
 #endif
       call printfunctional 
     endif    
@@ -1752,49 +1752,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 #endif
 
 #if( $FAM == 1)
-   subroutine init_fam_file(l, m, eff_charge_n, eff_charge_p, fname)
-    !---------------------------------------------------------------------------
-    ! Create file to write strength function S(omega, F) obtained from FAMtalus
-    !---------------------------------------------------------------------------
-    ! The file contains a header written by the subroutine write_header,
-    ! supplemented by a dedicated line explaining the content of each column.
-    ! The format of the body of said file is
-    !   omega[MeV]    S_free[...]     S[...]   iter
-    !                         '-> unit depends on the external field                  
-    ! 
-    ! The actual strength is written to this file by subroutine append_fam_file()
-    ! called each time a frequency is converged. 
-    !---------------------------------------------------------------------------
-    integer, intent(in)               :: l, m
-    real(kind=DP), intent(in)         :: eff_charge_n, eff_charge_p
-    character(len=*), intent(in)      :: fname
-    integer                           :: io
 
-    print *, ' writing strength function to file :  ', fname
-
-    1 format ( '# external field:   ', /, &
-    &          '#    F = Q_', i1, i1,/, &
-    &          '#    neutron eff charge = ', f10.3, ' e', /, &
-    &          '#    proton eff charge  = ', f10.3, ' e')
-    2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
-
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-    
-    call write_header(1) ! write general header info
-
-    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
-    write(1, fmt=2)      ! write column names
-
-    close(1)
-
-  end subroutine init_fam_file
-
-  subroutine init_fam_file_new(fname)
+  subroutine init_fam_file(fname)
     !---------------------------------------------------------------------------
     ! Create file to write strength function S(omega, F) obtained from FAMtalus
     !---------------------------------------------------------------------------
@@ -1840,30 +1799,10 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
     close(1)
 
-  end subroutine init_fam_file_new
-
-  subroutine append_fam_file(omega, S, iter, S_free, fname)
-    real(kind=dp), intent(in)         :: omega, S, S_free
-    integer, intent(in)               :: iter
-    character(len=*), intent(in)      :: fname
-    integer                           :: io
-
-    print *, ' append fam file :  ', fname
-
-    open(1, file=fname, status='old', position='append', iostat=io)
-    if(io.ne.0) then    
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-    
-    write(1, fmt='(f8.3, es25.12E3, es25.12E3, i10)') omega, S_free, S, iter
-      
-    close(1)
-
-  end subroutine append_fam_file
+  end subroutine init_fam_file
 
 
-  subroutine append_fam_file_new(S_decomp, iter, fname)
+  subroutine append_fam_file(S_decomp, iter, fname)
     use fam
     real(KIND=dp), intent(in)         :: S_decomp(8)
     integer, intent(in)               :: iter
@@ -1886,7 +1825,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
     close(1)
 
-  end subroutine append_fam_file_new
+  end subroutine append_fam_file
 
   subroutine init_xy_file(fname)
     !---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ module fam
   ! 
   ! TR  : $TR
   ! NTR : $NTR
+  ! PBROKEN : $PBROKEN
   ! TAUPRESENT : $TAUPRESENT
   !==============================================================================
 
@@ -43,12 +44,16 @@ module fam
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   !-----------------------------------------------------------------------------
+  ! set default SENTINEL values. 
+  real(KIND=dp), parameter :: SENTINEL_DP = -999999_dp
+  integer, parameter :: SENTINEL_INT = -999999
+  !-----------------------------------------------------------------------------
   ! FAM energy frequencies
-  real(KIND=dp) :: omega_fam  ! frequency of the perturbing field 
+  real(KIND=dp) :: omega_fam=SENTINEL_DP  ! frequency of the perturbing field 
                               ! omega already defined as cranking frequency 
   ! A range of omega values can be passed by defining the min, max and stepsize
   ! i.e. omega = omega_min + k * omega_step < omega max for k=0,...
-  real(KIND=dp) :: omega_min = 0.0_dp, omega_max = 30.0_dp
+  real(KIND=dp) :: omega_min = SENTINEL_DP, omega_max = SENTINEL_DP
   real(KIND=dp) :: omega_step = 1.0_dp  ! Default stepsize of 1 MeV
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
@@ -110,16 +115,16 @@ module fam
   complex(KIND=dp), allocatable :: dkappa_plus(:,:)  ! perturbations to the pairing density matrix in HF basis
   complex(KIND=dp), allocatable :: dkappa_minus(:,:) 
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
-  type(DensityVector)   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
-  !                         |    '-> anti-symmetric part
-  !                         '-> symmetric part
+  type(DensityVector), target   :: dRs, dRa  ! perturbation to the particle-hole densities on the mesh
+  !                                 |    '-> anti-symmetric part
+  !                                 '-> symmetric part
   type(PotentialVector) :: dFs, dFa  ! perturbation to the particle-hole potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
   !
-  type(DensityVector)   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
-  !                         |           '-> associated with kappa_minus
-  !                         '-> associated with kappa^plus 
+  type(DensityVector), target   :: dR_pp_plus, dR_pp_minus  ! perturbation to the particle-particle densities on the mesh
+  !                                 |           '-> associated with kappa_minus
+  !                                 '-> associated with kappa^plus 
   type(PotentialVector) :: dF_pp_plus, dF_pp_minus  ! perturbation to the particle-particle potentials on the mesh
   !                         |           '-> associated with kappa_minus
   !                         '-> associated with kappa_plus
@@ -160,10 +165,13 @@ module fam
   ! Type of perturbing operator
   !   'multipole'       = multipole moment Q_{\ell m}
   !   'particle number' = particle number operator N
+  !   'Zcom'            = center-of mass z-coordinate
+  !   'Zmomentum'       = center-of mass z momentum
   character(len=20) :: operator_type = 'multipole'
-  integer :: l = -1, m = -1 ! angular momentum and projection quantum number of the multipole moment
+  integer :: l = SENTINEL_INT, m = SENTINEL_INT ! angular momentum and projection quantum number of the multipole moment
   real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charge for neutrons in units of e
   real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charge for protons in units of e
+  logical :: remove_spurious = .true. ! boolian for subtracting the spurious modes
   !-----------------------------------------------------------------------------
   ! convergence
   complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
@@ -207,9 +215,10 @@ module fam
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
 
+
 contains
 
-  subroutine inifam(omega, DensUnper, PotUnper, Finfile)
+  subroutine inifam(omega, DensUnper, Finfile)
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects and set the external field F. X, Y and perturbed 
     ! densities, fields and strength are computed from the free response, i.e. one 
@@ -218,16 +227,10 @@ contains
     ! Input:
     !    omega      : frequency of the perturbing field
     !    DensUnper  : unperturbed densities on the mesh
-    !    PotUnper   : unperturbed potentials on the mesh
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
-    type(PotentialVector), intent(in)  :: PotUnper
     character(len=*), intent(in)       :: Finfile
-
-
-
-    1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
     print *, "Initialise FAM matrices" 
 
@@ -240,16 +243,12 @@ contains
       if (Finfile .ne. '') then 
         F = read_f(Finfile)
       else
-        select case(trim(to_lower(operator_type)))
-         ! lower to make the selection case insensitive
-         ! trim to not bother about string length and possible trailing spaces
-        case('multipole')
-          F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
-        case('particle number')
-          F = get_N(eff_charge_n, eff_charge_p)
-        case DEFAULT
-          call stp('Unrecognized operator_type!')
-        end select
+        F = get_external_field(operator_type)
+
+        !----------------------------------------------------------------------------------
+        ! 2) Multiply the single-particle matrix elements by the effective charges 
+        F(1:nwn,1:nwn,:) = eff_charge_n * F(1:nwn,1:nwn,:) 
+        F(nwn+1:,nwn+1:,:) = eff_charge_p * F(nwn+1:,nwn+1:,:)
       endif
     endif
 
@@ -320,13 +319,14 @@ contains
     ! name differs from the one in input data, it gets always overwritten
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional :: file_number
-    real(KIND=dp) :: omega = -1.0_dp
+    real(KIND=dp) :: omega=SENTINEL_DP
     integer       :: mixingscheme = 0
     integer       :: maxiter = 100, maxhist = 30
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type
+    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type, &
+    &               remove_spurious
 
     if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -338,20 +338,37 @@ contains
         read (unit=*, nml=fam)
       endif
 
+      ! if a single FAM frequency omega is passed, set min and max to omega
+      if(omega .ne. SENTINEL_DP) then
+        omega_min = omega
+        omega_max = omega
+      ! if no single omega is passed, then omega_min and omega_max must be provided
+      else if(omega_min == SENTINEL_DP .or. omega_max == SENTINEL_DP) then
+        print *, 'InputError in fam namelist :' 
+        print *, 'Either omega, or omega_min and omega_max must be set ... exiting'
+        stop 1
+      endif
+
       fam_maxiter = maxiter
       fam_maxhist = maxhist
       fam_mixingscheme = mixingscheme
 
-      ! if a single fams frequency omega is passed, set min and max to omega
-      if(omega .ne. -1.0_dp) then
-        omega_min = omega
-        omega_max = omega
+      ! assert that l and m are provided if the exc operator is multipole
+      if (operator_type=='multipole') then
+        if (l==SENTINEL_INT .or. m==SENTINEL_INT) then
+          print *, 'InputError in fam namelist :' 
+          print *, 'l and m of the mulitpole excitation operator must be set ... exiting'
+          stop 1     
+        endif
       endif
+    
+
     endif
 
   end subroutine readfam
 
-  subroutine printfam
+
+  subroutine printfam_init
     1 format ( 32('-'), ' FAM information ', 31('-'))
     2 format ( ' FAM frequency range:   ', /, &
     &          '    omega_min        = ', f10.3, /,  &
@@ -361,7 +378,8 @@ contains
     3 format ( ' Perturbing field:   ', /, &
     &          '    F = Q_', i1, i1,/, &
     &          '    neutron eff charge = ', f10.3, ' e', /, &
-    &          '    proton eff charge  = ', f10.3, ' e')
+    &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    &          '    subtract spur. mode ?  ', L4)
     41 format (' Convergence strategy: GMRES', /,  &
     &          '    max history size = ', i8, /,  &
     &          '    max # iterations = ', i8, /,  &
@@ -377,12 +395,72 @@ contains
     if (XYtoF) then
       print 5
     else
-      print 3, l, m, eff_charge_n, eff_charge_p
+      print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
       if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
     endif
   
-  end subroutine printfam
+  end subroutine printfam_init
+
+
+  subroutine printfam_end(S_arr, num_iter, residual)
+    real(KIND=dp), intent(in) :: S_arr(8)
+    integer, intent(in) :: num_iter
+    real(KIND=dp), intent(in) :: residual
+
+
+    11 format(86('='))
+    12 format(2x,74('-'))
+    13 format(/,2x,32('-'), ' strength ', 32('-'),/)
+    20 format ( "   total number of iterations : ", i4)
+    21 format ( "                 fam residual :  ", es10.2)
+    22 format ( "   omega = ", f8.3)
+    23 format ( "   smear = ", f8.3)
+
+    31 format ( '   Operator:   ', /, &
+    &          '      F = Q_', i1, i1,/, &
+    &          '      neutron eff charge = ', f10.3, ' e', /, &
+    &          '      proton eff charge  = ', f10.3, ' e')
+    32 format ( '   Operator:   ',30a) 
+    33 format ( '   EWSR = ',  es16.6) 
+    4 format (20x, '    neutron              proton                total')
+    51 format ('    parity +  ', es20.6, es20.6, es20.6)
+    52 format ('    parity -  ', es20.6, es20.6, es20.6)
+    53 format ('    total     ', es20.6, es20.6)
+    54 format ('    total strength :    ',30x, es20.6)
+
+
+
+    print *
+    print 11
+    print 20, num_iter
+    print 21, residual
+    print *
+    print 22, omega_fam
+    print 23, smear
+    
+    if(operator_type=="multipole") then
+      print 31, l, m, eff_charge_n, eff_charge_p
+    else
+      print 32, operator_type
+    endif
+    print 33, ewsr
+
+    
+    print 13
+    print 4
+    print 12
+    print 51, sum(S_arr(1:2)), sum(S_arr(5:6)), sum(S_arr(1:2)) + sum(S_arr(5:6))
+    print 52, sum(S_arr(3:4)), sum(S_arr(7:8)), sum(S_arr(3:4)) + sum(S_arr(7:8))
+    print 53, sum(S_arr(1:4)), sum(S_arr(5:8))
+    print 12
+    print 54, sum(S_arr(1:8))
+    print 12
+
+    print 11
+
+  end subroutine printfam_end
+
 
   subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
@@ -412,21 +490,10 @@ contains
     !   FAM_dh_to_XY => steps (1) to (2)
     !   FAM_XY_to_dh => steps (3) to (6)
     !---------------------------------------------------------------------------
-    1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
+    1 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
 
     complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
-
-    complex(KIND=dp), pointer :: dHsp(:,:,:), dHspout(:,:,:)
-
-    real(KIND=dp) :: strength
-
-    integer :: si, i, B, N, N2, T
-    complex :: gauge 
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
@@ -443,9 +510,8 @@ contains
     endif
 
     if (fam_verbose>0) then
-      print 2, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
+      print 1, sum( abs(X(:,:))**2) , sum( abs(Y(:,:))**2) 
       strength =  calc_strength()
-      print 3, l,m, omega_fam, strength
     endif
   
     ! - - - - -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -453,32 +519,8 @@ contains
     !                 hamiltonian in the HF basis
     call  FAM_XY_to_dh(X,Y,dHspout_flat)
 
-    if(fam_verbose > 2) then
-       call print_all_fam_spmat()
-       print *, 'OUTPUT of dHSP_iterate'
-       print *, 'dh'
-       print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,2))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,2))
-       endif
-       print *, 'dDelta+'
-       print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,1))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,1))
-       endif
-       print *, 'dDelta-'
-       print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
-       if (pairingtype==0) then
-          call print_spme_complex(dHsp(:,:,3))
-       else
-          call print_spme_complex_superblock(dHsp(:,:,3))
-       endif
-    endif
   end subroutine iterate_dHsp
+
 
   subroutine FAM_dh_to_XY(dHsp_flat, X_local, Y_local)
     !---------------------------------------------------------------------------
@@ -543,6 +585,7 @@ contains
 
   end subroutine FAM_dh_to_XY
 
+
   subroutine FAM_XY_to_dh(X,Y,dHsp_flat)
     !-------------------------------------------------------------
     ! Compute the induced perturbation to the s.p./q.p. hamiltonian 
@@ -556,9 +599,7 @@ contains
     !-------------------------------------------------------------
 
     12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
     22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     complex(KIND=dp), intent(in)          :: X(:,:), Y(:,:)
     complex(KIND=dp), target, intent(out) :: dHsp_flat(:)
@@ -593,8 +634,8 @@ contains
       !
       !    which is why the input to the routine has Y^T
 
-$NTR  call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
-$NTR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      $NTR call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=transpose(Y), &  
+      $NTR &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     
       ! When time-reversal is conserved: the perturbed density matrix is 
       !
@@ -608,8 +649,8 @@ $NTR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
       !     and similar for X. 
       !
 
-$TR   call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
-$TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
+      $TR  call transform_qp_to_sp(Bogoliubov, OTRqp=X, OBLqp=-Y, &  
+      $TR  &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
       ! The output of the qp -> sp transformation should be:
       ! 
@@ -670,7 +711,34 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
     endif
 
+    if(fam_verbose > 2) then
+      call print_all_fam_spmat()
+      print *, 'OUTPUT of FAM_XY_to_dh'
+      print *, 'dh'
+      print *, '||dh||² = ', sum(abs(dHsp(:,:,2))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,2))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,2))
+      endif
+      print *, 'dDelta+'
+      print *, '||dDelta+||² = ', sum(abs(dHsp(:,:,1))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,1))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,1))
+      endif
+      print *, 'dDelta-'
+      print *, '||dDelta-||² = ', sum(abs(dHsp(:,:,3))**2)
+      if (pairingtype==0) then
+        call print_spme_complex(dHsp(:,:,3))
+      else
+        call print_spme_complex_superblock(dHsp(:,:,3))
+      endif
+    endif
+
   end subroutine FAM_XY_to_dh
+
 
   subroutine Multiply_XY_with_QRPAmat(X, Y, omega, F, dHsp_flat_in)
     !---------------------------------------------------------------------------
@@ -689,10 +757,6 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     !---------------------------------------------------------------------------
     
     1 format('||dH20||² = ', es10.3, '     ||dH02||² = ', es10.3)
-    12 format('||dh||² = ', es10.3, '     ||ddelta+||² = ', es10.3, '     ||ddelta-||² = ', es10.3)
-    2 format('||X||² = ', es10.3, '     ||Y||² = ', es10.3)
-    22 format('||drho||² = ', es10.3, '     ||dkappa+||² = ', es10.3, '     ||dkappa-||² = ', es10.3)
-    3 format(' S_',i1,i1,' (', f5.2, ') = ', es18.8)
 
     complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
     complex(KIND=dp), intent(in) :: omega
@@ -760,6 +824,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine Multiply_XY_with_QRPAmat
 
+
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
     ! The precedure iterate_dH constitutes an affine transformation 
@@ -793,6 +858,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     endif
 
   end subroutine one_minus_T
+
 
   subroutine calculate_XY(dH,X, Y)
     !---------------------------------------------------------------------------
@@ -956,6 +1022,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine compute_F_from_XYdH
 
+
   subroutine store_XY_hist(X,Y)
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
@@ -977,6 +1044,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
 
   end subroutine store_XY_hist
 
+
   subroutine mix_XY_linear(alpha)
     !---------------------------------------------------------------------------
     ! Simple linear mixing of the X and amplitudes, i.e. 
@@ -991,6 +1059,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
     Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
 
   end subroutine mix_XY_linear
+
 
   subroutine iniHFdensities()
     !---------------------------------------------------------------------------
@@ -1012,109 +1081,42 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
   
   end subroutine iniHFdensities
 
-  function calc_strength() result (res)
+
+
+  subroutine calc_strength_decomp(S_cmplx_arr, S_arr)
     !---------------------------------------------------------------------------
-    ! Calculate the strength S(omega,F) and store output in strength and 
-    ! strength_complex and return strength
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! strength_complex is defined as 
+    ! Calculate the complex and the real strength S(omega,F) decomposed over 
+    ! the symmetry channels. 
+    !
+    ! The complex strength is defined as 
     !     strength_complex = Tr (F^dagger * drho)
-    !                      = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    !                      = 0.5 * sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
     ! while the strength  
-    !     strength = -1/pi * strength_complex
-    ! 
-    ! note: 
-    !  - normalisation of external field may have to be taken into account
-    !    S -> S/alpha
-    !  - in case of FAM, F(:,:,1) contains the ph block and F(:,:,2) contains
-    !    the hp block which differ is F if not Hermitian
-    !  - in case of QFAM, F(:,:,1) contains the F20 block in qp basis and F(:,:,2)
-    !    contains the F02 block which differ if F is not Hermitian
+    !     strength = -1/pi * Im(strength_complex)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     -
+    ! Output:
+    !     S_cmplx_arr   : array of length 8 containing the strength_complex 
+    !                     over (isospin, parity, z-sign) symmetry blocks 
+    !     S_arr         : array of length 8 containing the real-valued strength 
+    !                     over (isospin, parity, z-sign) symmetry blocks 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Notes:
+    !  - I follow the symmetry block conventions of the rest of the code. 
+    !    isospin is always respected. If partity is broken, than all the strength
+    !    is put in the positive parity block, etc.
     !---------------------------------------------------------------------------
 
-    complex(KIND=dp) :: S = 0
-    real(KIND=dp) :: res
-    integer :: i, j, si, B, N, N2, T
+    complex(KIND=dp), intent(out) :: S_cmplx_arr(8) 
+    real(KIND=dp), intent(out) :: S_arr(8)
 
-    if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
-
-    S = 0
-
-
-    if(pairingtype==0) then ! FAM
-      si = 0
-      ! loop over 8 isospin-parity-signature (IPS) block 
-      do B=1,8
-        N  = HFblocks(B)    ; if(N.eq.0) cycle 
-        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
-        do j = si+1, si+N
-          if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
-          do i = si+1, si+N
-            S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
-          enddo
-        enddo
-        si = si+N
-      enddo
-    
-    else ! QFAM
-     ! loop over 4 isospin-parity (IP) block (signature unresolved)
-      si = 0
-      do B=1,8,2
-        N  = HFblocks(B)    ; if(N.eq.0) cycle 
-        N2 = HFblocks(B+1)
-        T = N + N2
-        ! Loop over all possible pairs (i,j)
-        ! Note: we do not leverage symmetry here - the representation
-        !  of the matrices F,X,Y in memory depends on the the conservation
-        !  or breaking of T
-        do j = si+1, si+T
-          do i = si+1, si+T
-             S = S + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
-          enddo
-        enddo
-        si  = si + T 
-      enddo
-
-    endif
-    S = 0.5 * S
-    $TR S = 2 * S ! Time-reversal factor 2
-
-
-    strength_complex = S 
-    strength = - IMAG(strength_complex) / pi
-
-    ! return the strength
-    res = strength
-
-  end function calc_strength
-
-
-  subroutine calc_strength_decomp(S_complex, strength)
-    !---------------------------------------------------------------------------
-    ! Calculate the complex response and the strength decomposed into
-    ! different symmetry channels. For now, this assumes that the perturbing
-    ! operator must respect all symmetries, i.e. diagonal in tau,pi,z-sign. 
-    ! In the future, applying the idea for a non-trivial perturbation operator
-    ! would require to loop over the blocks in a (partial) off-diagonal way, 
-    ! e.g. pi=-pi' when l is odd. 
-    !---------------------------------------------------------------------------
-
-    complex(KIND=dp), intent(out) :: S_complex(8) 
-    real(KIND=dp), intent(out) :: strength(8)
     integer :: i, j, B, N, N2, si, T
-    real(KIND=dp) :: occ_h, occ_p
 
     if (fam_verbose > 1) print *, "calc_strength_decomp :: S_lm where l= ", l, "m=", m
 
-    if (mod(l,2) == 1 .or. mod(m,2) == 1) then
-      print *, "NOT IMPLEMENTED :: calc_strength_decomp() not applicable when l or m is odd"
-      ! print *, "calling calc_strength() instead"
-      ! call calc_strength()
-      return
-    endif
-
-    S_complex = 0
-    strength = 0
+    S_cmplx_arr = 0
+    S_arr = 0
 
 
    if(pairingtype==0) then ! FAM
@@ -1126,7 +1128,7 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
         do j = si+1, si+N
           if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
           do i = si+1, si+N
-            S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
+            S_cmplx_arr(B) = S_cmplx_arr(B) + conjg(F(i,j,1)) * X(i,j) + conjg(F(i,j,2)) * Y(i,j)
           enddo
         enddo
         si = si+N
@@ -1148,29 +1150,53 @@ $TR   &                       OTRsp=dkappa_plus, OTLsp=drho, OBLsp=dkappa_minus)
         !  or breaking of T
         do j = si+1,si+T
           do i = si+1,si+T
-             S_complex(B) = S_complex(B) + conjg(F(i,j,1)) * X(i,j) &
+             S_cmplx_arr(B) = S_cmplx_arr(B) + conjg(F(i,j,1)) * X(i,j) &
                   &                      + conjg(F(i,j,2)) * Y(i,j)
          enddo
         enddo
-        print *
-        S_complex(B) = S_complex(B) / 2.0d0
+        S_cmplx_arr(B) = S_cmplx_arr(B) / 2.0d0 ! acount for double counting qp pairs
 
         si  = si + T
       enddo
     endif
 
-$TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
-    strength(:) = - IMAG(S_complex(:)) / pi
+    $TR S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
+    S_arr(:) = - IMAG(S_cmplx_arr(:)) / pi
 
-    if (fam_verbose > 0) then
+    if (fam_verbose > 2) then
       print *, 'Decomposed strength : '
-      print * , 'S_n+ : (', strength(1), ' , ', strength(2), ' )'
-      print * , 'S_n- : (', strength(3), ' , ', strength(4), ' )'
-      print * , 'S_p+ : (', strength(5), ' , ', strength(6), ' )'
-      print * , 'S_p- : (', strength(7), ' , ', strength(8), ' )'
-      print * , 'S_tot : ', sum(strength(:))
+      print * , 'S_n+ : (', S_arr(1), ' , ', S_arr(2), ' )'
+      print * , 'S_n- : (', S_arr(3), ' , ', S_arr(4), ' )'
+      print * , 'S_p+ : (', S_arr(5), ' , ', S_arr(6), ' )'
+      print * , 'S_p- : (', S_arr(7), ' , ', S_arr(8), ' )'
+      print * , 'S_tot : ', sum(S_arr(:))
     endif
+
+    ! set the global variables of the module
+    strength_complex = sum(S_cmplx_arr(:))
+    strength = sum(S_arr(:))
+
   end subroutine calc_strength_decomp
+
+
+  function calc_strength() result (res)
+    !---------------------------------------------------------------------------
+    ! Alternative interface for calc_strength_decomp when only interested in the
+    ! total strength. Calling calc_strength_decomp with unused dummy variables. 
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp) :: res
+    
+    complex(KIND=dp) :: S_cmplx_dummy(8) = 0
+    real(KIND=dp) :: S_dummy(8) = 0
+
+    call calc_strength_decomp(S_cmplx_dummy, S_dummy)
+
+    ! return the strength
+    res = strength
+
+  end function calc_strength
+
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------
@@ -1186,8 +1212,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     ! the abs takes care of obtaining the modulus of the complex values.
     !---------------------------------------------------------------------------
 
-    1 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
-    2 format('Convergence: ', '||FAM(X) - X||/||X|| = ', es10.3, '     ||FAM(Y) - Y||/||Y|| = ', es10.3)
+    1 format('Convergence: ', '||FAM(X) - X||/||X|| = ', es10.3, '     ||FAM(Y) - Y||/||Y|| = ', es10.3)
     logical, intent(out) :: conv, div
     integer :: idx_prev
     real(KIND=dp) :: DX_norm, DY_norm, X_norm, Y_norm
@@ -1215,7 +1240,7 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
     DY_norm = DY_norm / Y_norm
 
-    if (fam_verbose > 0) print 2, DX_norm, DY_norm
+    if (fam_verbose > 0) print 1, DX_norm, DY_norm
 
     if( (DX_norm < fam_precision) .and. (DY_norm < fam_precision)) then
       conv = .true.
@@ -1223,186 +1248,239 @@ $TR    S_complex(:) = 2.0 * S_complex(:) ! Time-reversal factor 2
 
   end subroutine test_convergence
 
-  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_qpme)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Get the particle-hole and hole-particle matrix elements of the multipole
-    ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
-    ! while the monopole operator is Q_00(i,j) = < i | r^2 Y_00 | j > 
-    ! Only operational for even L at this point. s
-    !
-    ! INPUT:
-    !     L, K          : multipolarity of the perturbing operator
-    !     eff_e_n  : effective charge of neutrons (in units of e)
-    !     eff_e_p  : effective charge of protons (in units of e)
-    ! 
-    ! REMARKS:  
-    !   - Note that the code works with Re(Y_LK) and Im(Y_LK) which are NOT normalised; 
-    !     they integrate to 1/2 when K != 0. 
-    !
-    !   - We define f^+_LK = 1/sqrt(2) r^L ( Y_LK + Y_L-K) = sqrt(2) * r^L Re(Y_LK), 
-    !     when K = 2n > 0, which are normalised such that |f^+_LK|^2 integrates to 1
-    !     over the unit sphere. 
-    !     The code gives back f^+_LK for now. Since f_LK and f_L-K would give identical strengths 
-    !     for axial even-even nuclei when L is even, f^-=0.
-    !
-    !   - Note that if eff_e_n = eff_e_p, the operator is of isoscalar type, 
-    !     if eff_e_n=-eff_e_p, the operator purely isovector. In certain 
-    !     applications, e.g. isovector dipole excitation, one choses eff_e_p = N/A
-    !     and eff_e_n = -Z/A such that one only has eff_e_n ~ - eff_e_p, 
-    !     but still calls the operator isovector. 
-    ! 
-    !   - One might add a normalisation to the external field F -> F / alpha in order to have 
-    !     dh_free of order 1. Due to linearity of all FAM steps, this then needs to be 
-    !     compensated as X -> alpha X , Y -> alpha Y, dh -> alpha * dh, ..., and 
-    !     S -> alpha^2 S
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    integer, intent(in)       :: L, K
-    real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
-    logical :: ImPart
-    complex(KIND=dp), allocatable :: f_LK_qpme(:,:,:)
-    complex(KIND=dp), allocatable :: f_LK_spme(:,:)
-
-    if (fam_verbose > 1) print *, "get_f_LK :: "
-      
-    allocate(f_LK_spme(nwt,nwt)) 
-    allocate(f_LK_qpme(nwt,nwt,2)) 
-
-   
-
-    if(l==0) then
-      f_LK_spme = Rsq_spme()
-    else 
-      ! Calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
-      ! in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
-      ImPart = .false. ! real (.false.) , imaginary (.true.) 
-      f_LK_spme = Qlm_spme(L, K, ImPart)
-      
-      ! Rescale f_LK_spme to express in units of fm^l
-      f_LK_spme = f_LK_spme * (100**(l/2.0)) 
-
-      ! Renormalise with sqrt(2) if K is not 0
-      if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
-
-      endif
-
-    ! TODO: refactor this; selecting particle-hole or quasiparticle parts
-    !       of the perturbing operator and (ii) multiplying by effective charges
-    !       is independent on our particular choice of perturbing operator and can
-    !       thus be made universal...
-
-
-      ! Multiply the operator by the effective charges 
-      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
-      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
-
-     
-      if(fam_verbose > 2) then
-        print *, 'f^+_LK'
-       call print_spme_complex(f_LK_spme)
-       print *, '||f||²', sum(abs(f_LK_spme)**2)
-       call print_spme_complex_superblock(f_LK_spme)
-     endif
-
-      ! note: 
-      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
-      !   alpha converting the units of the perturbation to MeV, and eventually 
-      !   devides the obtained strength by alpha. 
-    if (pairingtype==0) then ! FAM
-      ! Define the external field F by selecting the particle-hole and 
-      ! hole-particle subblocks of f_LK by multiplying by their 
-      ! occupation, i.e. diagonal elements of rho in the canonical basis
-      call get_ph_hp_blocks(f_LK_spme, f_LK_qpme(:,:,1), f_LK_qpme(:,:,2))
-
-      if(fam_verbose > 2) then
-        print *, ' f_LK_ph'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
-        print *, ' f_LK_hp'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
-      endif
-
-    else ! QFAM
-      
-      ! Define the external field F as the qpme obtained by performing a bogolibov 
-      ! transformation and storing the F^20 anf F^02 components
-      call transform_sp_to_qp(Bogoliubov, OTLsp=f_LK_spme, &                                ! Input 
-      &                                   OTRqp=f_LK_qpme(:,:,1), OBLqp=f_LK_qpme(:,:,2))   ! Output
-      ! TODO: update Attention: the output of this routine is F^{02,T}!
-$NTR  f_LK_qpme(:,:,2) = TRANSPOSE(f_LK_qpme(:,:,2))
-$TR   f_LK_qpme(:,:,2) = -         f_LK_qpme(:,:,2)
-
-      if(fam_verbose > 2) then
-        print *, ' f_LK_qpme(:,:,1)'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,1))
-        print *, ' f_LK_qpme(:,:,2)'
-        call print_spme_complex_superblock( f_LK_qpme(:,:,2))
-      endif
-
-    endif
-
-    if(fam_verbose > 1) then
-
-      print *, '||F(:,:,1)||²', sum(abs(f_LK_qpme(:,:,1))**2)
-      print *, '||F(:,:,2)||²', sum(abs(f_LK_qpme(:,:,2))**2)
-
-    endif
-
-    deallocate(f_LK_spme)
-
-  end function get_F_LK
-
-  function get_N(eff_e_n, eff_e_p) result(Nqpme)
-    !-----------------------------------------------------------------------------
-    ! Get the particle-hole and hole-particle matrix elements of the particle 
-    ! number operator N.
+  subroutine subtract_spurious_modes()
+    !---------------------------------------------------------------------------
+    ! Subtract the spurious modes from the X and Y amplitudes
     ! 
     ! Input:
-    !     eff_e_n  : effective charge of neutrons (in units of e)
-    !     eff_e_p  : effective charge of protons (in units of e)
-    !
+    !    /
     ! Output:
-    !     Nqpme    : matrix elements of N, either particle-hole (FAM)
-    !                                      or 2qp (QFAM)
-    !-----------------------------------------------------------------------------
-    real(KIND=dp), intent(in)     :: eff_e_n, eff_e_p
-    complex(KIND=dp), allocatable :: Nqpme(:,:,:), Nspme(:,:)
-    integer                       :: i
+    !    /
+    ! 
+    ! Remarks:
+    !  - For now, only the subtraction of spurious translational mode is 
+    !    subtracted, present when F is parity odd, i.e. L is odd and K = 0, 1
+    !
+    !  - This involves vacuum expectation values of commutators of 1B operators
+    !    <[A,B]> which can be evaluated from their quasi-particle matrix
+    !    elements as
+    !
+    !        <[A,B]> = 1/2 sum_ab(A20_ab B02_ab - B20_ab A02_ab)
+    !
+    !     -> if both operators are Hermitian such that A20 = A02*, then 
+    !        <[A,B]> = Im (sum_ab(A20_ab B02_ab)) i
+    !
+    !  - Note the sign in the definition of the QRPA excitation operator 
+    !    O^+ = X20 - Y02, such that 
+    !        <[O^+,A]> = 1/2 sum_ab(X20_ab A02_ab + A20_ab Y02_ab)
+    !    and causing several unexpected minus sign elsewhere
+    !---------------------------------------------------------------------------
 
-    allocate(Nspme(nwt,nwt))
-    allocate(Nqpme(nwt,nwt,2))
+    complex(KIND=DP) :: Rz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: Pz_qpme(nwt, nwt, 2)
+    complex(KIND=DP) :: comm_RP, comm_OR, comm_OP
+    complex(KIND=DP) :: lambda_R, lambda_P
+    real(KIND=DP) :: a
 
-    ! Build the single-particle matrix elements of N
-    Nspme = 0.0d0
-    do i=1,nwt
-       Nspme(i,i) = 1.0d0
-    enddo
 
-    ! Multiply by effective charges
-    Nspme(1:nwn,1:nwn)   = eff_e_n * Nspme(1:nwn,1:nwn)
-    Nspme(nwn+1:,nwn+1:) = eff_e_p * Nspme(nwn+1:,nwn+1:)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! skip when F=N or if F=Q_LK with even L or K>1
+    if (operator_type == 'N' .or. (operator_type == 'multipole' .and. (mod(l,2)==0 .or. m>1)) ) then
+      print *, 'No need to subtract translational spurious mode'
+      return
+    endif
 
+    print *, 'Subtract translational spurious mode'
+
+    a = calc_strength()
+    print *, ' S prior =', strength_complex
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! load the qpme of R and P
+    Rz_qpme = get_external_field('Zcom')
+    Pz_qpme = get_external_field('Zmomentum')
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluation of commutator expectation value <[R,P]>
+    comm_RP = 0.5 * (sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2)) - sum(Pz_qpme(:,:,1) * Rz_qpme(:,:,2)))
+    $TR comm_RP = 2.0 * comm_RP ! account for absence of time-reversed states
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluate the commutator <[O^+,R]>. 
+    comm_OR = 0.5 * (sum(X(:,:) * Rz_qpme(:,:,2)) + sum(Rz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OR = 2.0 * comm_OR ! account for absence of time-reversed states
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Evaluate the commutator <[O^+,P]>. 
+    comm_OP = 0.5 * (sum(X(:,:) * Pz_qpme(:,:,2)) + sum(Pz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OP = 2.0 * comm_OP ! account for absence of time-reversed states
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! compute lambda parameters 
+    lambda_R = comm_OP / comm_RP
+    lambda_P = - comm_OR / comm_RP
+
+    print * , 'lambda_R = ', lambda_R
+    print * , 'lambda_P = ', lambda_P
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! subtract from X, Y
+    X = X - lambda_R * Rz_qpme(:,:,1) - lambda_P * Pz_qpme(:,:,1)
+    Y = Y + lambda_R * Rz_qpme(:,:,2) + lambda_P * Pz_qpme(:,:,2)
+
+    a = calc_strength()
+    print *, ' S after =', strength_complex
+
+
+  end subroutine subtract_spurious_modes
+
+
+  function get_external_field(op_type) result (f_qpme)
+    !---------------------------------------------------------------------------
+    ! Get quasi-particle matrix elements of the external field F based on 
+    ! operator_type and possibly multipolarity l, m
+    ! 
+    ! Input:
+    !    op_type : operator_type to be loaded. Current options are
+    !               - 'multipole' :  Q_lm, the module variables m and l will be used 
+    !               - 'particle number' : particle number operator 
+    !               - 'zcom' : the z-coordinate operator  
+    !               - 'zmomentum' : z-momentum operator
+    ! Output:
+    !    f_qpme  : quasi-particle matrix elements F20_mn and F02_mn of 
+    !              the external field organised as a 3D complex array with 
+    !              dimensions (nwt, nwt, 2)
+    !                           |    |   '-> 1 : 20,  2 : 02 component 
+    !                           |    '-> qp index
+    !                           '-> qp index
+    ! 
+    ! Remarks:
+    !  - in case of HF, qpme F20_mn and F02_mn reduce to Fph_ai and Fhp_ai, 
+    !    the particle-hole and hole-particle subblocks of the spme, where 'a' is 
+    !    an unoccupied sp index and 'i' is an occupied sp index
+    !  - the field is NOT yet multiplied by the effective charges
+    !---------------------------------------------------------------------------
+ 
+    character(len=*), intent(in) :: op_type
+    complex(KIND=dp), allocatable :: f_qpme(:,:,:)
+    complex(KIND=dp), allocatable :: f_spme(:,:)
+    real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
+    integer :: i
+
+    if (fam_verbose > 1) print *, "get_external_field :: "
+      
+    allocate(f_qpme(nwt,nwt,2)) 
+    allocate(f_spme(nwt,nwt)) 
+
+    !----------------------------------------------------------------------------------
+    ! 1) get the single particle matrux elements f_spme
+
+    select case(trim(to_lower(op_type)))
+     ! lower to make the selection case insensitive
+     ! trim to not bother about string length and possible trailing spaces
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+     ! a) get the multipole operator Q_LK
+      case('multipole')
+        ! if l=0, then one needs r^2 rather then Q_00 for a monopole excitation
+        if(l==0) then
+          ! Get single-particle matrix elements of R in the HF basis
+          f_spme = Rsq_spme()
+        else 
+          ! Get single-particle matrix elements of Q_lm in the HF basis
+          !  -> calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
+          !     in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
+          f_spme = Qlm_spme(l, m, .false.)
+          
+          ! Convert f_spme to unit fm^l
+          f_spme = f_spme * (100**(l/2.0)) 
+
+          ! Normalise with sqrt(2) if K is not 0
+          if(m.ne.0) f_spme = f_spme * sqrt(2.0)
+
+          endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! b) get the particle number operator 
+      case('particle number')
+        ! Build the single-particle matrix elements of N
+        f_spme = 0.0d0
+        do i=1,nwt
+           f_spme(i,i) = 1.0d0
+        enddo
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! c) get the c.o.m. z-coordinate operator 
+      case('zcom')
+        ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
+
+        ! Get single-particle matrix elements of Q_10 in the HF basis
+        f_spme = Qlm_spme(1, 0, .false.)
+
+        ! Convert f_spme to unit fm^l
+        f_spme = f_spme * sqrt(100.0) 
+
+        ! Cancel prefactor sqrt(3/4pi)
+        f_spme = f_spme * sqrt( 4.0 * pi / 3.0) 
+
+        ! multiply by 1/A
+        f_spme = f_spme / (Neutrons + Protons)
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! d) get the c.o.m. z momentum = - i [hbar] nabla_z
+      !    -> the factor hbar in the definition gets dropped
+      case('zmomentum')
+
+        allocate(nabla_spme(3,2,nwt,nwt))
+        !                   | |  '---'-> sp indices 
+        !                   | '-> real, imag
+        !                   '-> x, y, z
+
+        ! Get single-particle matrix elements of nabla in the HF basis
+        nabla_spme = CompNablaMelements('HF')
+
+        ! P_z = -i * nabla_z = IM(nabla_z) - Re(nabla_z) i
+        f_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
+
+
+
+      case DEFAULT
+        call stp('Unrecognized operator_type!')
+    end select
+
+
+    !----------------------------------------------------------------------------------
+    ! 2) convert spme to quasiparticle basis
     if (pairingtype==0) then ! FAM
-      call get_ph_hp_blocks(Nspme, Nqpme(:,:,1), Nqpme(:,:,2))
+      call get_ph_hp_blocks(f_spme, f_qpme(:,:,1), f_qpme(:,:,2))
     else ! QFAM
-      call transform_sp_to_qp(Bogoliubov, OTLsp=Nspme, &
-           &                  OTRqp=Nqpme(:,:,1), OBLqp=Nqpme(:,:,2))
-$NTR  Nqpme(:,:,2) = TRANSPOSE(Nqpme(:,:,2))
-$TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
+      call transform_sp_to_qp(Bogoliubov, OTLsp=f_spme, &
+           &                  OTRqp=f_qpme(:,:,1), OBLqp=f_qpme(:,:,2))
+      $NTR  f_qpme(:,:,2) = TRANSPOSE(f_qpme(:,:,2))
+      $TR   f_qpme(:,:,2) = -         f_qpme(:,:,2)
+    endif
+
+    deallocate(f_spme)
+
+    if(fam_verbose > 1) then
+      print *, '||F(:,:,1)||²', sum(abs(f_qpme(:,:,1))**2)
+      print *, '||F(:,:,2)||²', sum(abs(f_qpme(:,:,2))**2)
     endif
 
     if(fam_verbose > 2) then
-      print *, ' f_LK_qpme(:,:,1)'
-      call print_spme_complex_superblock( Nqpme(:,:,1))
-      print *, ' f_LK_qpme(:,:,2)'
-      call print_spme_complex_superblock( Nqpme(:,:,2))
+      print *, ' f_qpme(:,:,1)'
+      call print_spme_complex_superblock( f_qpme(:,:,1))
+      print *, ' f_qpme(:,:,2)'
+      call print_spme_complex_superblock( f_qpme(:,:,2))
     endif
 
 
-    print *, '||F(:,:,1)||²', sum(abs(Nqpme(:,:,1))**2)
-    print *, '||F(:,:,2)||²', sum(abs(Nqpme(:,:,2))**2)
 
-  end function get_N
+  end function get_external_field
 
-  function calc_EWSR(R) result (ewsr)
+
+  function calc_EWSR(R) result (res)
     !---------------------------------------------------------------------------
     ! Compute the energy-weighted sum rule from a ground-state expectation value. 
     ! This value should equal the first-moment of the strength function, i.e.
@@ -1429,11 +1507,11 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     !     are close in magnitude.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in) :: R
-    real(KIND=dp) :: ewsr
+    real(KIND=dp) :: res
     real(KIND=dp) :: m1kin=0, kappa=0, Ctau0=0, Ctau1=0
     type(Moment), pointer  :: moment_ptr, r2_ptr
 
-    ewsr = 0
+    res = 0.0
 
     if (fam_verbose > 1) print *, "calc_EWSR :: calculate the energy-weighted sum rule m1"
 
@@ -1533,14 +1611,14 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
           
           ! integral over the mesh of 4 (x^2 + y^2 + z^2) * rho_n * rho_p
           kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
-            &                       * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &                       * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 1  dipole (same for m=0 and m=1)
         else if(l == 1) then
 
           ! integral over the mesh of 3/(4pi) rho_n * rho_p
-          kappa = kappa * (3.0 / (4.0 * pi)) * sum(R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+          kappa = kappa * (3.0 / (4.0 * pi)) * sum(real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
         
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 0, axial quadrupole Q20
@@ -1549,7 +1627,7 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
           ! integral over the mesh of 5/(4pi) (x^2 + y^2 + 4*z^2) * rho_n * rho_p
           kappa = kappa * (5.0 / (4.0 * pi) ) &
             &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) &
-            &            * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &            * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 2, quadrupole Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2)
@@ -1557,7 +1635,7 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
 
           ! integral over the mesh of 15/(4pi) (x^2 + y^2) * rho_n * rho_p
           kappa = kappa * (15.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
-            &                                          * R%D_I_I(:,1) * R%D_I_I(:,2)) * dv
+            &                                          * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
           
         endif
           
@@ -1566,11 +1644,98 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
     endif
 #endif 
 
+    ! set the global variable 
     ewsr = m1kin + kappa
 
     print *, "Energy-weighted sum rule : m1 = ", ewsr
 
-  end function
+    ! return ewsr
+    res = ewsr
+
+  end function calc_EWSR
+
+  subroutine check_box_size()
+    !---------------------------------------------------------------------------
+    ! Check the values of drho and dkappa at the boundary of the box
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Notes:
+    !   - We use a relative measure, drho(max(box)) / max(drho)
+    !---------------------------------------------------------------------------
+
+    real(kind=DP) :: maximum
+    complex(KIND=dp), pointer                  :: ddens3D(:,:,:,:)
+
+
+    12 format(2x,78('-'))
+    13 format(36('-'), ' box size check ', 36('-'))
+    14 format(a45)
+
+    2 format (4x,'Xmax = (nx+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(X=Xmax)|| = ', es10.3 )
+    3 format (4x,'Ymax = (ny+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Y=Ymax)|| = ', es10.3 )
+    4 format (4x,'Zmax = (nz+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Z=Zmax)|| = ', es10.3 )
+    41 format (4x,'Zmin = -(nz+0.5)dx = ', f8.3, ' fm,  rel.max||d_dens(Z=Zmin)|| = ', es10.3 )
+    
+
+    print *
+    print 13
+    print 12
+
+    print 14, 'drho_sym'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dRs%D_I_I
+  
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'drho_antisym'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dRa%D_I_I
+  
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'dkappa+'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_plus%DP_I_I
+  
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+
+    print 12
+    print 14, 'dkappa-'
+    print 12
+
+    ddens3D(1:nx,1:ny,1:nz,1:2)   => dR_pp_minus%DP_I_I
+  
+    maximum = maxval(sum(abs(ddens3D(:,:,:,:)),4))
+
+    print 2, meshX(nx) , maxval(sum(abs(ddens3D(nx,:,:,:)),3)) / maximum
+    print 3, meshY(ny) , maxval(sum(abs(ddens3D(:,ny,:,:)),3)) / maximum
+    print 4, meshZ(nz) , maxval(sum(abs(ddens3D(:,:,nz,:)),3)) / maximum
+    $PBROKEN print 41, meshZ(1) , maxval(sum(abs(ddens3D(:,:,1,:)),3)) / maximum
+    print 12
+    print *
+    print *
+
+
+  end subroutine check_box_size
 
 
   subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)
@@ -1597,8 +1762,8 @@ $TR   Nqpme(:,:,2) = -         Nqpme(:,:,2)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
+        $TR   occ_p = 2.0d0 - rho_can(p)   ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+        $NTR  occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
         Mhp(p,h) = M(h,p)
@@ -1611,6 +1776,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! Bogoliubov transformation to the qp basis. 
 
   end subroutine get_ph_hp_blocks_complex
+
 
   subroutine get_ph_hp_blocks_real(M, Mph, Mhp)
     !---------------------------------------------------------------------------
@@ -1636,8 +1802,8 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-$TR         occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
-$NTR        occ_p = 1.0d0 - rho_can(p) 
+        $TR  occ_p = 2.0d0 - rho_can(p) ! WR: Is this not superfluous? I mean, occ_h and occ_p do not actually enter the result? 
+        $NTR occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         Mph(p,h) = M(p,h)
         Mhp(p,h) = M(h,p)
@@ -1650,6 +1816,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     ! Bogoliubov transformation to the qp basis.
 
   end subroutine get_ph_hp_blocks_real
+
 
   subroutine transform_sp_to_qp(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
     !---------------------------------------------------------------------------
@@ -1732,15 +1899,17 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
     complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-    integer                       :: B, N, N2, si, sb, T, i
+    integer                       :: B, N, N2, si, sb, T
     real(KIND=dp)                 :: Tphase
+
+    if (fam_verbose > 1) print *, "transform_sp_to_qp :: transform 1B operator from sp to qp basis"
 
     if (present(OTRqp)) OTRqp = 0._dp
     if (present(OTLqp)) OTLqp = 0._dp
     if (present(OBLqp)) OBLqp = 0._dp
 
-$NTR Tphase = +1.0_dp
-$TR  Tphase = -1.0_dp
+    $NTR Tphase = +1.0_dp
+    $TR  Tphase = -1.0_dp
 
     ! si determines the start of the block in sp-basis of dimension nwt
     ! sb determines the start of the block in qp-basis of dimension 2*nwt 
@@ -1808,9 +1977,10 @@ $TR  Tphase = -1.0_dp
         sb = sb +2*T      
     enddo 
 
-   end subroutine transform_sp_to_qp
+  end subroutine transform_sp_to_qp
 
-   subroutine transform_qp_to_sp(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
+ 
+  subroutine transform_qp_to_sp(Bogo, OTRqp, OTLqp, OBLqp, OTRsp, OTLsp, OBLsp)
     !---------------------------------------------------------------------------
     ! Transform a matrix representation of an operator from the quasiparticle
     ! to the single basis. This routine assumes that the Bogoliubov 
@@ -1892,16 +2062,19 @@ $TR  Tphase = -1.0_dp
     complex(KIND=dp), pointer     :: OTR_qp_p(:, :), OTL_qp_p(:, :), OBL_qp_p(:, :)
 
     real(KIND=dp), allocatable    :: Ub(:, :), Vb(:, :)
-    integer                       :: B, N, N2, si, sb, T, i
+    integer                       :: B, N, N2, T, si, sb
     real(KIND=dp)                 :: Tphase
 
-   ! initialise the single-particle matrix elements to zero if they are present
+    if (fam_verbose > 1) print *, "transform_qp_to_sp :: transform 1B operator from qp to sp basis"
+
+
+    ! initialise the single-particle matrix elements to zero if they are present
     if(present(OTRsp)) OTRsp = 0._dp
     if(present(OTLsp)) OTLsp = 0._dp
     if(present(OBLsp)) OBLsp = 0._dp
 
-$NTR  Tphase = +1.0_dp
-$TR   Tphase = -1.0_dp
+    $NTR Tphase = +1.0_dp
+    $TR  Tphase = -1.0_dp
 
     si = 0 ; sb = 0
     do B=1,8,2
@@ -1967,6 +2140,7 @@ $TR   Tphase = -1.0_dp
     enddo
 
   end subroutine transform_qp_to_sp
+
 
   function Rsq_spme() result (Rsq)
 
@@ -2195,6 +2369,7 @@ $TR   Tphase = -1.0_dp
 
   end subroutine read_xy
 
+
   function norm_dH(dH) result(res)
     ! abstract template procedure dH -> real required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
@@ -2205,6 +2380,7 @@ $TR   Tphase = -1.0_dp
     res = sqrt(sum(abs(dH(:))**2))
 
   end function
+
 
   function ScProd_dH(dHl, dHr) result(res)
     ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
@@ -2217,6 +2393,7 @@ $TR   Tphase = -1.0_dp
     res = sum(dHl(:) * conjg(dHr(:)))
 
   end function
+
 
   subroutine print_all_fam_spmat()
 
@@ -2279,5 +2456,8 @@ $TR   Tphase = -1.0_dp
     else 
       call print_spme_complex_superblock(dH(:,:,2))
     endif
+
   end subroutine print_all_fam_spmat
+
+
 end module fam
