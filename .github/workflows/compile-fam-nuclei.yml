@@ -16,10 +16,37 @@ jobs:
     container: ghcr.io/iaa-ulb/mocca-ci:latest
     strategy:
       matrix:
-        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL ]
+        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL, N2LO ]
         COMPILER: [ gfortran ]
         CALCTYPE: [ NUCLEI ]
         MPI: [ false ]
+        OMP: [ false ]
+        include:
+          - CONFIG: LO
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: LO-P
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: LO-T
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: BXL
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: N2LO
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
 
     steps:
       - name: Checkout code
@@ -33,8 +60,9 @@ jobs:
           compiler: ${{ matrix.COMPILER }}
           calctype: ${{ matrix.CALCTYPE }}
           mpi: ${{ matrix.MPI }}
-          compfam: 'gnu'
-          hdf5suffix: ''
+          omp: ${{ matrix.OMP }}
+          compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+          hdf5suffix: ${{ matrix.OMP == true && '-hdf5' || '' }}
           execname_prefix: 'fam'
 
 # NOT used in tests at the moment 

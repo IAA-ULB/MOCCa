@@ -27,6 +27,7 @@ Ini      = T(   tab+'if(.not.allocated(R%$NAME)) then     \n' + \
 
 Memory   = T(   tab + 'stor = stor + $ISOSIZE*$TRANS_SIZE ! storage for $NAME')
 
+OMP_VAR  = T("!$$OMP " + 4* tab + "$NAME, &")
 
 Zero_template  = T(   tab+'R%$NAME = 0.0d0 \n')
 Clean_template = T(   tab+'if(allocated(R%$NAME)) deallocate(R%$NAME)')

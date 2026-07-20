@@ -31,7 +31,7 @@ program run_FAM
   use MOCCa,    only : initialize_all_timers, full_printout
   use MOCCa,    only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_L_Linv
+  use fam_testing, only : run_FAM_tests, test_L_Linv, test_RP_commutator
   use gmres 
   use timing
 
@@ -51,7 +51,7 @@ program run_FAM
   real(KIND=dp) :: S_decomp(8) = 0
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
-  real(KIND=dp) :: res
+  real(KIND=dp) :: fam_residual
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -140,7 +140,8 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
-  call init_fam_file_new(famfile)
+  call init_fam_file(famfile)
+  call init_fam_file(trim(famfile)//'.inclSM')
 
   if(xyfile .ne. '') then
     call init_xy_file(xyfile)
@@ -168,13 +169,16 @@ program run_FAM
     endif
   endif
 
+  ! print * , 'test [R,P] = i'
+  ! call test_RP_commutator
+
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
-
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
   omega_curr = omega_min
 
+  print *, "Starting the FAM calculation over ", omega_num, " frequencies from ", omega_min, " to ", omega_max, " MeV "
   do omega_index=1, omega_num
 
     print 11, omega_curr
@@ -183,7 +187,7 @@ program run_FAM
     ! initialise FAM matrices end set perturbing external field
 
     num_iter = 0
-    call inifam(omega_curr, Density, Potentials, Finfile)
+    call inifam(omega_curr, Density, Finfile)
 
 
     !-------------------------------------------------------------------------------
@@ -192,6 +196,7 @@ program run_FAM
     print *, 'Calculate the free response'
     dH_flat = 0
     call iterate_dHsp(dH_flat, dH_free_flat)
+    print *, 'S_free =', strength
     ! this also sets all other quantities like drho, dkappa, X, Y, dH20 to their free value
 
 
@@ -291,7 +296,8 @@ program run_FAM
       print *, "One final FAM iteration based on GMRES solution:  "
       fam_verbose = 1
       call iterate_dHsp(x_gmres, dH_flat_next)
-      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+      fam_residual = norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", fam_residual
 
       call dealloc_gmres()
 
@@ -322,12 +328,14 @@ program run_FAM
 
         ! Exit the loop if convergence is achieved.
         if (iter > 1) then ! at least two iterations to be able to compare
-         call test_convergence(is_converged, is_divergent)
+          call test_convergence(is_converged, is_divergent)
+          fam_residual = norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
+          print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", fam_residual
+
           if(is_converged) then
             print 1
             print 1
             print *, "   Hooray! FAM is converged! "
-            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = iter
             exit
           endif
@@ -335,7 +343,6 @@ program run_FAM
             print 1
             print 1
             print *, "   FAM diverges, exiting"
-            print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
             num_iter = - iter
             exit
           endif
@@ -344,7 +351,6 @@ program run_FAM
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
           num_iter = - fam_maxiter
         endif
 
@@ -354,24 +360,30 @@ program run_FAM
       enddo
     endif
 
+    call check_box_size()
+
 
     !---------------------------------------------------------------------------------
     ! store the converged strength
     !---------------------------------------------------------------------------------
       
-    strength = calc_strength()
+    ! strength = calc_strength()
+    call calc_strength_decomp(S_complex_decomp, S_decomp)
 
-    print 1
-    print *, "   number of iterations: ", num_iter
-    print *, "   converged strength:  "
-    print *, "          l, m  = ", l, m
-    print *, "          omega = ", omega_curr
-    print *, "          S     = ", strength 
-    print 1
+    call printfam_end(S_decomp, num_iter, fam_residual)
+
+    call append_fam_file(S_decomp, num_iter, trim(famfile)//'.inclSM')
+
+
+    ! subtract the spurious mode
+    if (remove_spurious) call subtract_spurious_modes()
 
     call calc_strength_decomp(S_complex_decomp, S_decomp)
 
-    call append_fam_file_new(S_decomp, num_iter, famfile)
+    call printfam_end(S_decomp, num_iter, fam_residual)
+
+
+    call append_fam_file(S_decomp, num_iter, famfile)
 
     if(xyfile .ne. '') then
       if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
