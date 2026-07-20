@@ -174,11 +174,11 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
-
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
   omega_curr = omega_min
 
+  print *, "Starting the FAM calculation over ", omega_num, " frequencies from ", omega_min, " to ", omega_max, " MeV "
   do omega_index=1, omega_num
 
     print 11, omega_curr

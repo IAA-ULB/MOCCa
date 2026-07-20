@@ -778,7 +778,7 @@ end function multiply_potentialvector
     CoulombExchange = coulomb_energy_exchange(Rin) 
 
     call calcrigid(Rin)
-#if(PASTA == 0)
+#if(PASTA == 0 && $FAM == 0 )
     ! Perform the calculation of all relevant inertias
     if(calc_expensive) then
       call start_timer(T_MOI)
@@ -791,7 +791,8 @@ end function multiply_potentialvector
     Vibcorrection    = calc_vibrational_correction(vibcorr)
 #else
     ! These collective corrections are not relevant to
-    ! infinite systems
+    ! (1) not relevant to infinite systems (PASTA == 1)
+    ! (2) expensive to calculate when the number of spwfs is high (FAM == 1)
     Vibcorrection = 0.0d0
     Rotcorrection = 0.0d0
     COMCorrection = 0.0d0

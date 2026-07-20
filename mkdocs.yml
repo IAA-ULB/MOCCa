@@ -44,3 +44,5 @@ nav:
     - Blocking by tagging:  user-guide/tagging.md
 theme: readthedocs
 extra_css: [extra.css]
+markdown_extensions:
+  - admonition

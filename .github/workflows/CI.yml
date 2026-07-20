@@ -1,0 +1,1046 @@
+#-------------------------------------------------------------------------------
+# CI deployment for MOCCa on GitHub-hosted runners
+#
+# Main workflow that orchestrates:
+#   - compile-mf-nuclei: Compile mean-field executables for nuclei (serial, MPI, OpenMP)
+#   - compile-fam-nuclei: Compile FAM executables for nuclei (serial, MPI, OpenMP)
+#   - compile-mf-pasta: Compile mean-field executables for pasta
+#   - minimal: Run minimal test
+#   - Various integration and unit tests including OpenMP scaling tests
+#
+# Uses reusable workflows for each compilation type to maximize code reuse.
+#-------------------------------------------------------------------------------
+name: MOCCa CI
+
+on:
+  push:
+    branches:
+      - master
+      - development
+      - FAMQRPA
+  pull_request:
+    branches:
+      - master
+      - development
+      - FAMQRPA
+
+
+# These permissions are required for the Docker images to actually be able to checkout the code
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  compile-mf-nuclei:
+    uses: ./.github/workflows/compile-mf-nuclei.yml
+
+  compile-fam-nuclei:
+    # Only test FAM compilation if standard MF compilation works
+    needs: [compile-mf-nuclei]
+    uses: ./.github/workflows/compile-fam-nuclei.yml
+
+  compile-mf-pasta:
+    # Only test pasta compilation if all other compilation works
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    uses: ./.github/workflows/compile-mf-pasta.yml
+
+  minimal:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run minimal test
+        run: |
+          cd testing/integration/
+          bash minimal.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: minimal-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 1: Simple Single-Executable Tests
+  #-----------------------------------------------------------------------------
+
+  memory_leak:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run memory_leak test
+        run: |
+          cd testing/integration/
+          bash memory_leak.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: memory_leak-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/memory_leak_*.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  fission:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run fission test
+        run: |
+          cd testing/integration/
+          bash fission.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fission-${{ env.SUFFIX }}.logs
+          path: testing/integration/logs/fission.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  continuation_wf:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL, BXL-N2LO]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM: BSkG5
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_wf test
+        run: |
+          cd testing/integration/
+          bash continuation_wf.sh $SUFFIX ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: continuation_wf-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_wf.${{ env.SUFFIX }}.out.b
+          retention-days: 2
+
+  continuation_hdf5:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run continuation_hdf5 test
+        run: |
+          cd testing/integration/
+          bash continuation_hdf5.sh $SUFFIX BSkG3
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: continuation_hdf5-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.a
+            testing/integration/logs/continuation_HDF5.${{ env.SUFFIX }}.out.b
+          retention-days: 2
+
+  cranking:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [NLO-T]
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run cranking test
+        run: |
+          cd testing/integration/
+          bash cranking.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cranking-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.J
+            testing/integration/logs/cranking.${{ env.SUFFIX }}.out.omega
+          retention-days: 2
+
+  gradient_vs_direct:
+    needs: compile-mf-nuclei
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [BXL, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: BXL
+            PARAM: BSkG3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run gradient_vs_direct test
+        run: |
+          cd testing/integration/
+          bash hfb_direct_gradient.sh -e $SUFFIX -p ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gradient_vs_direct-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/directHFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/gradientHFB.${{ env.SUFFIX }}.out
+          retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 2: MF + FAM Tests
+  #-----------------------------------------------------------------------------
+
+  fam_linearity:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [LO]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_linearity test
+        run: |
+          cd testing/integration/
+          bash fam_linearity.sh $SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_linearity-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_linearity.${{ env.SUFFIX }}.fam.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/qfam_linearity.${{ env.SUFFIX }}.fam.out.bis
+          retention-days: 2
+
+  fam_unit_tests:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [LO, LO-T, NLO, NLO-T]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: LO-T
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+          - CONFIG: NLO-T
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_unit_tests
+        run: |
+          cd testing/unit/
+          bash fam_unit_tests.sh ${{ env.SUFFIX }} --pairing HFB --nw=30 --parameterisation ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_unit_tests.${{ env.SUFFIX }}.logs
+          path: |
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.out
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.out.bis
+            testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.fam.out
+          retention-days: 2
+
+  fam_t0t3:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_t0t3 test
+        run: |
+          cd testing/integration/
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P 1 --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_t0t3.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=1.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_t0t3_OpenMP:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        NTHREADS: [1, 4, 8]
+    env:
+      SUFFIX: LO.${{ matrix.COMPILER }}.NUCLEI.OpenMP
+      SUFFIX_T: LO-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: LO-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_t0t3 test with OpenMP
+        run: |
+          cd testing/integration/
+          bash fam_t0t3.sh $SUFFIX $SUFFIX_T $SUFFIX_P ${{ matrix.NTHREADS }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_t0t3_OpenMP.${{ env.SUFFIX }}.Nthreads=${{ matrix.NTHREADS }}.logs
+          path: |
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_t0t3_Nthreads=${{ matrix.NTHREADS }}.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_strength_symmetry:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_strength_symmetry test
+        run: |
+          cd testing/integration/
+          bash fam_strength_symmetry.sh ${{ env.SUFFIX }} ${{ matrix.PARAM }} HF  10 0.1 --verbose
+          bash fam_strength_symmetry.sh ${{ env.SUFFIX }} ${{ matrix.PARAM }} HFB 10 0.1 --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_strength_symmetry.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=+.+.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=+.-.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=-.+.out
+            testing/integration/logs/fam_strength_symmetry.HFB.om=10.eta=0.1.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.omega=-.-.out
+          retention-days: 2
+
+  fam_sc_symmetry:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download MF-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+      - name: Download FAM-P executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_P }}.exe
+
+      - name: Run fam_sc_symmetry test
+        run: |
+          cd testing/integration/
+          bash fam_sc_symmetry.sh ${{ env.SUFFIX }} ${{ env.SUFFIX_T }} ${{ env.SUFFIX_P }} --pairing HF  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_sc_symmetry.sh ${{ env.SUFFIX }} ${{ env.SUFFIX_T }} ${{ env.SUFFIX_P }} --pairing HFB --parameterisation ${{ matrix.PARAM }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_sc_symmetry.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.out.bis
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_T }}.fam.out
+            testing/integration/logs/fam_sc_symmetry.HFB.${{ env.SUFFIX_P }}.fam.out
+          retention-days: 2
+
+  fam_pairing_zero_mode:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [LO, NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: LO
+            PARAM: t0t3
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executables
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download MF-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Download FAM executables
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+      - name: Download FAM-T executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX_T }}.exe
+
+      - name: Run fam_pairing_zero_mode test
+        run: |
+          cd testing/integration/
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX }}   --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX_T }} --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_pairing_zero_mode.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.fam.out
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.fam.out
+          retention-days: 2
+
+  fam_rotational_invariance:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [NLO]
+        COMPILER: [gfortran]
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/fam.${{ env.SUFFIX }}.exe
+
+      - name: Run fam_rotational_invariance test
+        run: |
+          cd testing/integration/
+          bash fam_rotational_invariance.sh ${{ env.SUFFIX }}  ${{ matrix.PARAM }} HFB 2 1.0 --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_rotational_invariance.${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q20.out
+            testing/integration/logs/fam_rotational_invariance.HFB.om=2.eta=1.0.${{ env.SUFFIX }}.${{ matrix.PARAM }}.fam.Q22.out
+          retention-days: 2
+
+  fam_omp_invariance:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4
+            SERIAL_SUFFIX: NLO.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: NLO.gfortran.NUCLEI.OpenMP
+          - CONFIG: BXL
+            PARAM: BSkG1
+            SERIAL_SUFFIX: BXL.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: BXL.gfortran.NUCLEI.OpenMP
+          - CONFIG: N2LO
+            PARAM: SN2LO1
+            SERIAL_SUFFIX: N2LO.gfortran.NUCLEI.SERIAL
+            OMP_SUFFIX: N2LO.gfortran.NUCLEI.OpenMP
+        COMPILER: [gfortran]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download serial MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download serial FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.SERIAL_SUFFIX }}
+          path: exec/
+
+      - name: Download OpenMP FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.OMP_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.SERIAL_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.OMP_SUFFIX }}.exe
+
+      - name: Run fam_omp_invariance test
+        run: |
+          cd testing/integration/
+          bash fam_omp_invariance.sh ${{ matrix.SERIAL_SUFFIX }} ${{ matrix.PARAM }} HFB 2 1.0 ${{ matrix.OMP_SUFFIX }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_omp_invariance.${{ matrix.SERIAL_SUFFIX }}.logs
+          path: testing/integration/logs/
+          retention-days: 2
+
+  #-----------------------------------------------------------------------------
+  # Batch 3: PASTA Tests
+  #-----------------------------------------------------------------------------
+
+  boundary_conditions:
+    needs: [compile-mf-nuclei, compile-mf-pasta]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+    env:
+      N_SUFFIX: BXL.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      P_SUFFIX: BXL.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download NUCLEI executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.N_SUFFIX }}
+          path: exec/
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.P_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.N_SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.P_SUFFIX }}.exe
+
+      - name: Run boundary_conditions test
+        run: |
+          cd testing/integration/
+          bash boundary_conditions.sh -p BSkG3_naked -e $N_SUFFIX -f $P_SUFFIX
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: boundary_conditions-${{ env.N_SUFFIX }}.logs
+          path: |
+            testing/integration/logs/boundary_conditions.${{ env.N_SUFFIX }}.out
+            testing/integration/logs/boundary_conditions.${{ env.P_SUFFIX }}.out
+          retention-days: 2
+
+  lattice_energy:
+    needs: [compile-mf-nuclei, compile-mf-pasta]
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL]
+    env:
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.SERIAL
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download NUCLEI executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_VAC }}
+          path: exec/
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_PAS }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX_VAC }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_PAS }}.exe
+
+      - name: Run lattice_energy test
+        run: |
+          cd testing/integration/
+          bash lattice_energy.sh -p BSkG4simpl -e ${{ env.SUFFIX_VAC }} -f ${{ env.SUFFIX_PAS }} -n 12
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lattice_energy.logs
+          path: |
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_VAC }}.out
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_PAS }}.out
+          retention-days: 2
+
+  spaghetti:
+    needs: compile-mf-pasta
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        COMPILER: [gfortran]
+        CONFIG: [BXL]
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA.SERIAL
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download PASTA executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run spaghetti test
+        run: |
+          cd testing/integration/
+          bash spag.sh ${{ env.SUFFIX }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spaghetti-${{ env.SUFFIX }}.logs
+          path: |
+            testing/integration/logs/spag.${{ env.SUFFIX }}.out
+            testing/integration/logs/spag.${{ env.SUFFIX }}.b.out
+          retention-days: 2

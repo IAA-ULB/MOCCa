@@ -178,12 +178,13 @@ module gmres
 
   subroutine set_left_precond(proc_left_precond)
     ! Add left-preconditioning, i.e. solve P A x = P b
+    procedure(vectovec) :: proc_left_precond
 
     ! set the pointer to the procedure
     apply_left_precond => proc_left_precond
 
     ! multiply the RHS by P
-    apply_left_precond(b, b)
+    call apply_left_precond(b, b)
 
   end subroutine set_left_precond
 

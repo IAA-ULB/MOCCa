@@ -18,10 +18,16 @@ At the time of writing, make_includes/ has predefined files for nearly all
 possible combinations of
 
       compilers      : gnu, cray, intel
-      parallelisation: serial, parallel
+      parallelisation: serial, MPI or OpenMP
       HDF5           : yes or no
 
 as well as separate sets of compilation options more suited to debugging.
+
+!!! warning 
+    Only rather specific calculations can benefit from parallelisation. 
+    Specifically: large-scale pasta calculations should leverage MPI, 
+    linear response calculations should leverage OpenMP. All other 
+    calculations will not benefit from either.
 
 To use a predefined file from the make_includes/ folder, it suffices to copy
 the file into the main MOCCa directory and rename it. For example, execute
