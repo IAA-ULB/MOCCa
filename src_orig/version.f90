@@ -39,8 +39,9 @@ subroutine print_header(fam)
     ! Input
     !  fam : logical, indicating whether a regular header or FAM header is printed
     !----------------------------------------------------------------------------
-    use GenInfo, only: SYMSTRING, MPI_RANK, NPROCS, reduX, reduY, reduZ
+    use GenInfo, only: SYMSTRING, MPI_RANK, NPROCS, reduX, reduY, reduZ, OMP_THREADS
     use IO,      only : SYM_CODE, TRANS_CODE
+    USE OMP_LIB
 
     logical, intent(in) :: fam
 
@@ -97,11 +98,13 @@ subroutine print_header(fam)
     &   /,8x,'| Calculation type    = ', a39, '|',                               &
     &   /,8x,'| Boundary conditions = ', a39, '|',                               &
     &   /,8x,'| Derivatives of densities via ', a32, '|',                        &
+    &   /,8x,'| ', a61, '|',                                                     &
     &   /,8x,'| ', a61, '|' )"
 
-    character(len=200), parameter :: envinfo = "(                                &
-    &    8x,'|-------------- Environment Information -----------------------|', &
-    &  /,8x,'|  Number of MPI_ranks   = ', i6, 30x, '|')"
+    character(len=300), parameter :: envinfo = "(                                &
+    &    8x,'|-------------- Environment Information -----------------------|',  &
+    &  /,8x,'|  Number of MPI_ranks        = ', i6, 25x, '|',                    &
+    &  /,8x,'|  MAX Number of OMP threads  = ', i6, 25x, '|')"
 
     character(len=1000), parameter :: compinfo = "(                              &
     &    8x,'|-------------- Compilation Information -----------------------|',  &
@@ -137,6 +140,11 @@ subroutine print_header(fam)
 #else
     character(len=58), parameter  :: mpi_enabled= 'MPI disabled'
 #endif
+#ifdef _OPENMP
+    character(len=58), parameter  :: omp_enabled= 'OpenMP enabled'
+#else
+    character(len=58), parameter  :: omp_enabled= 'OpenMP disabled'
+#endif
 
 
     if(MPI_RANK .eq. 0) then
@@ -155,10 +163,13 @@ subroutine print_header(fam)
     ! Other information about compile-time choices
     write(*,fmt=compilationchoices) &
     &  adjustl(calctype), adjustl(boundary_conditions), adjustl(den_deriv), &
-    &  adjustl(mpi_enabled)
+    &  adjustl(mpi_enabled), adjustl(omp_enabled)
     !----------------------------------------------------------------------------
     ! Environment information
-    write(*,fmt=envinfo) NPROCS
+#ifdef _OPENMP
+    OMP_THREADS = OMP_GET_MAX_THREADS()
+#endif
+    write(*,fmt=envinfo) NPROCS, OMP_THREADS
     !----------------------------------------------------------------------------
     ! Technical details about compilation
     write(*,fmt=compinfo) compiler, cflags, optflags

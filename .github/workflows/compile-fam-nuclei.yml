@@ -1,0 +1,66 @@
+#-------------------------------------------------------------------------------
+# Reusable workflow: Compile FAM executables for nuclei calculations
+#-------------------------------------------------------------------------------
+name: Compile FAM Nuclei
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [ LO, LO-T, LO-P, NLO, NLO-T, NLO-P, BXL, N2LO ]
+        COMPILER: [ gfortran ]
+        CALCTYPE: [ NUCLEI ]
+        MPI: [ false ]
+        OMP: [ false ]
+        include:
+          - CONFIG: LO
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: LO-P
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: LO-T
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: BXL
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+          - CONFIG: N2LO
+            COMPILER: gfortran
+            CALCTYPE: NUCLEI
+            MPI: false
+            OMP: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Compile and upload
+        uses: ./.github/actions/compile-and-upload
+        with:
+          target: fam
+          config: ${{ matrix.CONFIG }}
+          compiler: ${{ matrix.COMPILER }}
+          calctype: ${{ matrix.CALCTYPE }}
+          mpi: ${{ matrix.MPI }}
+          omp: ${{ matrix.OMP }}
+          compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+          hdf5suffix: ${{ matrix.OMP == true && '-hdf5' || '' }}
+          execname_prefix: 'fam'

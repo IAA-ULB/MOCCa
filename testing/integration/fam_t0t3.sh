@@ -5,19 +5,23 @@
 #  - and redo it for an explicitly parity broken FAM calculation
 #  - and redo it for an explicitly particle-number broken QFAM calculation
 #  - and redo it for an explicitly particle-number + time-reversal broken QFAM calculation
+# In addition, you can specify a number of OpenMP threads to be used; if you
+# do not provide an OpenMP-enabled executable, then this will simply be ignored.
+#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001     MeV               1     keV
 #  - strength S_20 @ 25.0 MeV          1.661155     fm^4 MeV^-1       1e-4  fm^4 MeV^-1
+#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # note : the FAM code is sensitive to tiny changes in the reference state. Hence,
 #        HF is converged up to high precision (E_prec = 1e-16). In addition, the
 #        heavy-ball parameters (dt, mu) are fixed to ensure reproducability. Not
-#        doing so would lead to unstable strengths differing from run to run.  
+#        doing so would lead to unstable strengths differing from run to run.
 #
-#        There are two different values the FAM code can converge to based on the 
+#        There are two different values the FAM code can converge to based on the
 #        presence on the prediagonalisation of h at the start of fam_run.f90
 #          - if the diagonalisation is enabled  : S_20(25.0) = 1.6611546044656
 #          - if the diagonalisation is disabled : S_20(25.0) = 1.6612681654265
@@ -27,9 +31,9 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [-v/--verbose]
+#   bash fam_t0t3.sh [EXESUFFIX] [EXESUFFIX_T] [EXESUFFIX_P] [Nthreads] [-v/--verbose]
 #
-# where EXESUFFIX,  EXESUFFIX_T, EXESUFFIX_P specify executables to be used: 
+# where EXESUFFIX,  EXESUFFIX_T, EXESUFFIX_P specify executables to be used:
 # maximally symmetric, a time-reversal breaking and a parity breaking one.
 # calling the script with flag -v or --verbose will print the values which are
 # compared.
@@ -69,15 +73,18 @@ if $verbose; then
     echo "               E = $refE (+/- 0.001) MeV"
     echo "     S(omega=25) = $refS20 (+/- 0.001) fm^4 MeV^-1 "
     echo
-fi 
+fi
 
-# set -e # exit immediately if command gives non-zero exit status
+Nthreads=${args[3]}
+export OMP_NUM_THREADS=$Nthreads
+echo "Running with " $Nthreads " OpenMP threads"
+set -e # exit immediately if command gives non-zero exit status
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[0]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[0]}" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -124,7 +131,7 @@ EOF
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (2) Run a calculation that freezes the potentials just to get a 
+# (2) Run a calculation that freezes the potentials just to get a
 #     robust set of virtual states
 cat << EOF > mf.data
 &nucleus
@@ -200,7 +207,8 @@ famfile='S_20.fam'
 &Cranking
 /
 &fam
-omega=25.0
+omega_min=25
+omega_max=25.0
 smear=1.0
 l=2
 m=0
@@ -219,7 +227,7 @@ fam_check=$?
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $mfoutfile)
 
-if $verbose; then 
+if $verbose; then
 	echo " HF  LO   : E = $E"
 fi
 
@@ -230,7 +238,7 @@ check_energy=$?
 # b) Get the strength from the S_20.fam file
 S=$(get_strength "S_20.fam" 25.0)
 
-if $verbose; then 
+if $verbose; then
 	echo " FAM LO   : S(omega=25) = $S"
 fi
 
@@ -245,7 +253,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (3) Run the LO-T FAM calculation
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[1]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[1]}" "t0t3"
 cp ../mf.wf .
 
 # Create runtime data
@@ -298,7 +306,7 @@ fam_T_check=$?
 # b) Get the strength from the S_20.T.fam file
 S_T=$(get_strength "S_20.T.fam" 25.0)
 
-if $verbose; then 
+if $verbose; then
 	echo " FAM LO-T : S(omega=25) = $S_T"
 fi
 
@@ -311,7 +319,7 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Run the LO-P FAM calculation
-setup_test_env_fam "fam_t0t3" "${args[0]}" "${args[2]}" "t0t3"
+setup_test_env_fam "fam_t0t3_Nthreads=$Nthreads" "${args[0]}" "${args[2]}" "t0t3"
 mv ../mf.wf .
 
 # Create runtime data
@@ -363,7 +371,7 @@ fam_P_check=$?
 # b) Get the strength from the S_20.fam file
 S_P=$(get_strength "S_20.P.fam" 25.0)
 
-if $verbose; then 
+if $verbose; then
 	echo " FAM LO-P : S(omega=25) = $S_P"
 fi
 
@@ -421,7 +429,7 @@ EOF
 mocca_check=$?
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# (6) Run a calculation that freezes the potentials just to get a 
+# (6) Run a calculation that freezes the potentials just to get a
 #     robust set of virtual states
 cat << EOF > mf.data
 &nucleus
@@ -463,7 +471,7 @@ EOF
 
 E=$(get_total_energy_stdout $mfoutfile.ter)
 
-if $verbose; then 
+if $verbose; then
 	echo " HFB LO   : E = $E"
 fi
 
@@ -527,7 +535,7 @@ qfam_check=$?
 # b) Get the strength from the S_20.fam file
 S_Q=$(get_strength "S_20.QFAM.fam" 25.0)
 
-if $verbose; then 
+if $verbose; then
 	echo " QFAM LO   : S(omega=25) = $S_Q"
 fi
 
@@ -602,7 +610,7 @@ qfam_T_check=$?
 # b) Get the strength from the S_20.fam file
 S_QT=$(get_strength "S_20.QFAM.T.fam" 25.0)
 
-if $verbose; then 
+if $verbose; then
 	echo " QFAM LO-T : S(omega=25) = $S_QT"
 fi
 
@@ -697,6 +705,8 @@ fail=$(($mocca_check || $fam_check || $fam_T_check || $fam_P_check || $qfam_chec
 
 if (($fail == 0)) ; then
 	echo -e "test FAM t0t3 :\033[1;32m success \033[0m"
+	echo -e "  tantalus : $tantalus_check, fam    : $fam_check, fam_T : $fam_T_check, fam_P : $fam_P_check"
+	echo -e "  E_hf     : $check_energy, S20    : $check_strength, S20_T : $check_strength_T, S20_P : $check_strength_P"
 else
 	echo -e "test FAM t0t3 :\033[1;31m failed ! exit status : tant = $mocca_check, fam = $fam_check, fam_T = $fam_T_check, fam_P = $fam_P_check, fam_HFB = $qfam_check
 	                 benchmarks :  E_hf = $check_energy, S20 = $check_strength, S20_T = $check_strength_T, S20_P = $check_strength_P, S20_QRPA = $check_strength_QRPA, S20_QRPA_T = $check_strength_QRPA_T, S20_QRPA_P = $check_strength_QRPA_P \033[0m"

@@ -1,0 +1,38 @@
+#-------------------------------------------------------------------------------
+# Reusable workflow: Compile mean-field executables for pasta calculations
+#-------------------------------------------------------------------------------
+name: Compile MF Pasta
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [ BXL ]
+        COMPILER: [ gfortran ]
+        CALCTYPE: [ PASTA ]
+        MPI: [ false ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Compile and upload
+        uses: ./.github/actions/compile-and-upload
+        with:
+          target: mf
+          config: ${{ matrix.CONFIG }}
+          compiler: ${{ matrix.COMPILER }}
+          calctype: ${{ matrix.CALCTYPE }}
+          mpi: ${{ matrix.MPI }}
+          compfam: ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+          hdf5suffix: '-hdf5' #${{ matrix.COMPILER == 'gfortran' && '-hdf5' || '' }}
+          execname_prefix: 'MOCCa'

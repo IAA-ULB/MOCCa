@@ -173,12 +173,16 @@ program run_FAM
   ! call test_RP_commutator
 
   !---------------------------------------------------------------------------------
+  ! create the FAM output file
+  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
+  !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
   omega_curr = omega_min
 
+  print *, "Starting the FAM calculation over ", omega_num, " frequencies from ", omega_min, " to ", omega_max, " MeV "
   do omega_index=1, omega_num
 
     print 11, omega_curr
