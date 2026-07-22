@@ -1505,6 +1505,15 @@ contains
     !     effective charges. While for isoscalar both are positive and 
     !     approximately equal, for isovector effective charges differ in sign but 
     !     are close in magnitude.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Caveats
+    ! - the expressions in this routine are only valid for ground states of
+    !   even-even systems; time-odd contributions would appear in more general
+    !   cases too.
+    ! - this routine currently assumes that hbar^2/2m is equal for both
+    !   protons and neutrons; which is true for many (most?) parameterizations
+    !   in current useage, but is not generally true.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in) :: R
     real(KIND=dp) :: res
@@ -1585,7 +1594,10 @@ contains
       return
     endif
 
-
+    ! Account for the 1-body part of the center of mass correction
+    if(COM1body == 2) then
+       m1kin = m1kin * ( 1 - 1.0d0/(neutrons + protons) )
+    endif
     !--------------------------------------------------------------
     ! include enhancement factor kappa for isovector pertubations
     !--------------------------------------------------------------
