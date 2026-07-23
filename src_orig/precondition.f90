@@ -26,34 +26,23 @@ module preconditioning
 !
 ! Module that governs all of the possible preconditioning that can be applied.
 !
-! Two different possibilities are currently presented. 
-! 
 !===============================================================================
-! (1) P.G. Style preconditioning for the spwfs
+!  W.R.-style preconditioning for the potentials
 !===============================================================================
-!     Constructing the approximate inverse matrices of the second derivatives in
-!     every Cartesian direction with an added constant.
-!     I.e. that
-!      A_x{x/y/z} (C * Delta_{x/y/z} - eps)^{-1}
-!     Then we suppose that 
-!      (Delta + D)^{-1} \approx A_{x} + A_{y} + A_{z}
-!     for some specific values of C,D and eps.
-!  
-!===============================================================================
-! (2) W.R.-style preconditioning for the potentials
-!===============================================================================
-! 
+!
 !     Invert the following operator on the mesh
 !         Pf(r) = b*f(r) + a*Delta[f(r)]
 !
-!     Not by constructing its inverse, but by repeatedly applying that 
+!     Not by constructing its inverse, but by repeatedly applying that
 !     operator in a conjugate gradient scheme.
 !===============================================================================
+    use compilation, only : dp
+    use geninfo, only: nx,ny,nz, mv, dv
 
-    use derivatives
+    implicit none (external)
 
-    implicit none
-    
+    public
+
 contains
 
  function PreconditionPotential(pot,A,B,sx,sy,sz) result(invpot)
@@ -62,8 +51,8 @@ contains
     !
     !   ( B  + A * \Delta)^{-1}
     !
-    ! Calculated through the repeated application of its inverse in a 
-    ! conjugate gradient algorithm. 
+    ! Calculated through the repeated application of its inverse in a
+    ! conjugate gradient algorithm.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -74,8 +63,7 @@ contains
     ! Output:
     !    invpot    : preconditioned potential (all components!)
     !---------------------------------------------------------------------------
-    use Derivatives
-    
+
     real(KIND=dp), intent(in) :: a, b
     real(KIND=dp), intent(in) :: pot(nx*ny*nz,4)
     integer, intent(in) :: sx,sy,sz
@@ -83,49 +71,49 @@ contains
     real(KIND=dp) :: residual(nx*ny*nz), update(nx*ny*nz), aCG
     real(KIND=dp) :: invpot(nx*ny*nz,4), direction(nx*ny*nz), bCG
     real(KIND=dp) :: newresnorm, oldresnorm
-    
+
     integer:: it, iter
-    
+
     !---------------------------------------------------------------------------
     invpot  = 0.0
-    do it=1,2 
-        Residual         = pot(:,it) 
+    do it=1,2
+        Residual         = pot(:,it)
         Direction        = Residual
         newresnorm       = sum(direction**2)*dv
-        if(abs(newresnorm).lt.1e-15) cycle ! Don't iterate if we are already
-                                           ! good enough. This also takes care
-                                           ! of the possible explosion of this
-                                           ! subroutine if pot is zero everywhere.
-                                           !
-                                           ! Note: this tolerance is tighter than
-                                           !  the later one, to ensure we get an
-                                           !  update of the potentials more often
-                                           !  than not.
+        if(abs(newresnorm)<1e-30) then
+            ! Don't iterate if we are already good enough. This also takes care
+            ! of the possible explosion of this subroutine if pot is zero everywhere.
+            !
+            ! Note: this tolerance is tighter than the one inside the iteration
+            ! loop to ensure we get an update of the potentials more often than not.
+           invpot(:,it) = pot(:,it)
+           cycle
+        endif
         !-----------------------------------------------------------------------
         do iter=1,300
           update   = preconoperator(direction,a,b,sx,sy,sz)
 
           aCG    = NewResNorm/(sum(Direction*update)*dv)
-          
+
           invpot(:,it)   = invpot(:,it)  + aCG * Direction
           residual       = residual      - aCG * update
-          
+
           oldresnorm = newresnorm
           newresnorm = sum(residual**2)*dv
-          
+
           BCG        = NewResNorm/OldResNorm
           Direction  = Residual + bCG * Direction
-          if(newresnorm.lt.1d-14) exit
+          if(newresnorm<1d-16) exit
         enddo
         !-----------------------------------------------------------------------
     enddo
     invpot(:,3) = invpot(:,1) + invpot(:,2)
-    invpot(:,4) = invpot(:,1) - invpot(:,2) 
+    invpot(:,4) = invpot(:,1) - invpot(:,2)
 
     !---------------------------------------------------------------------------
 !    print *, 'Inv. Pot., iter = ', iter, newresnorm, sum(invpot(:,1))*dv,  &
 !    &                     sum(invpot(:,2))*dv
-    
+
  end function Preconditionpotential
 
  function KerkerPreconditionPotential(pot,a,k0,sx,sy,sz) result(invpot)
@@ -150,7 +138,7 @@ contains
     ! Output:
     !    invpot    : preconditioned potential (all components!)
     !---------------------------------------------------------------------------
-    use Derivatives
+    use Derivatives, only : Derive_lap
 
     real(KIND=dp), intent(in) :: k0, a
     real(KIND=dp), intent(in) :: pot(nx*ny*nz,4)
@@ -172,18 +160,18 @@ contains
     !---------------------------------------------------------------------------
     ! Implement the preconditioning operator
     !
-    ! Pf(r) = B(r)*f(r) + a(r) * Delta(f(r)) 
+    ! Pf(r) = B(r)*f(r) + a(r) * Delta(f(r))
     !---------------------------------------------------------------------------
-    use Derivatives
-    
+    use Derivatives, only : Derive_lap
+
     real(KIND=dp), intent(in) :: f(nx*ny*nz)
     real(KIND=dp)             :: Pf(nx*ny*nz), df(nx*ny*nz)
     real(KIND=dp),intent(in)  :: a, b
     integer, intent(in)       :: sx,sy,sz
 
-    call Derive_lap(f,sx,sy,sz,df) 
+    call Derive_lap(f,sx,sy,sz,df)
     Pf = b*f + a*df
-    
+
   end function preconoperator
 
 end module preconditioning
