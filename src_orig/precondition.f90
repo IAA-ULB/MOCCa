@@ -92,10 +92,15 @@ contains
         Residual         = pot(:,it) 
         Direction        = Residual
         newresnorm       = sum(direction**2)*dv
-        if(abs(newresnorm).lt.1e-8) cycle  ! Don't iterate if we are already
+        if(abs(newresnorm).lt.1e-15) cycle ! Don't iterate if we are already
                                            ! good enough. This also takes care
                                            ! of the possible explosion of this
-                                           ! subroutine if pot is zero everywhere. 
+                                           ! subroutine if pot is zero everywhere.
+                                           !
+                                           ! Note: this tolerance is tighter than
+                                           !  the later one, to ensure we get an
+                                           !  update of the potentials more often
+                                           !  than not.
         !-----------------------------------------------------------------------
         do iter=1,300
           update   = preconoperator(direction,a,b,sx,sy,sz)
@@ -110,7 +115,7 @@ contains
           
           BCG        = NewResNorm/OldResNorm
           Direction  = Residual + bCG * Direction
-          if(newresnorm.lt.1d-8) exit
+          if(newresnorm.lt.1d-14) exit
         enddo
         !-----------------------------------------------------------------------
     enddo
