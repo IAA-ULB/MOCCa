@@ -347,6 +347,18 @@ check_convergence() {
     fi
 }
 
+get_E_fu_diff_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the difference E_fu - E_sp from the MOCCa STDOUT as a float
+# This represents the difference between energy calculated through the functional
+# and by way of the spwfs.
+#
+# Input:
+#    $1: filename of MOCCa STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  echo `grep "E_fu - E_sp:" $1 | tail -1 | grep -oE '[+-]?[0-9]+([.][0-9]+)?([Ee][+-]?[0-9]+)?'`
+}
+
 compare_floats (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Compare two floating point numbers for equality within a given tolerance.

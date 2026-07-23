@@ -165,6 +165,47 @@ jobs:
           path: testing/integration/logs/fission.${{ env.SUFFIX }}.out
           retention-days: 2
 
+  functional_spwfs_consistency:
+    needs: compile-mf-nuclei
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'functional_spwfs_consistency'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        include:
+          - CONFIG: NLO
+            PARAM: SLy4_NC
+          - CONFIG: N2LO
+            PARAM: SN2LO1_NC
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.gfortran.NUCLEI.serial
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executable
+        run: chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+
+      - name: Run functional_spwfs_consistency test
+        run: |
+          cd testing/integration/
+          bash functional_spwfs_consistency.sh -e $SUFFIX -p ${{ matrix.PARAM }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: functional_spwfs_consistency-${{ env.SUFFIX }}-${{ matrix.PARAM }}.logs
+          path: testing/integration/logs/functional_spwfs_consistency.${{ env.SUFFIX }}.out
+          retention-days: 2
+
   continuation_wf:
     needs: compile-mf-nuclei
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'continuation_wf'
