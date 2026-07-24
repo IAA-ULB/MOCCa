@@ -216,7 +216,27 @@ print(f"{popt[1]} {popt[2]} {ifail}")
 EOF
 
 # Run python script and capture all three outputs
-read omega_r omega_i ifail <<< $(python analyse.py)
+python_output=$(python3 analyse.py 2>&1)
+python_exit_status=$?
+
+# Check if Python script executed successfully
+if [ $python_exit_status -ne 0 ]; then
+  echo "Error: Python analysis script failed with exit status $python_exit_status"
+  echo "Python output: $python_output"
+  ifail=1
+  omega_r=""
+  omega_i=""
+else
+  # Read the three expected values from stdout
+  read omega_r omega_i ifail <<< "$python_output"
+  
+  # Verify we got all three values
+  if [ -z "$omega_r" ] || [ -z "$omega_i" ] || [ -z "$ifail" ]; then
+    echo "Error: Python script did not produce expected output (omega_r, omega_i, ifail)"
+    echo "Python output: $python_output"
+    ifail=1
+  fi
+fi
 
 # Report results
 if $verbose; then
