@@ -1285,7 +1285,7 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! skip when F=N or if F=Q_LK with even L or K>1
-    if (operator_type == 'N' .or. (operator_type == 'multipole' .and. (mod(l,2)==0 .or. m>1)) ) then
+    if (operator_type == 'particle number' .or. (operator_type == 'multipole' .and. (mod(l,2)==0 .or. m>1)) ) then
       print *, 'No need to subtract translational spurious mode'
       return
     endif
