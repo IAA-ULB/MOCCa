@@ -251,8 +251,8 @@ $TR real(KIND=dp) :: trash
       angmomold_cut   = totalangmom_cut
     endif
     ! ... and resetting the current values
-    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
-    J2_sp       = 0.0
+    totalangmom = 0.0d0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
+    J2_sp       = 0.0d0
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
@@ -279,9 +279,9 @@ $NTR    ! And now we integrate the current density and spin density.
 $NTR    do it=1,2
 $NTR      ! Spin part
 $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-$NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
+$NTR      &                     0.5d0 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
-$NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
+$NTR      &                     0.5d0 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
 
 #if($TAUPRESENT == 1 )
@@ -398,10 +398,10 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
     enddo
     print 1
     if(crank_smooth) then
-      print 41, sqrt(sum(totalangmom_dens**2)), 0.0, &
+      print 41, sqrt(sum(totalangmom_dens**2)), 0.0d0, &
       &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom**2))
     else
-      print 41, sqrt(sum(totalangmom**2)), 0.0, &
+      print 41, sqrt(sum(totalangmom**2)), 0.0d0, &
       &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
     endif
     print 10
@@ -421,8 +421,8 @@ $NTR        if(i .eq. crankdirections(j)) found = .true.
 $NTR      enddo
 $NTR      if(found) then
 $NTR        ! There is a possibility for total spin in this Cartesian direction.
-$NTR        print 8     , dir(i), 0.5*sum(R%D_I_S(:,i,1))*dv, &
-$NTR        &                     0.5*sum(R%D_I_S(:,i,2))*dv
+$NTR        print 8     , dir(i), 0.5d0*sum(R%D_I_S(:,i,1))*dv, &
+$NTR        &                     0.5d0*sum(R%D_I_S(:,i,2))*dv
 $NTR      else
 $NTR        ! Spin is restricted in this particular direction
 $NTR        print 8     , dir(i), 0.0d0,0.0d0
@@ -455,7 +455,7 @@ $NTR    integer :: i, it, c
 $NTR    do i=1, cranklen
 $NTR      c           = crankdirections(i)
 $NTR      do it=1,2
-$NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
+$NTR        spot(:,c,it) = - 0.5d0 * omega(c) * cutoff(:,it)
 $NTR      enddo
 $NTR    enddo
 

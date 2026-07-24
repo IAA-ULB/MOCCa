@@ -255,7 +255,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
- real(KIND=dp) :: osc_freq(3) = (/ 0.2125, 0.2125, 0.175 /)
+ real(KIND=dp) :: osc_freq(3) = (/ 0.2125d0, 0.2125d0, 0.175d0 /)
  !------------------------------------------------------------------------------
  ! Tell MOCCa to either
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
@@ -1523,7 +1523,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! Normalize wave-function nw
             nw = indices(i)
             norm = sum(HFpsi(:,:,nw)**2) * dv
-            HFPsi(:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,nw) 
+            HFPsi(:,:,nw) = (sqrt(1.0d0/norm)) * HFPsi(:,:,nw)
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Then subtract the projection on \Psi_{nw} from all the following
             ! Spwf.
@@ -1841,7 +1841,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,3)                       &
+      angmom = angmom     + 0.5d0*(  wf2(i,1) * wf1(i,3)                       &
       &                            + wf2(i,2) * wf1(i,4)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            + wf2(i,4) * wf1(i,2))                        
@@ -1883,7 +1883,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sx = 0    
     do i=1,mv
       ! Spin part
-      sx = sx               + 0.5*(  wf2(i,1) * wf1(i,3)                       &
+      sx = sx             + 0.5d0*(  wf2(i,1) * wf1(i,3)                       &
       &                            + wf2(i,2) * wf1(i,4)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            + wf2(i,4) * wf1(i,2))                        
@@ -1913,7 +1913,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      angmom = angmom     + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            - wf2(i,4) * wf1(i,2))                        
@@ -1955,7 +1955,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sx = 0    
     do i=1,mv
       ! Spin part
-      sx = sx               + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      sx = sx             + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            - wf2(i,4) * wf1(i,2))                        
@@ -1984,7 +1984,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0    
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,1)                       &
+      angmom = angmom     + 0.5d0*(- wf2(i,1) * wf1(i,1)                       &
       &                            + wf2(i,2) * wf1(i,2)                       & 
       &                            + wf2(i,3) * wf1(i,3)                       &
       &                            - wf2(i,4) * wf1(i,4))                        
@@ -2025,7 +2025,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sx = 0    
     do i=1,mv
       ! Spin part
-      sx = sx               + 0.5*(- wf2(i,1) * wf1(i,1)                       &
+      sx = sx             + 0.5d0*(- wf2(i,1) * wf1(i,1)                       &
       &                            + wf2(i,2) * wf1(i,2)                       & 
       &                            + wf2(i,3) * wf1(i,3)                       &
       &                            - wf2(i,4) * wf1(i,4))                        
@@ -2112,7 +2112,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      angmom = angmom     + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
       &                            - wf2(i,3) * wf1(i,2)                       &
       &                            + wf2(i,4) * wf1(i,1))                        
@@ -2155,7 +2155,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sy = 0
     do i=1,mv
       ! Spin part
-      sy = sy               + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      sy = sy             + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
       &                            - wf2(i,3) * wf1(i,2)                       &
       &                            + wf2(i,4) * wf1(i,1))                        
@@ -2184,7 +2184,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,3)                       &
+      angmom = angmom     + 0.5d0*(- wf2(i,1) * wf1(i,3)                       &
       &                            - wf2(i,2) * wf1(i,4)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            + wf2(i,4) * wf1(i,2))                        
@@ -2226,7 +2226,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sy = 0
     do i=1,mv
       ! Spin part
-      sy = sy               + 0.5*(- wf2(i,1) * wf1(i,3)                       &
+      sy = sy             + 0.5d0*(- wf2(i,1) * wf1(i,3)                       &
       &                            - wf2(i,2) * wf1(i,4)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
       &                            + wf2(i,4) * wf1(i,2))                        
@@ -2255,7 +2255,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(+ wf2(i,1) * wf1(i,1)                       &
+      angmom = angmom     + 0.5d0*(+ wf2(i,1) * wf1(i,1)                       &
       &                            - wf2(i,2) * wf1(i,2)                       & 
       &                            + wf2(i,3) * wf1(i,3)                       &
       &                            - wf2(i,4) * wf1(i,4))                        
@@ -2298,7 +2298,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     sy = 0
     do i=1,mv
       ! Spin part
-      sy = sy               + 0.5*(+ wf2(i,1) * wf1(i,1)                       &
+      sy = sy             + 0.5d0*(+ wf2(i,1) * wf1(i,1)                       &
       &                            - wf2(i,2) * wf1(i,2)                       & 
       &                            + wf2(i,3) * wf1(i,3)                       &
       &                            - wf2(i,4) * wf1(i,4))                        
@@ -2387,7 +2387,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !-------------------------------------------------------------------------
       ! Real part  
       ! Spin part
-      angmom = angmom    + 0.5*(         wf2(i,1) * wf1(i,1)                   &
+      angmom = angmom  + 0.5d0*(         wf2(i,1) * wf1(i,1)                   &
       &                                + wf2(i,2) * wf1(i,2)                   & 
       &                                - wf2(i,3) * wf1(i,3)                   &
       &                                - wf2(i,4) * wf1(i,4))                        
@@ -2431,7 +2431,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !-------------------------------------------------------------------------
       ! Real part  
       ! Spin part
-      sz = sz            + 0.5*(         wf2(i,1) * wf1(i,1)                   &
+      sz = sz          + 0.5d0*(         wf2(i,1) * wf1(i,1)                   &
       &                                + wf2(i,2) * wf1(i,2)                   & 
       &                                - wf2(i,3) * wf1(i,3)                   &
       &                                - wf2(i,4) * wf1(i,4))                        
@@ -2464,7 +2464,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Real part  
 
       ! Spin part
-      angmom = angmom       + 0.5*(- wf2(i,2) * wf1(i,1)                       &
+      angmom = angmom     + 0.5d0*(- wf2(i,2) * wf1(i,1)                       &
       &                            + wf2(i,1) * wf1(i,2)                       & 
       &                            + wf2(i,4) * wf1(i,3)                       &
       &                            - wf2(i,3) * wf1(i,4))                        
@@ -2507,7 +2507,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     do i=1,mv
       !-------------------------------------------------------------------------
       ! Spin part
-      sz = sz               + 0.5*(- wf2(i,2) * wf1(i,1)                       &
+      sz = sz             + 0.5d0*(- wf2(i,2) * wf1(i,1)                       &
       &                            + wf2(i,1) * wf1(i,2)                       & 
       &                            + wf2(i,4) * wf1(i,3)                       &
       &                            - wf2(i,3) * wf1(i,4))                        
@@ -2538,7 +2538,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Real part  
 
       ! Spin part
-      angmom = angmom    + 0.5*(         wf2(i,1) * wf1(i,3)                   &
+      angmom = angmom  + 0.5d0*(         wf2(i,1) * wf1(i,3)                   &
       &                                - wf2(i,2) * wf1(i,4)                   & 
       &                                + wf2(i,3) * wf1(i,1)                   &
       &                                - wf2(i,4) * wf1(i,2))                        
@@ -2885,7 +2885,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           J2(3,wave)     = angmom_z_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
           &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
 
-          JJ(wave) =  (-1. + sqrt(1. + 4*sum(J2(:,wave))))/2.
+          JJ(wave) =  (-1.0d0 + sqrt(1.d0 + 4*sum(J2(:,wave))))/2.d0
 
           STR (1,wave) = spin_xt_real(psi(:,:,si+i), psi(:,:,si+i))
           STI (2,wave) = spin_yt_imag(psi(:,:,si+i), psi(:,:,si+i))

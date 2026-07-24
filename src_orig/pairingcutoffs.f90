@@ -43,8 +43,8 @@ module pairingcutoffs
  integer :: CutType = 1
  !------------------------------------------------------------------------------
  ! Parameters for the symmetric Fermi function cutoff
- real(KIND=dp) :: cutneutron = 5, cutproton= 5.
- real(KIND=dp) :: PairingCut(2) = 0,  PairingMu(2) =0.5
+ real(KIND=dp) :: cutneutron = 5.d0, cutproton= 5.d0
+ real(KIND=dp) :: PairingCut(2) = 0,  PairingMu(2) =0.5d0
  !------------------------------------------------------------------------------
  ! Storage for all cutoffs. 
  ! Currently these are ALWAYS in the HF basis.
@@ -143,7 +143,7 @@ contains
     if( abs(E - Lambda).le. Down) then
       Cutoff = 1.0_dp      
     elseif( abs(E-Lambda) .le. Up) then
-      Cutoff = 0.5_dp * cos((abs(E-Lambda) - Down)*pi/PairingMu(it)) + 0.5
+      Cutoff = 0.5_dp * cos((abs(E-Lambda) - Down)*pi/PairingMu(it)) + 0.5d0
     else
       Cutoff = 0.0_dp
     endif
@@ -170,8 +170,8 @@ contains
     real(Kind=dp)             :: Up, Down, Up2, ECut2
     
     Up   =     (E - Lambda - PairingCut(it))/PairingMu(it)
-    Ecut2=  max(Lambda+2,0.)
-    Up2  =     (E-Ecut2)/1e-4
+    Ecut2=  max(Lambda+2,0.d0)
+    Up2  =     (E-Ecut2)/1d-4
     Down =   - (E - Lambda + PairingCut(it))/PairingMu(it)
     Cutoff = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
     Cutoff = Cutoff * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Down))))

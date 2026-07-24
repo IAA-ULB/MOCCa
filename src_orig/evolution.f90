@@ -65,12 +65,12 @@ module evolution
 
     !---------------------------------------------------------------------------
     ! Parameters of the iteration scheme
-    real(KIND=dp):: dt    =  0.01
+    real(KIND=dp):: dt    =  0.01d0
     real(KIND=dp):: hbar  =  6.58211928_dp
-    real(KIND=dp):: stepsize_safety = 0.9
+    real(KIND=dp):: stepsize_safety = 0.9d0
     !---------------------------------------------------------------------------
     ! Default value of the momentum factor.
-    real(KIND=dp) :: momentum=0.0
+    real(KIND=dp) :: momentum=0.0d0
     !---------------------------------------------------------------------------
     ! Norm of the gradient and weighted sum of the dispersions
     real(KIND=dp) :: gradientnorm, d2h
@@ -1525,7 +1525,7 @@ $N3       allocate(dddmax(nx*ny*nz,10,4))
           deallocate(seed)
           do it=1,2
             maxspwf(:,:,it) = &                                      ! normalize
-                        & 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv) * maxspwf(:,:,it)
+                        & 1.0d0/sqrt(sum(maxspwf(:,:,it)**2)*dv) * maxspwf(:,:,it)
           enddo
       endif
 
@@ -1559,7 +1559,7 @@ $N3       &                                         dddmax,                    &
           maxspwf(:,:,it)  = actionofh 
           !---------------------------------------------------------------------
           ! Normalize
-          maxspwf(:,:,it) = 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv)*maxspwf(:,:,it)
+          maxspwf(:,:,it) = 1.0d0/sqrt(sum(maxspwf(:,:,it)**2)*dv)*maxspwf(:,:,it)
           !---------------------------------------------------------------------
           ! Don't be to picky about convergence, within the order of an MeV is
           ! good enough.
@@ -1574,7 +1574,7 @@ $N3       &                                         dddmax,                    &
           print 3, -1, estimated_max_spe(1), con(1)
           print 3, +1, estimated_max_spe(2), con(2)
       endif
-      if(MPI_RANK.eq.0 .and. any(estimated_max_spe .lt. 0.0)) then
+      if(MPI_RANK.eq.0 .and. any(estimated_max_spe .lt. 0.0d0)) then
           print 4
           print 5
           print 3, -1, estimated_max_spe(1), con(1)
@@ -1591,11 +1591,11 @@ $N3       &                                         dddmax,                    &
       case(0)   
           ! HF calculation: look at the difference in spwf energies
           do i=1,nwt
-            if(abs(rho_can(i)).lt.0.5) cycle
+            if(abs(rho_can(i)).lt.0.5d0) cycle
             do ii=1,nwt
-                if(abs(rho_can(ii)).gt.0.5) cycle
+                if(abs(rho_can(ii)).gt.0.5d0) cycle
                 compare = spenergies(ii)  - spenergies(i) 
-                if(compare .gt. 0.0) then
+                if(compare .gt. 0.0d0) then
                   relE = min(relE, compare)
                 endif
             enddo
@@ -1605,7 +1605,7 @@ $N3       &                                         dddmax,                    &
           relE = minval(abs(QPenergies))
       end select
       ! Safeguard the difference
-      if(relE .lt. 0.20) relE = 0.50
+      if(relE .lt. 0.20d0) relE = 0.50d0
       !-------------------------------------------------------------------------
       ! Step 3: use these estimations to determine a value for dt and mu.
       maxE  = maxE - minval(spenergies)
@@ -1613,11 +1613,11 @@ $N3       &                                         dddmax,                    &
       
       if(Iteration.eq.1) then
         ! Don't mess up with a too large step at the start of the iterations
-        dt = 2.0/maxE*hbar * stepsize_safety
-        momentum = 0.0
+        dt = 2.0d0/maxE*hbar * stepsize_safety
+        momentum = 0.0d0
       else        
         momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
-        dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar *  stepsize_safety
+        dt    = 4.0d0/(maxE+relE+2*sqrt(maxE*relE))*hbar *  stepsize_safety
       endif  
   end subroutine IterativeEstimation
 !#endif ! TO renable!
@@ -1682,12 +1682,12 @@ $N3       &                                         dddmax,                    &
     select case(Current%isoswitch)
     case(0)
       do it=1,2
-        Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
+        Update(:,it) = 0.5d0*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
       enddo
     case(1,2)
       ! only one nucleon species feels the constraint
       it = Current%isoswitch
-      Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
+      Update(:,it) = 0.5d0*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
     end select
     multipole = multipole + Update
    enddo
@@ -1702,7 +1702,7 @@ $N3       &                                         dddmax,                    &
      else
       J = TotalAngMom(i)
      endif
-     CrankFactor(i)= 0.5*( J -CrankValues(i))/J2_sp(i)
+     CrankFactor(i)= 0.5d0*( J -CrankValues(i))/J2_sp(i)
      ! Rescale with a factor
      Crankfactor(i) = Crankfactor(i)*CrankScaleFactor(i)
    enddo

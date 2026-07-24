@@ -80,7 +80,7 @@ contains
         Residual         = pot(:,it)
         Direction        = Residual
         newresnorm       = sum(direction**2)*dv
-        if(abs(newresnorm)<1e-30) then
+        if(abs(newresnorm)<1d-30) then
             ! Don't iterate if we are already good enough. This also takes care
             ! of the possible explosion of this subroutine if pot is zero everywhere.
             !

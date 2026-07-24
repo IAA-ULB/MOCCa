@@ -135,7 +135,7 @@ module functional
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
     real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
     real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch
-    real(KIND=dp), parameter :: Qnp=1.29335236 !Mn-Mp
+    real(KIND=dp), parameter :: Qnp=1.29335236d0 !Mn-Mp
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
@@ -286,7 +286,7 @@ contains
      !--------------------------------------------------------------------------
 $CALCCOEF
 
-    nucleonmass = 0.5*(nucleonmass(1) + nucleonmass(2))
+    nucleonmass = 0.5d0*(nucleonmass(1) + nucleonmass(2))
 
  end subroutine calcedfcoefs
 
@@ -446,15 +446,15 @@ $PRINTCOEF_PAIR
     endif
 
     print *
-    print 7, 0.0, CoulombDirect, CoulombDirect
+    print 7, 0.0d0, CoulombDirect, CoulombDirect
     !if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
     !  temp = CoulombEnergy_Direct(Density, Potentials)
-    !  print 71, 0.0, temp, temp
+    !  print 71, 0.0d0, temp, temp
     !endif
-    print 8, 0.0, CoulombExchange, CoulombExchange
+    print 8, 0.0d0, CoulombExchange, CoulombExchange
     !if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
     !  temp = CoulombEnergy_Exchange(Density)
-    !  print 81, 0.0, temp, temp
+    !  print 81, 0.0d0, temp, temp
     !endif
 
     print *
@@ -1200,8 +1200,8 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
       ! Deduce 1-body COM correction from the Kinetic Energy with Butlers
       ! formula.
 
-      Butler_t = (1.5 * (neutrons + protons))**(1./3.)
-      Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+      Butler_t = (1.5d0 * (neutrons + protons))**(1.d0/3.d0)
+      Butler_f = 2.d0/(Butler_t + 1.d0/(3*Butler_t))
 
       COMCorr(1,:) = - Kin(:) * nucleonmass * Butler_f/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
@@ -1234,7 +1234,7 @@ $NTR    endif
             ! + sum_ij rho_ii rho_jj |Nabla_ij|^2
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j)
-$TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
+$TR         fac = fac / 4.0d0 ! rho_can is twice too large if T is conserved
             COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
             COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
             COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
@@ -1477,8 +1477,8 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
       real(KIND=dp)             :: A, R
 
       A   = N + Z
-      R   = 1.2 * (A)**(1./3.)
-      MOI =  2.0d0/5.0d0 * sum(nucleonmass)/2 * (A)*R**2
+      R   = 1.2d0 * (A)**(1.d0/3.d0)
+      MOI = 2.0d0/5.0d0 * sum(nucleonmass)/2 * (A)*R**2
       MOI = MOI/(hbarclum**2)
   end function classical_MOI
 
@@ -1847,7 +1847,7 @@ $POTENTIALPRECON
     complex(KIND=dp)                  :: pot(mv,4)
 #endif
     pot = 0.0d0    
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    if((all(protonsize.eq.0.0d0) .and. all(neutronsize.eq.0.0d0)) .or.     &
       &                             (.not. nucleonsize_selfconsistent)) then
 
       !------------------------------------------------------------------------
@@ -1915,7 +1915,7 @@ $POTENTIALPRECON
     Type(PotentialVector), intent(inout) :: F
     integer                              :: i,j,k, ox, oy, oz, it
 
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    if((all(protonsize.eq.0.0d0) .and. all(neutronsize.eq.0.0d0)) .or.     &
       &                             (.not. nucleonsize_selfconsistent)) then
       !------------------------------------------------------------------------
       ! Protons and neutrons are treated as point particles
@@ -2174,8 +2174,8 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
       Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
       &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
     case(3)
-      Butler_t = (1.5 * (neutrons + protons))**(1./3.)
-      Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+      Butler_t = (1.5d0 * (neutrons + protons))**(1.d0/3.d0)
+      Butler_f = 2.d0/(Butler_t + 1.d0/(3*Butler_t))
       Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
       &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
     end select
@@ -2332,7 +2332,7 @@ $PAIRINGACTION
 $TR   spwfenergy = 2 * spwfenergy      
     endif
     !
-    spwfenergy = 0.5 * spwfenergy
+    spwfenergy = 0.5d0 * spwfenergy
 
     ! Calculation of rearrangement energy (without Coulomb Exchange)
     e_rear = 0
@@ -2343,7 +2343,7 @@ $EREAR
 
     spwfenergy = spwfenergy + e_rear
     ! Add kinetic and CoulombExchange contributions
-    spwfenergy = spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
+    spwfenergy = spwfenergy + 0.5d0 * sum(kinetic) + CoulombExchange/3.d0
 
     ! Add the 1-body COMcorrection. 
     if(COM1body.eq.1) then

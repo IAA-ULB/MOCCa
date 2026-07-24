@@ -286,8 +286,8 @@ contains
 
           if(MPI_RANK.eq.calc_rank) then
             ! Only one rank should do the integration of the matrix elements
-$TR         fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
-$NTR        fi = rho_can(ii)     ; fj = rho_can(jj)
+$TR         fi = rho_can(ii)/2.0d0 ; fj = rho_can(jj)/2.d0
+$NTR        fi = rho_can(ii)       ; fj = rho_can(jj)
             ! |< k | j_z |  l >|^2 
             ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2  
             J2_pairing_cut(3,it) = J2_pairing_cut(3,it) +  ME(3) * fi*(1-fj)
@@ -554,10 +554,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
             ! ME_{kl}, which are pair-wise equal when J_i = J_j.
             ME = 2 * ME 
 
-            vi  = BCSOccupations(ii)/2. ; vj  = BCSOccupations(jj)/2.
-            ui  = 1 - vi                ; uj  = 1 - vj
-            fi  = BCSf(ii)              ; fj  = BCSf(jj)
-            uvi = ui*vi                 ; uvj = uj*vj         
+            vi  = BCSOccupations(ii)/2.0d0 ; vj  = BCSOccupations(jj)/2.0d0
+            ui  = 1 - vi                   ; uj  = 1 - vj
+            fi  = BCSf(ii)                 ; fj  = BCSf(jj)
+            uvi = ui*vi                    ; uvj = uj*vj
 
             ! Take the square root, but take care for numerical errors producing 
             ! small negative numbers.
@@ -1161,7 +1161,7 @@ $NTR      endif
           !  we can treat the rho-rho term and kappa-kappa term equally
           ! 
 $TR       ! Factors 1./2 due to time-reversal
-$TR       fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
+$TR       fac=  rho_can(ii)/2.d0*(1-rho_can(jj)/2.d0)-kappa_can(ii)*kappa_can(jj)
 $TR       ME(1) = 2*jx_can_cut(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(2) = 2*jy_can_cut(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(3) = 2*jz_can_cut(ii,jj)**2 ! Factor two for time-reversal
@@ -1254,7 +1254,7 @@ $NTR      endif
             !J^20 contribution
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             fac =  configmatrix(iii) * configmatrix(jjj)
-            ME = 0.5 * J20(ii,jj,:)**2  * fac
+            ME = 0.5d0 * J20(ii,jj,:)**2  * fac
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! J^11 contribution
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

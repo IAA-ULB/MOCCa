@@ -300,7 +300,7 @@ $TR   dkappa_minus = - dkappa_minus
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
-    !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
+    !  ifail : 0 if succesful, 1 if a deviation above 1d-10 has been detected
     !---------------------------------------------------------------------------------------
     integer, intent(out)       :: ifail
     complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:), delta_orig(:,:), delta_me(:,:)
@@ -385,7 +385,7 @@ $TR   dkappa_minus = - dkappa_minus
       dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
       print ('(a15, i2, a20, es15.4)'), 'Block B = ', B, ' Max |h| = ', maxval(abs(sphamil_orig(si+1:si+N, si+1:si+N)))
       print ('(a15, i2, a20, es15.4)'), 'Block B = ', B, ' Max dev = ', maxval(dev)
-      if(maxval(dev)>1e-10) then
+      if(maxval(dev)>1d-10) then
         ifail = 1
         print *
         print *, '------ Original calculation -------'
@@ -417,7 +417,7 @@ $TR   dkappa_minus = - dkappa_minus
              & ' Max |Delta| = ', maxval(abs(delta_orig(si+1:si+T,si+1:si+T)))
         print ('(a15, i2, "-", i2, a20, es15.4)'), 'Blocks B = ', B, B+1, &
              &' Max dev = ', maxval(dev_gaps)
-        if(maxval(dev_gaps)>1e-10) then
+        if(maxval(dev_gaps)>1d-10) then
           ifail = 1
           print *
           print *, '------ Original calculation -------'
@@ -511,7 +511,7 @@ $TR   dkappa_minus = - dkappa_minus
     ! the latter proceeds through a double sum in the Hartree-Fock basis.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
-    !  ifail : 0 if succesful, if a deviation above 1e-10 has been detected
+    !  ifail : 0 if succesful, if a deviation above 1d-10 has been detected
     !-------------------------------------------------------------------------------
     integer, intent(out)          :: ifail
     type(DensityVector)           :: R_transformed, R_pp_transformed
@@ -549,7 +549,7 @@ $TR   dkappa_minus = - dkappa_minus
         maxdev(2,it) = maxval(abs(Density%DP_I_I(:,it)   - R_pp_transformed%DP_I_I  (:,it)))
     enddo
 
-    if(any(maxdev .gt. 1e-10)) then
+    if(any(maxdev .gt. 1d-10)) then
         print *,'--------------------- Deviation in densities detected ---------------------'
         print *, 'Density    Neutrons      Protons'
         print ('(a4,6es15.7)'), 'RHO'       ,  maxdev(1,:), &
@@ -998,7 +998,7 @@ $NTR  real(KIND=dp), allocatable    :: Hsp(:,:), Hqp_explicit(:,:)
     print '(a50, es15.4)', ' ||N20(existing routine) - N20(new)|| = ', sum(abs(N20 - N20new))
     print '(a50, es15.4)', ' ||N11(existing routine) - N11(new)|| = ', sum(abs(N11 - N11new))
 
-    if(sum(abs(N20 - N20new)) > 1e-10 .or. sum(abs(N11 - N11new)) > 1e-10) then
+    if(sum(abs(N20 - N20new)) > 1d-10 .or. sum(abs(N11 - N11new)) > 1d-10) then
       print *, 'FAILURE!'
       ifail = 1
     else
@@ -1065,7 +1065,7 @@ $NTR    print *, 'Note : we do not check || Hmn - Hmnnew || because the QP reord
 $NTR    print *, 'This means that this test is not sensitive to a global sign.'
 $NTR    print *
 
-    if(sum(abs(H20)) - sum(abs(H20new)) > 1e-10 .or. sum(abs(H11)) - sum(abs(H11new)) > 1e-10) then
+    if(sum(abs(H20)) - sum(abs(H20new)) > 1d-10 .or. sum(abs(H11)) - sum(abs(H11new)) > 1d-10) then
       print *, 'FAILURE!'
       ifail = 1
     else
@@ -1084,8 +1084,8 @@ $NTR    print *
     print *, ' ||   h   - h     (sp->qp->sp)|| = ',  sum(abs( sphamil - H11back))
     print *, ' || Delta - Delta (sp->qp->sp)|| = ',  sum(abs( HFBgaps - H20back))
 
-    if(      sum(abs(sphamil - H11back))  > 1e-10 &
-    &   .or. sum(abs(HFBgaps - H20back))  > 1e-10) then
+    if(      sum(abs(sphamil - H11back))  > 1d-10 &
+    &   .or. sum(abs(HFBgaps - H20back))  > 1d-10) then
       print *, 'FAILURE!'
       ifail = 1
     else
@@ -1122,7 +1122,7 @@ $TR   print '(a50, 2es15.4)', '    H20_ab = +H20_ba   : satisfied up to',  ME_ch
 $NTR  print '(a50, 2es15.4)', '    H02_ab = -H02_ba   : satisfied up to',  ME_check(5)
 $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_check(5)
 
-    if(any(ME_check > 1e-10)) then
+    if(any(ME_check > 1d-10)) then
       print *, 'FAILURE!'
       ifail = 1
     else
@@ -1248,9 +1248,9 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
 !      si = si + T
 !    enddo 
 
-    if(    sum(abs(O20sp - O20sp_back)) > 1e-10 &
-    & .or. sum(abs(O11sp - O11sp_back)) > 1e-10 &
-    & .or. sum(abs(O02sp - O02sp_back)) > 1e-10) then
+    if(    sum(abs(O20sp - O20sp_back)) > 1d-10 &
+    & .or. sum(abs(O11sp - O11sp_back)) > 1d-10 &
+    & .or. sum(abs(O02sp - O02sp_back)) > 1d-10) then
       print *, 'FAILURE!'
       ifail = 1
     else
@@ -1363,7 +1363,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print ('(a80, es15.4)'), '|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ', diff_from_lin
     print ('(a40, es15.4)'), 'FAM iteration is affine up to precision: ', diff_from_lin
 
-    if(diff_from_lin > 1e-10) ifail = 1
+    if(diff_from_lin > 1d-10) ifail = 1
     print 1
 
   end subroutine test_linearity_T
@@ -1412,10 +1412,10 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     Rz_spme = Qlm_spme(1, 0, .false.)
 
     ! Convert Rz_spme to unit fm^l
-    Rz_spme = Rz_spme * sqrt(100.0) 
+    Rz_spme = Rz_spme * sqrt(100.0d0)
 
     ! Cancel prefactor sqrt(3/4pi)
-    Rz_spme = Rz_spme * sqrt( 4.0 * pi / 3.0) 
+    Rz_spme = Rz_spme * sqrt( 4.0d0 * pi / 3.0d0)
 
     ! multiply by 1/A
     Rz_spme = Rz_spme / (Neutrons + Protons)
@@ -1625,7 +1625,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print * , '     simple loops    [R,P]  =', term1RP + term1PR
 
 
-    commut0B = dcmplx(0.0, imag(sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2))))
+    commut0B = dcmplx(0.0d0, imag(sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2))))
     $TR commut0B = commut0B * 2.0d0
     print * , ' imag(sum(R*P)) i    [R,P]  =', commut0B
 
@@ -1668,12 +1668,12 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
 
     print *, 'This matrix is '
 
-    if (sum(abs(M-conjg(M))) < 1e-10) print *, '    real'
-    if (sum(abs(M+conjg(M))) < 1e-10) print *, '    imaginary'
-    if (sum(abs(M-transpose(M))) < 1e-10) print *, '    symmetric'
-    if (sum(abs(M+transpose(M))) < 1e-10) print *, '    antisymmetric'
-    if (sum(abs(M-transpose(conjg(M)))) < 1e-10) print *, '    Hermitian'
-    if (sum(abs(M+transpose(conjg(M)))) < 1e-10) print *, '    anti-Hermitian'
+    if (sum(abs(M-conjg(M))) < 1d-10) print *, '    real'
+    if (sum(abs(M+conjg(M))) < 1d-10) print *, '    imaginary'
+    if (sum(abs(M-transpose(M))) < 1d-10) print *, '    symmetric'
+    if (sum(abs(M+transpose(M))) < 1d-10) print *, '    antisymmetric'
+    if (sum(abs(M-transpose(conjg(M)))) < 1d-10) print *, '    Hermitian'
+    if (sum(abs(M+transpose(conjg(M)))) < 1d-10) print *, '    anti-Hermitian'
 
     print *
 

@@ -78,7 +78,7 @@ contains
         &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
         & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
         &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-        JJ = (-1. + sqrt(1. + 4*JJ))/2.
+        JJ = (-1.d0 + sqrt(1.d0 + 4*JJ))/2.d0
 
         sel = ''
         if(wave .eq. selected) sel = '(*)'
@@ -115,7 +115,7 @@ contains
     &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
     & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
     &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-    JJ = (-1. + sqrt(1. + 4*JJ))/2.
+    JJ = (-1.d0 + sqrt(1.d0 + 4*JJ))/2.d0
 
     sel = '*'
     print *, 'Selected:'

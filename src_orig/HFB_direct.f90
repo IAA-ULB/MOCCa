@@ -133,7 +133,7 @@ contains
                 ! At finite temperature, things can get partially occupied and
                 ! we are dealing with a statistical mixture.
                 occ = exp(inversetemp * Eqp(si+i))
-                occ = 1.0/(1 + occ)
+                occ = 1.0d0/(1 + occ)
                 R(sb+N+i) = 1.0_dp - occ
                 R(sb  +i) =          occ
             else
@@ -553,12 +553,12 @@ $NTR    endif
 
         if(iter.eq.1) then
           ! We try lambda + 0.1 for the first iteration
-          lambda = lambda + 0.1
-          df     =          0.1
+          lambda = lambda + 0.1d0
+          df     =          0.1d0
         else
           df     = - dn(1) * df/(dn(1) - dn(2))
   
-          if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
+          if(abs(df).gt.1.0d0) df = 0.1d0 * df/abs(df)
           lambda = lambda + df
         endif
       enddo

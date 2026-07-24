@@ -69,7 +69,7 @@ contains
   real(KIND=dp) :: dr, G
   
   dr = abs(r1-r2)/(r0)
-  G = 1.0/(r0 * sqrt(pi)) * exp(-dr**2)
+  G = 1.0d0/(r0 * sqrt(pi)) * exp(-dr**2)
   return
  end function gaussian
 
@@ -567,8 +567,8 @@ contains
     rplus_n = sqrt(neutron_size(1))
     rmin_n  = sqrt(neutron_size(2))
 
-    rplus_p = proton_size(1) * sqrt(2.0/3.0)
-    rmin_p  = proton_size(2) * sqrt(2.0/3.0)
+    rplus_p = proton_size(1) * sqrt(2.0d0/3.0d0)
+    rmin_p  = proton_size(2) * sqrt(2.0d0/3.0d0)
 
     ! Memory management 
     if(allocated(Gxn)) deallocate(Gxn)
@@ -605,23 +605,23 @@ contains
     ! Harmonic-oscillator correction
     if(hocomform) then
         ! hbar x omega
-        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
+        hbom  = 41.0d0 * (neutrons + protons)**(-1.0d0/3.0d0)
         ! 2m/hbar^2
-        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2))
+        mhb = 2.0d0/(1.0d0/hbm(1)+1.0d0/hbm(2))
         ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
-        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
+        B = sqrt( 1.0d0/( 0.5d0 * hbom/mhb  * (neutrons + protons)))
 
-        if(rplus_n.ne.0.0) then
+        if(rplus_n.ne.0.0d0) then
             rplus_n = sqrt(rplus_n**2 - B**2)
         endif
-        if(rmin_n.ne.0.0) then
+        if(rmin_n.ne.0.0d0) then
             rmin_n   = sqrt(rmin_n**2 - B**2)
         endif
 
-        if(rplus_p.ne.0.0) then
+        if(rplus_p.ne.0.0d0) then
             rplus_p = sqrt(rplus_p**2 - B**2)
         endif
-        if(rmin_p.ne.0.0) then
+        if(rmin_p.ne.0.0d0) then
             rmin_p   = sqrt(rmin_p**2 - B**2)
         endif
     endif

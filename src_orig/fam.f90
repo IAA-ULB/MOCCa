@@ -670,7 +670,7 @@ contains
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
-        print 22,  sum(abs(drho)**2), 0.0,  0.0
+        print 22,  sum(abs(drho)**2), 0.0d0,  0.0d0
       else
         print 22,  sum(abs(drho)**2), sum(abs(dkappa_plus)**2),  sum(abs(dkappa_minus)**2)
       endif
@@ -693,7 +693,7 @@ contains
       ! construct the sp hamiltonian in HF basis
       dHsp(:,:,1) = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0, 0.0
+      if (fam_verbose > 0) print 12,  sum(abs(dHsp(:,:,1))**2), 0.0d0, 0.0d0
 
     else ! QFAM
       ! construct the sp hamiltonian + pairing fields in HF basis
@@ -1055,8 +1055,8 @@ contains
 
     if (fam_verbose > 1) print *, "mix_XY_linear :: linear mixing of X and Y with alpha=", alpha
 
-    X = alpha * X + (1.0 - alpha) * X_hist(hist_current_idx, :, :) 
-    Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
+    X = alpha * X + (1.0d0 - alpha) * X_hist(hist_current_idx, :, :)
+    Y = alpha * Y + (1.0d0 - alpha) * Y_hist(hist_current_idx, :, :)
 
   end subroutine mix_XY_linear
 
@@ -1160,7 +1160,7 @@ contains
       enddo
     endif
 
-    $TR S_cmplx_arr(:) = 2.0 * S_cmplx_arr(:) ! Time-reversal factor 2
+    $TR S_cmplx_arr(:) = 2.0d0 * S_cmplx_arr(:) ! Time-reversal factor 2
     S_arr(:) = - IMAG(S_cmplx_arr(:)) / pi
 
     if (fam_verbose > 2) then
@@ -1303,18 +1303,18 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Evaluation of commutator expectation value <[R,P]>
-    comm_RP = 0.5 * (sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2)) - sum(Pz_qpme(:,:,1) * Rz_qpme(:,:,2)))
-    $TR comm_RP = 2.0 * comm_RP ! account for absence of time-reversed states
+    comm_RP = 0.5d0 * (sum(Rz_qpme(:,:,1) * Pz_qpme(:,:,2)) - sum(Pz_qpme(:,:,1) * Rz_qpme(:,:,2)))
+    $TR comm_RP = 2.0d0 * comm_RP ! account for absence of time-reversed states
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Evaluate the commutator <[O^+,R]>. 
-    comm_OR = 0.5 * (sum(X(:,:) * Rz_qpme(:,:,2)) + sum(Rz_qpme(:,:,1) * Y(:,:)))
-    $TR comm_OR = 2.0 * comm_OR ! account for absence of time-reversed states
+    comm_OR = 0.5d0 * (sum(X(:,:) * Rz_qpme(:,:,2)) + sum(Rz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OR = 2.0d0 * comm_OR ! account for absence of time-reversed states
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Evaluate the commutator <[O^+,P]>. 
-    comm_OP = 0.5 * (sum(X(:,:) * Pz_qpme(:,:,2)) + sum(Pz_qpme(:,:,1) * Y(:,:)))
-    $TR comm_OP = 2.0 * comm_OP ! account for absence of time-reversed states
+    comm_OP = 0.5d0 * (sum(X(:,:) * Pz_qpme(:,:,2)) + sum(Pz_qpme(:,:,1) * Y(:,:)))
+    $TR comm_OP = 2.0d0 * comm_OP ! account for absence of time-reversed states
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! compute lambda parameters 
@@ -1395,10 +1395,10 @@ contains
           f_spme = Qlm_spme(l, m, .false.)
           
           ! Convert f_spme to unit fm^l
-          f_spme = f_spme * (100**(l/2.0)) 
+          f_spme = f_spme * (100**(l/2.0d0))
 
           ! Normalise with sqrt(2) if K is not 0
-          if(m.ne.0) f_spme = f_spme * sqrt(2.0)
+          if(m.ne.0) f_spme = f_spme * sqrt(2.0d0)
 
           endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1419,10 +1419,10 @@ contains
         f_spme = Qlm_spme(1, 0, .false.)
 
         ! Convert f_spme to unit fm^l
-        f_spme = f_spme * sqrt(100.0) 
+        f_spme = f_spme * sqrt(100.0d0)
 
         ! Cancel prefactor sqrt(3/4pi)
-        f_spme = f_spme * sqrt( 4.0 * pi / 3.0) 
+        f_spme = f_spme * sqrt( 4.0d0 * pi / 3.0d0)
 
         ! multiply by 1/A
         f_spme = f_spme / (Neutrons + Protons)
@@ -1531,7 +1531,7 @@ contains
       if (fam_verbose > 1) print *, "monopole"
       
       r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
-      m1kin = 4.0 * hbm(1) * (eff_charge_n**2 * r2_ptr%Value(1) + eff_charge_p**2 * r2_ptr%Value(2) )
+      m1kin = 4.0d0 * hbm(1) * (eff_charge_n**2 * r2_ptr%Value(1) + eff_charge_p**2 * r2_ptr%Value(2) )
       ! note that r2_ptr%Value contains a factor N (or Z)
 
 
@@ -1541,7 +1541,7 @@ contains
       
       if (fam_verbose > 1) print *, "dipole"
 
-      m1kin = (3.0 / (4.0 * pi)) * hbm(1) * ( Neutrons * eff_charge_n**2  + Protons *eff_charge_p**2 ) 
+      m1kin = (3.0d0/ (4.0d0 * pi)) * hbm(1) * ( Neutrons * eff_charge_n**2  + Protons *eff_charge_p**2 )
      
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! l = 2, m = 0, axial quadrupole
@@ -1551,7 +1551,7 @@ contains
 
       ! Ony implemented for axial nuclei, return 0 if beta22 > 0.1 
       moment_ptr => FindMoment(2,2,.false.) ! pointer to <Q_22>
-      if (moment_ptr%beta(4) > 0.1) then
+      if (moment_ptr%beta(4) > 0.1d0) then
         print *, 'NOT IMPLEMENTED: quadrupole EWSR assumes axial shape '
         return
       endif
@@ -1560,9 +1560,9 @@ contains
       r2_ptr => FindMoment(-2,0,.false.) ! pointer to <r^2>
       moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20>
 
-      m1kin = (5.0 / (2.0 * pi)) * hbm(1) * ( &
-        &   eff_charge_n**2 * r2_ptr%Value(1) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(1)) &
-        & + eff_charge_p**2 * r2_ptr%Value(2) * (1. + sqrt(5./(4.*pi)) * moment_ptr%beta(2))  )
+      m1kin = (5.0d0 / (2.0d0 * pi)) * hbm(1) * ( &
+        &   eff_charge_n**2 * r2_ptr%Value(1) * (1.0d0 + sqrt(5.d0/(4.d0*pi)) * moment_ptr%beta(1)) &
+        & + eff_charge_p**2 * r2_ptr%Value(2) * (1.0d0 + sqrt(5.d0/(4.d0*pi)) * moment_ptr%beta(2))  )
       ! note that r2_ptr%Value contains a factor N (or Z)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1573,7 +1573,7 @@ contains
 
       ! Ony implemented for axial nuclei, return 0 if beta22 > 0.1 
       moment_ptr => FindMoment(2,2,.false.) ! pointer to <Q_22>
-      if (moment_ptr%beta(4) > 0.1) then
+      if (moment_ptr%beta(4) > 0.1d0) then
         print *, 'NOT IMPLEMENTED: quadrupole EWSR assumes axial shape '
         return
       endif
@@ -1582,9 +1582,9 @@ contains
       moment_ptr => FindMoment(2,0,.false.) ! pointer to <Q_20> 
       ! I know this seems suspicious but actually do need beta_20 to calculate the sumrule for Q22
 
-      m1kin = (5.0 / (2.0 * pi)) * hbm(1) * ( &
-        &   eff_charge_n**2 * r2_ptr%Value(1) * (1. - sqrt(5./(16.*pi)) * moment_ptr%beta(1)) &
-        & + eff_charge_p**2 * r2_ptr%Value(2) * (1. - sqrt(5./(16.*pi)) * moment_ptr%beta(2))  )
+      m1kin = (5.0d0 / (2.0d0 * pi)) * hbm(1) * ( &
+        &   eff_charge_n**2 * r2_ptr%Value(1) * (1.0d0 - sqrt(5.d0/(16.d0*pi)) * moment_ptr%beta(1)) &
+        & + eff_charge_p**2 * r2_ptr%Value(2) * (1.0d0 - sqrt(5.d0/(16.d0*pi)) * moment_ptr%beta(2))  )
       ! note that r2_ptr%Value contains a factor N (or Z)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1622,7 +1622,7 @@ contains
         if(l == 0) then
           
           ! integral over the mesh of 4 (x^2 + y^2 + z^2) * rho_n * rho_p
-          kappa = kappa * 4.0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
+          kappa = kappa * 4.0d0 * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2) &
             &                       * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1630,15 +1630,15 @@ contains
         else if(l == 1) then
 
           ! integral over the mesh of 3/(4pi) rho_n * rho_p
-          kappa = kappa * (3.0 / (4.0 * pi)) * sum(real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
+          kappa = kappa * (3.0d0 / (4.0d0 * pi)) * sum(real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
         
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! l = 2, m = 0, axial quadrupole Q20
         else if(l == 2 .and. m==0) then
 
           ! integral over the mesh of 5/(4pi) (x^2 + y^2 + 4*z^2) * rho_n * rho_p
-          kappa = kappa * (5.0 / (4.0 * pi) ) &
-            &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.*meshgrid(:,3)**2) &
+          kappa = kappa * (5.0d0 / (4.0d0 * pi) ) &
+            &     * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 + 4.d0*meshgrid(:,3)**2) &
             &            * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1646,7 +1646,7 @@ contains
         else if(l == 2 .and. m==2) then
 
           ! integral over the mesh of 15/(4pi) (x^2 + y^2) * rho_n * rho_p
-          kappa = kappa * (15.0 / (4.0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
+          kappa = kappa * (15.0d0 / (4.0d0 * pi) ) * sum( (meshgrid(:,1)**2 + meshgrid(:,2)**2 ) &
             &                                          * real(R%D_I_I(:,1)) * real(R%D_I_I(:,2))) * dv
           
         endif
@@ -2251,8 +2251,8 @@ contains
     if (pairingtype.ne.0) then ! QFAM
 
       ! explicitly antisymmetrise
-      f_qpme(:,:,1) = 0.5 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
-      f_qpme(:,:,2) = 0.5 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
+      f_qpme(:,:,1) = 0.5d0 * (f_qpme(:,:,1) + transpose(f_qpme(:,:,1)))
+      f_qpme(:,:,2) = 0.5d0 * (f_qpme(:,:,2) + transpose(f_qpme(:,:,2)))
 
     endif
 
@@ -2332,7 +2332,7 @@ contains
         read(line, '(9X, F10.3, F10.3)') omega_in, smear_in
 
         ! Check if the separator line announces the XY block with correct frequency and smearing
-        if ( (abs(omega_in - omega_fam) < 1e-6) .and. (abs(smear_in - smear) < 1e-6)) then 
+        if ( (abs(omega_in - omega_fam) < 1d-6) .and. (abs(smear_in - smear) < 1d-6)) then
           ! found the good block
           found_block = .true.
           exit
@@ -2366,8 +2366,8 @@ contains
     if (pairingtype.ne.0) then ! QFAM
 
       ! explicitly antisymmetrise
-      X = 0.5 * (X + transpose(X))
-      Y = 0.5 * (Y + transpose(Y))
+      X = 0.5d0 * (X + transpose(X))
+      Y = 0.5d0 * (Y + transpose(Y))
 
     
     endif

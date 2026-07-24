@@ -170,7 +170,7 @@ $COULOMB_REAL       real(KIND=dp), allocatable    :: folded(:,:,:)
     !       of charge; this will blow up the Coulomb solver if periodic
     !       boundary conditions are applied.
 
-    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
+    if(abs(sum(R%chargedensity)*dv - protons) > 1d-7) then
       print 4
       print 1
       print 2, protons - sum(R%chargedensity)*dv

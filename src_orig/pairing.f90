@@ -206,10 +206,10 @@ contains
     ! is active. The latter might destabilise calculations when pairing gets weak;
     ! we slow down the HFB evolution in that case. This is done before the reading
     ! of the namelist such that user input will override these default values.
-    if(abs(Estabn) .gt. 1e-10 .or. abs(Estabp) .gt. 1e-10 ) then
-      HFBmix = 0.5
+    if(abs(Estabn) .gt. 1d-10 .or. abs(Estabp) .gt. 1d-10 ) then
+      HFBmix = 0.5d0
     else
-      HFBmix = 1.0
+      HFBmix = 1.0d0
     endif
 
     ! Only the very first MPI rank reads input
@@ -593,7 +593,7 @@ $VMICRO call print_micro_pairing_info(ptype, interpolationtype, integrationtype)
         allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
       endif
       do wave=1,nwt
-        BCSgaps(wave) = 0.1
+        BCSgaps(wave) = 0.1d0
       enddo
     case(2)
       !-------------------------------------------------------------------------
@@ -623,7 +623,7 @@ $NTR          do wave2=si+N+1,si+N+N2
 
 
             ! We check if the spwfs are (close to) having opposite parity
-            if(abs(P_expectation(HFpsi(:,:,wave))  * P_expectation(HFpsi(:,:,wave))  + 1 ).lt. 0.1) cycle
+            if(abs(P_expectation(HFpsi(:,:,wave))  * P_expectation(HFpsi(:,:,wave))  + 1 ).lt. 0.1d0) cycle
             !------------------------------------------------------------------
             if(allocated(kappa_pairing)) then
               ! We've found a kappa on file and can use it to guess better 
@@ -635,7 +635,7 @@ $NTR          do wave2=si+N+1,si+N+N2
               endif
               ! Guess something with the sign of kappa beween 0.3 and 1.5
               HFBgaps( wave, wave2) = &
-              &     s*max(min(10*abs(kappa_pairing(wave, wave2)),1.5),0.3)
+              &     s*max(min(10*abs(kappa_pairing(wave, wave2)),1.5d0),0.3d0)
             else
               ! Either we don't have a kappa in storage, or the pairing has 
               ! collapsed in this subblock.
@@ -945,8 +945,8 @@ $NTR     rho_hf = rho_can
           ! hence the subscripts 'r' for "numerically represented.
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-$TR       E(it) = E(it) +       Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
-$NTR       E(it)= E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$TR       E(it) = E(it) +         Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$NTR       E(it)= E(it) + 0.5d0 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
     end select
@@ -980,10 +980,10 @@ $NTR       E(it)= E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
                 ! Notice the factor 2 for time-reversal. The rho_cans are
                 ! double the true occupations!                 
                 entropy(it) = entropy(it) &
-                &          -       rho_can(i)/2.0  * dlog(     rho_can(i)/2.0)
+                &          -       rho_can(i)/2.0d0  * dlog(     rho_can(i)/2.0d0)
                 if( rho_can(i) .lt. 2.0d0) then 
                     entropy(it) = entropy(it) &
-                    &      -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
+                    &      -  (1 - rho_can(i)/2.0d0) * dlog( 1 - rho_can(i)/2.0d0)
                 endif
             endif
         enddo

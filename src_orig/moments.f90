@@ -452,7 +452,7 @@ contains
     real(KIND=dp)             :: R
   
     ! Reference radius of a liquid drop: R_0 A^{1/3} with R_0 = 1.2 fm
-    R      = 1.2 * A**(1.0_dp/3.0_dp)
+    R      = 1.2d0 * A**(1.0_dp/3.0_dp)
     
     if(particles .gt. 0.0d0) then
       factor = 4.0_dp * pi /(3.0_dp * R**ell * particles)
@@ -815,7 +815,7 @@ $NTR    enddo
     nullify(NewMoment%Prev, NewMoment%Next) 
     allocate(NewMoment%SpherHarm(nx*ny*nz))
 
-    if(ImPart.eq.1.) then
+    if(ImPart.eq.1) then
         NewMoment%ImPart=.true.
     else
         NewMoment%ImPart=.false.
@@ -899,7 +899,7 @@ $NTR    enddo
     nullify(NewMoment%Prev, NewMoment%Next) 
     allocate(NewMoment%SpherHarm(nx*ny*nz))
 
-    if(ImPart.eq.1.) then
+    if(ImPart.eq.1) then
         NewMoment%ImPart=.true.
     else
         NewMoment%ImPart=.false.
@@ -978,7 +978,7 @@ $NTR    enddo
     ! (3) all moments with l = odd are zero 
     !
     ! These options need to be refined with hephaestos one day.
-    if((ImPart.eq.1.)) return
+    if((ImPart.eq.1)) return
     if((mod(m,2).ne.0)) return
     if((mod(l,2).eq.0)) return
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -990,7 +990,7 @@ $NTR    enddo
     nullify(NewMoment%Prev, NewMoment%Next)
     allocate(NewMoment%SpherHarm(nx*ny*nz))
 
-    if(ImPart.eq.1.) then
+    if(ImPart.eq.1) then
         NewMoment%ImPart=.true.
     else
         NewMoment%ImPart=.false.
@@ -1742,7 +1742,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     endif
 
     ! Augmented Lagrangian readjustment
-    if(ToReadjust%Intensity .eq. 0.0) then
+    if(ToReadjust%Intensity .eq. 0.0d0) then
           ! Find suitable intensity, if none was found before
 
           select case(ToReadjust%isoswitch)
@@ -3032,7 +3032,7 @@ $NTR endif
     shiftx = 0
     shifty = 0
     shiftz = 0
-    fac    = sqrt(4.0 * pi/3.0) ! prefactor between z and Q10
+    fac    = sqrt(4.0d0 * pi/3.0d0) ! prefactor between z and Q10
     
     Q1m=>Findmoment(1,0,.false.)
     if(associated(Q1m)) then

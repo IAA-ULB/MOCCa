@@ -79,8 +79,8 @@ module HFB_gradient
   
   !-----------------------------------------------------------------------------
   ! Parameters for the heavy-ball evolution in the pairing subproblem.
-  real(KIND=dp) :: gradient_stepsize = 0.00, gradient_mu = 0.0
-  real(KIND=dp) :: gradient_safety   = 0.1
+  real(KIND=dp) :: gradient_stepsize = 0.00d0, gradient_mu = 0.0d0
+  real(KIND=dp) :: gradient_safety   = 0.1d0
   !-----------------------------------------------------------------------------
   ! The norm of the gradient for every isospin
   !
@@ -326,7 +326,7 @@ contains
         if(abs(particles).gt.pairing_prec .and. normN .gt. 1d-4) then
           N20 = calcN20(Bogo, blocks) ; N11 = calcN11(Bogo, blocks)
           H20 = 0.0                   ; H11 = 0.0
-          lambda_corr = 0.1
+          lambda_corr = 0.1d0
           call find_fermi_brent(Bogo, H20, N20, H11, N11, prev, occ, Eqp,   &
           &                     lambda_corr,particles, targetN, 1.0d0, 0.0d0,  &
           &                     precon, blocks, ifail)

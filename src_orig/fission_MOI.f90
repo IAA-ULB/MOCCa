@@ -347,7 +347,7 @@ contains
       ! Factorize M1
     call dsytrf('U', N_inertia, M1_inv,N_inertia,ipiv,work,lwork,info)
     ! Invert M1
-    if(MAXVAL(abs(M1_inv)).gt.1e-15) then
+    if(MAXVAL(abs(M1_inv)).gt.1d-15) then
       call dsytri('U', N_inertia, M1_inv, N_inertia,ipiv,work, info)
       if(info.ne.0) then
         call stp('Problem for DSYTRI during the calculation of collective inertia.')
@@ -409,12 +409,12 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
     
     do i=1,nwt
       ! Loop over full HF states
-      if(abs(rho_can(i)) .lt. 0.5) cycle
+      if(abs(rho_can(i)) .lt. 0.5d0) cycle
      
       it = 1 ;  if(i.gt. nwn) it = 2
       do j=1,nwt
         ! Loop over empty HF states
-        if(abs(rho_can(j)) .gt. 0.1) cycle
+        if(abs(rho_can(j)) .gt. 0.1d0) cycle
         
         itb = 1 ;  if(j.gt. nwn) itb = 2
         if(it .ne. itb) cycle
@@ -894,7 +894,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     enddo
     
     ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
-    me = me/(100**(l/2.0))
+    me = me/(100.0d0**(l/2.0d0))
 
   end function Qlm_spme
 

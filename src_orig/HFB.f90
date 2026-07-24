@@ -107,7 +107,7 @@ module HFB
   !-----------------------------------------------------------------------------
   ! Cutoff parameter to judge whether or not levels are participating in the 
   ! pairing.
-  real(KIND=dp), parameter            :: rho_cutoff = 1e-12
+  real(KIND=dp), parameter            :: rho_cutoff = 1d-12
 
   interface
    function delta_action_dummy(psi,&
@@ -250,7 +250,7 @@ contains
     Bogoliubov_history   = Bogoliubov
 
     ! Guess a new Fermi energy if none is there
-    if(all(Fermi.eq.0.0))   Fermi = -5
+    if(all(Fermi.eq.0.0d0))   Fermi = -5
 
     !---------------------------------------------------------------------------
     ! Preparation for blocking, we need to separate configurations by isospin.
@@ -528,7 +528,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     kappa_history        = kappa_pairing 
 
     ! Guess a new Fermi energy if none is there
-    if(all(Fermi.eq.0.0))   Fermi = -5
+    if(all(Fermi.eq.0.0d0))   Fermi = -5
     ! Reorganise the Bogoliubov transformation if needed
     call reorganise_Bogo_gradient(Bogo, configmatrix, grad_blocks)
 
@@ -571,13 +571,13 @@ $TR    endif
 
       minqp =  max(minqp, gradient_safety)
       condi =  maxqp/minqp
-      if(gradient_stepsize .eq. 0.0) then
+      if(gradient_stepsize .eq. 0.0d0) then
         ! This is the first time this gets estimated, don't mess up!'
         gradient_mu       =  0.0
-        gradient_stepsize =  1.0/maxqp 
+        gradient_stepsize =  1.0d0/maxqp
       else
         gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2 
-        gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu)     * 0.9
+        gradient_stepsize =  2.0d0/maxqp * (  1 + gradient_mu)     * 0.9d0
       endif      
     endif    
 
@@ -2039,7 +2039,7 @@ $TR    rho_can = 2*rho_can
     do i=1,nwt
 $TR      if(rho_can(i).gt.2.0d0) rho_can(i) = 2.0d0
 $NTR     if(rho_can(i).gt.1.0d0) rho_can(i) = 1.0d0
-      if(rho_can(i).lt.0.0) rho_can(i) = 0.0d0
+      if(rho_can(i).lt.0.0d0) rho_can(i) = 0.0d0
     enddo
     !---------------------------------------------------------------------------
     ! b) Bring kappa into canonical form

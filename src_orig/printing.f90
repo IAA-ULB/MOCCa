@@ -151,7 +151,7 @@ $TR     sumocc = 2*k
             &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
           else
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
+            &               dispersions(wave), 0.0d0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &
             &               r2, rank_map(wave)
           endif
         else
@@ -163,7 +163,7 @@ $TR     sumocc = 2*k
             &               dispersions(wave), maxval(abs(HF_gaps(wave,:))), rank_map(wave)
           else
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0, rank_map(wave)
+            &               dispersions(wave), 0.0d0, rank_map(wave)
           endif
         endif
     enddo
@@ -218,7 +218,7 @@ $TR     sumocc = 2*k
             &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
           else
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
+            &               dispersions(wave), 0.0d0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &
             &               r2, rank_map(wave)
           endif
         else
@@ -230,7 +230,7 @@ $TR     sumocc = 2*k
             &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),rank_map(wave)
           else
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0, rank_map(wave)
+            &               dispersions(wave), 0.0d0, rank_map(wave)
           endif
         endif
     enddo
@@ -318,10 +318,10 @@ $TR     sumocc = 2*k
           r2 = sqrt(spwf_r2_can(wave))
 
           print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-          &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          &              0.0d0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
       else
           print 12, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-          &              0.0, Delta, rank_map(wave)
+          &              0.0d0, Delta, rank_map(wave)
       endif
     enddo
     print 40  
@@ -385,10 +385,10 @@ $TR     sumocc = 2*k
         r2 = sqrt(spwf_r2_can(wave))
 
         print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-        &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+        &               0.0d0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
       else
         print 12, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-        &               0.0, Delta, rank_map(wave)
+        &               0.0d0, Delta, rank_map(wave)
       endif
     enddo
     print 20
@@ -448,12 +448,12 @@ $TR     sumocc = 2*k
           ! The first half of the Bogoliubov matrix
           do i=1,T
             ! What are the single-particles dominating these qps? 
-            if(maxval(abs(Bogoliubov(sb+1:sb+T,sb+i))).gt. 0.1) then
+            if(maxval(abs(Bogoliubov(sb+1:sb+T,sb+i))).gt. 0.1d0) then
               U =  maxloc(Bogoliubov(sb+1:sb+T,sb+i)**2)+si
             else
               U = 0
             endif
-            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1) then
+            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1d0) then
               V =  maxloc(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2)+si
             else
               V = 0
@@ -477,12 +477,12 @@ $TR     sumocc = 2*k
           ! The second half of the Bogoliubov matrix
           do i=T+1,2*T
             ! What are the single-particles dominating these qps? 
-            if(maxval(abs(Bogoliubov(sb     +1:sb+T,sb+i))).gt. 0.1) then
+            if(maxval(abs(Bogoliubov(sb     +1:sb+T,sb+i))).gt. 0.1d0) then
               U =  maxloc(Bogoliubov(sb     +1:sb+T,sb+i)**2)+si
             else
               U = 0
             endif
-            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1) then
+            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1d0) then
               V =  maxloc(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2)+si
             else
               V = 0
