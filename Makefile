@@ -368,6 +368,7 @@ $(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
 
 setversioninfo_mf:
 # Copy the git information into the main code, so it can be printed
+	cp src_orig/version.f90 $(MF_SRC_DIR)/version.f90
 	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(MF_SRC_DIR)/version.f90
 	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(MF_SRC_DIR)/version.f90
 	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(MF_SRC_DIR)/version.f90
@@ -381,6 +382,7 @@ setversioninfo_mf:
 
 setversioninfo_fam:
 # Copy the git information into the main code, so it can be printed
+	cp src_orig/version.f90 $(FAM_SRC_DIR)/version.f90
 	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(FAM_SRC_DIR)/version.f90
 	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(FAM_SRC_DIR)/version.f90
 	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(FAM_SRC_DIR)/version.f90
