@@ -367,7 +367,7 @@ $REDUZ  coul_offset_z = 0
 
   if(Coultreatment.eq.1) then
     ! Exchange potential in Slater approximation
-    Ep = -(3.0/pi)**(1.0/3.0_dp)*e2*(rho**(1.0_dp/3.0_dp))
+    Ep = -(3.0d0/pi)**(1.0d0/3.0_dp)*e2*(rho**(1.0_dp/3.0_dp))
   else
     ! No Coulomb Exchange
     Ep = 0.0
@@ -738,10 +738,10 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     Cenergy = 0.0_dp
     if(coultreatment.ne.1) return
 
-    factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
+    factor  = -0.75d0*(3.0d0/pi)**(1.0d0/3.0d0)*e2*dv
     ! The call to DBLE is superfluous for mean-field calculations but 
     ! takes care of FAM calculations.
-    Cenergy = factor*sum(DBLE(R%chargedensity**(4.0/3.0))) 
+    Cenergy = factor*sum(DBLE(R%chargedensity**(4.0d0/3.0d0)))
  end function coulomb_energy_exchange
 
  subroutine conjug_grad (Solution,SourceTerm,sx,sy,sz,MaxIteration,iprint,Precis)
