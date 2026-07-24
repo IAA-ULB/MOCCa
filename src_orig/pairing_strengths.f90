@@ -714,7 +714,7 @@ contains
 
   ! Safeguard: if this results in negative pairing gaps, just make pairing vanish
   do i=1,mv
-    if(Delta(i) .lt. 1e-14) Delta(i) = 0.0d0
+    if(Delta(i) .lt. 1d-14) Delta(i) = 0.0d0
   enddo
 
  end function standard_interpolation
@@ -799,7 +799,7 @@ contains
     ! Here we silently assume that (if delta_N0 is very small =>  delta_S0
     ! is even smaller) to avoid numerical issues. This is certainly not 
     ! universally true, but (almost everywhere) valid for the Cao gaps at least.
-    if(abs(deltaN0(i)) .lt. 1e-10 ) then
+    if(abs(deltaN0(i)) .lt. 1d-10 ) then
       fac(i) = 0.0d0
     else
       fac(i) = deltaS0(i)/ deltaN0(i)
@@ -869,12 +869,12 @@ contains
     ! Neutron matter and proton matter have identical gaps for this prescription
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     xkfmax= 1.382d0
-    xkfint= 1.25
-    delta = 3.37968*kf**2/(kf**2+0.556092**2)*(kf-1.38236)**2 &
-    &    /((kf-1.38236)**2+0.327517**2)
+    xkfint= 1.25d0
+    delta = 3.37968d0*kf**2/(kf**2+0.556092d0**2)*(kf-1.38236d0)**2 &
+    &    /((kf-1.38236d0)**2+0.327517d0**2)
 
     do i=1, mv
-      if (kf(i).gt.xkfint) delta(i)=0.39609*dexp(-(kf(i)-xkfint)/0.1)
+      if (kf(i).gt.xkfint) delta(i)=0.39609d0*dexp(-(kf(i)-xkfint)/0.1d0)
     enddo
 
   case(3)
@@ -882,9 +882,9 @@ contains
     ! Symmetric matter
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     xkfmax=1.314d0
-    xkfint=1.12
-    delta =11.5586*kf**2*(kf-1.3142)**2/(kf**2+0.489932**2)/ & 
-    &       ((kf-1.3142)**2+0.906146**2)
+    xkfint=1.12d0
+    delta =11.5586d0*kf**2*(kf-1.3142d0)**2/(kf**2+0.489932d0**2)/ &
+    &       ((kf-1.3142d0)**2+0.906146d0**2)
     do i=1,mv
       if (kf(i).ge.xkfint) delta(i)=0.42605d0*exp(-(kf(i)-xkfint)/0.1d0)
     enddo

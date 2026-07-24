@@ -1071,7 +1071,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     ! Subtracting the coulomb potential depends on our treatment of the 
     ! proton and neutron finite size effect
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    if((all(protonsize.eq.0.0d0) .and. all(neutronsize.eq.0.0d0)) .or.   &
     &                             (.not. nucleonsize_selfconsistent)) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! No finite size effect
@@ -1894,7 +1894,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     if (present(O20) .and. present(O02)) then
       do nu = 1, nwt
         do mu = 1, nwt
-          if(abs(O20(mu,nu)) > 1e-10 .or. abs(O02(mu,nu)) > 1e-10) then
+          if(abs(O20(mu,nu)) > 1d-10 .or. abs(O02(mu,nu)) > 1d-10) then
             write(1, fmt=2) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
           end if
         enddo
@@ -1905,7 +1905,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
       do nu = 1, nwt
         do mu = 1, nwt
-          if(abs(X(mu,nu)) > 1e-10 .or. abs(Y(mu,nu)) > 1e-10) then
+          if(abs(X(mu,nu)) > 1d-10 .or. abs(Y(mu,nu)) > 1d-10) then
             write(1, fmt=2) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
           end if
         enddo
@@ -2230,9 +2230,9 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !                        IZ          IA    BETA     B4
     write(unit=6, fmt=3)  int(protons),int(A),  b2, b4,  &
     !                      HGN    HFGP  HFDN             HFDP
-    &                      b3,    0.0,  average_gap(2,1),average_gap(2,2), &
+    &                      b3,    0.0d0,  average_gap(2,1),average_gap(2,2), &
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
-    &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
+    &                      0.0d0,   0.0d0,  0.0d0, 0.0d0, 0.0d0, 0.0d0, &
     !                      HFLN, HFLP, 
     &                      FermiEnergy(1), FermiEnergy(2),  &
     !                      HFINX /     ,    HFIPX
@@ -2242,7 +2242,7 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !                      HFINZ /     ,    HFIPZ,      
     &                      Bely_coll(3,1), Bely_coll(3,2),       &
     !                      HFJ2               HFE1  , HE2
-    &                      J2_coll(3,3),  totalE, 0.0
+    &                      J2_coll(3,3),  totalE, 0.0d0
 
     close(unit=6)
   end subroutine combi_output

@@ -109,7 +109,7 @@ $PARAMDECL
     !---------------------------------------------------------------------------
     ! Stabilisation factors for the stabilised pairing scheme from 
     ! J. Erler et al., EPJA 37, 81-86 (2008).
-    real*8 :: Estabp = 0.0, Estabn= 0.0
+    real*8 :: Estabp = 0.0d0, Estabn= 0.0d0
     !---------------------------------------------------------------------------
     ! Value of the electron charge, squared
     real(KIND=dp) :: e2 =1.43996446_dp 
@@ -322,7 +322,7 @@ $CHECKPARAMS
 #endif
 #endif
 
-      if((any(protonsize.ne.0.0) .or. any(neutronsize.ne.0.0)).and. &
+      if((any(protonsize.ne.0.0d0) .or. any(neutronsize.ne.0.0d0)).and. &
       &                                                 coultreatment.eq.1) then
         print *, '============================================================='
         print *, ' The current implementation of the Slater Coulomb exchange   '
@@ -552,15 +552,15 @@ $PRINTPARAMS
     print 73, 2*coulorder+1
     
     print 8, protonsize, neutronsize
-    if(any(protonsize.ne.0.0) .or. any(neutronsize.ne.0.0)) then
-        if(protonsize(2).ne.0.0) then
+    if(any(protonsize.ne.0.0d0) .or. any(neutronsize.ne.0.0d0)) then
+        if(protonsize(2).ne.0.0d0) then
             print 82
-        elseif(protonsize(1).ne.0.0) then
+        elseif(protonsize(1).ne.0.0d0) then
             print 81
         endif
-        if(neutronsize(2).ne.0.0) then
+        if(neutronsize(2).ne.0.0d0) then
             print 84
-        elseif(neutronsize(1).ne.0.0) then
+        elseif(neutronsize(1).ne.0.0d0) then
             print 83
         endif
       if(nucleonsize_selfconsistent) then

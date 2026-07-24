@@ -213,13 +213,13 @@ contains
         select case(particles_in_gas)
         case(0,1)
           betaE = inversetemp * (spenergies(i) - Fermi(it))
-          occupations(i) = 2.0/(1 + exp(betaE))
+          occupations(i) = 2.0d0/(1 + exp(betaE))
         case(2)
           betaE = inversetemp * (spenergies(i) - Fermi(it))
           if(spenergies(i) .gt. 0) then
             occupations(i) = 0  
           else
-            occupations(i) = 2.0/(1 + exp(betaE))
+            occupations(i) = 2.0d0/(1 + exp(betaE))
           endif
         end select
     enddo
@@ -237,7 +237,7 @@ contains
         endif   
         ! Note the time-reversal factors of two
         HFdispersion(it) = HFdispersion(it) +                                  &
-        &                            occupations(i)/2.0 * (1-occupations(i)/2.0)
+        &                        occupations(i)/2.0d0 * (1-occupations(i)/2.0d0)
     enddo
     ! Factor of two from the formula
     HFdispersion = 2 * HFDispersion
@@ -261,14 +261,14 @@ contains
     case(0,1)
       do i=1, size(energies)
           betaE = inversetemp * (energies(i) - mu)
-          N     = N + 1.0/(1 + exp(betaE))
+          N     = N + 1.0d0/(1 + exp(betaE))
       enddo
     case(2) 
       ! Only take into account bound states
       do i=1, size(energies)
           betaE = inversetemp * (energies(i) - mu)
           if(energies(i) .lt. 0) then 
-            N     = N + 1.0/(1 + exp(betaE))
+            N     = N + 1.0d0/(1 + exp(betaE))
           endif
       enddo
     end select
@@ -299,7 +299,7 @@ contains
         return
     endif   
     
-    xnew = 0.5 * (xmin + xmax)
+    xnew = 0.5d0 * (xmin + xmax)
     Nnew = FToccupations(xnew, energies, gas)
 
     !---------------------------------------------------------------------------

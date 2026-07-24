@@ -137,7 +137,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
     
     real*8, parameter :: hhbar=6.58218d0, xxmn =1.044673d0
-    real*8, parameter :: ca   =0.986d0  , cb   =0.14
+    real*8, parameter :: ca   =0.986d0  , cb   =0.14d0
     real*8, parameter :: xk(4)  = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
     real*8, parameter :: xmu(4) = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
     
@@ -481,7 +481,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                 ia    = ia + 1
                 a(ia) = s(i,j)
             enddo
-            e(nn+i) = d(i)*ho0 - 50.0
+            e(nn+i) = d(i)*ho0 - 50.0d0
         enddo
     16 continue
     !if (it.eq.1) print 101,x,y,cb

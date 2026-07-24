@@ -291,11 +291,11 @@ contains
 
         dispersions(sb+1:sb+N)= tempd(si+1:si+N)
         spenergies(sb+1:sb+N) = tempe(si+1:si+N)
-        rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
+        rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0d0 ! Note the factor 1/2
 
         dispersions(sb+N+1:sb+2*N) = tempd(si+1:si+N)
         spenergies(sb+N+1 :sb+2*N) = tempe(si+1:si+N)
-        rho_can(sb+N+1:sb+2*N)     = tempr(si+1:si+N)/2.0 ! Note the factor 1/2
+        rho_can(sb+N+1:sb+2*N)     = tempr(si+1:si+N)/2.0d0 ! Note the factor 1/2
 
         !-------------------------------------------------------------------
         ! The current HF transformation
@@ -1021,7 +1021,7 @@ $PBROKEN  enddo
 
                 ! And keep this levels primarily as "unoccupied"
                 do i=1,extraspwfs(b)
-                    Unew(N1F_sp+i,N1F+i) =  Unew(N1F_sp+i,N1F+i)+ 1.0
+                    Unew(N1F_sp+i,N1F+i) =  Unew(N1F_sp+i,N1F+i)+ 1.0d0
                 enddo
 
                 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1052,7 +1052,7 @@ $PBROKEN  enddo
 
                 ! And keep this levels primarily as "unoccupied"
                 do i=1,extraspwfs(b+1)
-                    Unew(N2F_sp+i,N2F+i) = Unew(N2F_sp+i,N2F+i) + 1.0
+                    Unew(N2F_sp+i,N2F+i) = Unew(N2F_sp+i,N2F+i) + 1.0d0
                 enddo
 
                 sb  = sb + 2*bogo_blocks(b)     + 2*bogo_blocks(b+1)

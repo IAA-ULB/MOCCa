@@ -112,7 +112,7 @@ contains
 
     do while(associated(Current%next)) 
         Current => Current%next
-        if(abs(Current%Beta(3)).gt.0.01 .and. Current%l .eq. 2) then
+        if(abs(Current%Beta(3)).gt.0.01d0 .and. Current%l .eq. 2) then
             dQ = abs(sum(Current%history)-sum(Current%value))
             dQ = dQ/abs(sum(Current%value))
             if(dQ > moment_prec) C = .false.
