@@ -79,7 +79,7 @@ implicit none
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
   character(len=80)   :: inertfile='', famfile='', xyfile='', xyinfile=''
-  character(len=80)   :: finfile=''
+  character(len=80)   :: finfile='', foutfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
@@ -188,7 +188,7 @@ contains
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
     &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
-    &           finfile, N_inertia, potentials_from_file
+    &           finfile, foutfile, N_inertia, potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -319,7 +319,8 @@ contains
              & '    BLOCK file     = ', a80, / &
              & '    INERT file     = ', a80, / &
              & '    FAM file       = ', a80, / &
-             & '    XY file        = ', a80) 
+             & '    XY file        = ', a80, / &
+             & '    FOUT file      = ', a80)
   111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
  1111 format ( ' Filename for FAM input (not used if empty): ', /     &
@@ -389,12 +390,12 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE, FOUTFILE
       if(present(file_number)) then
         print 111,  adjustl(trim(input_file)), file_number
       endif
 #if( $FAM == 1 )
-        print 1111,  XYINFILE, FINFILE
+        print 1111,  XYINFILE, FINFILE, FOUTFILE
 #endif    
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
@@ -1772,7 +1773,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     character(len=*), intent(in)      :: fname
     integer                           :: io
 
-    print *, ' writing strength function to file :  ', fname
+    print *, ' initialize fam file :  ', fname
 
     1 format ( '# external field:   ', /, &
     &          '#    F = Q_', i1, i1,/, &
@@ -1844,7 +1845,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     character(len=*), intent(in)      :: fname
     integer                           :: io
 
-    print *, ' writing XY to file :  ', fname
+    print *, ' initialize XY file :  ', fname
 
     1 format ( '# external field:   ', /, &
     &          '#    F = Q_', i1, i1,/, &
@@ -1882,7 +1883,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     1 format ( '& omega = ', f10.3, f10.3) 
     2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
 
-    print *, ' append fam file :  ', fname
+    print *, ' append XY file :  ', fname
 
     open(1, file=fname, status='old', position='append', iostat=io)
     if(io.ne.0) then    

@@ -135,13 +135,12 @@ program run_FAM
   call full_printout(0,.false.,print_adv_spwf_properties)
   
   !---------------------------------------------------------------------------------
-  ! Evaluate the energy weighted sum rule
+  ! Evaluate the energy-weighted sum rule
   ewsr = calc_EWSR(Density)
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
   call init_fam_file(famfile)
-  call init_fam_file(trim(famfile)//'.inclSM')
 
   if(xyfile .ne. '') then
     call init_xy_file(xyfile)
@@ -372,7 +371,7 @@ program run_FAM
 
     call printfam_end(S_decomp, num_iter, fam_residual)
 
-    call append_fam_file(S_decomp, num_iter, trim(famfile)//'.inclSM')
+    ! call append_fam_file(S_decomp, num_iter, trim(famfile)//'.inclSM')
 
 
     ! subtract the spurious mode
@@ -382,27 +381,25 @@ program run_FAM
 
     call printfam_end(S_decomp, num_iter, fam_residual)
 
-
     call append_fam_file(S_decomp, num_iter, famfile)
 
-    if(xyfile .ne. '') then
-      if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
-      call append_xy_file(xyfile)
-    endif
+   
+    if(xyfile .ne. '') call append_xy_file(xyfile)
 
 
-    if(DENFILE .ne. '') then
-      call append_perturbed_denfile(dRs, dRa, DENFILE)
-    endif
-
-
+    if(DENFILE .ne. '') call append_perturbed_denfile(dRs, dRa, DENFILE)
+    
     !call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
-
-
 
     omega_curr = omega_curr + omega_step
 
   enddo
+
+  if(foutfile .ne. '') then 
+    call init_xy_file(foutfile)
+    call append_xy_file(foutfile, F(:,:,1), F(:,:,2))
+  endif
+
 
   print *, "Reached the end successfully" 
 

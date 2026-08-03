@@ -227,6 +227,8 @@ contains
     ! Input:
     !    omega      : frequency of the perturbing field
     !    DensUnper  : unperturbed densities on the mesh
+    !    Finfile    : optional filename of the external field. 
+    !                 -> if empty : field is built from operator_type.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
@@ -1498,13 +1500,16 @@ contains
     !     * G_LGSB accounts for local-gauge-symmetry breaking effects. 
     !      /!\ : G_LGSB is currenlty NOT implemented
     !            the EDF param is thus assumed to respect LGS
-    !   - Presently only implemented for monopole (L=0,K=0) and quadruole 
-    !     perturbations (L=2, K=0) and (L=2, K=2), in fact it is for 
-    !     Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2).  
+    !   - Presently only implemented for monopole (L=0,K=0), dipole (L=1, K=0) 
+    !     and quadruole perturbations (L=2, K=0) and (L=2, K=2), 
+    !     in fact it is for Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2).  
     !   - Isoscalar(vector) character of the perturbation is dealt with via the 
     !     effective charges. While for isoscalar both are positive and 
     !     approximately equal, for isovector effective charges differ in sign but 
-    !     are close in magnitude.
+    !     are close in magnitude. Note that in the expressions of N. Hinohara (2019)
+    !     effective charges are always positive and the sign is factor out explicitly.
+    !   - m1_kin contains a (1-1/A) correction factor originating from the one-body
+    !     center-of-mass correction in the intrinsic kinetic energy, if COM1body == 2 
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Caveats
@@ -1590,7 +1595,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! any other l, m
     else 
-      print *, 'NOT IMPLEMENTED: only monopole (l=0) and axial quadrupole (l=2, m=0) EWSR implemented for now'
+      print *, 'NOT IMPLEMENTED: only monopole (l=0), dipole(l=1) and axial quadrupole (l=2, m=0) EWSR implemented for now'
       return
     endif
 
@@ -1598,6 +1603,7 @@ contains
     if(COM1body == 2) then
        m1kin = m1kin * ( 1 - 1.0d0/(neutrons + protons) )
     endif
+
     !--------------------------------------------------------------
     ! include enhancement factor kappa for isovector pertubations
     !--------------------------------------------------------------
@@ -1660,6 +1666,7 @@ contains
     ewsr = m1kin + kappa
 
     print *, "Energy-weighted sum rule : m1 = ", ewsr
+    print *, "   m1_kin =", m1kin, "     kappa =", kappa
 
     ! return ewsr
     res = ewsr
