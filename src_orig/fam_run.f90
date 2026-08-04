@@ -25,23 +25,39 @@ program run_FAM
   !===========================
   ! TODO: document the module
   !===========================
-  use compilation
-  use IO
-  use version,  only : print_header
-  use MOCCa,    only : initialize_all_timers, full_printout
-  use MOCCa,    only : update_spwf_properties_HF, update_spwf_properties_CAN
+  use compilation, only : dp
+
+  ! Input/output imports
+  use IO,          only : ReadWavefunction, ReadInput, setBelyaevProcedure
+  use IO,          only : PrintInput, init_fam_file, xyfile, denfile, famfile
+  use IO,          only : init_xy_file, init_perturbed_denfile, xyinfile
+  use IO,          only : Finfile, Foutfile
+  use IO,          only : append_fam_file, append_xy_file, append_perturbed_denfile
+  use IO_wf,       only : readHFBinfofile
+
+  use version,     only : print_header
+  use MOCCa,       only : initialize_all_timers, full_printout
+  use MOCCa,       only : update_spwf_properties_HF, update_spwf_properties_CAN
+
+  ! Actual fam quantities
   use fam
+  use gmres
   use fam_testing, only : run_FAM_tests, test_L_Linv, test_RP_commutator
-  use gmres 
+
   use timing
 
   1 format(86('-'))
   11 format(/,24('='), ' omega = ', f5.2, ' MeV ', 24('='),/)
-  2 format('FAM iteration = ', i5) 
+  2 format('FAM iteration = ', i5)
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
+  4 format(' ------------------------- WARNING ------------------------------------ ')
+  5 format(' The Bogoliubov transformation was not taken from the wavefunction file.')
+  6 format(' All observables will be correct, but you might incur arbitrary phases  ')
+  7 format('  in the X and Y amplitudes as well as in the matrix elements of F.     ')
 
-  implicit none
-  integer :: iter, num_iter, ifail
+  implicit none (external)
+
+  integer :: iter, num_iter, ifail, scheme
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
@@ -60,9 +76,9 @@ program run_FAM
 
   !------------------------------------------------------------------------------
   ! starting all timers
-  ! 
+  !
   ! -> This is necessary since subroutines below make use of the timers
-  ! 
+  !
   call initialize_all_timers(.true.) ! optinal argument .true. starts FAM timers
   call start_timer(T_fam)
 
@@ -88,27 +104,47 @@ program run_FAM
   ! Derive all single-particle wavefunctions on the mesh
   call allocate_memory_derivatives(PairingType)
   if(store_derivatives) call deriveHF()
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Solve the pairing problem
+  !
+  ! Note: if HFB is active, we do NOT rediagonalize the HFB Hamiltonian unless
+  !       it is absolutely necessary. The reason is that any such diagonalisation
+  !       might result in arbitrary phases occuring in the Bogoliubov transformation.
+  !       Such phases do not affect the calculated strength, but they do propagate
+  !       into the forward and backward amplitudes and the matrix elements of
+  !       the external perturbation - this renders postanalysis very hard.
+  !
+  !       Thus, we take the Bogoliubov transformation as read from file.
+  scheme = -1
+  if( .not. Bogofromfile .or. (.not. readHFBinfofile)) then
+    print 4
+    print 5
+    print 6
+    print 7
+    print 4
+    scheme = 0
+  endif
+
   call SolvePairing(pairingscheme, ifail)
   ! NOTE: we DO NOT construct the canonical basis here since we want to save on memory
 
   ! if doing HF, we construct the full HF densities rather than the merely the vector rho_can
-  if (pairingtype .eq. 0) call iniHFdensities()
+  if (pairingtype == 0) call iniHFdensities()
   ! Mean-field densities and potentials
   Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
   call CalculateMoments(Density,.true.)           ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
 
-  if(pairingtype.eq.0) then
-    !----------------------------------------------------------------------------------  
-    ! Perform an explicit diagonalisation of the single-particle hamiltonian 
+  if(pairingtype==0) then
+    !----------------------------------------------------------------------------------
+    ! Perform an explicit diagonalisation of the single-particle hamiltonian
     !  to ensure a "clean" start for FAM-RPA calculations
     !
     ! ATTENTION: this explicit diagonalisation can break the apparent agreement
     !            between proton and neutron matices since the LAPACK diagonalisation
     !            might perform different rotations of the spwfs dependent on small
     !            numerical details.
-     
+
     ! Construct the matrix of the single-particle hamiltonian
     sphamil     = Calc_Sphamil(potentials, .true.)
     ! Diagonalise and transform spwf states
@@ -117,11 +153,11 @@ program run_FAM
     ! diagonalisation done; now recalculate other quantities
     call SolvePairing(pairingscheme, ifail)
     ! ... make sure the full density matrix gets repopulated!
-    if (pairingtype .eq. 0) call iniHFdensities()
+    if (pairingtype == 0) call iniHFdensities()
 
     Density = densit_offdiag_restricted(rho_pairing, kappa_pairing)
     Potentials  = calcPotentials(Density)
-  endif 
+  endif
 
   ! Explicitly recalculate dispersion to provide an idea of the quality of the mean-field state
   dispersions = calculate_spwf_dispersions(potentials)
@@ -130,10 +166,10 @@ program run_FAM
   print_adv_spwf_properties = .true.
   call setBelyaevProcedure()
   ! Calculate the energy ... but do not include expensive contributions that have to be calculated in the canonical basis - which is not constructed in FAM runs.
-  call CalcEnergy(Density,Potentials,pairingtype.ne.2) 
+  call CalcEnergy(Density,Potentials,pairingtype/=2)
   ! call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
-  
+
   !---------------------------------------------------------------------------------
   ! Evaluate the energy-weighted sum rule
   ewsr = calc_EWSR(Density)
@@ -142,11 +178,11 @@ program run_FAM
   ! create the FAM output file
   call init_fam_file(famfile)
 
-  if(xyfile .ne. '') then
+  if(xyfile /= '') then
     call init_xy_file(xyfile)
   endif
 
-  if(DENFILE .ne. '') then
+  if(DENFILE /= '') then
     call init_perturbed_denfile(DENFILE)
   endif
 
@@ -202,7 +238,7 @@ program run_FAM
     !-------------------------------------------------------------------------------
     ! optional : read X and Y from XYinfile if provided
 
-    if (XYinfile .ne. '') then 
+    if (XYinfile /= '') then
       call read_XY(XYinfile, X, Y)
       call store_XY_hist(X,Y)
 
@@ -212,8 +248,8 @@ program run_FAM
       ! perform partial FAM loop to obtain dH from X and Y
       call FAM_XY_to_dH(X, Y, dH_flat)
       ! dH_flat serves as the initialisation for the upcoming iterative FAM solvers
-    
-    else 
+
+    else
       ! If XYinfile is not present, then the free response is used as initalisation
       ! of dH_flat in the iterative solvers
 
@@ -224,7 +260,7 @@ program run_FAM
     !-------------------------------------------------------------------------------
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
     if(unit_test) call run_FAM_tests() ! Note: contains a stop statement!
-    
+
     !-------------------------------------------------------------------------------
     ! if XYtoF, calculate F staring from XY
 
@@ -248,15 +284,16 @@ program run_FAM
     is_divergent = .false.
 
     !-------------------------------------------------------------------------------
-    ! start the iterative solver unless maxiter = 0 providing the free response. 
+    ! start the iterative solver unless maxiter = 0 providing the free response.
     if (fam_mixingscheme == 0 .and. fam_maxiter > 1) then
 
       !---------------------------------------------------------------------------------
       ! OPTION 0 : GMRES on implicit matrix*vector procedure one_minus_T()
       !---------------------------------------------------------------------------------
 
-      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, fam_precision, norm_dH, ScProd_dH)
-      
+      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, &
+           &           fam_precision, norm_dH, ScProd_dH)
+
       fam_verbose = 0
 
       call init_gmres(dH_flat)
@@ -270,7 +307,7 @@ program run_FAM
 
         !---------------------------------------------------------------------------------
         ! test convergenence
-        if (gmres_res < gmres_precision) then 
+        if (gmres_res < gmres_precision) then
           print 1
           print *, "Hooray! GMRES is converged! "
           num_iter = iter
@@ -307,10 +344,10 @@ program run_FAM
       ! OPTION 1 : linear mixing while employing iterate_dHsp()
       !---------------------------------------------------------------------------------
 
-      ! initialise the sp hamiltonians to the ones of the free response 
+      ! initialise the sp hamiltonians to the ones of the free response
       dH_flat_next = 0
 
-      ! Start of the iterations 
+      ! Start of the iterations
       do iter=1, fam_maxiter
 
         print 1
@@ -355,7 +392,7 @@ program run_FAM
 
         ! shift dH to prepare for the next iteration
         dH_flat = dH_flat_next
-      
+
       enddo
     endif
 
@@ -365,7 +402,7 @@ program run_FAM
     !---------------------------------------------------------------------------------
     ! store the converged strength
     !---------------------------------------------------------------------------------
-      
+
     ! strength = calc_strength()
     call calc_strength_decomp(S_complex_decomp, S_decomp)
 
@@ -383,8 +420,15 @@ program run_FAM
 
     call append_fam_file(S_decomp, num_iter, famfile)
 
-   
-    if(xyfile .ne. '') call append_xy_file(xyfile)
+    if(xyfile /= '') then
+      if (omega_index == 1) call append_xy_file(xyfile, F(:,:,1), F(:,:,2))
+      call append_xy_file(xyfile)
+    endif
+
+
+    if(DENFILE /= '') then
+      call append_perturbed_denfile(dRs, dRa, DENFILE)
+    endif
 
 
     if(DENFILE .ne. '') call append_perturbed_denfile(dRs, dRa, DENFILE)
@@ -401,7 +445,7 @@ program run_FAM
   endif
 
 
-  print *, "Reached the end successfully" 
+  print *, "Reached the end successfully"
 
   call stop_timer(T_fam)
   call print_all_timers()
