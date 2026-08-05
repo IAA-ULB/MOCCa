@@ -97,7 +97,17 @@ endif
 endif
 include $(INCLUDEFILE)
 
-
+# Dependency generation flags - compiler-specific
+# Use flags that generate .d files as a side effect of compilation for robustness
+# gfortran, ftn: -MMD -MP (GCC-compatible)
+# ifort, ifx: -MMD only (Intel does not support -MP)
+ifneq ($(filter $(CXX),gfortran ftn),)
+  DEPFLAGS = -MMD -MP
+else ifneq ($(filter $(CXX),ifort ifx),)
+  DEPFLAGS = -MMD
+else
+  DEPFLAGS =
+endif
 
 
 ################################################################################
@@ -335,18 +345,22 @@ gen_nilsson: $(PRE_MF) cp_nil $(NIL_OBJ)
 	mv gen_nilsson exec/gen_nilsson.exe
 
 $(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) $(DEPFLAGS) -c $< -o $@ $(HDF5_LIB)
 
 $(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) $(DEPFLAGS) -c $< -o $@ $(HDF5_LIB)
 
 # Override the standard recipes for version information, to ensure that the relevant information
 #  from git and the compiler is included in the source code.
 $(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_mf 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) $(DEPFLAGS) -c $< -o $@ $(HDF5_LIB)
 
 $(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_fam
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) $(DEPFLAGS) -c $< -o $@ $(HDF5_LIB)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Generation of source code 
@@ -410,8 +424,13 @@ getcompilerinfo:
 cp_nil:
 	cp src_orig/gennilsson.f90 $(MF_SRC_DIR)/gennilsson.f90
 
+# Include automatically generated dependency files
+-include $(wildcard $(MF_OBJ_DIR)/*.d)
+-include $(wildcard $(FAM_OBJ_DIR)/*.d)
+
 clean:
 	rm  -f build/*/*/*.o
 	rm  -f build/*/*/*.mod
+	rm  -f build/*/*/*.d
 ################################################################################
 
