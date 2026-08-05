@@ -70,20 +70,20 @@ implicit none
 
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
-  character(len=100)  :: inputfilename, outputfilename
+  character(len=120)  :: inputfilename, outputfilename
   ! Flag governing the reading of potentials from file
   ! If .true.  => attempt to read the potentials from file and use them
   !               to start iterating
   logical             :: potentials_from_file = .true.
   ! Signal the code to write extra output.
-  character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
-  character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile='', famfile='', xyfile='', xyinfile=''
-  character(len=80)   :: finfile='', foutfile=''
+  character(len=120)  :: BXLFIT='', COMBI='', denfile='', potfile=''
+  character(len=120)  :: sphffile='', spcanfile='', tofile='', blockfile=''
+  character(len=120)  :: inertfile='', famfile='', xyfile='', xyinfile=''
+  character(len=120)  :: finfile='', foutfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
-  logical                       :: passed_block_test = .true.
+  logical             :: passed_block_test = .true.
 
 contains
 
