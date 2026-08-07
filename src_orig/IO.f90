@@ -1880,7 +1880,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     complex(KIND=dp), intent(in), optional :: O20(:,:), O02(:,:)
     integer                                :: io, mu, nu
 
-    1 format ( '& omega = ', f10.3, f10.3) 
+    1 format ( '# omega = ', f10.3, f10.3) 
     2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
 
     print *, ' append XY file :  ', fname
