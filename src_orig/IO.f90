@@ -395,7 +395,7 @@ contains
         print 111,  adjustl(trim(input_file)), file_number
       endif
 #if( $FAM == 1 )
-        print 1111,  XYINFILE, FINFILE, FOUTFILE
+        print 1111,  XYINFILE, FINFILE
 #endif    
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
