@@ -125,7 +125,7 @@ program run_FAM
     scheme = 0
   endif
 
-  call SolvePairing(pairingscheme, ifail)
+  call SolvePairing(scheme, ifail)
   ! NOTE: we DO NOT construct the canonical basis here since we want to save on memory
 
   ! if doing HF, we construct the full HF densities rather than the merely the vector rho_can
