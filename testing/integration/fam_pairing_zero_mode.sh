@@ -253,8 +253,9 @@ if $verbose; then
   echo "----------------------------------------"
 fi
 
-# Clean up
-#teardown_test_env
+# Clean up - keeping N.fam!
+cp N.fam ../logs/N.fam
+teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
