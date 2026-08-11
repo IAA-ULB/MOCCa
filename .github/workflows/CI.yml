@@ -1105,8 +1105,8 @@ jobs:
       - name: Run fam_pairing_zero_mode test
         run: |
           cd testing/integration/
-          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX }}   --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
-          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX_T }} --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX }}   --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose --nw 20
+          bash fam_pairing_zero_mode.sh ${{ env.SUFFIX_T }} --pairing HFB  --parameterisation ${{ matrix.PARAM }} --verbose --nw 40
 
       - name: Upload test results
         if: success() || failure()
@@ -1115,6 +1115,7 @@ jobs:
           name: fam_pairing_zero_mode.${{ env.SUFFIX }}.logs
           path: |
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.N.fam
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.N.fam
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.out
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.out
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.fam.out
