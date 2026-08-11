@@ -354,10 +354,14 @@ contains
             ! (3)  the anomalous density matrix
             do wave=1,N
               do wave2=1,N
+                ! Mystery sign: this is the equivalent of the mystery sign in
+                !  the calculation of HFBgaps in the HFB.f90 module.
+                !  TODO: resolve mystery sign
+                ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 HFBgaps(sb + wave     , sb + wave2 + N)  = &
-                &                                     tempgaps(si+wave,si+wave2)
-                HFBgaps(sb + wave  + N, sb + wave2    )  = &
                 &                                    -tempgaps(si+wave,si+wave2)
+                HFBgaps(sb + wave  + N, sb + wave2    )  = &
+                &                                     tempgaps(si+wave,si+wave2)
 
                 rho_pairing(sb+wave  , sb+wave2)    = &
                 &                                      temprho(si+wave,si+wave2)
