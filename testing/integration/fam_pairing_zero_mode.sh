@@ -177,6 +177,7 @@ operator_type='particle number'
 maxiter=30
 maxhist=31
 eff_charge_n=0.0
+fam_precision=1e-11
 /
 EOF
 
