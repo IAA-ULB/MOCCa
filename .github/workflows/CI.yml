@@ -1114,7 +1114,7 @@ jobs:
         with:
           name: fam_pairing_zero_mode.${{ env.SUFFIX }}.logs
           path: |
-            testing/integration/logs/N.fam
+            testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.N.fam
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.out
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX_T }}.out
             testing/integration/logs/fam_pairing_zero_mode.${{ env.SUFFIX }}.fam.out
