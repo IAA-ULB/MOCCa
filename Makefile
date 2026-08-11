@@ -285,13 +285,13 @@ PREPROCESSOR :=  $(PREPFLAG) $(DIRECTIVES)
 # Recipes (This section should NOT be modified in principle)
 ################################################################################
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+.PHONY: mf fam
+
 mf: $(PRE_MF) $(MF_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(MF_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
-	mv mf exec/$(EXENAME)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o exec/$(EXENAME) $(MF_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 
 fam: $(PRE_FAM) $(FAM_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
-	mv fam exec/$(FAMNAME)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o exec/$(FAMNAME) $(FAM_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 
 # The following is an unused recipe which ensures that make does not treat the processed 
 # source code files as intermediates
