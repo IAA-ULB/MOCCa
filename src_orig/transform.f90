@@ -215,6 +215,8 @@ contains
       else
         allocate(tempconfig(2*nwt)) ; tempconfig = 0.0d0
       endif
+      ! Initialize to zero; will get treated below depending on
+      !  what kind of transformation is requested
       allocate(configmatrix(2*nwt)) ; configmatrix = 0
     endif
 
@@ -352,10 +354,14 @@ contains
             ! (3)  the anomalous density matrix
             do wave=1,N
               do wave2=1,N
+                ! Mystery sign: this is the equivalent of the mystery sign in
+                !  the calculation of HFBgaps in the HFB.f90 module.
+                !  TODO: resolve mystery sign
+                ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 HFBgaps(sb + wave     , sb + wave2 + N)  = &
-                &                                     tempgaps(si+wave,si+wave2)
-                HFBgaps(sb + wave  + N, sb + wave2    )  = &
                 &                                    -tempgaps(si+wave,si+wave2)
+                HFBgaps(sb + wave  + N, sb + wave2    )  = &
+                &                                     tempgaps(si+wave,si+wave2)
 
                 rho_pairing(sb+wave  , sb+wave2)    = &
                 &                                      temprho(si+wave,si+wave2)
@@ -437,6 +443,13 @@ contains
       elseif($EXPANDY) then
           call stp('Extending to the full Y-axis not implemented yet')
       elseif($EXPANDZ) then
+          if(pairingtype.eq.2) then
+            if(allocated(HFBgaps)) then
+              tempbogo = Bogoliubov
+              configmatrix = Pbreak_HFB_vector(tempconfig, blocks)
+              Bogoliubov   = Pbreak_HFB_matrix(Bogoliubov, blocks)
+            endif
+          endif
           sb = 0
           do B=1,8,4 ! This is essentially an isospin loop now
             !-------------------------------------------------------------------
@@ -445,11 +458,11 @@ contains
             ! First block does not get modified
             offset_left  = 0
             offset_right = 0
-            dispersions(sb+offset_left +1:sb+offset_left +blocks(B)) &
-            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(B))
-            spenergies (sb+offset_left +1:sb+offset_left +blocks(B)) &
-            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B))
-            rho_can    (sb+offset_left +1:sb+offset_left +blocks(B)) &
+            dispersions (sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = tempd (sb+offset_right+1:sb+offset_right+blocks(B))
+            spenergies  (sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = tempe (sb+offset_right+1:sb+offset_right+blocks(B))
+            rho_can     (sb+offset_left +1:sb+offset_left +blocks(B)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B))
 
             hftransfo        (sb+offset_left +1:sb+offset_left +blocks(B), &
@@ -491,6 +504,10 @@ contains
             &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B+1))
             rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+1)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+1))
+
+            ! The configmatrix array has size 2*nwt!
+            configmatrix    (2*(sb+offset_left )+1:2*(sb+offset_left +blocks(B+1))) &
+            &   = tempconfig(2*(sb+offset_right)+1:2*(sb+offset_right+blocks(B+1)))
 
             hftransfo        (sb+offset_left +1:sb+offset_left +blocks(B+1), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B+1)) &
@@ -1176,6 +1193,168 @@ $PBROKEN  enddo
     &        fileblocks(1:8), nx,ny,nz,dx,nwn,nwp, hfblocks(1:8)
 
   end subroutine TransformInput
+
+  pure function Pbreak_HFB_vector(vec_in, blocks) result(vec_out)
+    !--------------------------------------------------------------------------
+    ! Restructure a vector with HFB conventions to break parity.
+    ! In practice, this means rearranging the contents of a vector
+    !
+    !  vec_in = [ B1a B1b B2a B2b B3a B3b B4a B4b B5a B5b B6a B6b B7a B7b B8a B8b ]
+    !
+    ! where the 'a' and 'b' indicate the first and second halves of the sub-vector.
+    ! to
+    !
+    !  vec_out = [ B1a B3a B1b B3b B2a B4a B2b B4b B5a B7a B5b B7b B6a B8a B6b B8b ]
+    !
+    ! Input:
+    !  vec_in : real(KIND=dp), size (2*nwt), vector to be revecanged
+    !  blocks : integer, size(8)
+    !           half of the size of the subblocks of the original matrix
+    !            i.e. the size of an 'a/b' subblock
+    !
+    ! Output:
+    !  vec_out: the restructured vecay
+    !
+    ! Constructed with the help of MISTRAL Vibe.
+    !--------------------------------------------------------------------------
+    integer, intent(in)       :: blocks(8)  ! blocks(i) = HALF the size of subblock i
+    real(KIND=dp), intent(in) :: vec_in(2*nwt)
+    real(KIND=dp)             :: vec_out(2*nwt)
+
+    integer :: i, offset_out
+    integer :: block_start(9)
+    integer :: a, b, ha, hb, sta, stb
+    integer, parameter :: pairs(4,2) = reshape([1, 2, 5, 6, 3, 4, 7, 8], [4,2])
+
+    ! Calculate starting indices: full size of block i = 2 * blocks(i)
+    block_start(1) = 1
+    do i = 1, 8
+        block_start(i+1) = block_start(i) + 2 * blocks(i)
+    end do
+
+    offset_out = 1
+    ! Process each pair: (1,3), (2,4), (5,7), (6,8)
+    do i = 1, 4
+        a = pairs(i, 1)
+        b = pairs(i, 2)
+        ha = blocks(a)
+        hb = blocks(b)
+        sta = block_start(a)
+        stb = block_start(b)
+
+        ! First half of block A
+        vec_out(offset_out:offset_out+ha-1) = vec_in(sta:sta+ha-1)
+        offset_out = offset_out + ha
+
+        ! First half of block B
+        vec_out(offset_out:offset_out+hb-1) = vec_in(stb:stb+hb-1)
+        offset_out = offset_out + hb
+
+        ! Second half of block A
+        vec_out(offset_out:offset_out+ha-1) = vec_in(sta+ha:sta+2*ha-1)
+        offset_out = offset_out + ha
+
+        ! Second half of block B
+        vec_out(offset_out:offset_out+hb-1) = vec_in(stb+hb:stb+2*hb-1)
+        offset_out = offset_out + hb
+    end do
+
+  end function pbreak_HFB_vector
+
+  pure function Pbreak_HFB_matrix(mat_in, blocks) result(mat_out)
+    !--------------------------------------------------------------------------
+    ! Restructure a matrix with HFB conventions to break parity.
+    ! This is the matrix-equivalent with row- and column- reordering along
+    ! the logic of Pbreak_HFB_vector.
+    !
+    ! Input:
+    !  arr_in : real(KIND=dp), size (2*nwt,2*nwt), matrix to be rearranged
+    !  blocks : integer, size(8)
+    !           half of the size of the subblocks of the original matrix
+    !            i.e. the size of an 'a/b' subblock
+    !
+    ! Output:
+    !  arr_out: the restructured matrix
+    !
+    ! Constructed with the help of MISTRAL Vibe.
+    !--------------------------------------------------------------------------
+    integer, intent(in)       :: blocks(8)
+    real(KIND=dp), intent(in) :: mat_in (2*nwt, 2*nwt)
+    real(KIND=dp)             :: mat_out(2*nwt, 2*nwt)
+    real(KIND=dp)             :: temp   (2*nwt, 2*nwt)
+
+    integer :: i, row_pos, col_pos
+    integer :: row_start(9), col_start(9)
+    integer :: a, b, ha, hb, rsa, rsb, csa, csb
+    integer, parameter :: pairs(4,2) = reshape([1, 2, 5, 6, 3, 4, 7, 8], [4,2])
+
+    ! Calculate row boundaries (full height of subblock i = 2 * blocks(i))
+    row_start(1) = 1
+    do i = 1, 8
+        row_start(i+1) = row_start(i) + 2 * blocks(i)
+    end do
+
+    ! Calculate column boundaries (full width of subblock i = 2 * blocks(i))
+    col_start(1) = 1
+    do i = 1, 8
+        col_start(i+1) = col_start(i) + 2 * blocks(i)
+    end do
+
+    ! Step 1: Interleave the rows into temp
+    row_pos = 1
+    do i = 1, 4
+        a = pairs(i, 1)
+        b = pairs(i, 2)
+        ha = blocks(a)
+        hb = blocks(b)
+        rsa = row_start(a)
+        rsb = row_start(b)
+
+        ! First half of subblock A rows
+        temp(row_pos:row_pos+ha-1, :) = mat_in(rsa:rsa+ha-1, :)
+        row_pos = row_pos + ha
+
+        ! First half of subblock B rows
+        temp(row_pos:row_pos+hb-1, :) = mat_in(rsb:rsb+hb-1, :)
+        row_pos = row_pos + hb
+
+        ! Second half of subblock A rows
+        temp(row_pos:row_pos+ha-1, :) = mat_in(rsa+ha:rsa+2*ha-1, :)
+        row_pos = row_pos + ha
+
+        ! Second half of subblock B rows
+        temp(row_pos:row_pos+hb-1, :) = mat_in(rsb+hb:rsb+2*hb-1, :)
+        row_pos = row_pos + hb
+    end do
+
+    ! Step 2: Interleave the columns of temp into mat_out
+    col_pos = 1
+    do i = 1, 4
+        a = pairs(i, 1)
+        b = pairs(i, 2)
+        ha = blocks(a)
+        hb = blocks(b)
+        csa = col_start(a)
+        csb = col_start(b)
+
+        ! First half of subblock A columns
+        mat_out(:, col_pos:col_pos+ha-1) = temp(:, csa:csa+ha-1)
+        col_pos = col_pos + ha
+
+        ! First half of subblock B columns
+        mat_out(:, col_pos:col_pos+hb-1) = temp(:, csb:csb+hb-1)
+        col_pos = col_pos + hb
+
+        ! Second half of subblock A columns
+        mat_out(:, col_pos:col_pos+ha-1) = temp(:, csa+ha:csa+2*ha-1)
+        col_pos = col_pos + ha
+
+        ! Second half of subblock B columns
+        mat_out(:, col_pos:col_pos+hb-1) = temp(:, csb+hb:csb+2*hb-1)
+        col_pos = col_pos + hb
+    end do
+
+  end function Pbreak_HFB_matrix
 
   subroutine ChangeBoxSizeSpwf(Phi,filenx,fileny, filenz, filenwt)
     !---------------------------------------------------------------------------
