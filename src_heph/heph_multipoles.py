@@ -88,7 +88,7 @@
 
 from string                    import Template
 from src_heph.heph_symmetries  import *
-from scipy.special             import sph_harm
+from scipy.special             import sph_harm_y
 import numpy                   as np
 from src_heph.heph_substitute import substitute
 
@@ -128,15 +128,13 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
   for l in range(1,maxl+1):
     filling = filling + tab + '! l = %d \n'%l    
     for m in range(0, l+1):
-      # Attention: sph_harm in scipy takes arguments in what I would call
-      #            a nonintuitive order.
-      orig = sph_harm(m,l, phi_orig, theta_orig )
+      orig = sph_harm_y(l,m, phi_orig, theta_orig )
       
       # Then we calculate the values of the multipole moment at points 
       # obtained through coordinate reflection
-      new  = [ sph_harm(m,l, phi_x   , theta_x    ), \
-               sph_harm(m,l, phi_y   , theta_y    ), \
-               sph_harm(m,l, phi_z   , theta_z    )]
+      new  = [ sph_harm_y(l, m, phi_x   , theta_x    ), \
+               sph_harm_y(l, m, phi_y   , theta_y    ), \
+               sph_harm_y(l, m, phi_z   , theta_z    )]
 
       dic['ELL'] = '%d'%(l) # the Fortran arrays are 1-indexed
       dic['EMM'] = '%d'%(m) 
