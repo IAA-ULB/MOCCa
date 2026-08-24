@@ -21,17 +21,20 @@ RUN apt-get update -y && \
         gfortran make git \
         liblapack-dev libblas-dev \
         libhdf5-dev hdf5-tools \
-        python3 python3-numpy python3-scipy \
+        python3 python3-pip python3-numpy \
         time bc ca-certificates \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
+
+# Install specific scipy version via pip
+RUN pip3 install --no-cache-dir numpy scipy==1.17.1
 
 # Set up working directory
 WORKDIR /workspace
 
 # Verify installation
 RUN gfortran --version && \
-    python3 -c "import numpy; import scipy; print('Python packages OK')" && \
+    python3 -c "import numpy; import scipy; print('scipy version:', scipy.__version__)" && \
     h5cc --version
 
 # Label the image
