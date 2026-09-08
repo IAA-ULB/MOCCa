@@ -1,93 +1,22 @@
 # Breaking symmetries: practical aspects
 
-We cover the basic workflow of running MOCCa with broken symmetries, i.e. in less-than-maximally-symmetric mode.
+Any given MOCCa executable comes with a *predefined* set of self-consistent symmetries that are enforced and thus exploited for numerical and interpretational gain. These self-consistent symmetries are determined at *compile-time* through the choice of the configuration, see the documentation [here](config.md). 
 
-[ADD LINK TO CONFIG.md]
+Today, the predefined configuration files offer four different sets of conserved symmetries, each (i) fully determined by the generators of the conserved symmetry group, (ii) a colloquial reference, (iii) the suffix of the configuration file, i.e. the `-T` in `NLO-T.py` and (iv) a representation of the Cartesian axes as determined by the `REDUCE` variable in the configuration file. 
 
-# Understanding MOCCa's maximally symmetric mode 
+The four options are:
 
-First some preliminaries on the maximally symmetric mode - i.e. the most used, essentially `default` mode. 
+Conserved symmetries | Colloquial reference | Suffix | `Reduce | 
+    ----------------------|----------------------|--------------------------|----|
+\( R_z, T, S^T_y, P \) |    maximally symmetric | NA | `[1,1,1]`
+\( R_z, T , S^T_y \)   |   broken parity" |  `-P` |  `[1,1,0]`
+\( R_z, P , S^T_y \)  |   broken time-reversal | `-T`  |  `[1,1,1]`
+\( R_z,  S^T_y \)      |   broken P and T | `-TP` |  `[1,1,0]`
 
+Everything with conserved $P$ represents only one octant of the simulation volume as in the figure on the left. Configurations with broken parity represent the full z-axis, as in the figure on the right.
 
-
-
-
-
-## Available symmetry modes
-
-The code provides four distinct types of executables, each corresponding to a different combination of imposed symmetries:
-
-| Executable | Source folder |ons | Typical use case | Spatial representation |
-|------------|---------------|----------------|----------------|------------------|-------------------------|
-| `MOCCa.XXX.exe` | `src/` | (Nx/2, Ny/2, Nz/2) | (nwn/2, nwp/2) | Starting point for most calculations | Full symmetry (PRS) |
-| `MOCCa.XXX.T.exe` | `src_T/` | (Nx/2, Ny/2, Nz/2) | (nwn, nwp) | Nuclei with odd-N/Z | Full symmetry (PRS) |
-| `MOCCa.XXX.P.exe` | `src_P/` | (Nx/2, Ny/2, Nz) | (nwn/2, nwp/2) | Octupole deformation and fission barriers | Reduced symmetry (RS) |
-| `MOCCa.XXX.TP.exe` | `src_TP/` | (Nx/2, Ny/2, Nz) | (nwn, nwp) | Octupole for odd-Z/N | Reduced symmetry (RS) |
-
-Here, `XXX` refers to your configuration name (e.g., `NLO` for a specific functional configuration).
-
-*Note: The original manual included diagrams showing the spatial representation for different symmetry combinations (e.g., Boxes_PRS.eps for fully symmetric, Boxes_RS.eps for parity-broken modes). These visual aids may be helpful to include in future versions of this documentation.*
-
-The symmetries referred to are:
-- **Rz**: Rotational symmetry around the z-axis
-- **T**: Time-reversal symmetry
-- **P**: Parity (spatial reflection) symmetry
-- **STy**: Simulated time-reversal symmetry (for odd systems)
-
-## Compilation
-
-All symmetry variants can be compiled using the main Makefile. To compile all variants:
-
-```bash
-make MC=mf CONFIG=YourConfig CALCTYPE=NUCLEI
-```
-
-To compile a specific symmetry variant, use the corresponding make target:
-
-*Note: The exact make targets may vary between different MOCCa versions. The examples below follow the current MOCCa convention. In the original Tantalus code, the targets were slightly different (e.g., `make single`, `make single_T`, etc.).*
-
-```bash
-# Default (all symmetries conserved)
-make single MC=mf CONFIG=YourConfig CALCTYPE=NUCLEI
-
-# Time-reversal breaking
-make single_T MC=mf CONFIG=YourConfig CALCTYPE=NUCLEI
-
-# Parity breaking  
-make single_P MC=mf CONFIG=YourConfig CALCTYPE=NUCLEI
-
-# Both parity and time-reversal breaking
-make single_TP MC=mf CONFIG=YourConfig CALCTYPE=NUCLEI
-```
-
-All compiled executables will be placed in the `exec/` directory.
-
-## Symmetry transformation hierarchy
-
-Practical constraints limit the code to:
-1. Breaking only **one symmetry in any given run**
-2. Being capable of breaking only **one single symmetry at a time**
-
-This results in the following transformation hierarchy:
-
-```
-                        Maximally symmetric mode
-                                     |
-                   |----------<<<<<----------|---------->>>>>>----------|
-                   |           Time-reversal broken                Parity broken          |
-                   |                   |                                    |
-                   |                   X                                    |
-                   |                                                    |
-                   |                          Parity & time-reversal broken       |
-                   |__________________________________________________________|
-```
-
-The allowed transformation paths are:
-- From **maximally symmetric** → **time-reversal broken**
-- From **maximally symmetric** → **parity broken**
-- From **parity broken** → **parity & time-reversal broken**
-
-**Note**: The transformation from time-reversal broken to PT-broken is **NOT SUPPORTED** in the current repository.
+![Maximally symmetric](../assets/figs/Boxes_PRS.png){ width='300' }
+![Symmetry unrestricted](../assets/figs/Boxes_RS.png){ width='300' }
 
 ## Warmstarting from more symmetric calculations
 
@@ -97,14 +26,45 @@ Wavefunction files from calculations with **more imposed symmetries** can be use
 - Reducing computation time by building upon previous results
 - Systematically exploring symmetry breaking effects
 
-### How to perform symmetry transformations
-
-To transform from a more symmetric to a less symmetric calculation:
-
 1. **Prepare your input file**: Start with a converged wavefunction file (`.wf`) from the more symmetric calculation
 2. **Set the transformation flag**: Add `AllowTransform = .true.` to the `&IO` namelist
 3. **Use the appropriate executable**: Run the calculation with the symmetry-breaking executable
 4. **Ensure consistency**: Verify that the new degrees of freedom match the symmetry-broken version
+
+
+### Symmetry transformation hierarchy
+
+Practical constraints limit the code to:
+1. Breaking only **one symmetry in any given run**
+2. Being capable of breaking only **one single symmetry at a time**
+
+This results in the following transformation hierarchy:
+
+```
+                                   Maximally symmetric mode
+                                             |
+                   |----------<<<<<----------|---------->>>>>>----------|
+                   v                                                    v
+                   |                                                    |
+              Time-reversal broken                               Parity broken 
+                   |                                                    |
+                   v                                                    v
+                   |                                                    |
+                   ------ [TRANSFORMATION NOT IMPLEMENTED] ----    P & T broken      
+```
+
+The allowed transformation paths are:
+- From **maximally symmetric** → **time-reversal broken**
+- From **maximally symmetric** → **parity broken**
+- From **parity broken** → **parity & time-reversal broken**
+
+**Note**: The transformation from time-reversal broken to PT-broken is **NOT SUPPORTED** in the current repository.
+
+
+### How to perform symmetry transformations
+
+To transform from a more symmetric to a less symmetric calculation:
+
 
 ### Transformation requirements
 
@@ -139,6 +99,8 @@ nz = 2 × nz_file
 4. **User responsibility**: When removing points from the mesh, **you are responsible** for verifying that the box remains sufficiently large. The code will not verify this automatically.
 
 5. **Alternative symmetry breaking method**: Self-consistent symmetries can also be broken using the `&MomentConstraint` namelist with a specific `Iteration` parameter. If `Iteration` is set to a positive value (instead of -1), the constraint will only be applied for that number of iterations, which can be useful for breaking self-consistent symmetries.
+
+
 
 ## Practical workflow
 

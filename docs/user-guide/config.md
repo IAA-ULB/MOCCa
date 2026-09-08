@@ -26,7 +26,10 @@ For example:
 ```python
 REDUCE    = [1,1,0]
 ```
-indicates that one-fourth of a Cartesian cube will be simulated: the full z-axis, but only half of both the x- and y-axis. 
+indicates that one-fourth of a Cartesian cube will be simulated: the full z-axis, but only half of both the x- and y-axis as indicated by the figure.
+
+![symmetry](../assets/figs/Boxes_RS.png){ align=right, width="300" }
+
 
 Note that `REDUCE` does not nearly realize all of its potential. The current implementation only offers the illusion of a choice: if parity is conserved/broken, you should specify `[1,1,1]` / `[1,1,0]`.
 
