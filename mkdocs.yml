@@ -32,6 +32,7 @@ nav:
         - wavefunction (.wf) files: user-guide/wffile.md
         - potential (.pot) files: user-guide/potfile.md
     - Convergence: user-guide/convergence.md
+    - Breaking symmetries: user-guide/breaking-symmetries.md
   - Contributing to MOCCa:
     - Version control: user-guide/version-control.md
     - Fortran style guide: user-guide/codingstyle.md
@@ -46,3 +47,13 @@ theme: readthedocs
 extra_css: [extra.css]
 markdown_extensions:
   - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
+  - pymdownx.details
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
