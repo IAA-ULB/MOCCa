@@ -209,12 +209,15 @@ module fam
   !-----------------------------------------------------------------------------
   ! Run the unit tests on start-up; this will not result in a FAM calculation!
   logical :: unit_test = .false.
+  !----------------------------------------------------------------------------
+  ! Temporary logical: activate if the external operator is charge-exchanging,
+  !  and hence explicitly do ALL the looping...
+  logical :: charge_exchange_active = .false.
 
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
-
 
 contains
 
@@ -247,8 +250,8 @@ contains
 
         !----------------------------------------------------------------------------------
         ! 2) Multiply the single-particle matrix elements by the effective charges 
-        F(1:nwn,1:nwn,:) = eff_charge_n * F(1:nwn,1:nwn,:) 
-        F(nwn+1:,nwn+1:,:) = eff_charge_p * F(nwn+1:,nwn+1:,:)
+        F(    1:nwn,    1:nwn,:) = eff_charge_n * F(    1:nwn,1:nwn ,:)
+        F(nwn+1:   ,nwn+1:   ,:) = eff_charge_p * F(nwn+1:   ,nwn+1:,:)
       endif
     endif
 
@@ -326,7 +329,7 @@ contains
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
     &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type, &
-    &               remove_spurious
+    &               remove_spurious, charge_exchange_active
 
     if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -364,6 +367,9 @@ contains
     
 
     endif
+
+    print *, 'WARNING: experimental version'
+    print *, 'CHARGE_EXCHANGE_ACTIVE = ', charge_exchange_active
 
   end subroutine readfam
 
@@ -666,7 +672,7 @@ contains
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (4) Compute perturbed densities on the mesh
-    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus)
+    call densit_offdiag(drho, dkappa_plus, dkappa_minus, dRs, dRa, dR_pp_plus, dR_pp_minus, charge_exchange_active)
 
     if (fam_verbose > 0) then
       if(pairingtype==0) then
@@ -894,24 +900,36 @@ contains
       
       $TR   degeneracy = 2 ! degeneracy of sp states in case of T conservation
       $NTR  degeneracy = 1 ! degeneracy of sp states in case of T conservation
-    
-      si = 0
-      do B=1,8,2
-        N  = HFblocks(B)    ; if(N.eq.0) cycle 
-        N2 = HFblocks(B+1)
-        T = N + N2
-        ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
-        do j = 1, T
-          if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
-          do i = 1, T
-            if(abs(degeneracy - rho_can(si+i)) < 1d-6) cycle  ! skip if i is not a particle state
-            X(si+i,si+j) = X(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) - CMPLX(omega_fam,smear,KIND=dp) )
-            Y(si+i,si+j) = Y(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) + CMPLX(omega_fam,smear,KIND=dp) )
-          enddo
-        enddo
-        si = si+T
-      enddo 
-    
+
+      if(.not. charge_exchange_active) then
+         si = 0
+         do B=1,8,2
+            N  = HFblocks(B)    ; if(N.eq.0) cycle
+            N2 = HFblocks(B+1)
+            T = N + N2
+            ! run over particle-hole pairs. hole (j) as outer, particle (i) as inner loop
+            do j = 1, T
+               if(rho_can(si+j) < 1d-6) cycle  ! skip if j is not a hole state
+               do i = 1, T
+                  if(abs(degeneracy - rho_can(si+i)) < 1d-6) cycle  ! skip if i is not a particle state
+                  X(si+i,si+j) = X(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) - CMPLX(omega_fam,smear,KIND=dp) )
+                  Y(si+i,si+j) = Y(si+i,si+j) / (spenergies(si+i) - spenergies(si+j) + CMPLX(omega_fam,smear,KIND=dp) )
+               enddo
+            enddo
+            si = si+T
+         enddo
+      else
+         ! Charge exchange is active: we brute force things with loops ranging over ALL states
+         si = 0
+         do i=1,nwt
+            do j=1,nwt
+               if(rho_can(j) < 1d-6) cycle  ! skip if j is not a hole state
+               if(abs(degeneracy - rho_can(i)) < 1d-6) cycle  ! skip if i is not a particle state
+               X(i,j) = X(i,j) / (spenergies(i) - spenergies(j) - CMPLX(omega_fam,smear,KIND=dp) )
+               Y(i,j) = Y(i,j) / (spenergies(i) - spenergies(j) + CMPLX(omega_fam,smear,KIND=dp) )
+            enddo
+         enddo
+      endif
     else ! QFAM : sum of two qp energy
     
       ! loop over 4 isospin-parity (IP) block (signature unresolved)
@@ -1344,10 +1362,12 @@ contains
     ! 
     ! Input:
     !    op_type : operator_type to be loaded. Current options are
-    !               - 'multipole' :  Q_lm, the module variables m and l will be used 
+    !               - 'multipole'       : Q_lm, the module variables m and l will be used
     !               - 'particle number' : particle number operator 
-    !               - 'zcom' : the z-coordinate operator  
-    !               - 'zmomentum' : z-momentum operator
+    !               - 'zcom'            : the z-coordinate operator
+    !               - 'zmomentum'       : z-momentum operator
+    !               - 'isospin lower'   : the isospin lowering operator \tau_-
+    !                                     which turns a neutron into a proton
     ! Output:
     !    f_qpme  : quasi-particle matrix elements F20_mn and F02_mn of 
     !              the external field organised as a 3D complex array with 
@@ -1367,7 +1387,7 @@ contains
     complex(KIND=dp), allocatable :: f_qpme(:,:,:)
     complex(KIND=dp), allocatable :: f_spme(:,:)
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
-    integer :: i
+    integer :: i, B, Nn, Np, si_n, si_p
 
     if (fam_verbose > 1) print *, "get_external_field :: "
       
@@ -1444,11 +1464,50 @@ contains
         f_spme = dcmplx(nabla_spme(3,2,:,:), -nabla_spme(3,1,:,:))
 
 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Isospin lowering operator \tau_- : turn a neutron into a proton
+      !  Attention: non-Hermitian operator!
+      case ('isospin lower')
+
+        charge_exchange_active = .true.
+
+        si_n = 0
+        si_p = sum(HFBLocks(1:4))
+        do B = 1, 4 ! Loop over neutron blocks
+          Nn = HFBLocks(B    )
+          Np = HFBLocks(B + 4) ! corresponding proton block
+
+          if(Nn.eq.0 .or. Np.eq.0) cycle
+
+          f_spme(si_p+1:si_p+Np, si_n+1:si_n+Nn) = 1.0d0
+
+          si_n = si_n + Nn
+          si_p = si_p + Np
+        enddo
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Isospin raising operator \tau_+ : turn a proton into a neutron
+      !  Attention: non-Hermitian operator!
+      case ('isospin raise')
+
+        charge_exchange_active = .true.
+
+        si_n = 0
+        si_p = sum(HFBLocks(1:4))
+        do B = 1, 4 ! Loop over neutron blocks
+          Nn = HFBLocks(B    )
+          Np = HFBLocks(B + 4) ! corresponding proton block
+
+          if(Nn.eq.0 .or. Np.eq.0) cycle
+
+          f_spme( si_n+1:si_n+Nn, si_p+1:si_p+Np) = 1.0d0
+
+          si_n = si_n + Nn
+          si_p = si_p + Np
+        enddo
 
       case DEFAULT
         call stp('Unrecognized operator_type!')
     end select
-
 
     !----------------------------------------------------------------------------------
     ! 2) convert spme to quasiparticle basis
@@ -1783,10 +1842,6 @@ contains
     enddo
 
     ! This can be more efficient by using some mask and elementwise multiplication
-
-    ! For QFAM this will have to be generalised to M20 and M02 obtained from a 
-    ! Bogoliubov transformation to the qp basis. 
-
   end subroutine get_ph_hp_blocks_complex
 
 
@@ -1824,11 +1879,7 @@ contains
 
     ! This can be more efficient by using some mask and elementwise multiplication
 
-    ! For QFAM this will have to be generalised to M20 and M02 obtained from a
-    ! Bogoliubov transformation to the qp basis.
-
   end subroutine get_ph_hp_blocks_real
-
 
   subroutine transform_sp_to_qp(Bogo, OTRsp, OTLsp, OBLsp, OTRqp, OTLqp, OBLqp)
     !---------------------------------------------------------------------------

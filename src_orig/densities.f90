@@ -712,7 +712,8 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
-subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_minus)
+subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_minus, &
+     &                    charge_exchange_active)
     !----------------------------------------------------------------------------
     ! Calculate normal and anomalous densities through a double sum across spwfs
     ! by summing symmetric and antisymmetric parts.
@@ -732,11 +733,12 @@ subroutine densit_offdiag(rho, kappa_plus, kappa_minus, Rs, Ra, R_pp_plus, R_pp_
     !----------------------------------------------------------------------------
     complex(KIND=dp), intent(in)     :: rho(:,:), kappa_plus(:,:), kappa_minus(:,:)
     type(DensityVector), intent(out) :: Rs, Ra, R_pp_plus, R_pp_minus
+    logical, intent(in)              :: charge_exchange_active
 
     call start_timer(T_den_perturbed)
 
     ! building the ph densities
-    Rs = densit_offdiag_ph_symmetric(rho)      ! symmetric ph densities
+    Rs = densit_offdiag_ph_symmetric(rho, charge_exchange_active)      ! symmetric ph densities
     Ra = densit_offdiag_ph_antisymmetric(rho)  ! antisymmetric ph densities
     R_pp_plus = densit_offdiag_pp(kappa_plus)  ! pp densities for kappa_plus 
     R_pp_minus= densit_offdiag_pp(kappa_minus) ! pp densities for kappa_minus
@@ -780,7 +782,7 @@ function densit_offdiag_restricted(rho, kappa) result(R)
   kappa_plus_temp  = kappa
   kappa_minus_temp = 0.0d0
 
-  call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus)
+  call densit_offdiag(rho_temp, kappa_plus_temp, kappa_minus_temp, Rs, Ra, R_pp_plus, R_pp_minus, .false.)
   ! Combine the correct densities
   R = Rs + R_pp_plus
 
@@ -933,7 +935,7 @@ $HFBEXPRESSION
     call stop_timer(T_den_perturbed_pp)
 end function densit_offdiag_pp
 
-function densit_offdiag_ph_symmetric(rho) result(R_total)
+function densit_offdiag_ph_symmetric(rho, charge_exchange_active) result(R_total)
     !------------------------------ ---------------------------------------------
     ! Calculate the symmetric part(*) of the particle-hole mean-field densities, 
     ! based on arbitrary matrix rho.
@@ -941,13 +943,15 @@ function densit_offdiag_ph_symmetric(rho) result(R_total)
     ! TODO: explain "symmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
-    !   rho      real/complex matrix
+    !   rho                    : real/complex matrix
+    !   charge_exchange_active : logical
     !
     ! Output:
     !   R_total     densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
 
     complex(KIND=dp), intent(in) :: rho(:,:)
+    logical, intent(in)          :: charge_exchange_active
     type(DensityVector)          :: R, R_total
 
     complex(KIND=dp)          :: weight_sym
@@ -996,15 +1000,46 @@ $OMP_DENSITY_VARS
 !$OMP                   mv, denddpsi) DEFAULT(PRIVATE)
     ! Note: R is FIRSTPRIVATE, to ensure it is correctly ZERO'd in EVERY
     !       thread.
-    do B=1,8
-      N = HFBlocks(B) ; if(N.eq.0) cycle
-      si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
-      ! Isospin is neutron in the first half of blocks, proton in the rest
-      it = 1
-      if(B .ge. 5) it = 2
-!$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
-      do wave_i=si+1,si+N                ! Loop over the local spwf index
-        do wave_j=si+1,si+N
+    if(.not. charge_exchange_active) then
+       do B=1,8
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          si = sum(HFBlocks(1:B-1)) ! offset has to be explicitly calculated for OpenMP
+          ! Isospin is neutron in the first half of blocks, proton in the rest
+          it = 1
+          if(B .ge. 5) it = 2
+          !$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
+          do wave_i=si+1,si+N                ! Loop over the local spwf index
+             do wave_j=si+1,si+N
+                ! Note: the i-based indexing could be moved to the i-loop, but not all
+                !       compiler versions then accept the COLLAPSE statement in the
+                !       OpenMP clause.
+                wave_global_i = spwf_map(wave_i)  ! Global spwf index
+                der_index_i = wave_i
+                wave_global_j = spwf_map(wave_j)  ! Global spwf index
+                der_index_j = wave_j
+                !----------------------------------------------------------------------------
+                ! The summation weights for particle-hole densities
+                weight_sym = 0.5d0*( &
+                     &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
+                $TR       weight_sym = 2 * weight_sym ! <------ factor two for time-reversal symmetry
+
+                do i=1,mv
+                   $EXPRESSION_OFFDIAG_SYMMETRIC
+                enddo
+             enddo
+          enddo
+          !$OMP END DO
+       enddo
+    else
+       ! Do not use symmetries to reduce the loops to be done
+       !$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
+       do wave_i = 1, nwt
+          do wave_j = 1, nwt
+
+          ! TODO: fix the isospin assignment here
+          it = 1
+          if(wave_j .gt. nwn) it = 2
+
           ! Note: the i-based indexing could be moved to the i-loop, but not all
           !       compiler versions then accept the COLLAPSE statement in the
           !       OpenMP clause.
@@ -1019,12 +1054,13 @@ $OMP_DENSITY_VARS
 $TR       weight_sym = 2 * weight_sym ! <------ factor two for time-reversal symmetry
 
           do i=1,mv
-$EXPRESSION_OFFDIAG_SYMMETRIC
+            $EXPRESSION_OFFDIAG_SYMMETRIC
           enddo
         enddo
       enddo
       !$OMP END DO
-    enddo
+    endif
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
