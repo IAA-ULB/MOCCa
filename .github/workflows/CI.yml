@@ -1234,6 +1234,65 @@ jobs:
           path: testing/integration/logs/
           retention-days: 2
 
+  fam_spurious_mode_subtraction:
+    needs: [compile-mf-nuclei, compile-fam-nuclei]
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'fam_spurious_mode_subtraction'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        include:
+          - CONFIG: LO
+            MF_SUFFIX: LO.gfortran.NUCLEI.serial
+            FAM_SUFFIX: LO-P.gfortran.NUCLEI.serial
+            PARAM: t0t3
+            PAIRING: HF
+          - CONFIG: NLO
+            MF_SUFFIX: NLO.gfortran.NUCLEI.serial
+            FAM_SUFFIX: NLO-P.gfortran.NUCLEI.serial
+            PARAM: SLy4
+            PAIRING: HFB
+          - CONFIG: BXL-N2LO
+            MF_SUFFIX: BXL-N2LO.gfortran.NUCLEI.serial
+            FAM_SUFFIX: BXL-N2LO-P.gfortran.NUCLEI.serial
+            PARAM: BSkG5
+            PAIRING: HFB
+        COMPILER: [gfortran]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download MF executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ matrix.MF_SUFFIX }}
+          path: exec/
+
+      - name: Download FAM executable
+        uses: actions/download-artifact@v7
+        with:
+          name: fam.${{ matrix.FAM_SUFFIX }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ matrix.MF_SUFFIX }}.exe
+          chmod +x exec/fam.${{ matrix.FAM_SUFFIX }}.exe
+
+      - name: Run fam_spurious_mode_subtraction test
+        run: |
+          cd testing/integration/
+          bash fam_spurious_mode_subtraction.sh ${{ matrix.MF_SUFFIX }} ${{ matrix.FAM_SUFFIX }} ${{ matrix.PARAM }} ${{ matrix.PAIRING }} --verbose
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fam_spurious_mode_subtraction.${{ matrix.CONFIG }}.logs
+          path: testing/integration/logs/
+          retention-days: 2
+
   #-----------------------------------------------------------------------------
   # Batch 3: PASTA Tests
   #-----------------------------------------------------------------------------
