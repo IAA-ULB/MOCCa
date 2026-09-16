@@ -245,7 +245,7 @@ contains
       if (Finfile .ne. '') then 
         F = read_f(Finfile)
       else
-        F = get_external_field(operator_type)
+        F = get_qpme_op(operator_type)
 
         !----------------------------------------------------------------------------------
         ! 2) Multiply the single-particle matrix elements by the effective charges 
@@ -363,6 +363,13 @@ contains
           stop 1     
         endif
       endif
+
+      ! assert that no eff charges are spicified if operator_type is R, P or N
+      if (operator_type/='multipole' .and. (eff_charge_n/=1 .or. eff_charge_p/=1 ) ) then
+        print *, 'InputError in fam namelist :' 
+        print *, 'Effective charges can not be set while operator_type = ', operator_type,'... exiting'
+        stop 1     
+      endif
     
 
     endif
@@ -377,11 +384,25 @@ contains
     &          '    omega_max        = ', f10.3, /,  &
     &          '    omega_step       = ', f10.3, /,  &
     &          '    complex smearing = ' ,f10.3)
-    3 format ( ' Perturbing field:   ', /, &
-    &          '    F = Q_', i1, i1,/, &
-    &          '    neutron eff charge = ', f10.3, ' e', /, &
-    &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    ! 3 format ( ' Perturbing field:   ', /, &
+    ! &          '    F = Q_', i1, i1,/, &
+    ! &          '    neutron eff charge = ', f10.3, ' e', /, &
+    ! &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    ! &          '    subtract spur. mode ?  ', L4)
+
+    ! 31 format ( ' Perturbing field:   ', /, &
+    ! &          '      F = Q_', i1, i1,/, &
+    ! &          '      neutron eff charge = ', f10.3, ' e', /, &
+    ! &          '      proton eff charge  = ', f10.3, ' e')
+    ! 32 format ( '   Operator:   ',30a) 
+
+    3  format (' Perturbing field:   ')
+    31 format ('    F = Q_', i1, i1 )
+    32 format ('    F = ', 30a )
+    33 format ('    neutron eff charge = ', f10.3, ' e', /, &
+    &          '    proton eff charge  = ', f10.3, ' e', /, &
     &          '    subtract spur. mode ?  ', L4)
+
     41 format (' Convergence strategy: GMRES', /,  &
     &          '    max history size = ', i8, /,  &
     &          '    max # iterations = ', i8, /,  &
@@ -397,9 +418,18 @@ contains
     if (XYtoF) then
       print 5
     else
-      print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
+      ! print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
+      print 3
+      if(operator_type=="multipole") then
+        print 31, l, m
+      else
+        print 32, operator_type
+      endif
+      print 33, eff_charge_n, eff_charge_p, remove_spurious
+
       if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
+    
     endif
   
   end subroutine printfam_init
@@ -1300,8 +1330,8 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! load the qpme of R and P
-    Rz_qpme = get_external_field('Zcom')
-    Pz_qpme = get_external_field('Zmomentum')
+    Rz_qpme = get_qpme_op('Zcom')
+    Pz_qpme = get_qpme_op('Zmomentum')
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Evaluation of commutator expectation value <[R,P]>
@@ -1339,7 +1369,7 @@ contains
   end subroutine subtract_spurious_modes
 
 
-  function get_external_field(op_type) result (f_qpme)
+  function get_qpme_op(op_type) result (f_qpme)
     !---------------------------------------------------------------------------
     ! Get quasi-particle matrix elements of the external field F based on 
     ! operator_type and possibly multipolarity l, m
@@ -1371,7 +1401,7 @@ contains
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
     integer :: i
 
-    if (fam_verbose > 1) print *, "get_external_field :: "
+    if (fam_verbose > 1) print *, "get_qpme_op :: "
       
     allocate(f_qpme(nwt,nwt,2)) 
     allocate(f_spme(nwt,nwt)) 
@@ -1479,7 +1509,7 @@ contains
 
 
 
-  end function get_external_field
+  end function get_qpme_op
 
 
   function calc_EWSR(R) result (res)
