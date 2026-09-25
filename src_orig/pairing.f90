@@ -67,9 +67,24 @@ module pairing
  ! ... and finally, the Bogoliubov transformation.
  real(KIND=dp), allocatable, target :: Bogoliubov(:,:)
  ! Do we start with the Bogoliubov transformation from file? 
- ! This is important for the gradient solver, though not as much for the 
- ! HFB_direct solver. 
- logical             :: BogoFromFile   = .true.
+ !
+ !  - BogoFromFile = .true.  -> take the transformation 'as is'
+ !  - BogoFromFile = .false. -> perform a diagonalisation of the HFB Hamiltonian
+ !                              to get a new Bogoliubov transformation.
+ !
+ ! For a mean-field calculation with the direct solver, this has flag has no
+ !  consequence.
+ !
+ ! For a mean-field calculation with the gradient solver, the setting of this
+ !  flag is EXTREMELY important as this directly affects the starting point
+ !  of the gradient evolution.
+ !
+ ! For a linear-response calculation, this flag is nearly mandatory: if you
+ !  do not take the Bogoliubov transformation from the mean-field solution as
+ !  "ground truth", then separate runs (at separate frequencies for example)
+ !  can introduce arbitrary phases in the Bogoliubov transformation - which
+ !  will give you trouble in post-analysis such as the FAM-ROM emulator.
+ logical                    :: BogoFromFile   = .true.
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)

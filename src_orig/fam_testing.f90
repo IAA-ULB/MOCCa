@@ -1572,9 +1572,9 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! get the QPME for R and P
 
-    Rz_qpme = get_external_field('Zcom')
+    Rz_qpme = get_qpme_op('Zcom')
 
-    Pz_qpme = get_external_field('Zmomentum')
+    Pz_qpme = get_qpme_op('Zmomentum')
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

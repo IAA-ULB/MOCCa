@@ -227,6 +227,8 @@ contains
     ! Input:
     !    omega      : frequency of the perturbing field
     !    DensUnper  : unperturbed densities on the mesh
+    !    Finfile    : optional filename of the external field. 
+    !                 -> if empty : field is built from operator_type.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
@@ -243,7 +245,7 @@ contains
       if (Finfile .ne. '') then 
         F = read_f(Finfile)
       else
-        F = get_external_field(operator_type)
+        F = get_qpme_op(operator_type)
 
         !----------------------------------------------------------------------------------
         ! 2) Multiply the single-particle matrix elements by the effective charges 
@@ -353,13 +355,20 @@ contains
       fam_maxhist = maxhist
       fam_mixingscheme = mixingscheme
 
-      ! assert that l and m are provided if the exc operator is multipole
+      ! assert that l and m are provided if the excitation operator is a multipole operator
       if (operator_type=='multipole') then
         if (l==SENTINEL_INT .or. m==SENTINEL_INT) then
           print *, 'InputError in fam namelist :' 
           print *, 'l and m of the mulitpole excitation operator must be set ... exiting'
           stop 1     
         endif
+      endif
+
+      ! assert that no effective charges are specified if operator_type is R or P
+      if ( (operator_type/='multipole' .and. operator_type/='particle number') .and. (eff_charge_n/=1 .or. eff_charge_p/=1 ) ) then
+        print *, 'InputError in fam namelist :' 
+        print *, 'Effective charges can not be set while operator_type = ', operator_type,'... exiting'
+        stop 1     
       endif
     
 
@@ -375,11 +384,25 @@ contains
     &          '    omega_max        = ', f10.3, /,  &
     &          '    omega_step       = ', f10.3, /,  &
     &          '    complex smearing = ' ,f10.3)
-    3 format ( ' Perturbing field:   ', /, &
-    &          '    F = Q_', i1, i1,/, &
-    &          '    neutron eff charge = ', f10.3, ' e', /, &
-    &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    ! 3 format ( ' Perturbing field:   ', /, &
+    ! &          '    F = Q_', i1, i1,/, &
+    ! &          '    neutron eff charge = ', f10.3, ' e', /, &
+    ! &          '    proton eff charge  = ', f10.3, ' e' , /, &
+    ! &          '    subtract spur. mode ?  ', L4)
+
+    ! 31 format ( ' Perturbing field:   ', /, &
+    ! &          '      F = Q_', i1, i1,/, &
+    ! &          '      neutron eff charge = ', f10.3, ' e', /, &
+    ! &          '      proton eff charge  = ', f10.3, ' e')
+    ! 32 format ( '   Operator:   ',30a) 
+
+    3  format (' Perturbing field:   ')
+    31 format ('    F = Q_', i1, i1 )
+    32 format ('    F = ', 30a )
+    33 format ('    neutron eff charge = ', f10.3, ' e', /, &
+    &          '    proton eff charge  = ', f10.3, ' e', /, &
     &          '    subtract spur. mode ?  ', L4)
+
     41 format (' Convergence strategy: GMRES', /,  &
     &          '    max history size = ', i8, /,  &
     &          '    max # iterations = ', i8, /,  &
@@ -395,9 +418,18 @@ contains
     if (XYtoF) then
       print 5
     else
-      print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
+      ! print 3, l, m, eff_charge_n, eff_charge_p, remove_spurious
+      print 3
+      if(operator_type=="multipole") then
+        print 31, l, m
+      else
+        print 32, operator_type
+      endif
+      print 33, eff_charge_n, eff_charge_p, remove_spurious
+
       if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
       if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
+    
     endif
   
   end subroutine printfam_init
@@ -1298,8 +1330,8 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! load the qpme of R and P
-    Rz_qpme = get_external_field('Zcom')
-    Pz_qpme = get_external_field('Zmomentum')
+    Rz_qpme = get_qpme_op('Zcom')
+    Pz_qpme = get_qpme_op('Zmomentum')
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Evaluation of commutator expectation value <[R,P]>
@@ -1337,7 +1369,7 @@ contains
   end subroutine subtract_spurious_modes
 
 
-  function get_external_field(op_type) result (f_qpme)
+  function get_qpme_op(op_type) result (f_qpme)
     !---------------------------------------------------------------------------
     ! Get quasi-particle matrix elements of the external field F based on 
     ! operator_type and possibly multipolarity l, m
@@ -1369,7 +1401,7 @@ contains
     real(KIND=dp), allocatable :: nabla_spme(:,:,:,:)
     integer :: i
 
-    if (fam_verbose > 1) print *, "get_external_field :: "
+    if (fam_verbose > 1) print *, "get_qpme_op :: "
       
     allocate(f_qpme(nwt,nwt,2)) 
     allocate(f_spme(nwt,nwt)) 
@@ -1477,7 +1509,7 @@ contains
 
 
 
-  end function get_external_field
+  end function get_qpme_op
 
 
   function calc_EWSR(R) result (res)
@@ -1498,13 +1530,16 @@ contains
     !     * G_LGSB accounts for local-gauge-symmetry breaking effects. 
     !      /!\ : G_LGSB is currenlty NOT implemented
     !            the EDF param is thus assumed to respect LGS
-    !   - Presently only implemented for monopole (L=0,K=0) and quadruole 
-    !     perturbations (L=2, K=0) and (L=2, K=2), in fact it is for 
-    !     Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2).  
+    !   - Presently only implemented for monopole (L=0,K=0), dipole (L=1, K=0) 
+    !     and quadruole perturbations (L=2, K=0) and (L=2, K=2), 
+    !     in fact it is for Q22+ = 1/sqrt(2) (Q_22 + Q_2,-2).  
     !   - Isoscalar(vector) character of the perturbation is dealt with via the 
     !     effective charges. While for isoscalar both are positive and 
     !     approximately equal, for isovector effective charges differ in sign but 
-    !     are close in magnitude.
+    !     are close in magnitude. Note that in the expressions of N. Hinohara (2019)
+    !     effective charges are always positive and the sign is factor out explicitly.
+    !   - m1_kin contains a (1-1/A) correction factor originating from the one-body
+    !     center-of-mass correction in the intrinsic kinetic energy, if COM1body == 2 
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Caveats
@@ -1590,7 +1625,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! any other l, m
     else 
-      print *, 'NOT IMPLEMENTED: only monopole (l=0) and axial quadrupole (l=2, m=0) EWSR implemented for now'
+      print *, 'NOT IMPLEMENTED: only monopole (l=0), dipole(l=1) and axial quadrupole (l=2, m=0) EWSR implemented for now'
       return
     endif
 
@@ -1598,6 +1633,7 @@ contains
     if(COM1body == 2) then
        m1kin = m1kin * ( 1 - 1.0d0/(neutrons + protons) )
     endif
+
     !--------------------------------------------------------------
     ! include enhancement factor kappa for isovector pertubations
     !--------------------------------------------------------------
@@ -1660,6 +1696,7 @@ contains
     ewsr = m1kin + kappa
 
     print *, "Energy-weighted sum rule : m1 = ", ewsr
+    print *, "   m1_kin =", m1kin, "     kappa =", kappa
 
     ! return ewsr
     res = ewsr
