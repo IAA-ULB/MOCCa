@@ -355,7 +355,7 @@ contains
       fam_maxhist = maxhist
       fam_mixingscheme = mixingscheme
 
-      ! assert that l and m are provided if the exc operator is multipole
+      ! assert that l and m are provided if the excitation operator is a multipole operator
       if (operator_type=='multipole') then
         if (l==SENTINEL_INT .or. m==SENTINEL_INT) then
           print *, 'InputError in fam namelist :' 
@@ -364,8 +364,8 @@ contains
         endif
       endif
 
-      ! assert that no eff charges are spicified if operator_type is R, P or N
-      if (operator_type/='multipole' .and. (eff_charge_n/=1 .or. eff_charge_p/=1 ) ) then
+      ! assert that no effective charges are specified if operator_type is R or P
+      if ( (operator_type/='multipole' .and. operator_type/='particle number') .and. (eff_charge_n/=1 .or. eff_charge_p/=1 ) ) then
         print *, 'InputError in fam namelist :' 
         print *, 'Effective charges can not be set while operator_type = ', operator_type,'... exiting'
         stop 1     
