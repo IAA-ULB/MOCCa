@@ -265,7 +265,7 @@ for p0 in initial_guesses:
 #plt.tight_layout()
 #plt.savefig('zero_mode_fit.png', dpi=150)
 #plt.close()
-
+#
 # --- Decide pass/fail --------------------------------------------------------
 ifail = 0 if (abs(best_popt[1]) <= 0.1 and abs(best_popt[2]) <= 0.1) else 1
 
