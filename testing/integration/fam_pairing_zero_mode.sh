@@ -189,53 +189,49 @@ fam_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Check that strength at non-zero frequencies is quite a lot smaller
 #     than the one at zero frequency
-#
-# Quick inline python script
-cat << EOF > analyse.py
+
+# ------------------------------------------------------------------
+# (4) Fit a zero-mode model and verify the fitted frequency components
+cat <<'PYEOF' > analyse.py
 import numpy as np
 from scipy.optimize import curve_fit
 
 def zero_mode(omega, M, omega_ng_r, omega_ng_i):
     omega_ng_sq = (omega_ng_r**2 - omega_ng_i**2) + 2j * omega_ng_r * omega_ng_i
     denominator = omega**2 - omega_ng_sq
-    # Avoid division by zero near pole
-    with np.errstate(divide="ignore", invalid="ignore"):
+    with np.errstate(divide='ignore', invalid='ignore'):
         f = M * omega_ng_sq / denominator
     return f.real
 
-dat = np.loadtxt("N.fam")
-popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0,3], 0.001, 0.01])
+dat = np.loadtxt('N.fam')
+popt, _ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0, 3], 0.001, 0.01])
 
-if np.abs(popt[1]) > 0.1 or np.abs(popt[2]) > 0.1:
-    ifail = 1
-else:
-    ifail = 0
+ifail = 0 if (abs(popt[1]) <= 0.1 and abs(popt[2]) <= 0.1) else 1
 
-# Print results for bash to capture: omega_r omega_i ifail
-print(f"{popt[1]} {popt[2]} {ifail}")
-EOF
+# One value per line: ω_r, ω_i, ifail
+print(popt[1])
+print(popt[2])
+print(ifail)
+PYEOF
 
-# Run python script and capture all three outputs
-python_output=$(python3 analyse.py 2>&1)
-python_exit_status=$?
-
-# Check if Python script executed successfully
-if [ $python_exit_status -ne 0 ]; then
-  echo "Error: Python analysis script failed with exit status $python_exit_status"
-  echo "Python output: $python_output"
-  ifail=1
-  omega_r=""
-  omega_i=""
-else
-  # Read the three expected values from stdout
-  read omega_r omega_i ifail <<< "$python_output"
-  
-  # Verify we got all three values
-  if [ -z "$omega_r" ] || [ -z "$omega_i" ] || [ -z "$ifail" ]; then
-    echo "Error: Python script did not produce expected output (omega_r, omega_i, ifail)"
-    echo "Python output: $python_output"
+# Run analysis and *only* capture stdout; warnings go to the terminal.
+if ! python3 analyse.py > analyse.out; then
+    echo "Error: Python analysis script failed"
     ifail=1
-  fi
+    omega_r=""
+    omega_i=""
+else
+    # Read the three lines explicitly
+    omega_r=$(head -n1 analyse.out)
+    omega_i=$(sed -n '2p' analyse.out)
+    ifail=$(sed -n '3p' analyse.out)
+    # Sanity: if any line is missing we treat as failure
+    if [ -z "$omega_r" ] || [ -z "$omega_i" ] || [ -z "$ifail" ]; then
+        echo "Error: Python script produced incomplete output"
+        echo "Content of analyse.out:"
+        cat analyse.out
+        ifail=1
+    fi
 fi
 
 # Report results
@@ -255,7 +251,7 @@ fi
 
 # Clean up - keeping N.fam!
 cp N.fam ../logs/fam_pairing_zero_mode.${args[0]}.N.fam
-teardown_test_env
+#teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed

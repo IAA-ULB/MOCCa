@@ -270,14 +270,16 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
             #                    altterm = altterm.replace(tryout, nosum)
             rubbish, cpl = src_heph.heph_functional.ParseDensities(altterm)
 
-            # ---------------------------------------------------------------------
-            # We drop contributions to the normal potentials from pairing
-            # densities if PH_PP_DECOUPL is true
-            mixedterm = False
+            # ----------------------------------------------------------------------
+            # If PH_PP_DECOUPL is true, then we drop all contributions to potentials
+            # that feature
+            # ----------------------------------------------------------------------
+            pairing_density_in_edf_term = False
             for d in densities:
-                mixedterm = mixedterm or ("P" in d)
-            mixedterm = mixedterm and ("P" not in den)
-            if mixedterm and ph_pp_decoupl:
+                pairing_density_in_edf_term = pairing_density_in_edf_term or ("P" in d)
+
+            mixed_term = pairing_density_in_edf_term and ("P" not in den)
+            if mixed_term and ph_pp_decoupl:
                 continue
             # -------------------------------------------------------------------
             # Loop over the possible isospin components of this density
@@ -301,7 +303,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
                         and (altright == right)
                         and (iso == iso_ind[i])
                     ):
-                        #  Add the term to the fieldlist for this density andd isospin
+                        #  Add the term to the fieldlist for this density and isospin
                         #  and additionally mentioning the number of external
                         #  derivatives and laplacians
 
@@ -809,16 +811,29 @@ def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
                     FIELDCALC = FIELDCALC[:-4] + "\n \n"
 
                     # Now do it again, repeatedly, but taking one of the densities
-                    # from the perturbed density vector at any one time
-                    for j in range(len(densities)):
+                    # from the perturbed density vector at any one time.
+                    # In other words, the j-th density is a perturbed density, but
+                    # otherwise the code logic is identical as above...
+                    for j, dpert in enumerate(densities):
+                        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                        #CAVEAT: We do NOT vary the density-dependence in the pairing
+                        #        channel, i.e. we remove all terms that involve the
+                        #        the variation of ph densities for pairing potentials
+                        #        and vice versa.
+                        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                        if('P' in den and 'P' not in dpert):
+                            continue  # ph potential and variation of pairing density
+                        if('P' in dpert and 'P' not in den):
+                            continue  # pairing potential and ph density
+
+
                         lastorder = OrderOfDen(den)
                         FIELDCALC_perturbed = (
                             FIELDCALC_perturbed + ts.field_calc_b_start.substitute(dic)
                         )
                         dic["EXPR_PERT"] = ""
                         sign = globalsign
-                        # Pick the J-th density to be a perturbation; otherwise do the
-                        # same thing as above...
+
                         for i, d in enumerate(densities):
                             dic["DENSITY"] = d
                             # -----------------------------------------------------------

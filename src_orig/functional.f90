@@ -1653,10 +1653,13 @@ $CALCPOTENTIALS
     !      potentials/
     !---------------------------------------------------------------------------
     use Coulombmod       , only : solve_coulomb
-    
+    use pairing_strengths, only : vmicro, vmicro_stored
+
     type (DensityVector), intent(in) :: R, R_pert
     type (PotentialVector)           :: F
-    
+
+    vmicro_stored = .false.
+
 $CALCPOTENTIALS_PERTURBED
     
   end function calc_perturbed_potentials_oneoff

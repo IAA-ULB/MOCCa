@@ -1058,13 +1058,17 @@ jobs:
     container: ghcr.io/iaa-ulb/mocca-ci:latest
     strategy:
       matrix:
-        CONFIG: [LO, NLO]
+        CONFIG: [LO, NLO, BXL, BXL-N2LO]
         COMPILER: [gfortran]
         include:
           - CONFIG: LO
             PARAM: t0t3
           - CONFIG: NLO
             PARAM: SLy4
+          - CONFIG: BXL
+            PARAM:  BSkG3
+          - CONFIG: BXL-N2LO
+            PARAM:  BSkG5
     env:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
       SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.serial
