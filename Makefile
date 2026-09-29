@@ -352,9 +352,9 @@ $(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo
 # Generation of source code 
 # A dry-run of Hephaestos to print STDOUT
 heph_dry_run_mf:
-	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) dry-run
+	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) dry-run || exit 1
 heph_dry_run_fam:
-	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) dry-run
+	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) dry-run || exit 1
 
 # These make recipes should trigger when 
 #  a) the generated source code file does not exist, or
@@ -362,9 +362,9 @@ heph_dry_run_fam:
 #  c) the configuration file changes, or 
 #  d) Hephaestos changes
 $(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
-	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $<
+	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $< || exit 1
 $(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
-	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $<
+	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $< || exit 1
 
 setversioninfo_mf:
 # Copy the git information into the main code, so it can be printed
@@ -413,5 +413,6 @@ cp_nil:
 clean:
 	rm  -f build/*/*/*.o
 	rm  -f build/*/*/*.mod
+	rm  -f build/*/*/*.f90
 ################################################################################
 
