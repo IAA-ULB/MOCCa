@@ -37,6 +37,7 @@ pairing="HFB"
 parameterisation="t0t3"
 nx=8
 nw=30
+export OMP_NUM_THREADS=4
 # - - - - - - - - - - - - - -
 
 # Temporary array to hold arguments
@@ -196,6 +197,11 @@ cat <<'PYEOF' > analyse.py
 import numpy as np
 from scipy.optimize import curve_fit
 
+# Optional plotting for manual debugging
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pyplot as plt
+
 def zero_mode(omega, M, omega_ng_r, omega_ng_i):
     omega_ng_sq = (omega_ng_r**2 - omega_ng_i**2) + 2j * omega_ng_r * omega_ng_i
     denominator = omega**2 - omega_ng_sq
@@ -203,14 +209,69 @@ def zero_mode(omega, M, omega_ng_r, omega_ng_i):
         f = M * omega_ng_sq / denominator
     return f.real
 
+# Load data: omega, ..., strength (4th column = index 3)
 dat = np.loadtxt('N.fam')
-popt, _ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0, 3], 0.001, 0.01])
+omega = dat[:, 0]
+strength = -dat[:, 3]          # negative because we fit -dat[:,3]
 
-ifail = 0 if (abs(popt[1]) <= 0.1 and abs(popt[2]) <= 0.1) else 1
+# --- Robust fitting strategy -------------------------------------------------
+#  Multiple initial guesses, including (ω_r, ω_i) = (0, 0)
+initial_guesses = [
+    [strength[0], 0.0,      0.0],       # actual zero mode
+    [strength[0], 0.001,    0.0],       # small real
+    [strength[0], 0.0,      0.01],      # small imag
+    [strength[0], -0.001,   0.0],       # negative real
+    [strength[0], 0.0,      -0.01],     # negative imag
+    [strength[0], 0.001,    +0.01],     # small both
+]
 
-# One value per line: ω_r, ω_i, ifail
-print(popt[1])
-print(popt[2])
+best_popt = None
+best_residual = float('inf')
+
+for p0 in initial_guesses:
+    try:
+        popt, pcov = curve_fit(
+            zero_mode, omega, strength,
+            p0=p0,  maxfev=10000
+        )
+        residual = np.sum((zero_mode(omega, *popt) - strength) ** 2)
+        if residual < best_residual:
+            best_residual = residual
+            best_popt = popt
+    except (RuntimeError, TypeError, ValueError):
+        continue  # Try next guess
+
+# --- Fallback if all guesses fail ------------------------------------------
+#if best_popt is None:
+#    # Use a safe default that will fail the tolerance check
+#    best_popt = [strength[0], 1.0, 1.0]
+
+# --- Draw plot --------------------------------------------------------------
+# Generate fitted curve
+#omega_fit = np.linspace(min(omega), max(omega), 500)
+#strength_fit = zero_mode(omega_fit, *best_popt)
+
+#plt.figure(figsize=(8, 6))
+#plt.scatter(omega, strength, color='blue', label='FAM strength', s=20, zorder=5)
+#plt.plot(omega_fit, strength_fit, color='red', linewidth=2,
+#         label=f'Fit: M={best_popt[0]:.2f}, $\omega_{{r}}$={best_popt[1]:.4f}, $\omega_{{i}}$={best_popt[2]:.4f}')
+#plt.axvline(x=0.0, color='black', linestyle=':', linewidth=1)
+#plt.axhline(y=0.0, color='black', linestyle=':', linewidth=1)
+#plt.xlabel('$\omega$ (MeV)')
+#plt.ylabel('Strength')
+#plt.title('Zero-mode fit for particle number operator')
+#plt.grid(True, alpha=0.3)
+#plt.legend()
+#plt.tight_layout()
+#plt.savefig('zero_mode_fit.png', dpi=150)
+#plt.close()
+
+# --- Decide pass/fail --------------------------------------------------------
+ifail = 0 if (abs(best_popt[1]) <= 0.1 and abs(best_popt[2]) <= 0.1) else 1
+
+# Output: one value per line (ω_r, ω_i, ifail)
+print(best_popt[1])
+print(best_popt[2])
 print(ifail)
 PYEOF
 
@@ -249,8 +310,9 @@ if $verbose; then
   echo "----------------------------------------"
 fi
 
-# Clean up - keeping N.fam!
+# Clean up - keeping N.fam and plot!
 cp N.fam ../logs/fam_pairing_zero_mode.${args[0]}.N.fam
+cp zero_mode_fit.png ../logs/fam_pairing_zero_mode.${args[0]}.zero_mode_fit.png
 #teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
