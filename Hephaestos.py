@@ -137,6 +137,12 @@ try:
 except AttributeError:
   PH_PP_DECOUPL = True
 
+# Sanity check
+if(not PH_PP_DECOUPL and fam_active):
+  print (" FAM executables don't know how to deal with ph-pairing feedback yet.")
+  sys.exit(1)
+
+
 if(filename == 'dry-run'):
   print (heph_name)
   print (line)

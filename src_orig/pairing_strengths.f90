@@ -202,7 +202,7 @@ contains
   real(KIND=dp), intent(in)    :: U2(mv,4), U4(mv,4)
   real(KIND=dp)                :: vp(mv)
 
-  vp = 0.0d0
+  vp = vmicro_real(DBLE(rho), u2, u4, iso, ptype, interpolationtype, integrationtype)
   !call stp('VMICRO does not know how to handle complex densities yet.')
  end function vmicro_complex
 
