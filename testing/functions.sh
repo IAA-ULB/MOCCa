@@ -276,7 +276,7 @@ get_strength (){
     }
     ' "$file")
 
-    LC_NUMERIC="en_US.UTF-8" printf "%f" "$strength_value"
+    LC_NUMERIC="en_US.UTF-8" printf "%.20f" "$strength_value"
 }
 
 get_Belyaev_stdout (){

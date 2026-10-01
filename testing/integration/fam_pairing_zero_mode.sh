@@ -37,6 +37,7 @@ pairing="HFB"
 parameterisation="t0t3"
 nx=8
 nw=30
+export OMP_NUM_THREADS=4
 # - - - - - - - - - - - - - -
 
 # Temporary array to hold arguments
@@ -189,53 +190,109 @@ fam_check=$?
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (4) Check that strength at non-zero frequencies is quite a lot smaller
 #     than the one at zero frequency
-#
-# Quick inline python script
-cat << EOF > analyse.py
+
+# ------------------------------------------------------------------
+# (4) Fit a zero-mode model and verify the fitted frequency components
+cat <<'PYEOF' > analyse.py
 import numpy as np
 from scipy.optimize import curve_fit
+
+# Optional plotting for manual debugging
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pyplot as plt
 
 def zero_mode(omega, M, omega_ng_r, omega_ng_i):
     omega_ng_sq = (omega_ng_r**2 - omega_ng_i**2) + 2j * omega_ng_r * omega_ng_i
     denominator = omega**2 - omega_ng_sq
-    # Avoid division by zero near pole
-    with np.errstate(divide="ignore", invalid="ignore"):
+    with np.errstate(divide='ignore', invalid='ignore'):
         f = M * omega_ng_sq / denominator
     return f.real
 
-dat = np.loadtxt("N.fam")
-popt, __ = curve_fit(zero_mode, dat[:, 0], -dat[:, 3], p0=[dat[0,3], 0.001, 0.01])
+# Load data: omega, ..., strength (4th column = index 3)
+dat = np.loadtxt('N.fam')
+omega = dat[:, 0]
+strength = -dat[:, 3]          # negative because we fit -dat[:,3]
 
-if np.abs(popt[1]) > 0.1 or np.abs(popt[2]) > 0.1:
-    ifail = 1
-else:
-    ifail = 0
+# --- Robust fitting strategy -------------------------------------------------
+#  Multiple initial guesses, including (ω_r, ω_i) = (0, 0)
+initial_guesses = [
+    [strength[0], 0.0,      0.0],       # actual zero mode
+    [strength[0], 0.001,    0.0],       # small real
+    [strength[0], 0.0,      0.01],      # small imag
+    [strength[0], -0.001,   0.0],       # negative real
+    [strength[0], 0.0,      -0.01],     # negative imag
+    [strength[0], 0.001,    +0.01],     # small both
+]
 
-# Print results for bash to capture: omega_r omega_i ifail
-print(f"{popt[1]} {popt[2]} {ifail}")
-EOF
+best_popt = None
+best_residual = float('inf')
 
-# Run python script and capture all three outputs
-python_output=$(python3 analyse.py 2>&1)
-python_exit_status=$?
+for p0 in initial_guesses:
+    try:
+        popt, pcov = curve_fit(
+            zero_mode, omega, strength,
+            p0=p0,  maxfev=10000
+        )
+        residual = np.sum((zero_mode(omega, *popt) - strength) ** 2)
+        if residual < best_residual:
+            best_residual = residual
+            best_popt = popt
+    except (RuntimeError, TypeError, ValueError):
+        continue  # Try next guess
 
-# Check if Python script executed successfully
-if [ $python_exit_status -ne 0 ]; then
-  echo "Error: Python analysis script failed with exit status $python_exit_status"
-  echo "Python output: $python_output"
-  ifail=1
-  omega_r=""
-  omega_i=""
-else
-  # Read the three expected values from stdout
-  read omega_r omega_i ifail <<< "$python_output"
-  
-  # Verify we got all three values
-  if [ -z "$omega_r" ] || [ -z "$omega_i" ] || [ -z "$ifail" ]; then
-    echo "Error: Python script did not produce expected output (omega_r, omega_i, ifail)"
-    echo "Python output: $python_output"
+# --- Fallback if all guesses fail ------------------------------------------
+#if best_popt is None:
+#    # Use a safe default that will fail the tolerance check
+#    best_popt = [strength[0], 1.0, 1.0]
+
+# --- Draw plot --------------------------------------------------------------
+# Generate fitted curve
+#omega_fit = np.linspace(min(omega), max(omega), 500)
+#strength_fit = zero_mode(omega_fit, *best_popt)
+
+#plt.figure(figsize=(8, 6))
+#plt.scatter(omega, strength, color='blue', label='FAM strength', s=20, zorder=5)
+#plt.plot(omega_fit, strength_fit, color='red', linewidth=2,
+#         label=f'Fit: M={best_popt[0]:.2f}, $\omega_{{r}}$={best_popt[1]:.4f}, $\omega_{{i}}$={best_popt[2]:.4f}')
+#plt.axvline(x=0.0, color='black', linestyle=':', linewidth=1)
+#plt.axhline(y=0.0, color='black', linestyle=':', linewidth=1)
+#plt.xlabel('$\omega$ (MeV)')
+#plt.ylabel('Strength')
+#plt.title('Zero-mode fit for particle number operator')
+#plt.grid(True, alpha=0.3)
+#plt.legend()
+#plt.tight_layout()
+#plt.savefig('zero_mode_fit.png', dpi=150)
+#plt.close()
+#
+# --- Decide pass/fail --------------------------------------------------------
+ifail = 0 if (abs(best_popt[1]) <= 0.1 and abs(best_popt[2]) <= 0.1) else 1
+
+# Output: one value per line (ω_r, ω_i, ifail)
+print(best_popt[1])
+print(best_popt[2])
+print(ifail)
+PYEOF
+
+# Run analysis and *only* capture stdout; warnings go to the terminal.
+if ! python3 analyse.py > analyse.out; then
+    echo "Error: Python analysis script failed"
     ifail=1
-  fi
+    omega_r=""
+    omega_i=""
+else
+    # Read the three lines explicitly
+    omega_r=$(head -n1 analyse.out)
+    omega_i=$(sed -n '2p' analyse.out)
+    ifail=$(sed -n '3p' analyse.out)
+    # Sanity: if any line is missing we treat as failure
+    if [ -z "$omega_r" ] || [ -z "$omega_i" ] || [ -z "$ifail" ]; then
+        echo "Error: Python script produced incomplete output"
+        echo "Content of analyse.out:"
+        cat analyse.out
+        ifail=1
+    fi
 fi
 
 # Report results
@@ -253,9 +310,10 @@ if $verbose; then
   echo "----------------------------------------"
 fi
 
-# Clean up - keeping N.fam!
+# Clean up - keeping N.fam and plot!
 cp N.fam ../logs/fam_pairing_zero_mode.${args[0]}.N.fam
-teardown_test_env
+cp zero_mode_fit.png ../logs/fam_pairing_zero_mode.${args[0]}.zero_mode_fit.png
+#teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
