@@ -1306,6 +1306,11 @@ contains
     !    O^+ = X20 - Y02, such that 
     !        <[O^+,A]> = 1/2 sum_ab(X20_ab A02_ab + A20_ab Y02_ab)
     !    and causing several unexpected minus sign elsewhere
+    !
+    !  - There remains a global sign amibuguity in the matrix elements of the 
+    !    momentum operator P. Since a sign flip of P also induces a sign flip  
+    !    of lambda_P, this has no impact on the corrected amplitudes nor the 
+    !    strength, but it does change the sign of <[R,P]> = i to -i . 
     !---------------------------------------------------------------------------
 
     complex(KIND=DP) :: Rz_qpme(nwt, nwt, 2)
@@ -1325,7 +1330,7 @@ contains
     print *, 'Subtract translational spurious mode'
 
     a = calc_strength()
-    print *, ' S prior =', strength_complex
+    print '(A, es11.3, A, es11.3, A)', 'S prior = (', real(strength_complex), ' , ', imag(strength_complex), ')'
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1353,8 +1358,9 @@ contains
     lambda_R = comm_OP / comm_RP
     lambda_P = - comm_OR / comm_RP
 
-    print * , 'lambda_R = ', lambda_R
-    print * , 'lambda_P = ', lambda_P
+    print '(A, es11.3, A, es11.3, A)', '<[R,P]> = (', real(comm_RP), ' , ', imag(comm_RP), ')'
+    print '(A, es11.3, A, es11.3, A)', '    λ_R = (', real(lambda_R), ' , ', imag(lambda_R), ')'
+    print '(A, es11.3, A, es11.3, A)', '    λ_P = (', real(lambda_P), ' , ', imag(lambda_P), ')'
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1363,7 +1369,7 @@ contains
     Y = Y + lambda_R * Rz_qpme(:,:,2) + lambda_P * Pz_qpme(:,:,2)
 
     a = calc_strength()
-    print *, ' S after =', strength_complex
+    print '(A, es11.3, A, es11.3, A)', 'S after = (', real(strength_complex), ' , ', imag(strength_complex), ')'
 
 
   end subroutine subtract_spurious_modes
