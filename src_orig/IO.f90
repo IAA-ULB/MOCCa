@@ -79,7 +79,7 @@ implicit none
   character(len=120)  :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=120)  :: sphffile='', spcanfile='', tofile='', blockfile=''
   character(len=120)  :: inertfile='', famfile='', xyfile='', xyinfile=''
-  character(len=120)  :: finfile='', foutfile=''
+  character(len=120)  :: finfile='', foutfile='', dhoutfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
 
@@ -188,7 +188,7 @@ contains
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
     &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
-    &           finfile, foutfile, N_inertia, potentials_from_file
+    &           finfile, foutfile, dhoutfile, N_inertia, potentials_from_file
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -317,10 +317,12 @@ contains
              & '    SPCAN file     = ', a80, / &
              & '    TO file        = ', a80, / & 
              & '    BLOCK file     = ', a80, / &
-             & '    INERT file     = ', a80, / &
+             & '    INERT file     = ', a80)
+  114 format (' Filename for FAM output (not written if empty): ', /     &
              & '    FAM file       = ', a80, / &
              & '    XY file        = ', a80, / &
-             & '    FOUT file      = ', a80)
+             & '    FOUT file      = ', a80, / &
+             & '    dHOUT file     = ', a80)
   111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
  1111 format ( ' Filename for FAM input (not used if empty): ', /     &
@@ -390,7 +392,8 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE, XYFILE, FOUTFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
+      print 114, FAMFILE, XYFILE, FOUTFILE, DHOUTFILE
       if(present(file_number)) then
         print 111,  adjustl(trim(input_file)), file_number
       endif
@@ -1853,7 +1856,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     &          '#    proton eff charge  = ', f10.3, ' e')
 
     2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
-    3 format('#', 5x, 'm', 6x, 'n',14x, 'X(/F)_mn_re', 14x, 'X(/F)_mn_im', 14x, 'Y(/F)_mn_re', 14x, 'Y(/F)_mn_im') 
+    3 format ( '# omega = ', f10.3, f10.3) 
+    4 format('#', 5x, 'm', 6x, 'n',14x, 'O20_mn_re', 14x, 'O20_mn_im', 14x, 'O02_mn_re', 14x, 'O02_mn_im') 
 
 
     open(1,file=fname, iostat=io)
@@ -1861,12 +1865,13 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       print *, 'filename = ', fname
       call stp('')
     endif
-    
+
     call write_header(1) ! write general header info
 
     write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
     write(1, fmt=2) ewsr ! write sum rules  
-    write(1, fmt=3)      ! write column names
+    write(1, fmt=3) omega_fam, smear
+    write(1, fmt=4)      ! write column names
 
     close(1)
 
@@ -1880,8 +1885,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     complex(KIND=dp), intent(in), optional :: O20(:,:), O02(:,:)
     integer                                :: io, mu, nu
 
-    1 format ( '# omega = ', f10.3, f10.3) 
-    2 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
+    1 format (i7, i7, es25.12E3, es25.12E3, es25.12E3, es25.12E3) 
 
     print *, ' append XY file :  ', fname
 
@@ -1896,18 +1900,16 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       do nu = 1, nwt
         do mu = 1, nwt
           if(abs(O20(mu,nu)) > 1d-10 .or. abs(O02(mu,nu)) > 1d-10) then
-            write(1, fmt=2) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
+            write(1, fmt=1) mu, nu, O20(mu,nu)%re, O20(mu,nu)%im, O02(mu,nu)%re, O02(mu,nu)%im
           end if
         enddo
       enddo
 
     else
-      write(1, fmt=1) omega_fam, smear
-
       do nu = 1, nwt
         do mu = 1, nwt
           if(abs(X(mu,nu)) > 1d-10 .or. abs(Y(mu,nu)) > 1d-10) then
-            write(1, fmt=2) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
+            write(1, fmt=1) mu, nu, X(mu,nu)%re, X(mu,nu)%im, Y(mu,nu)%re, Y(mu,nu)%im
           end if
         enddo
       enddo
@@ -1951,7 +1953,8 @@ subroutine init_perturbed_denfile(fname)
     &          '#    proton eff charge  = ', f10.3, ' e')
 
     2 format ( '# sum rules: ', / , '#   m1 = ', es20.8)
-    3 format('#', 19x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]',  &
+    3 format ( '# omega = ', f10.3, f10.3) 
+    4 format('#', 19x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]',  &
       & 12x, 'drho_n_sym_re', 12x , 'drho_n_sym_im', 11x, 'drho_n_asym_re', 11x , 'drho_n_asym_im', &
       & 12x, 'drho_p_sym_re', 12x , 'drho_p_sym_im', 11x, 'drho_p_asym_re', 11x , 'drho_p_asym_im', &
       & 12x, 'drho_c_sym_re', 12x , 'drho_c_sym_im', 11x, 'drho_c_asym_re', 11x , 'drho_c_asym_im')
@@ -1967,7 +1970,8 @@ subroutine init_perturbed_denfile(fname)
 
     write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
     write(1, fmt=2) ewsr ! write sum rules  
-    write(1, fmt=3)      ! write column names
+    write(1, fmt=3) omega_fam, smear
+    write(1, fmt=4)      ! write column names
 
     close(1)
 
@@ -1987,9 +1991,6 @@ subroutine append_perturbed_denfile(Rs, Ra, fname)
     character(len=*), intent(in)            :: fname
     integer                                 :: io, i,j,k, mi
 
-
-    1 format ( '& omega = ', f10.3, f10.3) 
-
     print *, ' append fam file :  ', fname
 
     open(1, file=fname, status='old', position='append', iostat=io)
@@ -1998,8 +1999,6 @@ subroutine append_perturbed_denfile(Rs, Ra, fname)
       print *, 'filename = ', fname
       call stp('')
     endif
-    
-    write(1, fmt=1) omega_fam, smear
 
     do k=1,nz
       do j=1,ny

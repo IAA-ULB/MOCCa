@@ -31,7 +31,7 @@ program run_FAM
   use IO,          only : ReadWavefunction, ReadInput, setBelyaevProcedure
   use IO,          only : PrintInput, init_fam_file, xyfile, denfile, famfile
   use IO,          only : init_xy_file, init_perturbed_denfile, xyinfile
-  use IO,          only : Finfile, Foutfile
+  use IO,          only : Finfile, Foutfile, dhoutfile
   use IO,          only : append_fam_file, append_xy_file, append_perturbed_denfile
   use IO_wf,       only : readHFBinfofile
 
@@ -177,14 +177,6 @@ program run_FAM
   !---------------------------------------------------------------------------------
   ! create the FAM output file
   call init_fam_file(famfile)
-
-  if(xyfile /= '') then
-    call init_xy_file(xyfile)
-  endif
-
-  if(DENFILE /= '') then
-    call init_perturbed_denfile(DENFILE)
-  endif
 
   !---------------------------------------------------------------------------------
   ! allocate the flattend single-particle hamiltonians (+pairing fields)
@@ -421,22 +413,26 @@ program run_FAM
     call append_fam_file(S_decomp, num_iter, famfile)
 
     if(xyfile /= '') then
+      call init_xy_file(xyfile)
       call append_xy_file(xyfile)
     endif
 
-
-    if(DENFILE /= '') then
-      call append_perturbed_denfile(dRs, dRa, DENFILE)
+    if(denfile /= '') then
+      call init_perturbed_denfile(denfile)
+      call append_perturbed_denfile(dRs, dRa, denfile)
     endif
 
+    if(dhoutfile .ne. '') then 
+      call init_xy_file(dhoutfile)
+      call append_xy_file(dhoutfile, dH(:,:,1), dH(:,:,2))
+    endif
 
-    if(DENFILE .ne. '') call append_perturbed_denfile(dRs, dRa, DENFILE)
-    
+  
     !call test_L_Linv(X, Y, F, dcmplx(omega_curr,smear))
 
     omega_curr = omega_curr + omega_step
 
-  enddo
+  enddo ! end loop over omega
 
   if(foutfile .ne. '') then 
     call init_xy_file(foutfile)
