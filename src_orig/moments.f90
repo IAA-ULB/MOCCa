@@ -1267,7 +1267,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     type(DensityVector), intent(in), target :: R
     type(Moment),        intent(inout)      :: ToCalculate
 
-    integer                                 :: it, k, maxind(1), npeaks
+    integer                                 :: it, k, maxind(1), npeaks, iz
     integer, allocatable                    :: peaks(:)
     real(KIND=dp)                           :: z0, maxz0, minz0, neck, min_neck,ztry
 #if($FAM == 0)
