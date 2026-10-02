@@ -1267,7 +1267,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     type(DensityVector), intent(in), target :: R
     type(Moment),        intent(inout)      :: ToCalculate
 
-    integer                                 :: it, k, maxind(1)
+    integer                                 :: it, k, maxind(1), npeaks
+    integer, allocatable                    :: peaks(:)
     real(KIND=dp)                           :: z0, maxz0, minz0, neck, min_neck,ztry
 #if($FAM == 0)
     real(KIND=dp), pointer                  :: den(:,:,:)
@@ -1305,27 +1306,60 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       maxz0 =  meshz(maxind(1))
       minz0 = -maxz0
     else
-      ! The z-axis is fully represented
-      ! z > 0
-      maxind = maxloc(linear_den(nz/2+1:nz))
-      maxz0  = meshz(nz/2 + maxind(1))
-      ! z < 0
-      maxind = maxloc(linear_den(1:nz/2))
-      minz0  = meshz(maxind(1))
+      allocate(peaks(nz-2))
+      npeaks = 0
+      ! find local maxima
+      do iz = 2, nz-1
+        if (linear_den(iz) > linear_den(iz-1) .and. &
+            linear_den(iz) >= linear_den(iz+1)) then
+            ! To avoid identifying small peaks in the low-density regions
+            ! surrounding the nucleus we define a density threshold (1e-02)
+            if (linear_den(iz) >= 1e-02) then
+              npeaks = npeaks + 1
+              peaks(npeaks) = iz
+            endif
+        endif
+      enddo
+      !If two local maxima are found
+      if (npeaks.ge.2) then
+        minz0 = meshz(peaks(1))
+        maxz0 = meshz(peaks(npeaks))
+      !If not, we simply use the c.o.m.
+      else
+        z0 = dot_product(meshz, linear_den)/sum(linear_den)
+      endif
+      deallocate(peaks)
     endif
+    !if(reduZ .eq. 1) then
+    !  ! The z-axis is represented symmetrically
+    !  maxind = maxloc(linear_den)
+    !  ! The following is maximum of the density along the positive z-axis
+    !  maxz0 =  meshz(maxind(1))
+    !  minz0 = -maxz0
+    !else
+    !  ! The z-axis is fully represented
+    !  ! z > 0
+    !  maxind = maxloc(linear_den(nz/2+1:nz))
+    !  maxz0  = meshz(nz/2 + maxind(1))
+    !  ! z < 0
+    !  maxind = maxloc(linear_den(1:nz/2))
+    !  minz0  = meshz(maxind(1))
+    !endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
     ! 2. Determine z_0 from the matter density by minimization by brute force
-    z0       = maxz0
-    min_neck = calc_neck(linear_den, z0)
-    do k=1,1000
-      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
-      neck = calc_neck(linear_den, ztry)
-      if(neck .lt. min_neck)then
-        min_neck = neck
-        z0       = ztry
-      endif
-    enddo
+    if (npeaks.ge.2) then
+      z0       = maxz0
+      min_neck = calc_neck(linear_den, z0)
+      do k=1,1000
+        ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
+        neck = calc_neck(linear_den, ztry)
+        if(neck .lt. min_neck) then
+          min_neck = neck
+          z0       = ztry
+        endif
+      enddo
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
     ! 3. Use this value of z0 to calculate all values 
     !    Neutron and proton densities
