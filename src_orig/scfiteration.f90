@@ -38,8 +38,9 @@ module SCFiteration
   ! Determine the SCF-evolution scheme
   !  (0) => Preconditioning of necessary potentials  (here F_I_I)
   !  (1) => Linear mixing of the necessary densities (here D_I_I)
+  !  (2) => No updates of potentials/densities at all, pure evolution of spwfs.
   !
-  ! Currently not changeable; only (0) is working.
+  ! Note: (1) does not work at the moment!
   integer, parameter :: scfscheme = 0
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
@@ -73,7 +74,7 @@ contains
       endif
 
       ! Sanity checks
-      if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
+      if((scfscheme .lt. 0) .or. (scfscheme.gt.1)) then
         call stp('Invalid scfscheme value.')
       endif
     endif
@@ -103,7 +104,8 @@ contains
     6 format(' Potential mixing active!', /,     &  
     &        '                  memory:',2x, i4, &
     &        '                stepsize:',2x, f7.4)    
-        
+    7 format(' NO SCF evolution!')
+
     print 1
     select case(scfscheme)
     case(0)
@@ -116,6 +118,8 @@ contains
     end select
     if(mixingscheme.eq.1) then
       print 6, memory, mixstepsize
+    else(mixingscheme .eq. 2) then
+      print 7
     endif
   end subroutine printscfiteration
 
