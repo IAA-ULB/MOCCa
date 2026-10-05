@@ -1,0 +1,13 @@
+# Fortitude configuration for MOCCa
+# Rule codes can be found with: fortitude explain
+
+[check]
+# Ignore syntax errors and rules that may be too strict for legacy code
+ignore = [
+    "E000",    # syntax-error
+    "E001",    # io-error
+    "C001",    # implicit-typing
+    "C061",    # missing-intent
+    "C121",    # use-only
+    "C131",    # missing accessibility statement
+]

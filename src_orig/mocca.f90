@@ -47,6 +47,12 @@ contains
       use derivatives,   only: inilag
       use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
            &                   initialize_all_timers
+#if(USE_MPI > 0)
+      use mpi_f08
+      ! This include statement is not particularly elegant, but appending it with an
+      ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
+
 
       implicit none (external)
       !------------------------------------------------------------------------------

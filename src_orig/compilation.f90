@@ -26,12 +26,12 @@ module compilation
   ! Module to propagate the definition of a double and single precision real
   !-----------------------------------------------------------------------------
 
-  implicit none (external)
+  implicit none(external)
 
   public
 
-  integer, parameter :: dp = selected_real_kind(15,307)
-  integer, parameter :: sp = selected_real_kind(6,37)
+  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter :: sp = selected_real_kind(6, 37)
 
 end module compilation
 
