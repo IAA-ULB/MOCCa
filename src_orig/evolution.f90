@@ -130,7 +130,13 @@ module evolution
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
     real*8, allocatable :: preconY(:,:,:,:)
-    real*8, allocatable :: preconZ(:,:,:,:) 
+    real*8, allocatable :: preconZ(:,:,:,:)
+    !---------------------------------------------------------------------------
+    ! Parameter controlling the locking behaviour
+    !  if locking_treshold < 0 -> no locking
+    !  else, lock spwf if dispersion d2h < locking_treshold
+    real(KIND=dp)        :: locking_treshold = -1
+
 contains
     
     subroutine ReadEvolution(file_number)
@@ -155,7 +161,7 @@ contains
         &                    gradient_safety, efficientHFB,                    &
         &                    stepsize_safety, freezeiter,                      &
         &                    ortho_strategy, subspace_rotation, d2H_freeze,    &
-        &                    max_inner_iter
+        &                    max_inner_iter, locking_treshold
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -468,10 +474,11 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         
         type(PotentialVector), intent(in) :: F
         integer, intent(in)               :: iteration
+        integer, allocatable              :: indices(:)
         
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2, der_index
-        logical               :: on_the_fly
+        logical               :: on_the_fly, all_lower_converged
 #if(USE_MPI>0)
         integer               :: mpi_err
 #endif
@@ -481,13 +488,42 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         call start_timer(T_evolution)
 
         if(.not.allocated(Momentum_Updates)) then
-            ! we only store the history for the LOCALLY stored wavefunctions
-            allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
-            Momentum_Updates = 0.0_dp
+          ! we only store the history for the LOCALLY stored wavefunctions
+          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+          Momentum_Updates = 0.0_dp
         endif
 
         if(.not.allocated(sphamil)) then 
-            allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+        endif
+
+        locked = .false.
+        ! Check what spwfs we can lock
+        if(locking_treshold > 0) then
+          si = 0
+          do B=1,8
+             N = HFBlocks(B)
+             if(N.eq.0) cycle
+             indices = OrderSpwfsSym(B)
+             print *, 'B = ', B, indices
+             do wave=1,N
+                all_lower_converged = .true.
+                do wave2=1,wave
+                  if(dispersions(indices(wave2)) > locking_treshold) then
+                     all_lower_converged = .false.
+                  endif
+                  print *, wave, wave2, dispersions(indices(wave2)), &
+                       & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
+                enddo
+                if(all_lower_converged) locked(indices(wave)) = .true.
+             enddo
+             print *, 'B = ', locked(si+1:si+N)
+             print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
+             print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
+             si = si + N
+          enddo
+        else
+           locked = .false.
         endif
 
         if(EstimateParams) call IterativeEstimation(F,iteration)
@@ -495,16 +531,35 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         si           = 0
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
-        hftransfo    = 0.0d0
-        spenergies   = 0.0d0
-        dispersions  = 0.0d0
-        sphamil  = 0.0d0
+
+        ! Zero everything about the evolving spwfs
+        do wave=1,nwt
+           if(locked(wave)) cycle
+           hftransfo(wave,:) = 0.0d0
+           hftransfo(:,wave) = 0.0d0
+           spenergies(wave)  = 0.0d0
+           dispersions(wave) = 0.0d0
+           sphamil(wave,:)   = 0.0d0
+           sphamil(:,wave)   = 0.0d0
+        enddo
+
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
           if(B.gt.4) iso = +1
           do wave=si+1,si+N     ! = local index of the spwf
             wg = spwf_map(wave) ! = global index of the spwf
+
+            if(locked(wave)) then
+              ! Don't evolve if locked, but do track contribution to weighted dispersion
+              select case(pairingtype)
+              case(0,1)
+                d2h          = d2h + rho_can(wg)*dispersions(wg)
+              case(2)
+                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
+              end select
+              cycle ! go to the next spwf
+            endif
 
             if(store_derivatives) then
               ! We have the derivatives precalculated

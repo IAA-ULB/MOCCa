@@ -320,6 +320,9 @@ module wavefunctions
  ! runs with identical input give identical output, even when running across
  ! different numbers of MPI ranks.
  character(len=20)           :: random_numbers = 'FAST'
+ ! Logical tracking whether a given single-particle orbital is locked, i.e.
+ !  if is no longer evolved by the iterations.
+ logical, allocatable :: locked(:)
  !------------------------------------------------------------------------------
  ! Overloading of the transform_spwfs_inplace routine depending on the type
  ! of the unitary transformation: complex or real.

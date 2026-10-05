@@ -396,6 +396,7 @@ contains
          if ((iter .gt. freezeiter) .and. (d2H .lt. d2H_freeze)) then
             potentials_frozen = .false.
          end if
+         if(scfscheme .eq. 2) potentials_frozen = .true.
 
          if (.not. potentials_frozen) then
             ! calculate new values for the potentials from the densities

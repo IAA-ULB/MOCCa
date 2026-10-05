@@ -609,6 +609,9 @@ contains
             HFtransfo(i,i) = 1.0d0
         enddo
     endif
+    ! Failsafe for the locked array
+    if(allocated(locked)) deallocate(locked)
+    allocate(locked(nwt_local))
     !---------------------------------------------------------------------------
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
     !---------------------------------------------------------------------------

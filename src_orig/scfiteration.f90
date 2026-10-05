@@ -31,6 +31,7 @@ module SCFiteration
 
   use functional
   use densities
+  use evolution, only : locking_treshold
 
   implicit none
   
@@ -41,10 +42,10 @@ module SCFiteration
   !  (2) => No updates of potentials/densities at all, pure evolution of spwfs.
   !
   ! Note: (1) does not work at the moment!
-  integer, parameter :: scfscheme = 0
+  integer  :: scfscheme = 0
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
-  integer       :: mixingscheme = 0
+  integer  :: mixingscheme = 0
 
 contains
 
@@ -62,7 +63,7 @@ contains
 #endif
 
     namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
-    &                       kerker_k0
+    &                       kerker_k0, scfscheme
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -74,8 +75,12 @@ contains
       endif
 
       ! Sanity checks
-      if((scfscheme .lt. 0) .or. (scfscheme.gt.1)) then
+      if((scfscheme .lt. 0) .or. (scfscheme.gt.2)) then
         call stp('Invalid scfscheme value.')
+      endif
+
+      if(locking_treshold > 0 .and. scfscheme .ne. 2) then
+         call stp('Locking is not compatible with evolving potentials.')
       endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -87,6 +92,7 @@ contains
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
   
   end subroutine readscfiteration
@@ -101,10 +107,6 @@ contains
     !3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
     5 format('   Kerker k0   = '      , f7.4)
-    6 format(' Potential mixing active!', /,     &  
-    &        '                  memory:',2x, i4, &
-    &        '                stepsize:',2x, f7.4)    
-    7 format(' NO SCF evolution!')
 
     print 1
     select case(scfscheme)
@@ -112,15 +114,11 @@ contains
       print 2, 'Potential preconditioning'
       print 4, preconfactor
       print 5, kerker_k0
-    !case(1)
-    !  print 2, 'Linear mixing of densities'
-    !  print 3, denmix
+    case(1)
+       ! not operational!
+    case(2)
+      print 2, ' NO SCF evolution!'
     end select
-    if(mixingscheme.eq.1) then
-      print 6, memory, mixstepsize
-    else(mixingscheme .eq. 2) then
-      print 7
-    endif
   end subroutine printscfiteration
 
 #if( $FAM == 0)
