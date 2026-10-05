@@ -31,7 +31,7 @@ program mocca_single
   use geninfo, only     : stp
   use MOCCa, only       : run_MOCCa
 
-  implicit none (external)
+  implicit none (type, external)
 
   !-----------------------------------------------------------------------------
   ! Dealing with the optional command line arguments of the code

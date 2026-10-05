@@ -36,15 +36,15 @@ program run_FAM
   use IO_wf,       only : readHFBinfofile
 
   use version,     only : print_header
-  use MOCCa,       only : initialize_all_timers, full_printout
+  use MOCCa,       only : full_printout
   use MOCCa,       only : update_spwf_properties_HF, update_spwf_properties_CAN
-
+  
   ! Actual fam quantities
   use fam
   use gmres
   use fam_testing, only : run_FAM_tests, test_L_Linv, test_RP_commutator
 
-  use timing
+  use timing,      only : initialize_all_timers
 
   1 format(86('-'))
   11 format(/,24('='), ' omega = ', f5.2, ' MeV ', 24('='),/)
@@ -55,7 +55,7 @@ program run_FAM
   6 format(' All observables will be correct, but you might incur arbitrary phases  ')
   7 format('  in the X and Y amplitudes as well as in the matrix elements of F.     ')
 
-  implicit none (external)
+  implicit none (type, external)
 
   integer :: iter, num_iter, ifail, scheme
   logical :: is_converged, is_divergent

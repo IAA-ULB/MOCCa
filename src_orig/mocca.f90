@@ -23,7 +23,7 @@
 !===============================================================================
 module MOCCa
 
-   implicit none (external)
+   implicit none (type, external)
    public
 
 contains
@@ -54,7 +54,6 @@ contains
 #endif
 
 
-      implicit none (external)
       !------------------------------------------------------------------------------
       ! Convergence signals
       ! Iteration counter
@@ -147,7 +146,6 @@ contains
      !   iomsg: character, message about convergence
      !----------------------------------------------------------------------------
 
-     implicit none (external)
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -180,7 +178,6 @@ contains
       use momentsofinertia, only: setBelyaevProcedure
       use wavefunctions, only: allocate_memory_derivatives, deriveHF
 
-      implicit none (external)
 
       integer :: iprint, scheme, ifail
 
@@ -327,7 +324,6 @@ contains
                                TotalAngMom, omega, angmomold, omega_prev, totalangmom_dens, &
                                angmomold_dens, updateAM, readjustCranking, check_cranking
 
-     implicit none (external)
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -511,8 +507,8 @@ contains
          !  update all spwf properties first to ensure correct printout of spwfs
 #if(PASTA == 0)
          ! the memory and CPU time requirements of these routine scale very badly...
-         print_all_spwf_properties = print_adv_spwf_properties .or. &
-         &                           (iter == maxiter) .or. &
+         print_all_spwf_properties = (print_adv_spwf_properties .or. &
+         &                           (iter == maxiter)) .or. &
          &                           convergenceachieved
          if (print_all_spwf_properties) then
             call update_spwf_properties_HF()
@@ -576,21 +572,20 @@ contains
       !    iter              : iteration count
       !    potentials_frozen : whether or not the potentials were updated
       !---------------------------------------------------------------------------
-      use compilation,only: dp
-      use geninfo,    only: neutrons, protons
-      use functional, only: totalE, Ehistory, Routhian, Rhistory
+      use compilation,   only: dp
+      use geninfo,       only: neutrons, protons, MPI_RANK
+      use wavefunctions, only: nwn, nwt
+      use functional,    only: totalE, Ehistory, Routhian, Rhistory
 #if(PASTA == 1)
-      use functional, only: calculate_epasta
+      use functional,   only: calculate_epasta
 #endif
-      use evolution,  only: dt, momentum, gradientnorm, d2h
-      use moments,    only: moment, findmoment, Root
-      use pairing,    only: gradient_stepsize, gradient_mu, HFBgradnorm, rho_can, &
-           &                fixfermi
-      use cranking,   only: crank_smooth, cranktype, TotalAngMom, CrankValues, &
-           &                angmomold, omega, omega_prev, TotalAngMom_dens,    &
-           &                angmomold_dens
-
-      implicit none (external)
+      use evolution,    only: dt, momentum, gradientnorm, d2h
+      use moments,      only: moment, findmoment, Root
+      use pairing,      only: gradient_stepsize, gradient_mu, HFBgradnorm, rho_can, &
+           &                  fixfermi, pairingscheme, FermiEnergy, FermiHistory
+      use cranking,     only: crank_smooth, cranktype, TotalAngMom, CrankValues, &
+           &                  angmomold, omega, omega_prev, TotalAngMom_dens,    &
+           &                  angmomold_dens
 
       integer, intent(in)   :: iter
       logical, intent(in)   :: potentials_frozen
@@ -774,6 +769,7 @@ contains
       ! Output:
       !    NONE
       !-----------------------------------------------------------------------------
+      use geninfo, only: MPI_RANK, NPROCS, maxiter
       use pairing, only: printpairing
       use moments, only: printallmoments
       use densities, only: density
@@ -834,7 +830,7 @@ contains
       !    NONE
       !-----------------------------------------------------------------------------
       use geninfo, only : energy_prec, moment_prec, disp_prec, gradient_prec, &
-           &              fermi_prec, angmom_prec
+           &              fermi_prec, angmom_prec, MPI_RANK
 
       integer, intent(in) :: iter
 

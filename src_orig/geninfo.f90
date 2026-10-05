@@ -53,7 +53,7 @@ module GenInfo
 
   use compilation, only: dp
 
-  implicit none(external)
+  implicit none (type, external)
 
   public
 

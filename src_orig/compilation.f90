@@ -26,7 +26,7 @@ module compilation
   ! Module to propagate the definition of a double and single precision real
   !-----------------------------------------------------------------------------
 
-  implicit none(external)
+  implicit none (type, external)
 
   public
 

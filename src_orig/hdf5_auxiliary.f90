@@ -43,7 +43,7 @@ module HDF5_auxiliary
   use HDF5
   use geninfo, only : dp, stp
 
-  implicit none (external)
+  implicit none (type, external)
 
   public
 

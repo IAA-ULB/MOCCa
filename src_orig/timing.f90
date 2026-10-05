@@ -36,7 +36,7 @@ module timing
   use geninfo        , only : MPI_COMM_WORLD, MPI_BARRIER
 #endif
 
-  implicit none (external)
+  implicit none (type,external)
 
   public
 
