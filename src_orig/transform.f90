@@ -873,7 +873,7 @@ $PBROKEN  enddo
           spenergies = newenergy
           ! Cleaning up some stuff
           if(allocated(dispersions)) deallocate(dispersions)
-          allocate(dispersions(nwt)) ; dispersions=0.0
+          allocate(dispersions(nwt)) ; dispersions=1e9
           if(allocated(rho_can))     deallocate(rho_can)
           allocate(rho_can(nwt))     ; rho_can    =0.0
 

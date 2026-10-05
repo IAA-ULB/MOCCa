@@ -505,21 +505,21 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
              N = HFBlocks(B)
              if(N.eq.0) cycle
              indices = OrderSpwfsSym(B)
-             print *, 'B = ', B, indices
+             !print *, 'B = ', B, indices
              do wave=1,N
                 all_lower_converged = .true.
                 do wave2=1,wave
                   if(dispersions(indices(wave2)) > locking_treshold) then
                      all_lower_converged = .false.
                   endif
-                  print *, wave, wave2, dispersions(indices(wave2)), &
-                       & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
+                  !print *, wave, wave2, dispersions(indices(wave2)), &
+                  !     & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
                 enddo
                 if(all_lower_converged) locked(indices(wave)) = .true.
              enddo
-             print *, 'B = ', locked(si+1:si+N)
-             print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
-             print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
+             !print *, 'B = ', locked(si+1:si+N)
+             !print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
+             !print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
              si = si + N
           enddo
         else
