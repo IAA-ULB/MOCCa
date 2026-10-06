@@ -59,11 +59,18 @@ def ProcessIO(fname, src, target, so, oldso, fam_active, dry_run=False):
       dic['NTR']= ''
 
     if('D_Nm_Nm' not in Densities_needed):
-      dic['TAUSCALAR'] = '!'
-      dic['TAUTENSOR'] = ' '
+      if('D_N_N' not in Densities_needed):
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = '!'
+        dic['TAUPRESENT'] = 0
+      else:
+        dic['TAUSCALAR']  = '!'
+        dic['TAUTENSOR']  = ' '
+        dic['TAUPRESENT'] = 1
     else:
-      dic['TAUSCALAR'] = ' '
-      dic['TAUTENSOR'] = '!'
+      dic['TAUSCALAR']    = ' '
+      dic['TAUTENSOR']    = '!'
+      dic['TAUPRESENT']   = 1
       
     if(fam_active):
       dic['FAM'] = '1'
