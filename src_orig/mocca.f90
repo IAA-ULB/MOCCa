@@ -145,7 +145,7 @@ contains
      !   iter : integer, the final iteration performed in the SCF process
      !   iomsg: character, message about convergence
      !----------------------------------------------------------------------------
-
+     use scfiteration, only : scfscheme
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -153,7 +153,11 @@ contains
      ! 1. set-up phase, construction of the starting point
      call set_up_mean_field()
      ! 2. Iteration phase, start of iterations
-     call iterate_mean_field(iter, iomsg)
+     if(scfscheme /= 2) then
+        call iterate_mean_field(iter, iomsg)
+     else
+        call iterate_spectrum(iter, iomsg)
+     endif
 
    end subroutine run_mean_field
 
@@ -434,7 +438,6 @@ contains
          if ((iter > freezeiter) .and. (d2H < d2H_freeze)) then
             potentials_frozen = .false.
          end if
-         if(scfscheme == 2) potentials_frozen = .true.
 
          if (.not. potentials_frozen) then
             ! calculate new values for the potentials from the densities
@@ -535,33 +538,84 @@ contains
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Write a wavefunction file at each multiple of checkpointiter
          if (checkpointiter /= 0) then
-         if (mod(iter, checkpointiter) == 0) then
+            if (mod(iter, checkpointiter) == 0) then
 #if(DEBUG_LEVEL==1)
-            ! Output densities and potentials to specific files at every checkpoint
-            ! TODO: refactor this into a subroutine in the IO.f90 module!
-            write (denfile_iter, '("iter=",i5.5,".den")') iter
-            write (potfile_iter, '("iter=",i5.5,".pot")') iter
-            if (MPI_RANK == 0) then
-               call write_densities(Density, denfile_iter)
-               call write_potentialfile(potentials, potfile_iter)
-            end if
+               ! Output densities and potentials to specific files at every checkpoint
+               ! TODO: refactor this into a subroutine in the IO.f90 module!
+               write (denfile_iter, '("iter=",i5.5,".den")') iter
+               write (potfile_iter, '("iter=",i5.5,".pot")') iter
+               if (MPI_RANK == 0) then
+                  call write_densities(Density, denfile_iter)
+                  call write_potentialfile(potentials, potfile_iter)
+               end if
 #endif
-            if (MPI_RANK == 0) print 9, iter, outputfilename
-            iomsg = 'CHECKPOINT'
-            if (trim(to_upper(OutputFileName(len_trim(OutputFileName) - 3:))) == 'HDF5') then
+               if (MPI_RANK == 0) print 9, iter, outputfilename
+               iomsg = 'CHECKPOINT'
+               if (trim(to_upper(OutputFileName(len_trim(OutputFileName) - 3:))) == 'HDF5') then
 #if(USE_HDF5>0)
-               call write_MOCCa_hdf5(outputfilename) !new hdf5 format
+                  call write_MOCCa_hdf5(outputfilename) !new hdf5 format
 #else
-               call stp('HDF5 support was not enabled at compilation.')
+                  call stp('HDF5 support was not enabled at compilation.')
 #endif
-            else
-               call write_MOCCa_wf(12, outputfilename) ! old style in .wf file
+               else
+                  call write_MOCCa_wf(12, outputfilename) ! old style in .wf file
+               end if
             end if
-         end if
          end if
       end do
    end subroutine iterate_mean_field
-#endif
+
+   subroutine iterate_spectrum(iter, iomsg)
+     !-------------------------------------------------------------------------
+     !
+     ! Output:
+     !   iter : integer, the final iteration count
+     !   iomsg: string, message about (non)convergence
+     !-------------------------------------------------------------------------
+
+     use compilation,   only: dp
+     use geninfo,       only: MaxIter, PrintIter, store_derivatives
+     use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
+     use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
+     use evolution,     only: apply_subspace_rotation
+     use functional,    only: potentials
+     use pairing,       only: pairingtype
+
+     integer, intent(out)           :: iter
+     character(len=99), intent(out) :: iomsg
+     logical                        :: convergence_achieved
+     logical                        :: print_all_spwf_properties
+
+     do iter=1, maxiter
+         ! Just keep doing heavy-ball steps
+         call Evolve_subspace(potentials, iter)
+         if (store_derivatives) call deriveHF() ! and update derivatives
+
+         ! Full recalculation of h with the spwfs AFTER evolution
+         sphamil = Calc_Sphamil(potentials, .true.)
+         call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+         if (store_derivatives) call deriveHF() ! and update derivatives
+
+         call print_summary_spectrum(iter)
+         ! Convergence is reached if ALL the spwfs are locked inside the
+         !  evolution,i.e. if their dispersion is small enough
+         convergence_achieved = ALL(locked)
+
+         if (convergence_achieved .or. iter .eq. maxiter) then
+            call update_spwf_properties_HF()
+            if (PairingType == 2) call update_spwf_properties_CAN()
+            call full_printout(iter, convergence_achieved, .true.)
+         end if
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Exit the loop if convergence is achieved.
+         if (convergence_achieved) then
+            call print_convergence_message(iter)
+            iomsg = 'CONVERGED'
+            exit
+         end if
+     enddo
+
+   end subroutine iterate_spectrum
 
    subroutine printsummary(iter, potentials_frozen)
       !---------------------------------------------------------------------------
@@ -709,6 +763,31 @@ contains
       print 1
 
    end subroutine printsummary
+
+   subroutine print_summary_spectrum(iter)
+     !------------------------------------------------------------------
+     ! Print a summary on the progress of the iterate_spectrum routine.
+     !
+     !------------------------------------------------------------------
+
+     use evolution,     only : dt, momentum, gradientnorm, d2h
+     use wavefunctions, only : dispersions
+
+     integer, intent(in) :: iter
+
+1    format(86('-'))
+2    format(' Iteration = ', i4)
+21   format(' Potentials frozen.')
+3    format(' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+4    format(' Maximum dispersion =', es12.3)
+
+     print 1
+     print 2, iter
+     print 3, dt, momentum, gradientnorm, d2h
+     print 4,  maxval(dispersions)
+
+   end subroutine print_summary_spectrum
+#endif
 
    subroutine update_spwf_properties_HF()
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -1138,6 +1138,7 @@ end subroutine loadbalance
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Original Lagrange mesh derivatives
     do wave=1,nwt_local
+        if(locked(wave)) cycle
         do k=1,4
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
@@ -1481,8 +1482,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
     ! This subroutine uses a (modified) Gram-Schmidt scheme to orthonormalise 
-    ! the spwfs in the array HFPsi. The orthonormalisation proceeds per symmetry
-    ! block, as this saves precious CPU cycles.
+    ! the spwfs in the array HFPsi.
+    ! The orthonormalisation
+    ! - proceeds per symmetry block
+    ! - is capable of respecting the separation into "locked" and "active" spwfs
     !
     ! In the interest of convergence speed, the orthogonalisation is done in 
     ! order of ascending single-particle energy if this is possible, i.e. if
@@ -1522,10 +1525,22 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         endif
 
         do i = 1,N
+            nw = indices(i)
+            if(locked(nw)) then
+               cycle ! cycle if the spwf is locked
+            else
+               ! orthonormalize against ALL locked spwfs
+               do j=1,N
+                 mw = indices(j)
+                 if(locked(mw)) then
+                    norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
+                    HFPsi(:,:,nw) = HFPsi(:,:,nw) - norm * HFPsi(:,:,mw)
+                 endif
+               enddo
+            endif
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Normalize wave-function nw
-            nw = indices(i)
-            norm = sum(HFpsi(:,:,nw)**2) * dv
+            norm          = sum(HFpsi(:,:,nw)**2) * dv
             HFPsi(:,:,nw) = (sqrt(1.0d0/norm)) * HFPsi(:,:,nw)
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Then subtract the projection on \Psi_{nw} from all the following
@@ -1548,7 +1563,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! The MOCCa example is conserved time-reversal but broken signature.
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             do j= i+1, HFBlocks(b)
-              mw = indices(j)    
+              mw = indices(j)
+              if(locked(mw)) cycle ! don't update if spwf(mw) is locked
               ! Real part of the inproduct
               norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
               HFPsi(:,:,mw) = HFPsi(:,:,mw) - norm * HFPsi(:,:,nw)
