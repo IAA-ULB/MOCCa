@@ -27,6 +27,7 @@ not the patch version.
 ## v0.4.0 - FAMQRPA 
   Major new feature: full implementation of linear response functionality with pairing (P. Demol) 
   Notable changes from v0.3.1-0.3.9
+  
   - v0.3.9: exact folding with Gaussian charge factors (L. Gonzalez)
   - v0.3.8: new building framework, significantly enhanced compilation speed when developing (W. Ryssens)
   - v0.3.7: a collection of small changes (multiple authors)
