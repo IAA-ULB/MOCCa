@@ -578,10 +578,16 @@ contains
      use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
      use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
      use evolution,     only: apply_subspace_rotation
-     use functional,    only: potentials
-     use pairing,       only: pairingtype
+     use functional,    only: potentials, calcenergy, update_E_history
+     use moments,       only: calculatemoments
+     use pairing,       only: pairingtype, solvepairing, calc_avg_gap
+     use pairing,       only: pairingscheme
+     use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
+     use densities,     only: construct_canonical_basis, densit, Density
+     use cranking,      only: updateAM
 
      integer, intent(out)           :: iter
+     integer                        :: ifail
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
      logical                        :: print_all_spwf_properties
@@ -602,8 +608,26 @@ contains
          convergence_achieved = ALL(locked)
 
          if (convergence_achieved .or. iter .eq. maxiter) then
+            ! Let us prepare for a final printout
+            ! We update
+            ! - pairing quantities
+            ! - densities
+            ! - energy
+            ! - spwf properties
+            ! - angular momentum
+            ! but NOT the mean-field potentials!
+            call SolvePairing(pairingscheme, ifail)
+            call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+            Density = densit(rho_can, kappa_pairing)
+            call CalculateMoments(Density, .true.)
+            call update_E_history()
+            call CalcEnergy(Density, Potentials, .true.)
+            call calc_avg_gap()
+
             call update_spwf_properties_HF()
             if (PairingType == 2) call update_spwf_properties_CAN()
+            call updateAM(Density, .true.)
+
             call full_printout(iter, convergence_achieved, .true.)
          end if
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -614,6 +638,7 @@ contains
             exit
          end if
      enddo
+
 
    end subroutine iterate_spectrum
 

@@ -1152,7 +1152,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         integer, external          :: NUMROC
         real(KIND=dp), allocatable :: hpsi_2d(:,:)
 #else
-        integer                    :: active_count, wave, i, j
+        integer                    :: active_count, wave, i, j, der_index
         integer                    :: active_indices(maxval(HFBlocks))
         real(KIND=dp), allocatable :: temp_wfs(:,:,:), active_sph(:,:)
 #endif
@@ -1204,27 +1204,23 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           allocate(hpsi(mv,4,active_count))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
-          if(store_derivatives) then
-            ! Create temporary array with only active wavefunctions
-            allocate(temp_wfs(mv,4,active_count))
-            do i = 1, active_count
-                wave = si + active_indices(i)
-                temp_wfs(:,:,i) = hfpsi(:,:,wave)
-                hpsi(:,:,i) = apply_sphamil(temp_wfs(:,:,i),     &
-                     &                      HFdPsi(:,:,:,wave) , &
-                     &                      HFddPsi(:,:,:,wave), &
-                     &                      sx(:,wave),sy(:,wave),sz(:,wave), &
-                     &                      iso,.false.,F)
-            enddo
-          else
-            call apply_sphamil_block_no_derivative_storage                     &
-            &                          (N,HFpsi(:,:,si+1:si+N),hpsi,           &
-            &                           sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
-            &                           HFdpsi(:,:,:,1),               &
-            &                           HFddpsi(:,:,:,1),              &
-            &                           F)  
-          endif
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Create temporary array with only active wavefunctions
+          allocate(temp_wfs(mv,4,active_count))
+          do i = 1, active_count
+             wave = si + active_indices(i)
+             if(store_derivatives) then
+                der_index = wave
+             else
+                der_index = 1
+             endif
+             temp_wfs(:,:,i) = hfpsi(:,:,wave)
+             hpsi(:,:,i) = apply_sphamil(temp_wfs(:,:,i),          &
+                  &                      HFdPsi(:,:,:,der_index) , &
+                  &                      HFddPsi(:,:,:,der_index), &
+                  &                      sx(:,wave),sy(:,wave),sz(:,wave), &
+                  &                      iso,.not.store_derivatives,F)
+          enddo
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Calculate matrix elements by way of a BLAS call
           ! TODO: hide this behind interface to recast the (mv,4) vectors
           !       into (4*mv) ones
