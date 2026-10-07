@@ -1,0 +1,8 @@
+# Fortitude configuration for MOCCa
+# Rule codes can be found with: fortitude explain
+
+[check]
+select = [
+    "S201", # superfluous implicit none 
+    "C001"
+]

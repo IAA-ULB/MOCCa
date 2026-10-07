@@ -320,6 +320,9 @@ module wavefunctions
  ! runs with identical input give identical output, even when running across
  ! different numbers of MPI ranks.
  character(len=20)           :: random_numbers = 'FAST'
+ ! Logical tracking whether a given single-particle orbital is locked, i.e.
+ !  if is no longer evolved by the iterations.
+ logical, allocatable :: locked(:)
  !------------------------------------------------------------------------------
  ! Overloading of the transform_spwfs_inplace routine depending on the type
  ! of the unitary transformation: complex or real.
@@ -427,6 +430,19 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     endif
 #endif
   end subroutine allocate_memory_derivatives
+
+  subroutine deallocate_derivatives()
+    !--------------------------------------------------------------------------
+    ! Deallocate all arrays of wavefunction derivatives
+    !--------------------------------------------------------------------------
+    deallocate(HFdPsi, HFddPsi)
+$N3 deallocate(HFdddPsi)
+
+    if(allocated(candPsi)) then
+      deallocate(candPsi,canddPsi)
+$N3   allocate(candddPsi)
+    endif
+  end subroutine deallocate_derivatives
 
   subroutine loadbalance(blocks_global,blocks_local,spwf_map,        &
   &                                                       rank_map,spwf_inverse)
@@ -1135,6 +1151,7 @@ end subroutine loadbalance
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Original Lagrange mesh derivatives
     do wave=1,nwt_local
+        if(locked(wave)) cycle
         do k=1,4
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
@@ -1478,8 +1495,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
     ! This subroutine uses a (modified) Gram-Schmidt scheme to orthonormalise 
-    ! the spwfs in the array HFPsi. The orthonormalisation proceeds per symmetry
-    ! block, as this saves precious CPU cycles.
+    ! the spwfs in the array HFPsi.
+    ! The orthonormalisation
+    ! - proceeds per symmetry block
+    ! - is capable of respecting the separation into "locked" and "active" spwfs
     !
     ! In the interest of convergence speed, the orthogonalisation is done in 
     ! order of ascending single-particle energy if this is possible, i.e. if
@@ -1519,10 +1538,22 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         endif
 
         do i = 1,N
+            nw = indices(i)
+            if(locked(nw)) then
+               cycle ! cycle if the spwf is locked
+            else
+               ! orthonormalize against ALL locked spwfs
+               do j=1,N
+                 mw = indices(j)
+                 if(locked(mw)) then
+                    norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
+                    HFPsi(:,:,nw) = HFPsi(:,:,nw) - norm * HFPsi(:,:,mw)
+                 endif
+               enddo
+            endif
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Normalize wave-function nw
-            nw = indices(i)
-            norm = sum(HFpsi(:,:,nw)**2) * dv
+            norm          = sum(HFpsi(:,:,nw)**2) * dv
             HFPsi(:,:,nw) = (sqrt(1.0d0/norm)) * HFPsi(:,:,nw)
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Then subtract the projection on \Psi_{nw} from all the following
@@ -1545,7 +1576,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! The MOCCa example is conserved time-reversal but broken signature.
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             do j= i+1, HFBlocks(b)
-              mw = indices(j)    
+              mw = indices(j)
+              if(locked(mw)) cycle ! don't update if spwf(mw) is locked
               ! Real part of the inproduct
               norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
               HFPsi(:,:,mw) = HFPsi(:,:,mw) - norm * HFPsi(:,:,nw)

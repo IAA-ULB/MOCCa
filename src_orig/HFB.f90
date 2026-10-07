@@ -2056,6 +2056,7 @@ $NTR conjugp = 0
       N  = HFBlocks_global(B)   ;  if(N .eq. 0) cycle
       N2 = HFBlocks_global(B+1)
 
+      print *, 'SIZE', N, N2, size(kappa_pairing,1), size(rhotransfo,1)
       allocate(tmp(N+N2,N+N2))
       tmp = kappa_pairing(si+1:si+N+N2, si+1:si+N+N2)   
 

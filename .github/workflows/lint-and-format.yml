@@ -1,0 +1,62 @@
+#-------------------------------------------------------------------------------
+# Linting and Formatting workflow for MOCCa
+#
+# Runs fortitude (linter) and fprettify (formatter) on Fortran source code
+# before compilation starts. Produces reports as artifacts.
+# Called by CI.yml via workflow_call
+#-------------------------------------------------------------------------------
+name: Lint and Format
+
+on:
+  workflow_call:
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install pip3
+        run: |
+          apt-get update -y && apt-get install -y python3-pip
+
+      - name: Install fortitude and fprettify
+        run: |
+          pip3 install fortitude-lint fprettify
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run fortitude linter
+        id: lint
+        run: |
+          echo "Running fortitude on Fortran source files..."
+          fortitude --config-file .fortitude.toml check src_orig/ 2>&1 | tee reports/fortitude-report.txt || true
+          echo "Fortitude check complete."
+
+      - name: Run fprettify format check
+        id: format-check
+        run: |
+          echo "Running fprettify format check..."
+          # Use -d to show diff and -r for recursive, check if there's any output
+          fprettify -d -r -c .fprettify.rc src_orig/ > reports/fprettify-report.txt 2>&1 || true
+          if [ -s reports/fprettify-report.txt ]; then
+            echo "Files need formatting. Diff output saved to report."
+          else
+            echo "All files are properly formatted."
+          fi
+          echo "fprettify check complete."
+
+      - name: Upload lint and format reports
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lint-format-reports
+          path: reports/
+          retention-days: 7

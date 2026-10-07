@@ -23,9 +23,8 @@
 !===============================================================================
 module MOCCa
 
-   use geninfo
-
-   implicit none
+   implicit none (type, external)
+   public
 
 contains
 
@@ -38,22 +37,30 @@ contains
       ! 'main' routine is now written as a subroutine (with inputs!) to accomodate
       ! meta-codes that want to run MOCCa multiple times.
       !==============================================================================
+      use compilation,   only: dp
+      use geninfo,       only: MPI_RANK
+      use IO,            only: ReadInput, PrintInput, write_advanced_output
+      use IO,            only: readwavefunction, outputfilename, writewavefunction
+      use fission_MOI,   only: calc_collective_inertia, print_collective_inertia
+      use fission_MOI,   only: N_inertia
+      use version,       only: print_header
+      use derivatives,   only: inilag
+      use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
+           &                   initialize_all_timers
+#if(USE_MPI > 0)
+      use geninfo,       only: NPROCS
+      use mpi_f08
+      ! This include statement is not particularly elegant, but appending it with an
+      ! 'only'-list seems to generate behaviour that is not consistent across compilers.
+#endif
 
-      use compilation
-      use geninfo
-      use wavefunctions
-      use IO
-      use timing
-      use fission_MOI
-      use version, only: print_header
 
-      implicit none
       !------------------------------------------------------------------------------
       ! Convergence signals
       ! Iteration counter
       integer           :: iteration
       ! Message for the output of the code, useful for the Brussels group.
-      character(len=99) :: iomsg = 'START'
+      character(len=99) :: iomsg
       !------------------------------------------------------------------------------
       ! These inputs control where the code will look for its input. Leaving them
       ! empty will have the code rely on STDIN for input.
@@ -64,7 +71,6 @@ contains
 #if(USE_MPI > 0)
       integer :: mpi_err
 #endif
-
       !------------------------------------------------------------------------------
       ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
@@ -99,13 +105,13 @@ contains
       call PrintInput(file_number, input_file)
       !------------------------------------------------------------------------------
       ! Go out and try to reach convergence, only to fail time and time again....
-      call ReachForWaterAndFood(iteration, iomsg)
+      call run_mean_field(iteration, iomsg)
       !------------------------------------------------------------------------------
       ! Perform analysis on the final many-body state
       ! (i) calculate and print the collective moment of inertias
-      if (N_inertia .gt. 0) then
+      if (N_inertia > 0) then
          call calc_collective_inertia
-         if (MPI_RANK .eq. 0) then
+         if (MPI_RANK == 0) then
             call print_collective_inertia
          end if
       end if
@@ -115,9 +121,6 @@ contains
       !---------------------------------------------------------------------------
       ! Write output to the outputfile, i.e. the full wavefunction file
       call writewavefunction(12, outputfilename)
-      !------------------------------------------------------------------------------
-      ! Clean up after running, just in case we need to run again.
-      call Cleanupthemess()
       !------------------------------------------------------------------------------
       ! Print all timing info
 #if(USE_MPI > 0)
@@ -135,77 +138,52 @@ contains
       ! end of one mean-field calculation..;
    end subroutine Run_MOCCa
 
-   subroutine ReachForWaterAndFood(iter, iomsg)
-      !---------------------------------------------------------------------------
-      ! Evolve the single-particle wavefunctions and densities.
-      !
-      ! The overall iterative scheme is as explained in
-      !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
-      !   Eur. Phys. J. A, 55, 93. https://doi.org/10.1140/epja/i2019-12766-6
-      !
-      ! Which is
-      !
-      !   Initialization
-      !
-      !   Until convergence do
-      !   |  1. Calculate matrix elements of h and Delta
-      !   |  2. Evolve the HF-basis with the heavy-ball method
-      !   |  3. Solve the pairing equations with matrix elements from 1.
-      !   |     HF : fill the lowest levels
-      !   |     BCS: solve the BCS equations to obtain the occupations
-      !   |     HFB: a. solve the HFB equations in the HF-basis
-      !   |          b. construct the canonical basis
-      !   |  4. Perform feasible projection if asked for
-      !   |  5. Construct the densities
-      !   |    5b. Update the Lagrange multipliers of the constraints
-      !   |  6. Construct the potentials
-      !   |     (including the contributions to F_I_I by Coulomb interaction
-      !   |      and any multipole constraints)
-      !   |  7. Print iteration info
-      !   |_____________________________
-      !
-      ! TODO: correct this documentation
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Input:
-      !   None.
-      ! Output:
-      !   iter  : number of iterations executed by this routine.
-      !   iomsg : message about convergence that can be included in output files.
-      !---------------------------------------------------------------------------
-      use compilation
-      use derivatives
-      use wavefunctions
-      use constants
-      use densities
-      use functional
-      use evolution
-      use IO
-      use IO_wf, only: readHFBinfofile, write_MOCCa_wf
-#if(USE_HDF5>0)
-      use IO_wf, only: write_MOCCa_hdf5
-#endif
-      use moments
-      use coulombmod
-      use pairing
-      use printing
-      use momentsofinertia
-      use cranking
-      use convergence
-      use scfiteration
-      use timing
+   subroutine run_mean_field(iter, iomsg)
+     !---------------------------------------------------------------------------
+     !  We start the mean-field process.
+     !
+     !  Output:
+     !   iter : integer, the final iteration performed in the SCF process
+     !   iomsg: character, message about convergence
+     !----------------------------------------------------------------------------
+     use scfiteration, only : scfscheme
 
-      implicit none
+     integer, intent(out)           :: iter
+     character(len=99), intent(out) :: iomsg
 
-9     format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
+     ! 1. set-up phase, construction of the starting point
+     call set_up_mean_field()
+     ! 2. Iteration phase, start of iterations
+     if(scfscheme /= 2) then
+        call iterate_mean_field(iter, iomsg)
+     else
+        call iterate_spectrum(iter, iomsg)
+     endif
 
-      integer, intent(out)           :: iter
-      character(len=99), intent(out) :: iomsg
+   end subroutine run_mean_field
 
-      integer :: iprint, scheme, ifail
-      logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
-      logical :: potentials_frozen = .true.
-      ! Logical to see if any moments with feasible set projection are necessary
-      logical :: projectpresent = .false.
+   subroutine set_up_mean_field()
+      !-------------------------------------------------------------------
+      ! Set up the mean-field state, i.e. prepare everything to start
+      !  iterating in one way or another.
+      !-------------------------------------------------------------------
+      use pairing,       only: BogoFromFile, PairingType, pairingscheme, &
+           &                   guessgaps, SolvePairing, rho_pairing,     &
+           &                   kappa_pairing, rho_can, kappa_can,        &
+           &                   calc_avg_gap
+      use geninfo,       only: store_derivatives
+      use densities,     only: Density, densit, construct_canonical_basis
+      use moments,       only: CalculateMoments, adapt_COM
+      use functional,    only: potentials_read,calcPotentials,           &
+           &                   CalcEnergy, potentials
+      use printing,      only: print_adv_spwf_properties
+      use cranking,      only: updateAM
+      use IO,            only: potentials_from_file
+      use IO_wf,         only: readHFBinfofile
+      use momentsofinertia, only: setBelyaevProcedure
+      use wavefunctions, only: allocate_memory_derivatives, deriveHF
+
+      integer :: scheme, ifail
 
 #if(USE_MPI > 0)
       integer :: mpi_err
@@ -215,7 +193,6 @@ contains
 #endif
 
       ifail = 0
-      ConvergenceAchieved = .false.
 
       ! Provide memory for the derivatives of the spwfs
       call allocate_memory_derivatives(PairingType)
@@ -223,7 +200,7 @@ contains
       !---------------------------------------------------------------------------
       ! Initial calculations
       !---------------------------------------------------------------------------
-      if ((Bogofromfile .and. readHFBinfofile) .and. pairingscheme .eq. 1) then
+      if ((Bogofromfile .and. readHFBinfofile) .and. pairingscheme == 1) then
          ! If using a gradient strategy and we want to continue from file.
          ! Only allowed of course if we have actually read a Bogoliubov transfo.
          scheme = -1
@@ -231,7 +208,7 @@ contains
          scheme = 0
       end if
       call SolvePairing(scheme, ifail)
-      if (ifail .ne. 0) then
+      if (ifail /= 0) then
          ! Solve the pairing, with the current values of <h> and the pairing gaps.
          ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB
          ! Hamiltonian with a LAPACK call. We do this if the code did not receive
@@ -239,7 +216,7 @@ contains
          ! file.
          print *, 'WARNING! Pairing solver failed.'
       end if
-      if (bogofromfile .and. guessgaps .and. pairingscheme .eq. 1) then
+      if (bogofromfile .and. guessgaps .and. pairingscheme == 1) then
          ! We perform a few extra calls to solvepairing to take a few gradient
          ! steps, with finite values for Delta.
          call SolvePairing(pairingscheme, ifail)
@@ -270,7 +247,7 @@ contains
 #if(PASTA == 0)
       ! the memory and CPU time requirements of these routine scale very badly...
       call update_spwf_properties_HF() !
-      if (PairingType .eq. 2) call update_spwf_properties_CAN()
+      if (PairingType == 2) call update_spwf_properties_CAN()
       print_adv_spwf_properties = .true.
 #else
       print_adv_spwf_properties = .false.
@@ -297,10 +274,73 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Initial printout
       call full_printout(0, .false., print_adv_spwf_properties)
-      !---------------------------------------------------------------------------
-      ! Start of the iterations
-      !---------------------------------------------------------------------------
-      do iter = 1, maxiter
+
+   end subroutine set_up_mean_field
+
+   subroutine iterate_mean_field(iter, iomsg)
+     !-----------------------------------------------------------------------------
+     ! This routine solves the self-consistent mean-field problem, i.e. it performs
+     ! the whole internested updating of both
+     !
+     !   1. single-particle wavefunctions
+     !   2. mean-field potentials
+     !
+     ! as described in
+     !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
+     !   Eur. Phys. J. A, 55, 93. https://doi.org/10.1140/epja/i2019-12766-6
+     !
+     ! Output
+     !   iter : integer, the final iteration performed in the SCF process
+     !   iomsg: character, message about convergence
+     !
+     !---------------------------------------------------------------------------
+      use compilation,   only: dp
+      use geninfo,       only: MaxIter, d2H_freeze, FreezeIter, PrintIter
+      use geninfo,       only: store_derivatives, to_upper, stp
+      use wavefunctions, only: sphamil, HFTransfo, spenergies, deriveHF
+      use densities,     only: Density, densit, construct_canonical_basis
+      use densities,     only: sx_rho, sy_rho, sz_rho
+      use functional,    only: calcPotentials, potentials, potentials_out,      &
+           &                   precondition_potentials, save_potential_history, &
+           &                   CalcEnergy, PairStabFactor, update_E_history
+      use evolution,     only: Evolve_subspace, Calc_Sphamil, subspace_rotation,&
+           &                   apply_subspace_rotation, d2H, feasibleproject
+      use IO,            only: OutputFileName, MPI_RANK, checkpointiter, N_inertia
+      use IO_wf,         only: write_MOCCa_wf
+#if(USE_HDF5>0)
+      use IO_wf,         only: write_MOCCa_hdf5
+#endif
+      use moments,       only: CalculateMoments, ReadjustAllMoments, follow_com, &
+           &                   checkconstraints, turnoffconstraints, adapt_com
+      use coulombmod,    only: solve_coulomb
+      use pairing,       only: SolvePairing, pairingscheme, calcgaps,           &
+      &                        rho_pairing, kappa_pairing, rho_can, kappa_can,  &
+      &                        PairingType, calc_avg_gap, FermiEnergy, FermiHistory
+      use printing,      only: print_adv_spwf_properties
+      use convergence,   only: Converged
+      use scfiteration,  only: scfscheme, mixingscheme, mixstepsize, freezeiter, &
+      &                        maxiter, AndersonMixPotentials,               &
+      &                        Potential_iterates, Potential_updates
+
+      use timing,        only: start_timer, stop_timer
+      use cranking,      only: check_cranking, crank_smooth
+      use cranking,      only: updateAM, readjustCranking, check_cranking
+
+
+     integer, intent(out)           :: iter
+     character(len=99), intent(out) :: iomsg
+
+     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
+     logical :: potentials_frozen
+     ! Logical to see if any moments with feasible set projection are necessary
+     logical :: projectpresent
+
+     integer :: ifail, iprint
+
+9    format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
+
+     ConvergenceAchieved = .false.
+     do iter = 1, maxiter
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! First, do some bookkeeping
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -355,7 +395,7 @@ contains
          ! Update value of the average angular momentum
          if (check_cranking() .and. .not. crank_smooth) then
             call update_spwf_properties_HF()
-            if (PairingType .eq. 2) call update_spwf_properties_CAN()
+            if (PairingType == 2) call update_spwf_properties_CAN()
          end if
          call updateAM(Density, .true.)
          ! .... and readjust any constraints on it
@@ -393,7 +433,7 @@ contains
          ! Construct new potentials ...
          ! ...but only if Iter > FreezeIter AND d2H < d2H_freeze
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         if ((iter .gt. freezeiter) .and. (d2H .lt. d2H_freeze)) then
+         if ((iter > freezeiter) .and. (d2H < d2H_freeze)) then
             potentials_frozen = .false.
          end if
 
@@ -401,7 +441,7 @@ contains
             ! calculate new values for the potentials from the densities
             potentials_out = calcPotentials(Density)
 
-            if (scfscheme .eq. 0) then
+            if (scfscheme == 0) then
                potentials_out = precondition_potentials(potentials, potentials_out)
             end if
             ! Save the information to memory, throwing out older information.
@@ -421,7 +461,7 @@ contains
                potentials = potentials_out
             end select
 
-         elseif (iter .eq. freezeiter) then
+         elseif (iter == freezeiter) then
             ! Recalculate the Coulomb potential at the last iteration for
             ! comparison purposes with other codes.
             call solve_coulomb(Density, Potentials, sx_rho, sy_rho, sz_rho)
@@ -435,7 +475,7 @@ contains
          ! - cheap calculation that omits the recalculation of some parts of the
          !   energy that are computationally intensive
          ! - expensive, complete calculation
-         if ((mod(iter, PrintIter) .eq. 0) .or. (iter .eq. maxiter)) then
+         if ((mod(iter, PrintIter) == 0) .or. (iter == maxiter)) then
             iprint = 1; calc_expensive = .true.
          else
             iprint = 0
@@ -450,7 +490,7 @@ contains
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Check for convergence or a failed calculation
          ! TODO: what is this?
-         if (ifail .ne. 0) then
+         if (ifail /= 0) then
             iomsg = 'FERMI'
             ConvergenceAchieved = .false.
             exit
@@ -468,12 +508,12 @@ contains
          !  update all spwf properties first to ensure correct printout of spwfs
 #if(PASTA == 0)
          ! the memory and CPU time requirements of these routine scale very badly...
-         print_all_spwf_properties = print_adv_spwf_properties .or. &
-         &                           (iter .eq. maxiter) .or. &
+         print_all_spwf_properties = (print_adv_spwf_properties .or. &
+         &                           (iter == maxiter)) .or. &
          &                           convergenceachieved
          if (print_all_spwf_properties) then
             call update_spwf_properties_HF()
-            if (PairingType .eq. 2) call update_spwf_properties_CAN()
+            if (PairingType == 2) call update_spwf_properties_CAN()
          end if
 #else
          print_all_spwf_properties = .false.
@@ -482,8 +522,8 @@ contains
          ! Decide whether to do a full printout
          ! .... but do a summary printout anyway to enable for "complete" output
          !      when grepping on quantities included in the summary
-         if (MPI_RANK .eq. 0) call printsummary(iter, potentials_frozen)
-         if (iprint .eq. 1) then
+         if (MPI_RANK == 0) call printsummary(iter, potentials_frozen)
+         if (iprint == 1) then
             call full_printout(iter, convergenceachieved, print_all_spwf_properties)
          end if
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -495,34 +535,158 @@ contains
          end if
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Write a wavefunction file at each multiple of checkpointiter
-         if (checkpointiter .ne. 0) then
-         if (mod(iter, checkpointiter) .eq. 0) then
+         if (checkpointiter /= 0) then
+            if (mod(iter, checkpointiter) == 0) then
 #if(DEBUG_LEVEL==1)
-            ! Output densities and potentials to specific files at every checkpoint
-            ! TODO: refactor this into a subroutine in the IO.f90 module!
-            write (denfile_iter, '("iter=",i5.5,".den")') iter
-            write (potfile_iter, '("iter=",i5.5,".pot")') iter
-            if (MPI_RANK .eq. 0) then
-               call write_densities(Density, denfile_iter)
-               call write_potentialfile(potentials, potfile_iter)
-            end if
+               ! Output densities and potentials to specific files at every checkpoint
+               ! TODO: refactor this into a subroutine in the IO.f90 module!
+               write (denfile_iter, '("iter=",i5.5,".den")') iter
+               write (potfile_iter, '("iter=",i5.5,".pot")') iter
+               if (MPI_RANK == 0) then
+                  call write_densities(Density, denfile_iter)
+                  call write_potentialfile(potentials, potfile_iter)
+               end if
 #endif
-            if (MPI_RANK .eq. 0) print 9, iter, outputfilename
-            iomsg = 'CHECKPOINT'
-            if (trim(to_upper(OutputFileName(len_trim(OutputFileName) - 3:))) .eq. 'HDF5') then
+               if (MPI_RANK == 0) print 9, iter, outputfilename
+               iomsg = 'CHECKPOINT'
+               if (trim(to_upper(OutputFileName(len_trim(OutputFileName) - 3:))) == 'HDF5') then
 #if(USE_HDF5>0)
-               call write_MOCCa_hdf5(outputfilename) !new hdf5 format
+                  call write_MOCCa_hdf5(outputfilename) !new hdf5 format
 #else
-               call stp('HDF5 support was not enabled at compilation.')
+                  call stp('HDF5 support was not enabled at compilation.')
 #endif
-            else
-               call write_MOCCa_wf(12, outputfilename) ! old style in .wf file
+               else
+                  call write_MOCCa_wf(12, outputfilename) ! old style in .wf file
+               end if
             end if
-         end if
          end if
       end do
-   end subroutine ReachForWaterAndFood
-#endif
+   end subroutine iterate_mean_field
+
+   subroutine iterate_spectrum(iter, iomsg)
+     !-------------------------------------------------------------------------
+     ! TODO document
+     !
+     ! Output:
+     !   iter : integer, the final iteration count
+     !   iomsg: string, message about (non)convergence
+     !-------------------------------------------------------------------------
+
+     use compilation,   only: dp
+
+     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
+
+     use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
+     use wavefunctions, only: nwn, nwp, nwt, hfpsi, hfblocks_global, hfblocks
+     use wavefunctions, only: rank_map, spwf_inverse, spwf_map
+     use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz, canenergies, orthonormalize
+
+     use wavefunctions, only: HF_J, HF_JTR,  HF_JTI,  HF_J2,  HF_JJ,  HF_spin
+     use wavefunctions, only: HF_STR,  HF_STI, spwf_r2_hf, P_hf
+     use wavefunctions, only: CAN_J, CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ,  CAN_spin
+     use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
+
+     use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
+     use evolution,     only: apply_subspace_rotation
+     use functional,    only: potentials, calcenergy, update_E_history
+     use moments,       only: calculatemoments
+
+     use pairing,       only: pairingtype, solvepairing, calc_avg_gap
+     use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
+     use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
+     use pairing,       only: cantransfo, cancuttransfo
+
+     use pairingcutoffs, only : computepairingcutoffs
+
+     use HFB,           only: grad_blocks, qp_j, qp_JTR, qp_JTI, qpdispersions
+     use densities,     only: construct_canonical_basis, densit, Density
+     use cranking,      only: updateAM
+     use transform,     only: transforminput
+
+     integer, intent(out)           :: iter
+     integer                        :: ifail, old_blocks(8), B
+     integer, allocatable           :: old_rank_map(:), old_spwf_inverse(:)
+     character(len=99), intent(out) :: iomsg
+     logical                        :: convergence_achieved
+
+     do iter=1, maxiter
+         ! Just keep doing heavy-ball steps
+         call Evolve_subspace(potentials, iter)
+         if (store_derivatives) call deriveHF() ! and update derivatives
+
+         ! Full recalculation of h with the spwfs AFTER evolution
+         sphamil = Calc_Sphamil(potentials, .true.)
+         call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+         if (store_derivatives) call deriveHF() ! and update derivatives
+
+         call print_summary_spectrum(iter)
+         ! Convergence is reached if ALL the spwfs are locked inside the
+         !  evolution,i.e. if their dispersion is small enough
+         convergence_achieved = ALL(locked)
+
+         !if(iter.eq.1) then
+            nwn = nwn + 10
+            nwp = nwp + 10
+            nwt = nwn + nwp
+
+            old_blocks = HFBlocks
+            do B=1,8,2
+               HFBlocks(B) = HFBlocks(B) + 5
+               HFBlocks_global(B) = HFBlocks_global(B) + 5
+            enddo
+
+            call transforminput(nx,ny,nz,nwn-10,nwp-10,dx,old_blocks,grad_blocks,spwf_map,rank_map,spwf_inverse,(/ 5,0,5,0,5,0,5,0 /))
+            deallocate(locked); allocate(locked(nwt)) ; locked = .false.
+            call orthonormalize()
+
+            if(allocated(Pcutoffs)) deallocate(Pcutoffs)
+            call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+            call deallocate_derivatives()
+            call allocate_memory_derivatives(PairingType)
+            if(store_derivatives) call deriveHF()
+            if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, rho_can, kappa_can)
+            if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
+            if(allocated( HF_spin)) deallocate( HF_spin, HF_STR,  HF_STI, spwf_r2_hf, P_hf)
+            if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
+            if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR,  CAN_STI, spwf_r2_can, P_can)
+
+            if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
+         !endif
+
+         if (convergence_achieved .or. iter .eq. maxiter) then
+            ! Let us prepare for a final printout
+            ! We update
+            ! - pairing quantities
+            ! - densities
+            ! - energy
+            ! - spwf properties
+            ! - angular momentum
+            ! but NOT the mean-field potentials!
+            call SolvePairing(pairingscheme, ifail)
+            call construct_canonical_basis(rho_pairing, kappa_pairing, rho_can, kappa_can)
+            Density = densit(rho_can, kappa_pairing)
+            call CalculateMoments(Density, .true.)
+            call update_E_history()
+            call CalcEnergy(Density, Potentials, .false.)
+            call calc_avg_gap()
+
+            call update_spwf_properties_HF()
+            if (PairingType == 2) call update_spwf_properties_CAN()
+            call updateAM(Density, .true.)
+
+            call full_printout(iter, convergence_achieved, .true.)
+         end if
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Exit the loop if convergence is achieved.
+         if (convergence_achieved) then
+            call print_convergence_message(iter)
+            iomsg = 'CONVERGED'
+            exit
+         end if
+
+     enddo
+   end subroutine iterate_spectrum
 
    subroutine printsummary(iter, potentials_frozen)
       !---------------------------------------------------------------------------
@@ -533,18 +697,32 @@ contains
       !    iter              : iteration count
       !    potentials_frozen : whether or not the potentials were updated
       !---------------------------------------------------------------------------
-      use functional
-      use evolution
-      use moments
-      use pairing
-
-      implicit none
+      use compilation,   only: dp
+      use geninfo,       only: neutrons, protons
+      use wavefunctions, only: nwn, nwt
+      use functional,    only: totalE, Ehistory, Routhian, Rhistory
+#if(PASTA == 1)
+      use functional,    only: calculate_epasta
+#endif
+      use evolution,     only: dt, momentum, gradientnorm, d2h
+      use moments,       only: moment, findmoment, Root
+      use pairing,       only: gradient_stepsize, gradient_mu, fixfermi
+      use pairing,       only: HFBgradnorm, rho_can, pairingscheme
+      use pairing,       only: FermiEnergy, FermiHistory
+      use cranking,      only: crank_smooth, cranktype, TotalAngMom, CrankValues
+      use cranking,      only: angmomold, angmomold_dens, TotalAngMom_dens
+      use cranking,      only: omega, omega_prev
 
       integer, intent(in)   :: iter
       logical, intent(in)   :: potentials_frozen
       type(Moment), pointer :: current, part
       real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
       character(len=1)      :: t, spec
+
+#if(PASTA == 1)
+      real(KIND=dp)         :: dE_pasta
+#endif
+
 
 1     format(86('-'))
 2     format(' Iteration = ', i4)
@@ -567,11 +745,11 @@ contains
 
       part => FindMoment(0, 0, .false.)
 
-      if (iter .eq. 1) print 1
+      if (iter == 1) print 1
       print 2, iter
       if (potentials_frozen) print 21
       print 3, dt, momentum, gradientnorm, d2h
-      if (pairingscheme .eq. 1) then
+      if (pairingscheme == 1) then
          print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))
       end if
       print 4, totalE, (totalE - Ehistory(1))/abs(totalE)
@@ -579,7 +757,9 @@ contains
       print 42, Routhian - totalE, &
       &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE)
 #if(PASTA == 1)
-      print 43, calculate_epasta(totalE), (calculate_epasta(totalE) - calculate_epasta(Ehistory(1)))/abs(calculate_epasta(totalE))
+      dE_pasta = (calculate_epasta(totalE) - calculate_epasta(Ehistory(1))) &
+           &     /abs(calculate_epasta(totalE))
+      print 43, calculate_epasta(totalE),dE_pasta
 #endif
       if (fixfermi) then
          dN = part%value - part%history
@@ -587,7 +767,7 @@ contains
       else
          dN(1) = sum(rho_can(1:nwn)) - neutrons
          dN(2) = sum(rho_can(nwn + 1:nwt)) - protons
-         if (any(dN(:)*dN(:) .gt. 1.d-14)) then
+         if (any(dN(:)*dN(:) > 1.d-14)) then
             print 7, dN
          end if
          dF = FermiEnergy - FermiHistory
@@ -598,7 +778,7 @@ contains
       do while (associated(Current%next))
          Current => Current%next
 
-         if ((Current%constrainttype .ne. 0) .or. (Current%l .eq. 2)) then
+         if ((Current%constrainttype /= 0) .or. (Current%l == 2)) then
             dL = Current%multiplier - Current%mult_hist
             if (Current%Impart) then
                t = 'I'
@@ -606,13 +786,13 @@ contains
                t = 'R'
             end if
 
-            if (Current%constrainttype .ne. 0) then
+            if (Current%constrainttype /= 0) then
                dev = Current%deviation
             else
                dev = 0
             end if
 
-            if (current%l .eq. 2 .and. current%isoswitch .ne. 0) then
+            if (current%l == 2 .and. current%isoswitch /= 0) then
                dQ = sum(Current%value) - sum(Current%history)
                print 5, t, Current%l, Current%m, 't', sum(Current%value), dQ, &
                &              0.0d0, 0.0d0, 0.0d0
@@ -640,7 +820,7 @@ contains
       end do
 
       if (.not. crank_smooth) then
-         if (cranktype(3) .eq. 1) then
+         if (cranktype(3) == 1) then
             devJ = TotalAngMom(3) - CrankValues(3)
          else
             devJ = 0.0d0
@@ -648,7 +828,7 @@ contains
          print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
          &        omega(3), omega(3) - omega_prev(3), devJ
       else
-         if (cranktype(3) .eq. 1) then
+         if (cranktype(3) == 1) then
             devJ = TotalAngMom_dens(3) - CrankValues(3)
          else
             devJ = 0.0d0
@@ -660,6 +840,32 @@ contains
       print 1
 
    end subroutine printsummary
+
+   subroutine print_summary_spectrum(iter)
+     !------------------------------------------------------------------
+     ! Print a summary on the progress of the iterate_spectrum routine.
+     !
+     !------------------------------------------------------------------
+
+     use evolution,     only : dt, momentum, gradientnorm, d2h
+     use wavefunctions, only : dispersions
+
+     integer, intent(in) :: iter
+
+1    format(86('-'))
+2    format(' Iteration = ', i4)
+21   format(' Potentials frozen.')
+3    format(' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+4    format(' Maximum dispersion =', es12.3)
+
+     print 1
+     print 2, iter
+     print 21
+     print 3, dt, momentum, gradientnorm, d2h
+     print 4,  maxval(dispersions)
+
+   end subroutine print_summary_spectrum
+#endif
 
    subroutine update_spwf_properties_HF()
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -720,6 +926,7 @@ contains
       ! Output:
       !    NONE
       !-----------------------------------------------------------------------------
+      use geninfo, only: MPI_RANK, maxiter
       use pairing, only: printpairing
       use moments, only: printallmoments
       use densities, only: density
@@ -740,9 +947,9 @@ contains
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Drive all routines to print their output to STDOUT
-      if (MPI_RANK .eq. 0) then
+      if (MPI_RANK == 0) then
          print 1
-         if ((iter .eq. maxiter) .or. converged) then
+         if ((iter == maxiter) .or. converged) then
             ! Add a clear indication this is the FINAL iteration
             print 3, iter
          else
@@ -779,8 +986,8 @@ contains
       ! Output:
       !    NONE
       !-----------------------------------------------------------------------------
-
-      use geninfo
+      use geninfo, only : energy_prec, moment_prec, disp_prec, gradient_prec, &
+           &              fermi_prec, angmom_prec, MPI_RANK
 
       integer, intent(in) :: iter
 
@@ -795,7 +1002,7 @@ contains
 71    format('| dJz   < ', es10.3, 12x, ' | ')
 8     format('| Ending the iterative proces.   |')
 
-      if (MPI_RANK .eq. 0) then
+      if (MPI_RANK == 0) then
          print 1
          print 2
          print 3, iter
@@ -810,115 +1017,4 @@ contains
       end if
 
    end subroutine print_convergence_message
-
-   subroutine initialize_all_timers(fam)
-      !----------------------------------------------------------------------------
-      ! Initialize all the timers that have been defined.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Input:
-      !       fam (logical), optional :  add fam timers
-      ! Output:
-      !       NONE
-      !----------------------------------------------------------------------------
-      use timing
-
-      logical, intent(in), optional :: fam
-
-      call add_timer('MOCCa', T_MOCCa)
-      call add_timer('Wavefunction initialisation', T_wfini)
-      call add_timer('Wavefunction output', T_wfoutput)
-      call add_timer('Wavefunction reading', T_wfinput)
-      call add_timer('HF-basis Derivatives', T_derivatives)
-      call add_timer('Canonical basis Derivatives', T_derivatives_can)
-      call add_timer('Spwf evolution', T_evolution)
-      call add_timer('Orthonormalization', T_ortho)
-      call add_timer('Construction of norm matrix', T_norm_ortho)
-      call add_timer('Diagonalisation norm matrix', T_diag_ortho)
-      call add_timer('Density calculations', T_densities)
-      call add_timer('Density: pp', T_den_pp)
-      call add_timer('Density: ph', T_den_ph)
-      call add_timer('Density: derivatives', T_den_der)
-      call add_timer('Potential calculations', T_potentials)
-      call add_timer('Potential preconditioning', T_pot_precon)
-      call add_timer('Energy calculations', T_energy)
-      call add_timer('Pairing solver ', T_pairing)
-      call add_timer('Sp. Hamiltonian ', T_sphamil)
-      call add_timer('Coulomb solver', T_coulomb)
-      call add_timer('Can. basis construction', T_den_can)
-      call add_timer('Moments of inertia ', T_MOI)
-      call add_timer('Centre-of-mass correction ', T_COM)
-      call add_timer('COM one-body ', T_COM1)
-      call add_timer('COM two-body ', T_COM2)
-      call add_timer('Matrix elements summation', T_COM2_summation)
-      call add_timer('Matrix elements of \nabla ', T_NablaMElements)
-      call add_timer('Pairing gaps ', T_gaps)
-      call add_timer('Multipole moments ', T_moments)
-      call add_timer('Multipole moments cutoff', T_moment_cutoff)
-      call add_timer('Feas. Proj. step ', T_feasible)
-      call add_timer('Spwf angular momentum ', T_spwfangmom)
-      call add_timer('Charge density folding', T_chargedensity)
-      call add_timer('Collective MOIs', T_collective_moi)
-      call add_timer('Microscopic pairing', T_microscopic_pairing)
-      call add_timer('Subspace rotation          ', T_Hortho)
-      call add_timer('Construction HF transfo', T_HFDiag)
-      call add_timer('Basis transformation', T_Basistransfo)
-      call add_timer('Subspace rotation', T_subspace_rotation)
-      call add_timer('Spwf transformation', T_subrot_transfo)
-      call add_timer('Matrix diagonalisation', T_subrot_diag)
-      call add_timer('Calculation of h in subspace', T_calc_sph)
-      call add_timer('Matrix elements of h', T_calc_sph_me)
-      call add_timer('Update of h in subspace', T_update_sph)
-#if( USE_MPI > 0)
-      call add_timer('Layout transfer: 1D -> 2D', T_transfer_psi_1to2)
-      call add_timer('Layout transfer: 2D -> 1D', T_transfer_psi_2to1)
-      call add_timer('MPI_ALLREDUCE calls     ', T_allreduce)
-#endif
-      if (present(fam)) then
-         call add_timer('FAM', T_fam)
-         call add_timer('Perturbed densities: ph', T_den_perturbed)
-         call add_timer('Perturbed densities: ph, symmetric '   , T_den_perturbed_sym)
-         call add_timer('Perturbed densities: ph, antisymmetric', T_den_perturbed_asym)
-         call add_timer('Perturbed densities: pp', T_den_perturbed_pp)
-         call add_timer('Matrix elements of \delta h', T_spme_perturbed)
-         call add_timer('Matrix elements of \delta h: symmetric',     T_spme_perturbed_sym)
-         call add_timer('Matrix elements of \delta h: antisymmetric', T_spme_perturbed_asym)
-         call add_timer('Matrix elements of \delta \Delta', T_spme_perturbed_pp)
-      end if
-
-   end subroutine initialize_all_timers
-
-   subroutine cleanupthemess()
-      !-----------------------------------------------------------------------------
-      ! Driver routine calling all routines to cleanup memory in different modules.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Input:
-      !       NONE
-      ! Output:
-      !       NONE
-      !-----------------------------------------------------------------------------
-      use geninfo
-      use derivatives
-      use wavefunctions
-      use pairingcutoffs
-      use BCS
-      use HFB
-      use pairing
-      use densities
-      use moments
-      use coulombmod
-      use evolution
-      use functional
-
-      call clean_geninfo
-      call clean_derivatives
-      call clean_wavefunctions
-      call clean_pairingcutoffs
-      call clean_BCS
-      call clean_HFB
-      call clean_pairing
-      call clean_moments
-      call clean_coulomb
-      call clean_evolution
-
-   end subroutine cleanupthemess
 end module MOCCa

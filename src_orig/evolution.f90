@@ -130,7 +130,13 @@ module evolution
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
     real*8, allocatable :: preconY(:,:,:,:)
-    real*8, allocatable :: preconZ(:,:,:,:) 
+    real*8, allocatable :: preconZ(:,:,:,:)
+    !---------------------------------------------------------------------------
+    ! Parameter controlling the locking behaviour
+    !  if locking_treshold < 0 -> no locking
+    !  else, lock spwf if dispersion d2h < locking_treshold
+    real(KIND=dp)        :: locking_treshold = -1
+
 contains
     
     subroutine ReadEvolution(file_number)
@@ -155,7 +161,7 @@ contains
         &                    gradient_safety, efficientHFB,                    &
         &                    stepsize_safety, freezeiter,                      &
         &                    ortho_strategy, subspace_rotation, d2H_freeze,    &
-        &                    max_inner_iter
+        &                    max_inner_iter, locking_treshold
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -468,10 +474,11 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         
         type(PotentialVector), intent(in) :: F
         integer, intent(in)               :: iteration
+        integer, allocatable              :: indices(:)
         
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2, der_index
-        logical               :: on_the_fly
+        logical               :: on_the_fly, all_lower_converged
 #if(USE_MPI>0)
         integer               :: mpi_err
 #endif
@@ -481,13 +488,42 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         call start_timer(T_evolution)
 
         if(.not.allocated(Momentum_Updates)) then
-            ! we only store the history for the LOCALLY stored wavefunctions
-            allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
-            Momentum_Updates = 0.0_dp
+          ! we only store the history for the LOCALLY stored wavefunctions
+          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+          Momentum_Updates = 0.0_dp
         endif
 
         if(.not.allocated(sphamil)) then 
-            allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+        endif
+
+        locked = .false.
+        ! Check what spwfs we can lock
+        if(locking_treshold > 0) then
+          si = 0
+          do B=1,8
+             N = HFBlocks(B)
+             if(N.eq.0) cycle
+             indices = OrderSpwfsSym(B)
+             !print *, 'B = ', B, indices
+             do wave=1,N
+                all_lower_converged = .true.
+                do wave2=1,wave
+                  if(dispersions(indices(wave2)) > locking_treshold) then
+                     all_lower_converged = .false.
+                  endif
+                  !print *, wave, wave2, dispersions(indices(wave2)), &
+                  !     & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
+                enddo
+                if(all_lower_converged) locked(indices(wave)) = .true.
+             enddo
+             !print *, 'B = ', locked(si+1:si+N)
+             !print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
+             !print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
+             si = si + N
+          enddo
+        else
+           locked = .false.
         endif
 
         if(EstimateParams) call IterativeEstimation(F,iteration)
@@ -495,16 +531,35 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         si           = 0
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
-        hftransfo    = 0.0d0
-        spenergies   = 0.0d0
-        dispersions  = 0.0d0
-        sphamil  = 0.0d0
+
+        ! Zero everything about the evolving spwfs
+        do wave=1,nwt
+           if(locked(wave)) cycle
+           hftransfo(wave,:) = 0.0d0
+           hftransfo(:,wave) = 0.0d0
+           spenergies(wave)  = 0.0d0
+           dispersions(wave) = 0.0d0
+           sphamil(wave,:)   = 0.0d0
+           sphamil(:,wave)   = 0.0d0
+        enddo
+
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
           if(B.gt.4) iso = +1
           do wave=si+1,si+N     ! = local index of the spwf
             wg = spwf_map(wave) ! = global index of the spwf
+
+            if(locked(wave)) then
+              ! Don't evolve if locked, but do track contribution to weighted dispersion
+              select case(pairingtype)
+              case(0,1)
+                d2h          = d2h + rho_can(wg)*dispersions(wg)
+              case(2)
+                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
+              end select
+              cycle ! go to the next spwf
+            endif
 
             if(store_derivatives) then
               ! We have the derivatives precalculated
@@ -1096,6 +1151,10 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         integer                    :: xs, ys
         integer, external          :: NUMROC
         real(KIND=dp), allocatable :: hpsi_2d(:,:)
+#else
+        integer                    :: active_count, wave, i, j, der_index
+        integer                    :: active_indices(maxval(HFBlocks))
+        real(KIND=dp), allocatable :: temp_wfs(:,:,:), active_sph(:,:)
 #endif
 
         if(.not. onthefly) then
@@ -1124,34 +1183,63 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 #if(USE_MPI == 0) 
           N = HFBlocks(B) ; if(N.eq.0) cycle
           iso = -1        ; if(B.gt.4) iso = +1
-          allocate(hpsi(mv,4,N))
+
+          ! Set sph to be "diagonal"-like for locked wavefunctions
+          do wave = si+1,si+N
+            if(locked(wave)) sph(wave, wave) = spenergies(wave)
+          enddo
+
+          active_count = 0
+          do i = 1, N
+            if (.not. locked(si + i)) then
+                active_count = active_count + 1
+                active_indices(active_count) = i
+            endif
+          enddo
+          if(active_count .eq. 0) then
+             si = si + N
+             cycle
+          endif
+
+          allocate(hpsi(mv,4,active_count))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
-          if(store_derivatives) then
-            call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
-            &                          HFdpsi(:,:,:,si+1:si+N),               &
-            &                          HFddpsi(:,:,:,si+1:si+N),              &
-            &                          onthefly, F)
-          else
-            call apply_sphamil_block_no_derivative_storage                     &
-            &                          (N,HFpsi(:,:,si+1:si+N),hpsi,           &
-            &                           sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
-            &                           HFdpsi(:,:,:,1),               &
-            &                           HFddpsi(:,:,:,1),              &
-            &                           F)  
-          endif
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Create temporary array with only active wavefunctions
+          allocate(temp_wfs(mv,4,active_count))
+          do i = 1, active_count
+             wave = si + active_indices(i)
+             if(store_derivatives) then
+                der_index = wave
+             else
+                der_index = 1
+             endif
+             temp_wfs(:,:,i) = hfpsi(:,:,wave)
+             hpsi(:,:,i) = apply_sphamil(temp_wfs(:,:,i),          &
+                  &                      HFdPsi(:,:,:,der_index) , &
+                  &                      HFddPsi(:,:,:,der_index), &
+                  &                      sx(:,wave),sy(:,wave),sz(:,wave), &
+                  &                      iso,.not.store_derivatives,F)
+          enddo
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Calculate matrix elements by way of a BLAS call
           ! TODO: hide this behind interface to recast the (mv,4) vectors
           !       into (4*mv) ones
           call start_timer(T_calc_sph_me)
-          call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
-          &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-          &                                  sph(si+1:si+N,si+1:si+N),N)
+          allocate( active_sph(active_count, active_count) )
+          call DGEMM('t', 'n', active_count, active_count,&
+               &               4*mv, dv,  temp_wfs, 4*mv, &
+          &                    hpsi, 4*mv, 0.0d0,&
+          &                    active_sph,active_count)
           call stop_timer(T_calc_sph_me)
 
-          deallocate(hpsi)
+          ! Build complete sph
+          ! -> matrix elements between active spwfs have been calculated
+          do i = 1, active_count
+            do j = 1, active_count
+                sph(si+active_indices(i), si+active_indices(j)) = active_sph(i,j)
+            enddo
+          enddo
+          deallocate(hpsi, temp_wfs, active_sph)
           si = si + N
 #else
           if(B .ne. MPI_SYM_BLOCK) cycle
@@ -1196,7 +1284,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       ! sph        : the full matrix of the single-particle hamiltonian in the
       !              reduced subspace.
       ! Output:
-      ! sph        : the full matix of the single-particle hamiltonian i the 
+      ! sph        : the full matrix of the single-particle hamiltonian i the
       !              reduced subspace; which is now diagonal.
       ! transfo    : trivial HF transformation on output 
       ! eigenvalues: single-particle energies resulting from the diagonalisation
@@ -1205,14 +1293,17 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       real(KIND=dp), intent(out)   :: transfo(:,:), eigenvalues(nwt)
       integer                      :: si, B, N
       integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:), temp(:,:)
+      real(KIND=dp), allocatable   :: work(:)
 #if(USE_MPI == 0)
-      real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
-      integer                      ::  m
+      integer                      :: active_count, i,j, active_i, active_j, k
+      integer, allocatable         :: active_indices(:)
+      real(KIND=dp), allocatable   :: active_sph(:,:), active_eigenvalues(:)
+      real(KIND=dp), allocatable   :: temp_wfs(:,:), temp_mom(:,:)
+      real(KIND=dp), allocatable   :: temp_wfs_in(:,:), temp_mom_in(:,:)
 #else
       integer                      :: mpi_err, xs, ys, wave
       integer, external            :: NUMROC
-      real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:)
+      real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:), temp(:,:)
 #endif
 
       call start_timer(T_subspace_rotation)
@@ -1223,23 +1314,59 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       do B=1,8
 #if(USE_MPI == 0)
           N = HFBlocks(B) ; if(N.eq.0) cycle
-          
-          call start_timer(T_subrot_diag) 
-          ! Pointer remapping to make the LAPACK CALL standard compliant
-          wfs_reshape(1:4*mv,1:N) => HFPsi(:,:,si+1:si+N)
-          if(allocated(momentum_updates)) then
-            mom_reshape(1:4*mv,1:N) => momentum_updates(:,:,si+1:si+N)
+
+          ! Count how many of the spwfs are "active", i.e. not locked
+          active_count = 0
+          do i = 1, N
+             if (.not. locked(si + i)) active_count = active_count + 1
+          enddo
+
+          ! If all wavefunctions are locked, skip this block entirely
+          if (active_count == 0) then
+             ! But still need to set transfo and eigenvalues for spwfs
+             do i = 1, N
+              transfo(si+i, si+i) = 1.0d0
+              eigenvalues(si+i) = sph(si+i, si+i)  ! Keep current diagonal element
+             enddo
+             si = si + N
+             cycle
           endif
-          allocate(work(1))
-          call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
-          &                   N,eigenvalues(si+1:si+N),work,-1,info)
+
+          ! gather the indices of the spwfs that are active
+          allocate(active_indices(active_count))
+          active_count = 0
+          do i = 1, N
+            if (.not. locked(si + i)) then
+              active_count = active_count + 1
+              active_indices(active_count) = i
+            endif
+          enddo
+
+          ! Extract active subspace from full hamiltonian matrix
+          allocate(active_sph(active_count, active_count))
+          do active_i = 1, active_count
+             do active_j = 1, active_count
+                i = active_indices(active_i)
+                j = active_indices(active_j)
+                active_sph(active_i, active_j) = sph(si+i, si+j)
+             enddo
+          enddo
+
+          call start_timer(T_subrot_diag) 
+          allocate(work(1), active_eigenvalues(active_count))
+          call DSYEV('V','L', active_count ,active_sph,&
+          &                   active_count, active_eigenvalues,work,-1,info)
           lwork=int(work(1))
           deallocate(work)
           allocate(work(lwork))
           ! ..... and now do the actual work
-          call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
-          &                   N,eigenvalues(si+1:si+N),work,lwork,info)
+          call DSYEV('V','L', active_count ,active_sph,&
+          &                   active_count, active_eigenvalues,work,lwork,info)
           if(info.ne.0) then
+            print *, 'SPH matrix for this block:'
+            do i = 1, N
+              print '(100(f10.6,1x))', sph(si+i, si+1:si+N)
+            enddo
             print *, 'INFO = ', info
             call stp('Issue with diagonalising in apply_subspace_rotation.')
           endif
@@ -1248,23 +1375,70 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Now we construct the lowest eigenvectors
          call start_timer(T_subrot_transfo)
-         temp = wfs_reshape(:,1:N) ! temporary copy
-         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
-         &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,wfs_reshape, 4*mv)
+         allocate(temp_wfs(4*mv, active_count))
+         if(allocated(momentum_updates)) allocate(temp_mom(4*mv, active_count))
+         ! Copy active wavefunctions to temporary storage
+         do active_i = 1, active_count
+            i = active_indices(active_i)
+            ! Copy HFPsi(:, :, si+i) to temp_wfs(:, active_i)
+            do k = 1, 4
+               temp_wfs((k-1)*mv+1:k*mv, active_i) = HFPsi(:, k, si+i)
+            enddo
+            if (allocated(Momentum_Updates)) then
+               do k = 1, 4
+                  temp_mom((k-1)*mv+1:k*mv, active_i) = momentum_updates(:, k, si+i)
+               enddo
+            endif
+         enddo
+
+         temp_wfs_in = temp_wfs
+         call DGEMM('n','n',4*mv, active_count, active_count, 1.0d0,temp_wfs_in, 4*mv,&
+         &                          active_sph, active_count, 0.0d0,temp_wfs   , 4*mv)
          ! ... and aply the same transformation to momentum_updates
          if(allocated(Momentum_Updates)) then
-          temp = mom_reshape(:,1:N)
-          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
-          &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,mom_reshape, 4*mv)
+            temp_mom_in = temp_mom
+            call DGEMM('n','n',4*mv, active_count, active_count, 1.0d0,temp_mom_in, 4*mv,&
+            &                          active_sph, active_count, 0.0d0,temp_mom   , 4*mv)
          endif
-         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ! Populate sphamil and hftransfo for future use
-         sph(si+1:si+N,si+1:si+N) = 0.0d0
-         do m=1,N
-           sph(si+m,si+m)     = eigenvalues(si+m)
-           transfo(si+m,si+m) = 1.0d0
+
+         ! Copy transformed wavefunctions back to original positions
+         do active_i = 1, active_count
+            i = active_indices(active_i)
+            do k = 1, 4
+               HFPsi(:, k, si+i) = temp_wfs((k-1)*mv+1:k*mv, active_i)
+               if (allocated(Momentum_Updates)) then
+                  momentum_updates(:, k, si+i) = temp_mom((k-1)*mv+1:k*mv, active_i)
+               endif
+            enddo
          enddo
-         call stop_timer(T_subrot_transfo) 
+         call stop_timer(T_subrot_transfo)
+         ! ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! ! Populate sphamil and hftransfo for future use
+         transfo(si+1:si+N,si+1:si+N) = 0.0d0
+         ! do m=1,N
+         !   sph(si+m,si+m)     = eigenvalues(si+m)
+         !   transfo(si+m,si+m) = 1.0d0
+         ! enddo
+
+         ! --- NEW: Update output arrays for active and locked wavefunctions ---
+         do i = 1, N
+          if (.not. locked(si + i)) then
+              ! For active wavefunctions: use results from diagonalization
+              j = findloc(active_indices, i, dim=1)  ! Find position in active list
+              sph(si+i, si+i) = active_eigenvalues(j)
+              transfo(si+i, si+i) = 1.0d0
+              eigenvalues(si+i) = active_eigenvalues(j)
+          else
+              ! For locked wavefunctions: keep existing values
+              transfo(si+i, si+i) = 1.0d0
+              eigenvalues(si+i) = sph(si+i, si+i)
+          endif
+       enddo
+
+       ! Clean up temporary arrays for this block
+      deallocate(active_indices, active_sph, active_eigenvalues)
+      deallocate(temp_wfs, temp_wfs_in)
+      if(allocated(momentum_updates)) deallocate(temp_mom, temp_mom_in)
 #else
          if(B .ne. MPI_SYM_BLOCK) cycle
          ! cycle if the rank is not part of the 2D distribution
