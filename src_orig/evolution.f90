@@ -1293,10 +1293,9 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       real(KIND=dp), intent(out)   :: transfo(:,:), eigenvalues(nwt)
       integer                      :: si, B, N
       integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:), temp(:,:)
+      real(KIND=dp), allocatable   :: work(:)
 #if(USE_MPI == 0)
-      real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
-      integer                      :: m, active_count, i,j, active_i, active_j, k
+      integer                      :: active_count, i,j, active_i, active_j, k
       integer, allocatable         :: active_indices(:)
       real(KIND=dp), allocatable   :: active_sph(:,:), active_eigenvalues(:)
       real(KIND=dp), allocatable   :: temp_wfs(:,:), temp_mom(:,:)
@@ -1304,7 +1303,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 #else
       integer                      :: mpi_err, xs, ys, wave
       integer, external            :: NUMROC
-      real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:)
+      real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:), temp(:,:)
 #endif
 
       call start_timer(T_subspace_rotation)
@@ -1438,22 +1437,8 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
        ! Clean up temporary arrays for this block
       deallocate(active_indices, active_sph, active_eigenvalues)
-      deallocate(temp_wfs, temp_mom, temp_wfs_in, temp_mom_in)
-
-      ! ! === DEBUG PRINTOUT ===
-      ! print *, '=== Block B=', B, ', indices=', si+1, 'to', si+N, &
-      !         & ', active_count=', active_count
-      ! if (active_count > 0) then
-      !     print *, 'Locked status: ', locked(si+1:si+N)
-      !     print *, 'SPH matrix for this block:'
-      !     do i = 1, N
-      !         print '(100(f10.6,1x))', sph(si+i, si+1:si+N)
-      !     enddo
-      !     print *, 'Eigenvalues: ', active_eigenvalues(1:active_count)
-      ! else
-      !     print *, 'All wavefunctions locked in this block'
-      ! endif
-      ! print *, '--- End block debug ---'
+      deallocate(temp_wfs, temp_wfs_in)
+      if(allocated(momentum_updates)) deallocate(temp_mom, temp_mom_in)
 #else
          if(B .ne. MPI_SYM_BLOCK) cycle
          ! cycle if the rank is not part of the 2D distribution

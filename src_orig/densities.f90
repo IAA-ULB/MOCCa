@@ -113,7 +113,6 @@ module densities
 !===============================================================================
 use compilation
 use geninfo
-use vectors
 use wavefunctions
 use pairing
 use derivatives 
@@ -122,7 +121,7 @@ use basis_transform
 use timing
 use omp_lib
 
-use vectors, only: DensityVector, memory
+use vectors, only: DensityVector, memory, construct_charge_density
 
 implicit none
 
