@@ -431,6 +431,19 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
 #endif
   end subroutine allocate_memory_derivatives
 
+  subroutine deallocate_derivatives()
+    !--------------------------------------------------------------------------
+    ! Deallocate all arrays of wavefunction derivatives
+    !--------------------------------------------------------------------------
+    deallocate(HFdPsi, HFddPsi)
+$N3 deallocate(HFdddPsi)
+
+    if(allocated(candPsi)) then
+      deallocate(candPsi,canddPsi)
+$N3   allocate(candddPsi)
+    endif
+  end subroutine deallocate_derivatives
+
   subroutine loadbalance(blocks_global,blocks_local,spwf_map,        &
   &                                                       rank_map,spwf_inverse)
     !---------------------------------------------------------------------------

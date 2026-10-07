@@ -243,6 +243,7 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a. construct the transformation CanTransfo that brings us into the 
     !    canonical basis by diagonalizing rho
+    print *, 'LOL', size(rho,1), size(kappa,1), size(rho_c), size(kappa_c), size(cantransfo), size(cancuttransfo)
     call Canonical(rho, kappa, rho_c, kappa_c, cantransfo,cancuttransfo,ifail)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b. use this transformation to construct the physical wavefunctions

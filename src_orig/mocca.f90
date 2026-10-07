@@ -565,6 +565,7 @@ contains
 
    subroutine iterate_spectrum(iter, iomsg)
      !-------------------------------------------------------------------------
+     ! TODO document
      !
      ! Output:
      !   iter : integer, the final iteration count
@@ -572,20 +573,40 @@ contains
      !-------------------------------------------------------------------------
 
      use compilation,   only: dp
-     use geninfo,       only: MaxIter, store_derivatives
+
+     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
+
      use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
+     use wavefunctions, only: nwn, nwp, nwt, hfpsi, hfblocks_global, hfblocks
+     use wavefunctions, only: rank_map, spwf_inverse, spwf_map
+     use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz, canenergies, orthonormalize
+
+     use wavefunctions, only: HF_J, HF_JTR,  HF_JTI,  HF_J2,  HF_JJ,  HF_spin
+     use wavefunctions, only: HF_STR,  HF_STI, spwf_r2_hf, P_hf
+     use wavefunctions, only: CAN_J, CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ,  CAN_spin
+     use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
+
      use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
      use evolution,     only: apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
+
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
-     use pairing,       only: pairingscheme
+     use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
+     use pairing,       only: cantransfo, cancuttransfo
+
+     use pairingcutoffs, only : computepairingcutoffs
+
+     use HFB,           only: grad_blocks, qp_j, qp_JTR, qp_JTI, qpdispersions
      use densities,     only: construct_canonical_basis, densit, Density
      use cranking,      only: updateAM
+     use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail
+     integer                        :: ifail, old_blocks(8), B
+     integer, allocatable           :: old_rank_map(:), old_spwf_inverse(:)
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
 
@@ -604,6 +625,35 @@ contains
          !  evolution,i.e. if their dispersion is small enough
          convergence_achieved = ALL(locked)
 
+         !if(iter.eq.1) then
+            nwn = nwn + 10
+            nwp = nwp + 10
+            nwt = nwn + nwp
+
+            old_blocks = HFBlocks
+            do B=1,8,2
+               HFBlocks(B) = HFBlocks(B) + 5
+               HFBlocks_global(B) = HFBlocks_global(B) + 5
+            enddo
+
+            call transforminput(nx,ny,nz,nwn-10,nwp-10,dx,old_blocks,grad_blocks,spwf_map,rank_map,spwf_inverse,(/ 5,0,5,0,5,0,5,0 /))
+            deallocate(locked); allocate(locked(nwt)) ; locked = .false.
+            call orthonormalize()
+
+            if(allocated(Pcutoffs)) deallocate(Pcutoffs)
+            call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+            call deallocate_derivatives()
+            call allocate_memory_derivatives(PairingType)
+            if(store_derivatives) call deriveHF()
+            if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, rho_can, kappa_can)
+            if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
+            if(allocated( HF_spin)) deallocate( HF_spin, HF_STR,  HF_STI, spwf_r2_hf, P_hf)
+            if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
+            if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR,  CAN_STI, spwf_r2_can, P_can)
+
+            if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
+         !endif
+
          if (convergence_achieved .or. iter .eq. maxiter) then
             ! Let us prepare for a final printout
             ! We update
@@ -618,7 +668,7 @@ contains
             Density = densit(rho_can, kappa_pairing)
             call CalculateMoments(Density, .true.)
             call update_E_history()
-            call CalcEnergy(Density, Potentials, .true.)
+            call CalcEnergy(Density, Potentials, .false.)
             call calc_avg_gap()
 
             call update_spwf_properties_HF()
@@ -634,9 +684,8 @@ contains
             iomsg = 'CONVERGED'
             exit
          end if
+
      enddo
-
-
    end subroutine iterate_spectrum
 
    subroutine printsummary(iter, potentials_frozen)
