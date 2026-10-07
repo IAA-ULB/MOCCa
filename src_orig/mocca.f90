@@ -38,7 +38,7 @@ contains
       ! meta-codes that want to run MOCCa multiple times.
       !==============================================================================
       use compilation,   only: dp
-      use geninfo,       only: NPROCS, MPI_RANK
+      use geninfo,       only: MPI_RANK
       use IO,            only: ReadInput, PrintInput, write_advanced_output
       use IO,            only: readwavefunction, outputfilename, writewavefunction
       use fission_MOI,   only: calc_collective_inertia, print_collective_inertia
@@ -48,6 +48,7 @@ contains
       use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
            &                   initialize_all_timers
 #if(USE_MPI > 0)
+      use geninfo,       only: NPROCS
       use mpi_f08
       ! This include statement is not particularly elegant, but appending it with an
       ! 'only'-list seems to generate behaviour that is not consistent across compilers.
@@ -162,10 +163,10 @@ contains
    end subroutine run_mean_field
 
    subroutine set_up_mean_field()
-      !
-      ! Use statements with ONLY clauses
-      ! TODO document
-      !
+      !-------------------------------------------------------------------
+      ! Set up the mean-field state, i.e. prepare everything to start
+      !  iterating in one way or another.
+      !-------------------------------------------------------------------
       use pairing,       only: BogoFromFile, PairingType, pairingscheme, &
            &                   guessgaps, SolvePairing, rho_pairing,     &
            &                   kappa_pairing, rho_can, kappa_can,        &
@@ -182,8 +183,7 @@ contains
       use momentsofinertia, only: setBelyaevProcedure
       use wavefunctions, only: allocate_memory_derivatives, deriveHF
 
-
-      integer :: iprint, scheme, ifail
+      integer :: scheme, ifail
 
 #if(USE_MPI > 0)
       integer :: mpi_err
@@ -295,8 +295,8 @@ contains
      !
      !---------------------------------------------------------------------------
       use compilation,   only: dp
-      use geninfo,       only: MaxIter, d2H_freeze, FreezeIter, PrintIter, &
-           &                   store_derivatives, to_upper, stp
+      use geninfo,       only: MaxIter, d2H_freeze, FreezeIter, PrintIter
+      use geninfo,       only: store_derivatives, to_upper, stp
       use wavefunctions, only: sphamil, HFTransfo, spenergies, deriveHF
       use densities,     only: Density, densit, construct_canonical_basis
       use densities,     only: sx_rho, sy_rho, sz_rho
@@ -304,8 +304,7 @@ contains
            &                   precondition_potentials, save_potential_history, &
            &                   CalcEnergy, PairStabFactor, update_E_history
       use evolution,     only: Evolve_subspace, Calc_Sphamil, subspace_rotation,&
-           &                   apply_subspace_rotation, d2H, gradientnorm, &
-           &                   feasibleproject
+           &                   apply_subspace_rotation, d2H, feasibleproject
       use IO,            only: OutputFileName, MPI_RANK, checkpointiter, N_inertia
       use IO_wf,         only: write_MOCCa_wf
 #if(USE_HDF5>0)
@@ -324,9 +323,8 @@ contains
       &                        Potential_iterates, Potential_updates
 
       use timing,        only: start_timer, stop_timer
-      use cranking,      only: check_cranking, crank_smooth, cranktype, CrankValues, &
-                               TotalAngMom, omega, angmomold, omega_prev, totalangmom_dens, &
-                               angmomold_dens, updateAM, readjustCranking, check_cranking
+      use cranking,      only: check_cranking, crank_smooth
+      use cranking,      only: updateAM, readjustCranking, check_cranking
 
 
      integer, intent(out)           :: iter
@@ -574,7 +572,7 @@ contains
      !-------------------------------------------------------------------------
 
      use compilation,   only: dp
-     use geninfo,       only: MaxIter, PrintIter, store_derivatives
+     use geninfo,       only: MaxIter, store_derivatives
      use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
      use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
      use evolution,     only: apply_subspace_rotation
@@ -590,7 +588,6 @@ contains
      integer                        :: ifail
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
-     logical                        :: print_all_spwf_properties
 
      do iter=1, maxiter
          ! Just keep doing heavy-ball steps
@@ -652,25 +649,31 @@ contains
       !    potentials_frozen : whether or not the potentials were updated
       !---------------------------------------------------------------------------
       use compilation,   only: dp
-      use geninfo,       only: neutrons, protons, MPI_RANK
+      use geninfo,       only: neutrons, protons
       use wavefunctions, only: nwn, nwt
       use functional,    only: totalE, Ehistory, Routhian, Rhistory
 #if(PASTA == 1)
-      use functional,   only: calculate_epasta
+      use functional,    only: calculate_epasta
 #endif
-      use evolution,    only: dt, momentum, gradientnorm, d2h
-      use moments,      only: moment, findmoment, Root
-      use pairing,      only: gradient_stepsize, gradient_mu, HFBgradnorm, rho_can, &
-           &                  fixfermi, pairingscheme, FermiEnergy, FermiHistory
-      use cranking,     only: crank_smooth, cranktype, TotalAngMom, CrankValues, &
-           &                  angmomold, omega, omega_prev, TotalAngMom_dens,    &
-           &                  angmomold_dens
+      use evolution,     only: dt, momentum, gradientnorm, d2h
+      use moments,       only: moment, findmoment, Root
+      use pairing,       only: gradient_stepsize, gradient_mu, fixfermi
+      use pairing,       only: HFBgradnorm, rho_can, pairingscheme
+      use pairing,       only: FermiEnergy, FermiHistory
+      use cranking,      only: crank_smooth, cranktype, TotalAngMom, CrankValues
+      use cranking,      only: angmomold, angmomold_dens, TotalAngMom_dens
+      use cranking,      only: omega, omega_prev
 
       integer, intent(in)   :: iter
       logical, intent(in)   :: potentials_frozen
       type(Moment), pointer :: current, part
-      real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ, dE_pasta
+      real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
       character(len=1)      :: t, spec
+
+#if(PASTA == 1)
+      real(KIND=dp)         :: dE_pasta
+#endif
+
 
 1     format(86('-'))
 2     format(' Iteration = ', i4)
@@ -808,6 +811,7 @@ contains
 
      print 1
      print 2, iter
+     print 21
      print 3, dt, momentum, gradientnorm, d2h
      print 4,  maxval(dispersions)
 
@@ -873,7 +877,7 @@ contains
       ! Output:
       !    NONE
       !-----------------------------------------------------------------------------
-      use geninfo, only: MPI_RANK, NPROCS, maxiter
+      use geninfo, only: MPI_RANK, maxiter
       use pairing, only: printpairing
       use moments, only: printallmoments
       use densities, only: density
