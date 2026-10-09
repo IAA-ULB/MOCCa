@@ -1,7 +1,9 @@
 site_name: MOCCa
 nav:
   - Home: index.md
-  - Release notes: release.md
+  - Release notes: 
+    - master branch: release.md
+    - development branch: release_dev.md
   - Getting started:
     - Quickstart:  user-guide/start.md
     - Working with git and MOCCa:  user-guide/git.md
