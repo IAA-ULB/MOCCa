@@ -19,12 +19,19 @@
 # 
 # BSkG3 : G. Grams, W. Ryssens, G. Scamps, S. Goriely and N. Chamel
 #         Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: III. From atomic nuclei to neutron stars.
-#         
+#         European Physics Journal A 59, 270 (2023)
+#         https://doi.org/10.1140/epja/s10050-023-01158-6
+#
 #         The formulas for the t4/t5 extension of the standard EDF were taken from:
 #         A. Pastore, M. Martini, D. Davesne, J. Navarro, S. Goriely and N. Chamel,
 #         Linear response theory and neutrino mean free path using Brussels-Montreal Skyrme functionals,
 #         Physical Review C 90, 025804 (2014)
 #         https://doi.org/10.1103/PhysRevC.89.044302
+#
+# BSkG4: G. Grams, N. Shchechilin, A. Sánchez-Fernández, W. Ryssens, N. Chamel and S. Goriely
+#        Skyrme–Hartree–Fock–Bogoliubov mass models on a 3D mesh: IV. Improved description of the isospin dependence of pairing
+#        European Physics Journal A 61, 35 (2025)
+#        https://doi.org/10.1140/epja/s10050-025-01503-x
 #
 #------------------------------------------------------------------------------------------------------------------------
 ! Particle-hole parameters

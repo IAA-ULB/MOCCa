@@ -3,8 +3,11 @@
 # Things to be noted:
 #   - two spin-orbit strengths
 #   - pairing terms identical to the BXL functional file
-# BSkG4 : G. Grams et al.
 #
+# BSkG5 : G. Grams, W. Ryssens, A. Sánchez-Fernández, N. Shchechilin, L. González-Miret Zaragoza, P. Demol, N. Chamel
+#          S. Goriely and M. Bender
+#         Physics Letters B 879, 140590 (2026)
+#         https://doi.org/10.1016/j.physletb.2026.140590
 #------------------------------------------------------------------------------------------------------------------------
 ! Particle-hole parameters
 ! (N) LO parameters
