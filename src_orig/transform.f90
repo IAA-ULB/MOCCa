@@ -1183,47 +1183,46 @@ $PBROKEN  enddo
                 sb  = sb + 2*bogo_blocks(b)   + 2*bogo_blocks(b+1)
                 sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
               enddo
-
-              !-----------------------------------------------------------------
-              ! (6) The HF transformation
-              temp2 = HFtransfo
-              deallocate(hftransfo) ; allocate(hftransfo(nwt,nwt))
-              hftransfo = 0
-
-              sb = 0; sf = 0
-              do b=1,8
-                  hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
-                  do i=1,extraspwfs(b)
-                      hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
-                  enddo
-
-                  sb  = sb + hfblocks(b)
-                  sf  = sf + fileblocks(b)
-              enddo
-              !-----------------------------------------------------------------
-              ! (7) The current single-particle hamiltonian
-              temp2 = sphamil
-              deallocate(sphamil); allocate(sphamil(nwt,nwt))
-              sphamil = 0.0d0
-
-              sb = 0; sf = 0
-              do b=1,8
-                  sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
-                  do i=1,extraspwfs(b)
-                      sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
-                      &                    spenergies(sb+fileblocks(b)+i)
-                  enddo
-
-                  sb  = sb + hfblocks(b)
-                  sf  = sf + fileblocks(b)
-              enddo
               !-----------------------------------------------------------------
             else
                ! We do nothing if no gaps were initialised yet.
             endif
           end select
+          !-----------------------------------------------------------------
+          ! (6) The HF transformation
+          temp2 = HFtransfo
+          deallocate(hftransfo) ; allocate(hftransfo(nwt,nwt))
+          hftransfo = 0
+
+          sb = 0; sf = 0
+          do b=1,8
+              hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              do i=1,extraspwfs(b)
+                  hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
+              enddo
+
+              sb  = sb + hfblocks(b)
+              sf  = sf + fileblocks(b)
+          enddo
+          !-----------------------------------------------------------------
+          ! (7) The current single-particle hamiltonian
+          temp2 = sphamil
+          deallocate(sphamil); allocate(sphamil(nwt,nwt))
+          sphamil = 0.0d0
+
+          sb = 0; sf = 0
+          do b=1,8
+              sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              do i=1,extraspwfs(b)
+                  sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
+                  &                    spenergies(sb+fileblocks(b)+i)
+              enddo
+
+              sb  = sb + hfblocks(b)
+              sf  = sf + fileblocks(b)
+           enddo
           !---------------------------------------------------------------------
     else
       ! Copy this information
