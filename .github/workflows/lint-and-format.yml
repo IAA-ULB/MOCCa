@@ -28,7 +28,7 @@ jobs:
 
       - name: Install fortitude and fprettify
         run: |
-          pip3 install fortitude-lint fprettify
+          apt-get install python3-fortitude-lint python3-fprettify
 
       - name: Create reports directory
         run: mkdir -p reports
