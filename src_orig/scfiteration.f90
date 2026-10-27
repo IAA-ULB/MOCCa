@@ -31,7 +31,7 @@ module SCFiteration
 
   use functional
   use densities
-  use evolution, only : locking_treshold
+  use evolution, only : locking_treshold, diagsphamil
 
   implicit none
   

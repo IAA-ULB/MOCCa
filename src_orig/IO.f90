@@ -105,9 +105,9 @@ contains
     !   will be acted upon by just one single rank. 
     !---------------------------------------------------------------------------
     use geninfo,       only : ReadGenInfo
-    use evolution,     only : ReadEvolution
+    use evolution,     only : ReadEvolution, diagsphamil
     use wavefunctions, only : ReadWFdata
-    use scfiteration,  only : readscfiteration
+    use scfiteration,  only : readscfiteration, scfscheme
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
     use pairing,       only : initpairing
@@ -140,6 +140,27 @@ contains
     call initpairing(file_number)
     call ReadEvolution(file_number)
     call ReadSCFIteration(file_number)
+
+    !
+    ! Only set diagsphamil here - we need information from
+    !  both evolution.f90 AND scfiteration.f90
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! set diagsphamil
+    ! - If we use the heavy-ball algorithm for the pairing subproblem, we
+    !   limit the heavy-ball algorithm in the linear subproblem to
+    !   optimising the relevant subspace and not in diagonalising the
+    !   individual spwfs.
+    if(pairingscheme .eq. 1) then
+      diagsphamil = .false.
+    else
+      diagsphamil = .true.
+    endif
+    ! - if efficientHFB is true, we also do not diagonalise h
+    if(efficientHFB) diagsphamil = .false.
+    ! - if scfscheme == 2 we also do not diagonalise h
+    if(scfscheme == 2) diagsphamil = .false.
+
+
     call ReadWFdata(file_number)
     call ReadIOInput(file_number)
     if(N_inertia .gt. 4) then

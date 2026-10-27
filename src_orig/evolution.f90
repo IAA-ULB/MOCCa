@@ -228,20 +228,7 @@ contains
             call stp('STRATEGY NOT RECOGNIZED.')
         endif
 #endif
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! c) set diagsphamil 
-        ! - If we use the heavy-ball algorithm for the pairing subproblem, we 
-        !   limit the heavy-ball algorithm in the linear subproblem to 
-        !   optimising the relevant subspace and not in diagonalising the 
-        !   individual spwfs.
-        if(pairingscheme .eq. 1) then
-          diagsphamil = .false.
-        else
-          diagsphamil = .true.
-        endif
-        ! - if efficientHFB is true, we also do not diagonalise h
-        if(efficientHFB) diagsphamil = .false.
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! d) assign the correct orthonormalisation routine
         ortho_strategy = to_upper(ortho_strategy)
         if(adjustl(ortho_strategy) .eq. 'GRAMSCHMIDT' ) then
@@ -578,21 +565,24 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
 $N3         &                   hfdddpsi(:,:,:,der_index),                          &
             &                      sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,F)
 
-            if(diagsphamil) then
-              ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
-              ! calculate
-              !       spenergies  : <psi|h  | psi> 
-              !       dispersions : <psi|h h| psi> - spenergies**2       
-              spenergies(wg)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-              dispersions(wg) = sum(hpsi(:,:)**2)*dv - spenergies(wg)**2              
-              ! d2h can be calculated as a convergence measure in this case
-              select case(pairingtype)
-              case(0,1)
-                d2h          = d2h + rho_can(wg)*dispersions(wg)
-              case(2) 
-                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
-              end select
-            endif
+
+            ! 27/10/'26 : this is no longer hidden behind a condition
+            !
+            !       spenergies  : <psi|h  | psi>
+            !       dispersions : <psi|h h| psi> - spenergies**2
+            !
+            ! Note: if diagsphamil == .false., then spenergies
+            !       will get overwritten below by the diagonalisation of h
+            spenergies(wg)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            dispersions(wg) = sum(hpsi(:,:)**2)*dv - spenergies(wg)**2
+
+            ! d2h can be calculated as a convergence measure in this case
+            select case(pairingtype)
+            case(0,1)
+               d2h          = d2h + rho_can(wg)*dispersions(wg)
+            case(2)
+               d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
+            end select
 
 #if(PASTA == 0)
             !-------------------------------------------------------------------
