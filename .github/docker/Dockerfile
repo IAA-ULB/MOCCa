@@ -9,7 +9,7 @@
 #       runs-on: ubuntu-latest
 #       container: ghcr.io/your-org/mocca-ci:latest
 
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,13 +21,10 @@ RUN apt-get update -y && \
         gfortran make git \
         liblapack-dev libblas-dev \
         libhdf5-dev hdf5-tools \
-        python3 python3-pip python3-numpy \
+        python3 python3-pip python3-numpy python3-scipy \
         time bc ca-certificates \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
-
-# Install specific scipy version via pip
-RUN pip3 install --no-cache-dir numpy scipy==1.17.1
 
 # Set up working directory
 WORKDIR /workspace
