@@ -22,13 +22,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install pip3
-        run: |
-          apt-get update -y && apt-get install -y python3-pip
-
       - name: Install fortitude and fprettify
         run: |
-          apt-get install python3-fortitude-lint python3-fprettify
+          apt-get update -y && apt-get install -y python3-pip
+          # The python3-*-deb packages do not exist in the container's repos;
+          # --break-system-packages bypasses the PEP 668 "externally managed
+          # environment" guard, which is fine in a disposable CI container.
+          pip3 install --break-system-packages fortitude-lint fprettify
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -37,7 +37,7 @@ jobs:
         id: lint
         run: |
           echo "Running fortitude on Fortran source files..."
-          fortitude --config-file .fortitude.toml check src_orig/ 2>&1 | tee reports/fortitude-report.txt || true
+          fortitude --config .fortitude.toml check src_orig/ 2>&1 | tee reports/fortitude-report.txt || true
           echo "Fortitude check complete."
 
       - name: Run fprettify format check
