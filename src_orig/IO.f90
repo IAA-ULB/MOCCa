@@ -2111,6 +2111,8 @@ subroutine append_perturbed_denfile(Rs, Ra, fname)
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
+    ! Note: unit-number used to be 6, which hijacks the FORTRAN STDOUT!
+    integer, parameter   :: unit_number = 1
     real(KIND=dp)        :: A, mstate1, mstate2
     real(KIND=dp)        :: b2, b3,b4, q2(4), q3(4), q4(4)
     real(KIND=dp), allocatable :: tempgaps(:,:)
@@ -2119,7 +2121,7 @@ subroutine append_perturbed_denfile(Rs, Ra, fname)
     2 format (2(f5.1,i2,3f8.3))
     3 format ( 2i4,2(x,f8.4),19(x,f7.3),2f12.3)
 
-    open(unit=6, file=COMBI)
+    open(unit=unit_number, file=COMBI)
     
     select case(pairingtype)
     case(0)
@@ -2128,8 +2130,8 @@ subroutine append_perturbed_denfile(Rs, Ra, fname)
       ! BCS case: things are straightforward
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
-$TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),  +nwn/2
-$NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),  +nwn/2
+$TR      write(unit_number, fmt=1) '*', int(protons), int(neutrons+protons),  +nwn/2
+$NTR     write(unit_number, fmt=1) '#', int(protons), int(neutrons+protons),  +nwn/2
       indices = OrderSpwfsISO(-1)
       
       do i=1,nwn/2
@@ -2148,13 +2150,13 @@ $NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),  +nwn/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
 
-          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),&
           &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
-$TR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
-$NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$TR      write(unit_number, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$NTR     write(unit_number, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
@@ -2172,7 +2174,7 @@ $NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
           
-          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),&
           &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
       enddo
     !---------------------------------------------------------------------------
@@ -2185,8 +2187,8 @@ $NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
       endif
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
-$TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),+nwn/2
-$NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),+nwn/2
+$TR      write(unit_number, fmt=1) '*', int(protons), int(neutrons+protons),+nwn/2
+$NTR     write(unit_number, fmt=1) '#', int(protons), int(neutrons+protons),+nwn/2
       indices = OrderSpwfsISO(-1)
       
        do i=1,nwn/2
@@ -2205,16 +2207,16 @@ $NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),+nwn/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
           
-$TR          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),& 
+$TR          write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),&
 $TR          &              mstate2,p2,spenergies(jj),rho_HF(jj),tempgaps(jj,jj)
 
-$NTR         write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),& 
+$NTR         write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),&
 $NTR         &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgaps(jj,:))) 
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
-$TR       write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
-$NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$TR       write(unit_number, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$NTR      write(unit_number, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
@@ -2232,10 +2234,10 @@ $NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
 
-$TR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),& 
+$TR      write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),&
 $TR      &              mstate2,p2,spenergies(jj),rho_HF(jj),tempgaps(jj,jj) 
           
-$NTR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),& 
+$NTR      write(unit_number,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),&
 $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgaps(jj,:)))  
     enddo
     !---------------------------------------------------------------------------
@@ -2266,7 +2268,8 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
     !                        IZ          IA    BETA     B4
-    write(unit=6, fmt=3)  int(protons),int(A),  b2, b4,  &
+    write(unit=unit_number, fmt=3) &
+    &                      int(protons),int(A),  b2, b4,  &
     !                      HGN    HFGP  HFDN             HFDP
     &                      b3,    0.0d0,  average_gap(2,1),average_gap(2,2), &
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
@@ -2282,7 +2285,7 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !                      HFJ2               HFE1  , HE2
     &                      J2_coll(3,3),  totalE, 0.0d0
 
-    close(unit=6)
+    close(unit=unit_number)
   end subroutine combi_output
 #endif    
 end module IO
