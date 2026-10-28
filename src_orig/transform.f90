@@ -1132,7 +1132,7 @@ $PBROKEN  enddo
 
               !-----------------------------------------------------------------
               ! (5) the configuration matrix and qpenergies
-              temp = configmatrix_history
+              temp = configmatrix
               deallocate(configmatrix) ; allocate(configmatrix(2*nwt))
 
               if(allocated(qpenergies)) then
