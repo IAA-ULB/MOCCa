@@ -1,5 +1,16 @@
 # Changelog of the development branch 
 
+## v1.0.4-dev
+
+  -  Corrected the neck-finding subroutine for fission; the tolerance of the fission integration test was adapted accordingly.
+  -  New scfscheme = 2 option: a separate runtime that keeps the mean-field potentials frozen and iterates the stored single-particle wavefunctions until they diagonalise the single-particle Hamiltonian, providing the full single-particle spectrum of a fixed mean field; available for both HF and HFB.
+  -  spwf locking: wavefunctions lock individually once their dispersion drops below the locking threshold; activate only for scfscheme = 2.
+  -  Start of the refactoring of the main mean-field running routine: split into a set-up phase and separate iteration routines.
+  -  Linting and formatting: adopted the fortitude linter and fprettify (indent 2) with configuration files, a lint-and-format workflow and a pre-commit hook script for personal use; the source code was reformatted accordingly
+  -  CI: Docker image updated to Ubuntu 26.04 for a newer gfortran; scipy now installed through apt.
+  -  Quality of life: combi_output wrote to STDOUT (unit 6) instead of the intended file, HFTRANSFO was set incorrectly in transforminput, momentum updates in apply_subspace_rotation were deallocated incorrectly, compiler warnings in debug mode eliminated, updated descriptions of the BXL(-N2LO) functionals
+  -  Named Adrían Sánchez-Fernández as official contributor.
+
 ## v1.0.3-dev 
 
   -  Added spurious mode subtraction for translational modes (Zcom, Zmomentum)
