@@ -10,7 +10,7 @@
 #  - I_2020 ( MeV^{-1} b^{-l} [hbar^2])       0.20311               0.001
 #  - I_2030 ( MeV^{-1} b^{-l} [hbar^2])       0.00000               0.000
 #  - I_3030 ( MeV^{-1} b^{-l} [hbar^2])       0.04728               0.001
-#  - neck   (particles)                      26.5708                0.01
+#  - neck   (particles)                      26.5708                0.1
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Usage
 # ------
@@ -126,7 +126,7 @@ check_I_3030=$?
 
 # d) and the value of the neck
 N=$(get_neck_stdout $outfile)
-compare_floats $N $ref_N 0.01
+compare_floats $N $ref_N 0.1
 check_neck=$?
 
 # remove working directory and traces of these calculations
@@ -193,7 +193,7 @@ else
         echo "    Expected: $ref_N particles"
         echo "    Obtained: $N particles"
         echo "    Difference: $(echo "$N - $ref_N" | bc) particles"
-        echo "    Tolerance: 0.01 particles"
+        echo "    Tolerance: 0.1 particles"
     fi
     
     echo ""

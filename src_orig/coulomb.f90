@@ -49,8 +49,8 @@ module Coulombmod
  use densities,        only: densityvector, potentialvector
  use parameterization, only: dp, e2, pi, dv, coulorder, coultreatment
  use timing,           only: start_timer, stop_timer, T_coulomb
-
- implicit none (external)
+ 
+ implicit none (type, external)
 
  public
  !------------------------------------------------------------------------------

@@ -39,7 +39,7 @@ module preconditioning
     use compilation, only : dp
     use geninfo, only: nx,ny,nz, mv, dv
 
-    implicit none (external)
+    implicit none (type, external)
 
     public
 

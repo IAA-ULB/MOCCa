@@ -160,6 +160,7 @@ If the documentation is not sufficient to help you solve your problems, you can 
 - P. Demol - Postdoctoral Fellow at ULB - [Github](https://github.com/PepijnDemol), [orcid](https://orcid.org/0000-0003-2511-7179)
 - L. González-Miret Zaragoza - Postdoctoral Fellow at ULB - [Github](https://github.com/luigonzar), [orcid](https://orcid.org/0009-0003-3350-3077)
 - N. Shchechilin - Postdoctoral Fellow at the Institute of Science Tokyo -  [Github](https://github.com/NikolaiNikolaevic), [orcid](https://orcid.org/0000-0001-5827-8097)
+- A. Sánchez-Fernández - Postdoctoral Fellow at ULB - [Github](https://github.com/orgs/IAA-ULB/people/Mocheador), [orcid](https://https://orcid.org/0000-0003-3502-6668)
 
 ---
 

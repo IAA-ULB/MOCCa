@@ -36,7 +36,7 @@ module timing
   use geninfo        , only : MPI_COMM_WORLD, MPI_BARRIER
 #endif
 
-  implicit none (external)
+  implicit none (type,external)
 
   public
 
@@ -454,8 +454,8 @@ contains
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
       do r = 0, NPROCS-1
          ! Searching for the first rank assigned to this symmetry block
-         if(MPI_BLOCK_ASSIGNMENTS(r+1) .eq. B ) then
-            if(MPI_RANK .eq. r) then
+         if(MPI_BLOCK_ASSIGNMENTS(r+1) == B ) then
+            if(MPI_RANK == r) then
                print *,'------------------------------------------------------------------------------'
                print *, 'Timers of rank ', r, ' which deals with block B = ', B
                print *,'------------------------------------------------------------------------------'
@@ -504,5 +504,80 @@ contains
     t%contexts(1:nc) = tmp(1:nc)
     call init_context(t%contexts(nc+1:))
   end subroutine allocate_more_contexts
+
+     subroutine initialize_all_timers(fam)
+      !----------------------------------------------------------------------------
+      ! Initialize all the timers that have been defined.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Input:
+      !       fam (logical), optional :  add fam timers
+      ! Output:
+      !       NONE
+      !----------------------------------------------------------------------------
+
+      logical, intent(in), optional :: fam
+
+      call add_timer('MOCCa', T_MOCCa)
+      call add_timer('Wavefunction initialisation', T_wfini)
+      call add_timer('Wavefunction output', T_wfoutput)
+      call add_timer('Wavefunction reading', T_wfinput)
+      call add_timer('HF-basis Derivatives', T_derivatives)
+      call add_timer('Canonical basis Derivatives', T_derivatives_can)
+      call add_timer('Spwf evolution', T_evolution)
+      call add_timer('Orthonormalization', T_ortho)
+      call add_timer('Construction of norm matrix', T_norm_ortho)
+      call add_timer('Diagonalisation norm matrix', T_diag_ortho)
+      call add_timer('Density calculations', T_densities)
+      call add_timer('Density: pp', T_den_pp)
+      call add_timer('Density: ph', T_den_ph)
+      call add_timer('Density: derivatives', T_den_der)
+      call add_timer('Potential calculations', T_potentials)
+      call add_timer('Potential preconditioning', T_pot_precon)
+      call add_timer('Energy calculations', T_energy)
+      call add_timer('Pairing solver ', T_pairing)
+      call add_timer('Sp. Hamiltonian ', T_sphamil)
+      call add_timer('Coulomb solver', T_coulomb)
+      call add_timer('Can. basis construction', T_den_can)
+      call add_timer('Moments of inertia ', T_MOI)
+      call add_timer('Centre-of-mass correction ', T_COM)
+      call add_timer('COM one-body ', T_COM1)
+      call add_timer('COM two-body ', T_COM2)
+      call add_timer('Matrix elements summation', T_COM2_summation)
+      call add_timer('Matrix elements of \nabla ', T_NablaMElements)
+      call add_timer('Pairing gaps ', T_gaps)
+      call add_timer('Multipole moments ', T_moments)
+      call add_timer('Multipole moments cutoff', T_moment_cutoff)
+      call add_timer('Feas. Proj. step ', T_feasible)
+      call add_timer('Spwf angular momentum ', T_spwfangmom)
+      call add_timer('Charge density folding', T_chargedensity)
+      call add_timer('Collective MOIs', T_collective_moi)
+      call add_timer('Microscopic pairing', T_microscopic_pairing)
+      call add_timer('Subspace rotation          ', T_Hortho)
+      call add_timer('Construction HF transfo', T_HFDiag)
+      call add_timer('Basis transformation', T_Basistransfo)
+      call add_timer('Subspace rotation', T_subspace_rotation)
+      call add_timer('Spwf transformation', T_subrot_transfo)
+      call add_timer('Matrix diagonalisation', T_subrot_diag)
+      call add_timer('Calculation of h in subspace', T_calc_sph)
+      call add_timer('Matrix elements of h', T_calc_sph_me)
+      call add_timer('Update of h in subspace', T_update_sph)
+#if( USE_MPI > 0)
+      call add_timer('Layout transfer: 1D -> 2D', T_transfer_psi_1to2)
+      call add_timer('Layout transfer: 2D -> 1D', T_transfer_psi_2to1)
+      call add_timer('MPI_ALLREDUCE calls     ', T_allreduce)
+#endif
+      if (present(fam)) then
+         call add_timer('FAM', T_fam)
+         call add_timer('Perturbed densities: ph', T_den_perturbed)
+         call add_timer('Perturbed densities: ph, symmetric '   , T_den_perturbed_sym)
+         call add_timer('Perturbed densities: ph, antisymmetric', T_den_perturbed_asym)
+         call add_timer('Perturbed densities: pp', T_den_perturbed_pp)
+         call add_timer('Matrix elements of \delta h', T_spme_perturbed)
+         call add_timer('Matrix elements of \delta h: symmetric',     T_spme_perturbed_sym)
+         call add_timer('Matrix elements of \delta h: antisymmetric', T_spme_perturbed_asym)
+         call add_timer('Matrix elements of \delta \Delta', T_spme_perturbed_pp)
+      end if
+
+   end subroutine initialize_all_timers
 
 end module timing

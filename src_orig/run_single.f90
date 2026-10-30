@@ -27,9 +27,11 @@ program mocca_single
   ! command line arguments (if there are any) and then passes control to
   ! Run_MOCCa.
   !-----------------------------------------------------------------------------
-  use MOCCa
+  use compilation, only : dp
+  use geninfo, only     : stp
+  use MOCCa, only       : run_MOCCa
 
-  implicit none
+  implicit none (type, external)
 
   !-----------------------------------------------------------------------------
   ! Dealing with the optional command line arguments of the code
@@ -51,26 +53,26 @@ program mocca_single
   character(len=32) :: filename = 'input.dat', numberstring
 
   Narguments = COMMAND_ARGUMENT_COUNT()
-  if(Narguments .eq. 0) then
+  if(Narguments == 0) then
     ! Run the code from STDIN
     call Run_MOCCa()
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
-    if(status.gt.0) then
+    if(status>0) then
       call stp('Unknown error when reading the first command line argument.')
-    elseif(status.eq.-1) then
+    elseif(status==-1) then
       call stp('Filename is too long.')
     endif
 
-    if(Narguments.gt.1) then
+    if(Narguments>1) then
       ! Override the filenumber if provided
       call get_command_argument(2,numberstring,status=status)
-      if(status.ne.0) then
+      if(status/=0) then
         call stp('Unknown error when reading the second command line argument.')
       endif
       READ(numberstring, "(i10)") file_number
-      if(file_number .eq. 12) then
+      if(file_number == 12) then
         print *, 'FILENUMBER 12 is reserved for parameterization reading.'
         print *, 'Please choose a different file_number.'
         call stp('')
@@ -79,4 +81,4 @@ program mocca_single
     ! Run the code from input on file "filename"
     call Run_MOCCa(file_number, filename)
   endif
-end program 
+end program mocca_single

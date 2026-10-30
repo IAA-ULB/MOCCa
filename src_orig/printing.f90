@@ -53,22 +53,22 @@ contains
 
     10 format (42 ('-'), ' Hartree-Fock basis', 80('-'))
     13 format (42 ('-'), ' Canonical    basis', 80('-'))
-    20 format (133 ('-'))
-    30 format (133 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (133 ('_'),/,3x , 'Proton  wavefunctions')
+    20 format (137 ('-'))
+    30 format (137 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (137 ('_'),/,3x , 'Proton  wavefunctions')
     60 format (3x,' n ', 4x, 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
     &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
     &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ',        &
-    &             ' | MPI_RANK ' )    
+    &             ' | MPI_RANK LOCK' )
 
     11 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
-    &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
+    &          3(2x, f5.2), ' | ', f6.2 , ' | ', 1i4, 6x,  1a1)
 
     12 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',  &
-    &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
+    &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', 1i4,6x, 1a1)
 
     logical, intent(in) :: print_advanced
     integer, intent(in) :: print_last
@@ -76,7 +76,7 @@ contains
     integer          :: wave,k, B, si, N, T, wavebar, l
     integer          :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
     real(KIND=dp)    :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
-    character(len=1) :: blo
+    character(len=1) :: blo, lock_status
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
 
     ! We transform the gaps to the Hartree-Fock basis for printing
@@ -134,6 +134,12 @@ $TR     sumocc = 2*k
             endif
         endif
 
+        if(locked(wave)) then
+           lock_status  = 'Y'
+        else
+           lock_status  = 'N'
+        endif
+
         if(print_advanced) then
           Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
           Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
@@ -148,22 +154,24 @@ $TR     sumocc = 2*k
           elseif(pairingtype.eq.2) then
             print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
             &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave),      &
+            &               lock_status
           else
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
             &               dispersions(wave), 0.0d0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &
-            &               r2, rank_map(wave)
+            &               r2, rank_map(wave), lock_status
           endif
         else
           if(pairingtype.eq.1) then
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), BCSgaps(wave), rank_map(wave)
+            &               dispersions(wave), BCSgaps(wave), rank_map(wave), lock_status
           elseif(pairingtype.eq.2) then
             print 12, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))), rank_map(wave)
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),    &
+            &               rank_map(wave), lock_status
           else
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0d0, rank_map(wave)
+            &               dispersions(wave), 0.0d0, rank_map(wave), lock_status
           endif
         endif
     enddo
@@ -201,6 +209,12 @@ $TR     sumocc = 2*k
             endif
         endif
 
+        if(locked(wave)) then
+           lock_status  = 'Y'
+        else
+           lock_status  = 'N'
+        endif
+
         if(print_advanced) then
           Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
           Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
@@ -211,26 +225,27 @@ $TR     sumocc = 2*k
           if(pairingtype.eq.1) then
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
             &               dispersions(wave), BCSgaps(wave),                    &
-            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave), lock_status
           elseif(pairingtype.eq.2) then
             print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
             &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave), lock_status
           else
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
             &               dispersions(wave), 0.0d0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &
-            &               r2, rank_map(wave)
+            &               r2, rank_map(wave), lock_status
           endif
         else
           if(pairingtype.eq.1) then
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), BCSgaps(wave), rank_map(wave)
+            &               dispersions(wave), BCSgaps(wave), rank_map(wave), lock_status
           elseif(pairingtype.eq.2) then
             print 12, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),rank_map(wave)
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),    &
+            &               rank_map(wave), lock_status
           else
             print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-            &               dispersions(wave), 0.0d0, rank_map(wave)
+            &               dispersions(wave), 0.0d0, rank_map(wave), lock_status
           endif
         endif
     enddo
@@ -302,6 +317,8 @@ $TR     sumocc = 2*k
         enddo
       endif    
 
+      lock_status = 'N'
+
       if(print_advanced) then
           if(allocated(canpsi)) then
             Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
@@ -318,10 +335,11 @@ $TR     sumocc = 2*k
           r2 = sqrt(spwf_r2_can(wave))
 
           print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-          &              0.0d0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          &              0.0d0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2,            &
+          &              rank_map(wave), lock_status
       else
           print 12, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-          &              0.0d0, Delta, rank_map(wave)
+          &              0.0d0, Delta, rank_map(wave), lock_status
       endif
     enddo
     print 40  
@@ -368,7 +386,9 @@ $TR     sumocc = 2*k
         do l = 1, blocknumber
           if(wave.eq.blocked_sps(l)) blo = '*'
         enddo
-      endif   
+      endif
+
+      lock_status = 'N'
 
       if(print_advanced) then
         if(allocated(canpsi)) then
@@ -385,10 +405,11 @@ $TR     sumocc = 2*k
         r2 = sqrt(spwf_r2_can(wave))
 
         print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-        &               0.0d0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+        &               0.0d0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2,            &
+        &               rank_map(wave), lock_status
       else
         print 12, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-        &               0.0d0, Delta, rank_map(wave)
+        &               0.0d0, Delta, rank_map(wave), lock_status
       endif
     enddo
     print 20

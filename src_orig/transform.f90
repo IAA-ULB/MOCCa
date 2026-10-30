@@ -760,7 +760,8 @@ contains
 
     real(KIND=dp), intent(in)  :: filedx
     real(KIND=dp), allocatable :: extended(:,:,:), newenergy(:), temp(:)
-    real(KIND=dp), allocatable :: temp2(:,:), U(:,:), V(:,:)
+    real(KIND=dp), allocatable :: mom_extended(:,:,:), temp_dispersions(:)
+    real(KIND=dp), allocatable :: temp2(:,:), U(:,:), V(:,:), temp_qp(:)
 
     real(KIND=dp), pointer :: Unew(:,:), Vnew(:,:)
 
@@ -839,8 +840,13 @@ $PBROKEN  enddo
 
           !---------------------------------------------------------------------
           allocate(extended(nx*ny*nz,4,nwt)) ; allocate(newenergy(nwt))
-          extended = 0.0
-          hfblocks = fileblocks + extraspwfs ; newenergy = 1000.0
+          extended = 0.0 ; newenergy = 1000.0
+
+          if(allocated(momentum_updates)) then
+             allocate(mom_extended(nx*ny*nz,4,nwt)) ; mom_extended = 0.0d0
+          endif
+
+          hfblocks = fileblocks + extraspwfs
           hfblocks_global = hfblocks
 
           gradient_detected =.false.
@@ -860,6 +866,7 @@ $PBROKEN  enddo
           do b = 1, 8
             do i=1, fileblocks(b)
                 extended(:,:,sb+i) = hfpsi(:,:,sf+i)
+                if(allocated(mom_extended)) mom_extended(:,:,sb+i) = momentum_updates(:,:,sf+i)
                 newenergy(sb+i)    = spenergies(sf+i)
             enddo
             do i=sb+fileblocks(b)+1, sb+ fileblocks(b) + extraspwfs(b)
@@ -871,9 +878,22 @@ $PBROKEN  enddo
           enddo
           hfpsi      = extended
           spenergies = newenergy
+          if(allocated(mom_extended)) momentum_updates = mom_extended
           ! Cleaning up some stuff
+          temp_dispersions = dispersions
           if(allocated(dispersions)) deallocate(dispersions)
-          allocate(dispersions(nwt)) ; dispersions=0.0
+          allocate(dispersions(nwt))
+          dispersions = 1e9
+          sb = 0 ; sf = 0
+          do b = 1,8,2
+            do i=1, fileblocks(b)
+              dispersions(sb+i) = temp_dispersions(sf+i)
+            enddo
+            sb  = sb + hfblocks(b)
+            sf  = sf + fileblocks(b)
+          enddo
+
+
           if(allocated(rho_can))     deallocate(rho_can)
           allocate(rho_can(nwt))     ; rho_can    =0.0
 
@@ -1075,7 +1095,6 @@ $PBROKEN  enddo
                 sb  = sb + 2*bogo_blocks(b)     + 2*bogo_blocks(b+1)
                 sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
               enddo
-
 !             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !             ! Debugging print statements
 !             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1112,9 +1131,15 @@ $PBROKEN  enddo
               call ortho_bogo(Bogoliubov, HFBlocks)
 
               !-----------------------------------------------------------------
-              ! (5) the configuration matrix
+              ! (5) the configuration matrix and qpenergies
               temp = configmatrix
               deallocate(configmatrix) ; allocate(configmatrix(2*nwt))
+
+              if(allocated(qpenergies)) then
+                 temp_qp = qpenergies
+                 deallocate(qpenergies); allocate(qpenergies(2*nwt))
+              endif
+
               sb = 0 ; sf = 0
               do b=1,8,2
                 N1HF = bogo_Blocks(B)   ; N1F = file_HFB_blocks(b)
@@ -1129,6 +1154,16 @@ $PBROKEN  enddo
                 configmatrix(sb+THF+N1HF+1:sb+THF+N1HF+N2F) = &
                 &                                  temp(sf+TF+N1F+1:sf+2*TF)
 
+                if(allocated(qpenergies)) then
+                   QPenergies(sb     +1:sb+N1F)       = temp_qp(sf    +1:sf+N1F)
+                   qpenergies(sb+N1HF+1:sb+N1HF+N2F ) = temp_qp(sf+N1F+1:sf+TF)
+
+                   QPenergies(sb+THF     +1:sb+THF+N1F) = &
+                   &                                  temp_qp(sf+TF    +1:sf+  TF+N1F)
+                   qpenergies(sb+THF+N1HF+1:sb+THF+N1HF+N2F) = &
+                   &                                  temp_qp(sf+TF+N1F+1:sf+2*TF)
+                endif
+
                 ! Filling in the occupation numbers for the new qps
                 configmatrix(sb+N1F+1:sb+N1HF)        = 0
                 configmatrix(sb+N1HF+N2F+1:sb+THF)    = 0
@@ -1136,50 +1171,58 @@ $PBROKEN  enddo
                 configmatrix(sb+THF+N1F     +1:sb+THF+N2HF)= 1
                 configmatrix(sb+THF+N1HF+N2F+1:sb+2*THF)   = 1
 
+                ! Filling in the occupation numbers for the new qps
+                if(allocated(qpenergies)) then
+                  QPenergies(sb+N1F+1:sb+N1HF)        = -1000.0
+                  qpenergies(sb+N1HF+N2F+1:sb+THF)    = -1000.0
+
+                  qpenergies(sb+THF+N1F     +1:sb+THF+N2HF)= 1000.0
+                  qpenergies(sb+THF+N1HF+N2F+1:sb+2*THF)   = 1000.0
+                endif
+
                 sb  = sb + 2*bogo_blocks(b)   + 2*bogo_blocks(b+1)
                 sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
-              enddo
-
-              !-----------------------------------------------------------------
-              ! (6) The HF transformation
-              temp2 = HFtransfo
-              deallocate(hftransfo) ; allocate(hftransfo(nwt,nwt))
-              hftransfo = 0
-
-              sb = 0; sf = 0
-              do b=1,8
-                  hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
-                  do i=1,extraspwfs(b)
-                      hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
-                  enddo
-
-                  sb  = sb + hfblocks(b)
-                  sf  = sf + fileblocks(b)
-              enddo
-              !-----------------------------------------------------------------
-              ! (7) The current single-particle hamiltonian
-              temp2 = sphamil
-              deallocate(sphamil); allocate(sphamil(nwt,nwt))
-              sphamil = 0.0d0
-
-              sb = 0; sf = 0
-              do b=1,8
-                  sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
-                  do i=1,extraspwfs(b)
-                      sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
-                      &                    spenergies(sb+fileblocks(b)+i)
-                  enddo
-
-                  sb  = sb + hfblocks(b)
-                  sf  = sf + fileblocks(b)
               enddo
               !-----------------------------------------------------------------
             else
                ! We do nothing if no gaps were initialised yet.
             endif
           end select
+          !-----------------------------------------------------------------
+          ! (6) The HF transformation
+          temp2 = HFtransfo
+          deallocate(hftransfo) ; allocate(hftransfo(nwt,nwt))
+          hftransfo = 0
+
+          sb = 0; sf = 0
+          do b=1,8
+              hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              do i=1,extraspwfs(b)
+                  hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
+              enddo
+
+              sb  = sb + hfblocks(b)
+              sf  = sf + fileblocks(b)
+          enddo
+          !-----------------------------------------------------------------
+          ! (7) The current single-particle hamiltonian
+          temp2 = sphamil
+          deallocate(sphamil); allocate(sphamil(nwt,nwt))
+          sphamil = 0.0d0
+
+          sb = 0; sf = 0
+          do b=1,8
+              sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              do i=1,extraspwfs(b)
+                  sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
+                  &                    spenergies(sb+fileblocks(b)+i)
+              enddo
+
+              sb  = sb + hfblocks(b)
+              sf  = sf + fileblocks(b)
+           enddo
           !---------------------------------------------------------------------
     else
       ! Copy this information
