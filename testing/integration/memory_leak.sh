@@ -8,15 +8,17 @@
 #
 # Useage
 # ------
-#   bash memory_leak.sh [EXESUFFIX] [-v|--verbose]
+#   bash memory_leak.sh [EXESUFFIX] [-v|--verbose] [-n|--num-runs NUM_RUNS]
 #
 # where EXESUFFIX specifies the suffix of the executable to be used
 #            Example: "BXL" for "MOCCa.BXL.exe".
 #
 #   -v, --verbose: Report memory used as a function of iteration count in a table
+#   -n, --num-runs: Number of runs per iteration count (default: 1).
+#                   The median memory usage across runs is used.
 #
-# Dependencies: ps, bc
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Dependencies: /usr/bin/time, bc, python3
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner: Memory leak detection test
 #-------------------------------------------------------------------------------
 
@@ -25,18 +27,30 @@ set -e
 # Parse arguments
 VERBOSE=false
 EXESUFFIX=""
+NUM_RUNS=1
 
-# Check for verbose flag
-for arg in "$@"; do
-    case "$arg" in
+# Check for arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
         -v|--verbose)
             VERBOSE=true
+            shift
+            ;;
+        -n|--num-runs)
+            if [ -n "$2" ] && [ "$2" -eq "$2" ] 2>/dev/null; then
+                NUM_RUNS=$2
+                shift 2
+            else
+                echo "Error: -n/--num-runs requires a positive integer argument"
+                exit 1
+            fi
             ;;
         *)
             if [ -z "$EXESUFFIX" ]; then
-                EXESUFFIX="$arg"
+                EXESUFFIX="$1"
+                shift
             else
-                echo "Unknown argument: $arg"
+                echo "Unknown argument: $1"
                 exit 1
             fi
             ;;
@@ -64,14 +78,14 @@ echo "  Memory Leak Integration Test"
 echo "========================================="
 echo ""
 
-#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Function to run a single test with given maxiter and return memory usage
-run_memory_test() {
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Function to run a single memory test using /usr/bin/time -v
+# Returns the Maximum resident set size in KB
+run_single_memory_test() {
     local maxiter=$1
     local out_file=$2
-    local pid
-    local max_rss=0
-    local current_rss
+    local time_file
+    local max_rss
 
     # Set up test environment
     setup_test_env "memory_leak_${maxiter}" "$EXESUFFIX" "SLy4"
@@ -109,43 +123,64 @@ OutputFilename='trash'
 /
 EOF
 
-    # Run the calculation in the background
-    ./$exe <mocca.data >"$out_file" 2>/dev/null &
-    pid=$!
-
-    # Monitor memory usage until process completes
-    while kill -0 $pid 2>/dev/null; do
-        # Get current RSS in KB (ps outputs in KB)
-        current_rss=$(ps -o rss= -p $pid 2>/dev/null | tr -d ' ')
-        
-        # Update max_rss if current is larger
-        if [ -n "$current_rss" ] && [ "$current_rss" -gt "$max_rss" ]; then
-            max_rss=$current_rss
-        fi
-        
-        sleep 0.1
-    done
-
-    # Get exit code of the MOCCa process
-    wait $pid
+    # Run with /usr/bin/time -v, sending MOCCa stdout to file and capturing time stats from stderr
+    time_file=$(mktemp)
+    /usr/bin/time -v ./$exe <mocca.data >"$out_file" 2>"$time_file"
     mocca_check=$?
+    
+    # Extract Maximum resident set size (in KB) from time output file
+    max_rss=$(grep "Maximum resident set size" "$time_file" | awk '{print $6}')
+    rm -f "$time_file"
 
     # Clean up
     teardown_test_env
+
+    if [ -z "$max_rss" ]; then
+        echo "ERROR: Could not extract memory usage from time output" >&2
+        return 1
+    fi
 
     echo "$max_rss"
     return $mocca_check
 }
 
-#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Function to run multiple tests and return the median memory usage
+run_memory_test() {
+    local maxiter=$1
+    local out_file_base=$2
+    local -a memories
+    local median_mem
+
+    for i in $(seq 1 $NUM_RUNS); do
+        local out_file="${out_file_base}.${i}"
+        local mem
+        mem=$(run_single_memory_test $maxiter "$out_file")
+        local check=$?
+        
+        if [ $check -ne 0 ]; then
+            return $check
+        fi
+        memories+=("$mem")
+    done
+
+    # Sort and take median
+    IFS=$'\n' sorted=($(printf "%s\n" "${memories[@]}" | sort -n))
+    median_mem=${sorted[$((NUM_RUNS / 2))]}
+    
+    echo "$median_mem"
+    return 0
+}
+
+#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Run tests for each iteration count
-echo "Running memory tests for different iteration counts..."
+echo "Running memory tests for different iteration counts (${NUM_RUNS} runs each, taking median)..."
 echo ""
 
 for maxiter in "${ITERATIONS[@]}"; do
     printf "  Testing with maxiter=%4d... " $maxiter
     
-    max_rss=$(run_memory_test $maxiter "../logs/memory_leak_${maxiter}.${EXESUFFIX}.out")
+    max_rss=$(run_memory_test $maxiter "../logs/memory_leak_${maxiter}.${EXESUFFIX}")
     check=$?
     
     if [ $check -ne 0 ]; then
@@ -156,7 +191,7 @@ for maxiter in "${ITERATIONS[@]}"; do
     MEMORY_USAGE+=("$max_rss")
     ITERATION_COUNT+=("$maxiter")
     
-    echo "Memory: ${max_rss} KB"
+    echo "Memory (median of ${NUM_RUNS}): ${max_rss} KB"
 done
 
 echo ""
@@ -181,21 +216,53 @@ if [ "$VERBOSE" = true ]; then
 fi
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Check that memory usage is independent of iteration count
-# Compare memory between first and last test
-first_mem=${MEMORY_USAGE[0]}
-last_mem=${MEMORY_USAGE[-1]}
+# Check that memory usage is independent of iteration count using linear fit
+# Perform linear regression: memory = a + b * iterations
+# If slope b is close to zero (within tolerance), memory is stable
 
-mem_diff=$(echo "$last_mem - $first_mem" | bc)
-mem_diff_abs=${mem_diff#-}  # Absolute value
+# Prepare data for Python linear regression
+iters_json=$(printf "%s," "${ITERATION_COUNT[@]}")
+mems_json=$(printf "%s," "${MEMORY_USAGE[@]}")
 
-echo "Memory difference between ${ITERATIONS[0]} and ${ITERATIONS[-1]} iterations: ${mem_diff_abs} KB"
+# Use Python to compute linear regression slope
+slope=$(python3 - <<EOF
+import sys
+iters = [${iters_json%,}]
+mems = [${mems_json%,}]
+n = len(iters)
+sum_x = sum(iters)
+sum_y = sum(mems)
+sum_xy = sum(x * y for x, y in zip(iters, mems))
+sum_x2 = sum(x ** 2 for x in iters)
+denominator = n * sum_x2 - sum_x ** 2
+if denominator == 0:
+    print("0")
+else:
+    slope = (n * sum_xy - sum_x * sum_y) / denominator
+    print(f"{slope:.6f}")
+EOF
+)
 
-# Check if difference is within tolerance
-if [ 1 -eq "$(echo "$mem_diff_abs <= $MEM_TOLERANCE_KB" | bc)" ]; then
-    echo "RESULT: PASSED - Memory usage is stable within tolerance (${MEM_TOLERANCE_KB} KB)"
+# Convert slope to integer KB per iteration for comparison
+slope_kb_per_iter=$(echo "scale=2; $slope + 0" | bc)
+
+# Check if slope is within tolerance (converted to per-iteration)
+# MEM_TOLERANCE_KB is total tolerance over the range, so per-iteration:
+# tolerance_per_iter = MEM_TOLERANCE_KB / (max_iter - min_iter)
+min_iter=${ITERATIONS[0]}
+max_iter=${ITERATIONS[-1]}
+iter_range=$(echo "$max_iter - $min_iter" | bc)
+tolerance_per_iter=$(echo "scale=6; $MEM_TOLERANCE_KB / $iter_range" | bc)
+
+echo "Linear fit slope: ${slope_kb_per_iter} KB/iteration"
+echo "Tolerance: ${tolerance_per_iter} KB/iteration (${MEM_TOLERANCE_KB} KB over ${iter_range} iterations)"
+
+# Check if absolute value of slope is within per-iteration tolerance
+slope_abs=$(echo "${slope_kb_per_iter#-}" | bc)
+if (( $(echo "$slope_abs <= $tolerance_per_iter" | bc) )); then
+    echo "RESULT: PASSED - Memory growth rate (${slope_kb_per_iter} KB/iter) is within tolerance"
     exit 0
 else
-    echo "RESULT: FAILED - Memory grew by ${mem_diff_abs} KB, exceeding tolerance of ${MEM_TOLERANCE_KB} KB"
+    echo "RESULT: FAILED - Memory grows at ${slope_kb_per_iter} KB/iteration, exceeding tolerance of ${tolerance_per_iter} KB/iteration"
     exit 1
 fi
