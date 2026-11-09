@@ -616,7 +616,7 @@ $N2ALL  do l=1,nz
 $N2ALL   do j=1,ny
 $N2ALL    do i=1,nx
 $N2ALL     ddf(i,j,k,3) = ddf(i,j,k,3) + A(k,l) * df(i,j,l,1)
-$N2ALL     ddf(i,j,k,5) = ddf(i,j,k,3) + A(k,l) * df(i,j,l,2)
+$N2ALL     ddf(i,j,k,5) = ddf(i,j,k,5) + A(k,l) * df(i,j,l,2)
 $N2ALL    enddo
 $N2ALL   enddo
 $N2ALL  enddo
