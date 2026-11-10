@@ -31,7 +31,8 @@ module folding
  implicit none
 
  !------------------------------------------------------------------------------
- ! Gaussian matrices, to be used when folding of the nucleon densities to 
+ ! Form factor matrices (their mathematematical form depend on the form factor parameterization chosen)
+ !, to be used when folding of the nucleon densities to 
  ! obtain the charge densities are required. 
  ! Notes:
  !  - Neutrons and protons get separate definitions as folding is not 
@@ -39,13 +40,13 @@ module folding
  !  - The fourth index ranges over the different gaussian form factors 
  !    to be applied. 
  !------------------------------------------------------------------------------
- real(KIND=dp), allocatable :: gauss_x_neutron(:,:,:,:)
- real(KIND=dp), allocatable :: gauss_y_neutron(:,:,:,:)
- real(KIND=dp), allocatable :: gauss_z_neutron(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_x_neutron(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_y_neutron(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_z_neutron(:,:,:,:)
 
- real(KIND=dp), allocatable :: gauss_x_proton(:,:,:,:)
- real(KIND=dp), allocatable :: gauss_y_proton(:,:,:,:)
- real(KIND=dp), allocatable :: gauss_z_proton(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_x_proton(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_y_proton(:,:,:,:)
+ real(KIND=dp), allocatable :: form_fact_z_proton(:,:,:,:)
 
  interface fold_form_factor
       module procedure fold_form_factor_real
@@ -72,6 +73,107 @@ contains
   G = 1.0d0/(r0 * sqrt(pi)) * exp(-dr**2)
   return
  end function gaussian
+
+ !Trying to define the galster param in r space
+
+
+ !---------------------------------------------------------------------------
+ ! Proton electric form factor: dipole spatial distribution
+ !
+ ! Input:
+ !   r : radial distance in fm
+ !
+ ! Output:
+ !   rho_p : spatial density in fm**(-3)
+ !---------------------------------------------------------------------------
+
+ pure function dipole_density(r) result(rho_p)
+
+  real(KIND=dp), intent(in) :: r
+  real(KIND=dp) :: rho_p
+  real(KIND=dp) :: radius, lambda_fm
+
+  real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
+  real(KIND=dp), parameter :: lambda2 = 0.71_dp
+
+  radius = abs(r)
+
+  ! Convert the dipole mass scale from GeV to fm**(-1)
+  lambda_fm = sqrt(lambda2) / hbarc
+
+  rho_p = lambda_fm**3 / (8.0_dp*pi) * exp(-lambda_fm*radius)
+
+  return
+ end function dipole_density
+
+
+ !---------------------------------------------------------------------------
+ ! Neutron electric form factor: generalized Galster spatial distribution
+ !
+ ! Input:
+ !   r : radial distance in fm
+ !
+ ! Output:
+ !   rho_n : spatial density in fm**(-3)
+ !---------------------------------------------------------------------------
+
+ pure function galster_density(r) result(rho_n)
+
+  real(KIND=dp), intent(in) :: r
+  real(KIND=dp) :: rho_n
+
+  real(KIND=dp) :: radius
+  real(KIND=dp) :: alpha, beta
+  real(KIND=dp) :: mass_alpha, mass_beta
+  real(KIND=dp) :: coeff_c, coeff_e
+  real(KIND=dp) :: diff_over_r
+
+  real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
+  real(KIND=dp), parameter :: mn = 0.939565421_dp
+  real(KIND=dp), parameter :: lambda2 = 0.71_dp
+
+  real(KIND=dp), parameter :: A_g = 1.73_dp
+  real(KIND=dp), parameter :: B_g = 4.59_dp
+
+  radius = abs(r)
+
+  ! Momentum scales, expressed in fm**(-2)
+  alpha = 4.0_dp*mn**2 / (B_g*hbarc**2)
+  beta  = lambda2 / hbarc**2
+
+  mass_alpha = sqrt(alpha)
+  mass_beta  = sqrt(beta)
+
+  ! Coefficients from the partial fraction decomposition
+  coeff_c = -alpha*beta**2 / (beta-alpha)**2
+  coeff_e = beta**3 / (beta-alpha)
+
+  ! Evaluate the exponential difference divided by r.
+  ! Use a Taylor expansion close to the origin to avoid
+  ! loss of numerical precision from subtracting exponentials.
+  if (radius < 1.0e-4_dp) then
+
+     diff_over_r = (mass_beta-mass_alpha) &
+          + 0.5_dp*(mass_alpha**2-mass_beta**2)*radius &
+          + (mass_beta**3-mass_alpha**3)*radius**2/6.0_dp &
+          + (mass_alpha**4-mass_beta**4)*radius**3/24.0_dp &
+          + (mass_beta**5-mass_alpha**5)*radius**4/120.0_dp
+
+  else
+
+     diff_over_r = (exp(-mass_alpha*radius) &
+                  - exp(-mass_beta*radius))/radius
+
+  end if
+
+  rho_n = (A_g/B_g) * ( &
+       coeff_c/(4.0_dp*pi)*diff_over_r &
+       + coeff_e/(8.0_dp*pi*mass_beta) &
+       * exp(-mass_beta*radius) )
+
+  return
+ end function galster_density
+
 
  pure function gamma_function(r1,r2, r0,n,L) result(G)
   !-----------------------------------------------------------------------------
@@ -170,6 +272,135 @@ contains
     
     G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine gauss_1D
+
+
+
+! ================================================================
+! 1D spatial folding kernels
+!
+! We use a coordinate-space construction. The 1D kernel is obtained
+! by integrating the corresponding spherical 3D density over the
+! two transverse coordinates:
+!
+!   K_1D(x) = integral dy dz rho_3D(sqrt(x**2 + y**2 + z**2))
+!
+! Its Fourier transform is the original 3D form factor evaluated
+! for momentum along the x axis.
+!
+! The same 1D kernel is used for the x, y and z directions.
+! Multiplying the three 1D kernels is a separable approximation:
+! it reproduces the form factor along the Cartesian axes, but not
+! generally for arbitrary momentum directions.
+!
+! IMPORTANT:
+! Do not normalize these kernels using the Gaussian normalization
+! in gauss_1D. The proton kernel integrates to 1, whereas the
+! neutron kernel integrates to 0. The latter is physically required
+! because the neutron electric form factor satisfies G_E^n(0) = 0.
+! ================================================================
+
+
+! ----------------------------------------------------------------
+! Proton: standard dipole parametrization
+!
+! G_E^p(q^2) = [1 + q^2/beta]^-2
+!
+! beta = Lambda^2 / (hbar*c)^2
+!
+! The analytical 1D inverse Fourier transform is:
+!
+! K_p(x) = beta/4 * (1 + sqrt(beta)*abs(x))
+!                    * exp(-sqrt(beta)*abs(x))
+!
+! Its integral over x is exactly 1.
+! ----------------------------------------------------------------
+pure function dipole_kernel_1D(x) result(kernel)
+    real(KIND=dp), intent(in) :: x
+    real(KIND=dp) :: kernel
+    real(KIND=dp) :: radius, mass_beta
+
+    real(KIND=dp), parameter :: hbarc   = 0.1973269804_dp
+    real(KIND=dp), parameter :: lambda2 = 0.71_dp
+
+    radius = abs(x)
+    mass_beta = sqrt(lambda2) / hbarc
+
+    kernel = (mass_beta**2 / 4.0_dp) * &
+             (1.0_dp + mass_beta*radius) * &
+             exp(-mass_beta*radius)
+
+end function dipole_kernel_1D
+
+
+! ----------------------------------------------------------------
+! Neutron: generalized Galster parametrization
+!
+! G_E^n(q^2) = A*tau/(1 + B*tau) * G_D(q^2)
+!
+! tau = (hbar*c)^2*q^2 / (4*Mn^2)
+! G_D = [1 + q^2/beta]^-2
+!
+! The form factor is decomposed into simple poles:
+!
+! G_E^n(q^2) = (A/B) * [
+!       C/(q^2 + alpha)
+!     + D/(q^2 + beta)
+!     + E/(q^2 + beta)^2
+! ]
+!
+! The inverse 1D Fourier transform is evaluated analytically.
+! Its integral over x is zero, as required by G_E^n(0) = 0.
+! ----------------------------------------------------------------
+pure function galster_kernel_1D(x) result(kernel)
+    real(KIND=dp), intent(in) :: x
+    real(KIND=dp) :: kernel
+
+    real(KIND=dp) :: radius
+    real(KIND=dp) :: alpha, beta
+    real(KIND=dp) :: mass_alpha, mass_beta
+    real(KIND=dp) :: coeff_c, coeff_d, coeff_e
+
+    real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
+    real(KIND=dp), parameter :: mn    = 0.939565421_dp
+    real(KIND=dp), parameter :: lambda2 = 0.71_dp
+
+    ! Generalized Galster parameters from the Python implementation.
+    real(KIND=dp), parameter :: A_g = 1.73_dp
+    real(KIND=dp), parameter :: B_g = 4.59_dp
+
+    radius = abs(x)
+
+    ! Convert the momentum-space parameters to inverse-fm units.
+    beta  = lambda2 / hbarc**2
+    alpha = 4.0_dp*mn**2 / (B_g*hbarc**2)
+
+    mass_beta  = sqrt(beta)
+    mass_alpha = sqrt(alpha)
+
+    ! Coefficients of the partial-fraction decomposition.
+    coeff_c = -alpha*beta**2 / (beta-alpha)**2
+    coeff_d =  alpha*beta**2 / (beta-alpha)**2
+    coeff_e =  beta**3 / (beta-alpha)
+
+    ! Inverse 1D Fourier transform:
+    !
+    ! FT^-1[1/(q^2 + m^2)] =
+    !       exp(-m*abs(x))/(2*m)
+    !
+    ! FT^-1[1/(q^2 + m^2)^2] =
+    !       (1 + m*abs(x))*exp(-m*abs(x))/(4*m^3)
+
+    kernel = (A_g/B_g) * ( &
+          coeff_c/(2.0_dp*mass_alpha) * &
+              exp(-mass_alpha*radius) &
+        + coeff_d/(2.0_dp*mass_beta) * &
+              exp(-mass_beta*radius) &
+        + coeff_e/(4.0_dp*mass_beta**3) * &
+              (1.0_dp + mass_beta*radius) * &
+              exp(-mass_beta*radius) )
+
+end function galster_kernel_1D
+
 
 
  subroutine gamma_1D(G, mesh, m, r0, p)
@@ -280,7 +511,7 @@ contains
   real(KIND=dp), intent(out), allocatable :: folded(:,:,:)
   real(KIND=dp)                           :: fn(mx,my,mz), fp(mx,my,mz)
 
-  if(allocated(gauss_x_neutron) .or. allocated(gauss_x_proton)) then
+  if(allocated(form_fact_x_neutron) .or. allocated(form_fact_x_proton)) then
     allocate(folded(mx,my,mz))
     folded = 0.0d0
   else
@@ -288,15 +519,15 @@ contains
   endif 
 
   fn = fold_form_factor_species(f(:,:,:,1),      &
-  &                             gauss_x_neutron, & 
-  &                             gauss_y_neutron, &
-  &                             gauss_z_neutron, &
+  &                             form_fact_x_neutron, & 
+  &                             form_fact_y_neutron, &
+  &                             form_fact_z_neutron, &
   &                             mx, my, mz, sx, sy, sz)
 
   fp = fold_form_factor_species(f(:,:,:,2),     &
-  &                             gauss_x_proton, & 
-  &                             gauss_y_proton, &
-  &                             gauss_z_proton, &
+  &                             form_fact_x_proton, & 
+  &                             form_fact_y_proton, &
+  &                             form_fact_z_proton, &
   &                             mx, my, mz, sx, sy, sz)
 
   ! Sum the contributions
@@ -334,7 +565,7 @@ contains
   real(KIND=dp), allocatable                 :: folded_re(:,:,:)
   real(KIND=dp), allocatable                 :: folded_im(:,:,:)
 
-  if(allocated(gauss_x_neutron) .or. allocated(gauss_x_proton)) then
+  if(allocated(form_fact_x_neutron) .or. allocated(form_fact_x_proton)) then
     allocate(folded(mx,my,mz))
     folded = 0.0d0
   else
@@ -378,7 +609,7 @@ contains
   integer, intent(in)               :: sx,sy,sz
   real(KIND=dp), intent(out), allocatable :: folded(:,:,:,:)
 
-  if(allocated(gauss_x_neutron) .or. allocated(gauss_x_proton)) then
+  if(allocated(form_fact_x_neutron) .or. allocated(form_fact_x_proton)) then
     allocate(folded(mx,my,mz,2))
     folded = 0.0d0
   else
@@ -387,15 +618,15 @@ contains
   
 
   folded(:,:,:,1) = fold_form_factor_species(f,  &
-  &                             gauss_x_neutron, & 
-  &                             gauss_y_neutron, &
-  &                             gauss_z_neutron, &
+  &                             form_fact_x_neutron, & 
+  &                             form_fact_y_neutron, &
+  &                             form_fact_z_neutron, &
   &                             mx, my, mz, sx, sy, sz)
 
   folded(:,:,:,2) = fold_form_factor_species(f, &
-  &                             gauss_x_proton, & 
-  &                             gauss_y_proton, &
-  &                             gauss_z_proton, &
+  &                             form_fact_x_proton, & 
+  &                             form_fact_y_proton, &
+  &                             form_fact_z_proton, &
   &                             mx, my, mz, sx, sy, sz)
 
  end subroutine fold_form_factor_reverse_real
@@ -429,7 +660,7 @@ contains
   real(KIND=dp), allocatable                 :: folded_re(:,:,:,:)
   real(KIND=dp), allocatable                 :: folded_im(:,:,:,:)
 
-  if(allocated(gauss_x_neutron) .or. allocated(gauss_x_proton)) then
+  if(allocated(form_fact_x_neutron) .or. allocated(form_fact_x_proton)) then
     allocate(folded(mx,my,mz,2))
     folded = 0.0d0
   else
