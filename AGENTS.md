@@ -176,10 +176,23 @@ perturbations).
 
 ## Current focus (dated 2026-11-16 — prune when stale)
 
-- Refactor sprint on branch `matrix_refactor`: introducing an operator
-  class for efficient matrix-element calculation. Design decisions and
-  decision gates live in `Lyon-nov26.org` at the repo root ("Elaborated
-  plan") — not in this file.
+- Refactor sprint on branch `matrix_refactor`: introducing a dense
+  symmetry-block matrix type for efficient matrix-element calculation —
+  at most 8 blocks per operator, selection rules resolved by one XOR at
+  construction, BLAS-only runtime. The authoritative design is
+  `mocca-symmetry-block-matrix-design-summary.md` at the repo root — not
+  this file; read it first.
+- Design-to-repo couplings: the module lives in `src_orig/` as plain
+  Fortran 2003+ without `$`-markers, identical for every CONFIG; its
+  constructor is the only place converting MOCCa's 1-based `HFBlocks`
+  ordering to the 0-based sector word, and it must take global counts
+  (`HFBlocks` is rank-local; `HFBlocks_global` is the global twin).
+- Storage is single-node by design (summary §1 and §12), not just a
+  sprint convenience: keep the type free of rank-dependent logic and
+  leave any gathering to whole-basis vectors at call sites.
+- BLAS kernels (`dgemv`/`dgemm`) come from the existing
+  `LINEAR_ALGEBRA_LIB` (`-llapack -lblas`); the summary's OpenBLAS/MKL
+  suggestion (its §7) is deferred while `make.inc` stays frozen.
 - The trusted reference executable is `exec/MOCCa.NLO.reference.exe`
   (serial, gfortran 13.3, `-O3 -fbacktrace -g`, HDF5 on); the golden
   `testing/integration/logs/minimal.NLO.reference.out` was generated from
@@ -188,5 +201,7 @@ perturbations).
   anchor; changing flags invalidates golden comparability.
 - The sprint is explicitly serial-only: MPI behaviour does not have to be
   preserved or validated during it.
-- Still missing: a parked `fam.NLO.reference.exe` before the first FAM
-  golden gets made (the MF executable exists, the FAM one does not).
+- Still missing: a parked `fam.NLO.reference.exe`. Build it from the
+  un-refactored tree before the first FAM-side refactor lands — the
+  design's step 8 targets FAM, and a golden made from already-refactored
+  code proves nothing (the MF executable exists, the FAM one does not).
