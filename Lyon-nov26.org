@@ -1,0 +1,293 @@
+#+title: Lyon Nov26
+* The plan
+** Relooking
+*** Write block_matrix class - with unit tests
+block_matrix.f90
+
+Properties
+- P
+- T --- is this necessary --- probably an extension
+- Rz
+- STy
+- reality
+- hermitian / antihermitian or symmetric / antisymmetric?
+
+.... should these be derived from matrix properties?
+
+I suspect so; hence three quantifiers
+- f_mn a^dagger_m a_n         -- p_m p_n = p_f, r_m r_n = r_f, isospin_f = isospin_m isospin_n STy -> reality / imaginary part of
+- g_mn a_m a_n                -- parity diagonal, signature off-diagonal, isospin diagonal
+- g_mn a^dagger_m a^dagger_n  -- parity diagonal
+
+
+Reminder:
+ - creation operators transform with the signature
+ - caveat with index ordering, i.e. array (i,j) = \[ \langle i | O | j \rangle \]
+
+Implementation
+- Link to BLAS / LAPACK, OpenMP parallelisation
+- should be capable of mat_vec products
+
+Questions
+- where should the abstraction of sp/qp live?
+- should storage be flat?
+- should storage be real/imaginary part or hermitian / antihermitian? PROBABLY FORMER
+
+
+**** Questions
+***** S¨T_y
+****** More useful is probably looking at matrix elements -- at least for the a^dagger_m a_n case
+
+\begin{align}
+\langle \mu | O | \nu \rangle  &= \int dx dy dz \sum_{\sigma} \, \psi_{\mu}^{*}(x,y,z,\sigma) [O\psi_{\nu}](x,y,z,\sigma) \\
+&=  \int dx dy dz dx' dy' dz' \sum_{\sigma \sigma'} \, \psi_{\mu}(x,-y,z,\sigma) O(x,y,z,\sigma;x',y',z',\sigma') \psi_{\nu}(x' ,y' ,z' ,\sigma) \\
+&=  \int dx dy dz dx' dy' dz' \sum_{\sigma \sigma'} \, \psi_{\mu}(x,-y,z,\sigma) O(x,y,z,\sigma;x',y',z',\sigma') \psi^{*}_{\nu}(x' ,-y' ,z' ,\sigma) \\
+&=  \int dx dy dz dx' dy' dz' \sum_{\sigma \sigma'} \, \psi_{\mu}(x,y,z,\sigma) O(x,-y,z,\sigma;x',-y',z',\sigma') \psi^{*}_{\nu}(x' ,y' ,z' ,\sigma).
+\end{align}
+
+where I have relabelled $y \rightarrow -y$ for both prime and unprimed coordinates in the last line.  If we assume that $O$ has a definite signature $s_o = \pm 1$ under $S^T_y$:
+
+\[
+ O(x,-y,z,\sigma;x',-y',z',\sigma) = s_{o} O(x',y',z',\sigma'; x,y,z,\sigma)^{*}
+\]
+
+Then I get
+\begin{align}
+\langle \mu | O | \nu \rangle &=  \int dx dy dz dx' dy' dz' \sum_{\sigma \sigma'} \, \psi_{\mu}(x,y,z,\sigma) s_{o} O^{ * }(x' ,y' ,z' ,\sigma' ;x,y,z,\sigma) \psi^{*}_{\nu}(x' ,y' ,z' ,\sigma) = s_{o} \langle \nu | O^{{\dagger}} | \mu \rangle = s_{o} \langle \mu | O | \nu \rangle^{*}.
+\end{align}
+
+which means that matrix elements for a given operator are either always real or imaginary.
+
+****** What about the pairing matrix elements?
+
+Position-space representation of $\Delta$ is
+
+
+
+****** Bad trial for symmetry consequences of $S^T_y$
+Basic spwf equation:
+  $$
+  $$
+\[ S^{T}_{y} \psi(x,y,z,\sigma) = \psi^{*}(x,-y,z,\sigma) = \psi(x,y,z,\sigma) \]
+
+Hence, for a single-particle state
+
+\[
+\langle x,y,z,\sigma | S^{T}_{y} a^{{\dagger}}_{i} | 0 \rangle
+= \langle x,y,z,\sigma | S^{T}_{y} |\psi_{i}\rangle = \psi^{*}(x,-y,z,\sigma)
+= \psi(x,y,z,\sigma)
+= \langle x,y,z,\sigma | \psi \rangle
+= \langle x,y,z,\sigma | a^{{\dagger}}_{i} | 0  \rangle
+= \langle x,y,z,\sigma | a^{{\dagger}}_{i} S^{T}_{y}| 0  \rangle
+\]
+
+which means that S^T_y ....
+
+****** Reminder - basics
+\[ P a_{i} |0\rangle =  p_{i}a_{i} |0 \rangle \]
+
+hence
+
+\[ P a_{i} | 0 \rangle  = p_{i} a_{i} P| 0 \rangle\]
+
+and hence
+
+\[ P a_i P^{\dagger} = p_{i} a_{i} \]
+
+
+- what are the U and V matrices in this language? U is like a symmetry irrep; V is not?
+
+** Define an operator-class for efficient ME calculation
+Features
+- efficient storage of ME's
+- obtain hermitian/anti-hermitian on the fly?
+- efficient calculation of ME's (exploit (anti-)hermitian-ness)
+- automated quantum number tracking
+- some signalling about which basis this has been calculated in
+- Realisation - in order of priority [0%]
+  - [ ] P  = +- 1
+  - [ ] T  = even / odd
+  - [ ] Rz = +- 1
+  - [ ] STy = +-i
+Questions
+- should this be capable of evaluation of expectation values?
+- should this be flat storage? i.e. Operator%all_me (:)? Or something like Operator%blocks(1:8)%matrix(...)
+- what about expectation values of products of one-body operators?
+- should we think of this as an abstraction of "matrices" or "operators"?
+- how exactly would anomalous quantities, e.g. pairing matrix elements, work?
+- do these objects also store their quasiparticle representation? Or is this a flag? Or a different type of object?
+- do these objects store their position representation?
+** By the end of the week
+- [ ] Refactor calculation of matrix elements of $J_{\mu}$
+- [ ] Calculate matrix elements of arbitrary multipole moments $Q_{\ell m}$
+- [ ] Refactor the COM-body correction with this technology
+- Refactor the summation of $\delta \rho$, $\delta \kappa$ and $\delta h$ in the FAM solver with this [0%]
+  - [ ] HF-level
+  - [ ] HFB
+** Elaborated plan <2026-11-06 Fri>
+Context
+- Fortran refactor in MOCCa (Skyrme 3D mesh code): "class" = derived type + type-bound
+  procedures.
+- Mainly my own coding work; collaborators in Lyon advise / review.
+- Checked against the MOCCa source on 2026-11-06; anchors below as file:line.
+- Real working window: Mon 16/11 afternoon -- Thu 19/11 (train Fri 11:00).
+  Three coding days for five refactor items, so one will not fit: see scope note.
+
+The tentative answers to the Questions above are folded into the design decisions
+below; the open ones become decision gates.
+
+*** Design decisions (current best answers, to confirm in Lyon)
+- Object = a *defining form* (unambiguous, ideally position-space) + materialisations
+  cached per basis key. A "matrix" is a view, not the thing itself.
+- Expectation values stay outside the class: expose symmetry-sector blocks, and let a
+  separate generic evaluator compute $\mathrm{Tr}(\rho\,Q)$ from any object exposing
+  such blocks. Keeps the class testable in isolation.
+- Quasiparticle and position representations: derived on demand and cached under the
+  basis key, never stored as a second authoritative copy.
+- The basis key ("which basis?") must carry: truncation, which of P/T/Rz/STy are
+  imposed, phase / gauge convention, producing-code version. All four or benchmarks rot.
+- Generalise (anti-)Hermiticity to conjugation classes: encode relations like
+  $Q_{\ell,-m}=(-1)^m Q_{\ell m}^{*}$ and the T- or STy-induced reality conditions;
+  the Hermitian / anti-Hermitian boolean only covers the simplest case.
+- Each operator declares which symmetries it may break. v1 may exploit the block
+  structure only for invariant operators, but the machinery must not choke on
+  sector-mixing ones (FAM perturbations, cranking fields).
+- Reuse MOCCa's runtime bookkeeping instead of reinventing it: the symmetry blocks
+  HFBlocks(8) (p/n x hermitian-like x antihermitian-like, wavefunctions.f90:147) and
+  the per-spwf reflection labels sx/sy/sz(4,nwt). Quantum-number logic currently
+  lives in two layers: those runtime labels + Hephaestos compile-time expansion
+  ($TR/$NTR/...). Decide which layer the class takes over.
+- MPI is a first-class design constraint: spwfs are rank-local (rank_map/spwf_map/
+  spwf_inverse), MEs are computed on designated ranks and merged with full-size
+  ALLREDUCEs -- flagged improvable in the momentsofinertia.f90 TODOs. Storage must
+  be rank-local per symmetry block.
+*** Decision gates (in this order)
+1. [ ] Anomalous quantities ($\kappa$, $\Delta$, pairing MEs): density-like and
+   gauge-covariant -> a distinct type sharing the storage/sector container. Gate:
+   decide by Wed 18/11, otherwise descope HFB-FAM, which needs $\delta\kappa$.
+2. [ ] Products of one-body operators: $\langle AB\rangle$ in HFB needs the pair
+   density, i.e. machinery beyond one-body MEs. Often tied to the two-body COM
+   correction.
+3. [ ] Minimal operator catalogue for v1: $J_{\mu}$, $Q_{\ell m}$, COM terms, FAM
+   perturbations, $h$/$\Delta$? Design against this list, not in the abstract.
+4. [ ] A measurable "efficient": memory ceiling, number of computed blocks, or runtime
+   ratio against the pre-refactor code? Fix the criterion before declaring victory.
+
+*** Source-verified anchors for the week targets
+- J_mu refactor :: the (anti-)Hermitian exploitation currently exists as ~40
+  hand-unrolled Re/Im/quad routines (wavefunctions.f90:1823+, angmom_* and spin_*)
+  plus the jx/jy/jz assembly with hard-coded fill-by-transpose
+  (momentsofinertia.f90:830+, jx(jj,ii)=jx(ii,jj), jy(jj,ii)=-jy(ii,jj)). The class
+  subsumes them as conjugation classes.
+- Q_lm MEs :: moments.f90 computes expectation values only, from mesh densities
+  (Messiah convention, m >= 0 stored, Re/Im split). *Matrices* of Q_lm are a new
+  capability; primary consumer: FAM perturbing operators.
+- COM correction :: functional.f90:1064 CompCOMCorrection (Bender et al., EPJA 7,
+  467 (2000)) -- explicit TODOs: missing -f<P>^2 term once T and P are both broken,
+  HF case not implemented (functional.f90:1110+). FAM already folds the 1-body COM
+  via COM1body == 2 (fam.f90:1638). Refactoring buys these fixes, not just code
+  hygiene.
+- FAM solver :: drho, dkappa_plus/minus are dense complex nwt x nwt matrices in the
+  HF basis (fam.f90:114-116), assembled from X,Y at fam.f90:655-701. HF-level-first
+  matches how the code already splits paths ($TR/$NTR).
+- Anomalous quantities, grounded :: dkappa_plus/minus are the concrete pair-like
+  objects. Products of one-body operators already appear ad hoc: angmom_*_quad /
+  jx2_can (momentsofinertia.f90) and the <P>^2 COM TODO -- gate 2 and the two-body
+  COM correction are the same machinery.
+- Basis signalling, grounded :: today a basis identity is scattered over flags and
+  arrays: DenPsi pointer via pairingtype (wavefunctions.f90:131), diagsphamil,
+  HFtransfo/cantransfo. The basis key subsumes these, plus which of the D^T_2h
+  quantum numbers are imposed (heph_symmetries.py, Dobaczewski PRC 62, 014310/11).
+
+*** Conjugation-class machinery (proposal, elaborated)
+- Observation :: the ~40 routine family + the sign conventions of the caller
+  (momentsofinertia.f90:830+, incl. the "attention to the sign(s)!" comment)
+  hard-code, per (component, symmetry case), (a) which MEs vanish, (b) which are
+  pure Re or pure Im, (c) the fill-by-transpose sign. In my proposal these become
+  *derived* from metadata.
+- Metadata :: each operator declares its characters: Hermitian or anti-Hermitian,
+  eigencharacter under the exact-symmetry generators (P, T, R_z, STy as applicable).
+  Tensor operators get characters for free: $Q_{\ell m}$: parity $(-1)^{\ell}$,
+  $R_z$ character $(-1)^m$, T-even; $J_{\mu}$ analogous. FAM perturbations: declared.
+  Symmetry-breaking operators have no characters: the machinery degrades (no
+  selection rules) instead of breaking.
+- Derivation :: characters + per-spwf labels sx/sy/sz -> coupling table: live block
+  pairs, representative (i,j) pairs, phase multipliers along orbits, and the reality
+  class (Re vs Im) of the stored number. Same trick moments.f90 already uses for
+  *densities* ($Y_{l,-m}=(-1)^m Y_{lm}^{*}$, m >= 0, Re/Im split) extended to matrices.
+- Layers :: character metadata -> coupling table (derived per symmetry scenario) ->
+  thin mesh-integration kernels, with the O-T variants reduced to applying the
+  existing TimeReverse() to the wavefunction arguments -> triangle storage per live
+  block pair -> materialisation to complex matrices / basis transforms.
+- Priority ramp revisited :: P -> T -> Rz -> STy is the same table gaining one
+  generator row at a time; each step is one new regression class. Compile-time
+  fork: derive the tables at runtime, or have Hephaestos specialize them per
+  scenario -- the latter keeps MOCCa's existing strategy.
+- Risks :: the phase multipliers are where sign bugs live (hence golden outputs
+  first); scenario coverage must first reproduce $TR/$NTR behavior exactly; tables
+  live over global indices (MPI); keep inner mesh loops specialized -- generic
+  bookkeeping, not generic kernels.
+
+*** Suggested realisation order (extends the priority list; tests first)
+- [ ] Core container: sector-blocked, rank-local storage (see MPI constraint) with the
+  existing HFBlocks/sx/sy/sz bookkeeping as a backend; basis-key type unifying
+  pairingtype/DenPsi, diagsphamil, HFtransfo/cantransfo.
+- [ ] Testing harness: $J_{\mu}$ MEs must reproduce the angmom/spin routine outputs
+  (wavefunctions.f90:1823+) and the jx/jy/jz assembly (momentsofinertia.f90:830+)
+  to machine precision; exact HO matrix elements give ground truth for $Q_{\ell m}$.
+- [ ] Then the priority ramp: P = +-1 -> T -> Rz -> STy, reaping the block reduction
+  step by step.
+- [ ] Generic expectation-value evaluator $\mathrm{Tr}(\rho\,Q)$ on top of the blocks;
+  supersedes the duplicated hf_*/can_* per-spwf expectation arrays
+  (wavefunctions.f90:220+).
+*** Pre-trip prep (before Mon 16/11) [0%]
+DEADLINE: <2026-11-15 Sun>
+- [ ] AGENTS.md at the MOCCa root: which sources may be edited (templates vs.
+  generated), Hephaestos regeneration, build command, module map, style, MPI rules.
+- [ ] Golden outputs + regression script: cheap matrix of HF/HFB x T-kept/broken and
+  one FAM frequency, from the un-refactored code.
+- [ ] Verified build incl. mpirun -np 2 on a tiny case; 2-3 fast test configs.
+- [ ] Dedicated refactor branch, clean tree, so anchors stay valid.
+- [ ] Stretch (remote sessions from Brussels): container skeleton + basis-key type,
+  compiling and unit-tested against golden J values, not yet integrated.
+*** Week schedule <2026-11-16 Mon>--<2026-11-20 Fri>
+Per day: baseline -> leveraged (full prep + heavy in-session AI assistance). The
+prep above is assumed done; otherwise the baseline reading applies.
+- Mon pm: gates + API alignment (short -- the code walk is pre-done). Baseline: the
+  whole afternoon goes to design discussion. Leveraged: container integration starts.
+- Tue: container + P support live. Baseline: start the $J_{\mu}$ refactor. Leveraged:
+  $J_{\mu}$ refactor single-proc regression-green by EOD -- routine generation is the
+  AI-compressible part.
+- Wed: put $Q_{\ell m}$ through the same path; close gate 1. MPI-parallel
+  verification is the day's real risk and does not compress.
+- Thu: COM refactor, with the -f<P>^2 TODO fix plausible. FAM HF-level: stretch ->
+  probable.
+- Fri am: hand-over notes on the train.
+Scope note, leveraged: $J_{\mu}$ + $Q_{\ell m}$ by Wed (a day earlier than baseline);
+COM a real deliverable; FAM HF probable; FAM HFB gains an outside chance. What does
+not compress: physics judgement, design decisions with M.B., MPI runtime debugging,
+and code review -- with AI-heavy generation, review becomes the bottleneck, so keep
+diffs small and committed daily.
+* DONE Download train tickets on phone
+SCHEDULED: <2026-11-15 Sun 20:00>
+* DONE Prepare laptop
+DEADLINE: <2026-11-16 Mon>
+* Wouter @ Lyon <2026-11-16 Mon>--<2026-11-21c Sat>
+** BXL -> Lyon <2026-11-16 Mon 10:09-14:00>
+** Lyon -> BXL <2026-11-20 Fri 11:00-15:26>
+** Tickets [[mid:-1396745258.87465.1790102538692@syntigo.com][NMBS Internationaal: Bevestiging, boekingscode: SLDSKHV, vertrekdatum: 16/11/2026 (2026-09-22)]]
+* DONE Organise travel
+I only have recommendations for a hotel where you better do
+NOT want to stay:
+
+- Hôtel de congrès at Tonkin/Villeurbanne (unfortunately one of
+the closest ones)
+** DONE Buy train tickets
+** DONE Reserve hotel
+** CANCEL Reserve Petit Ogre
+
+* DONE ask Mama for Thursday - 19/11
+* DONE ask Griet for a Wednesday - 18/11
+* DONE Ask for travel permission for Lyon [2/2]
+- [X] ULB
+- [X] FNRS
