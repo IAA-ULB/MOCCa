@@ -16,8 +16,8 @@ Properties
 
 I suspect so; hence three quantifiers
 - f_mn a^dagger_m a_n         -- p_m p_n = p_f, r_m r_n = r_f, isospin_f = isospin_m isospin_n STy -> reality / imaginary part of
-- g_mn a_m a_n                -- parity diagonal, signature off-diagonal, isospin diagonal
-- g_mn a^dagger_m a^dagger_n  -- parity diagonal
+- g_mn a_m a_n                -- parity diagonal, signature off-diagonal, isospin diagonal, STy?
+- g_mn a^dagger_m a^dagger_n  -- parity diagonal, signature off-diagonal, isospin diagonal, STy?
 
 
 Reminder:
@@ -32,7 +32,6 @@ Questions
 - where should the abstraction of sp/qp live?
 - should storage be flat?
 - should storage be real/imaginary part or hermitian / antihermitian? PROBABLY FORMER
-
 
 **** Questions
 ***** S¨T_y
@@ -240,14 +239,14 @@ below; the open ones become decision gates.
 - [ ] Generic expectation-value evaluator $\mathrm{Tr}(\rho\,Q)$ on top of the blocks;
   supersedes the duplicated hf_*/can_* per-spwf expectation arrays
   (wavefunctions.f90:220+).
-*** Pre-trip prep (before Mon 16/11) [0%]
+*** Pre-trip prep (before Mon 16/11) [80%]
 DEADLINE: <2026-11-15 Sun>
-- [ ] AGENTS.md at the MOCCa root: which sources may be edited (templates vs.
+- [X] AGENTS.md at the MOCCa root: which sources may be edited (templates vs.
   generated), Hephaestos regeneration, build command, module map, style, MPI rules.
-- [ ] Golden outputs + regression script: cheap matrix of HF/HFB x T-kept/broken and
+- [X] Golden outputs + regression script: cheap matrix of HF/HFB x T-kept/broken and
   one FAM frequency, from the un-refactored code.
-- [ ] Verified build incl. mpirun -np 2 on a tiny case; 2-3 fast test configs.
-- [ ] Dedicated refactor branch, clean tree, so anchors stay valid.
+- [X] Verified build incl. mpirun -np 2 on a tiny case; 2-3 fast test configs.
+- [X] Dedicated refactor branch, clean tree, so anchors stay valid.
 - [ ] Stretch (remote sessions from Brussels): container skeleton + basis-key type,
   compiling and unit-tested against golden J values, not yet integrated.
 *** Week schedule <2026-11-16 Mon>--<2026-11-20 Fri>

@@ -1,0 +1,352 @@
+# Symmetry-Block Matrix Type for MOCCa: Design Summary
+
+This document summarizes a design for a dense, block-structured matrix type to be
+implemented in the MOCCa repository (github.com/IAA-ULB/MOCCa). It is written so
+that an agent (VIBE CLI) or a collaborator can start implementation without the
+preceding discussion.
+
+## 1. Purpose and scope
+
+MOCCa calculations are done in a basis of single-particle wavefunctions (spwfs)
+that are symmetry-adapted and stored in a fixed order. Operators acting on this
+basis respect three discrete symmetries, so an operator matrix decomposes into a
+small number of dense blocks. The goal is a derived type that:
+
+- stores only the nonzero blocks dictated by selection rules,
+- keeps all block data contiguous and BLAS-friendly,
+- performs mat-vec and mat-mat products at dense-BLAS speed,
+- supports Hermitian and anti-Hermitian, real and complex operators,
+- has zero quantum-number logic at runtime (all resolved at construction).
+
+Constraints agreed with Wouter:
+
+- Basis states are ordered; a simple integer array `HFblocks(0:7)` gives the
+  number of states in each symmetry sector, in storage order.
+- Isospin is limited to `T_z = ±1/2` (proton / neutron).
+- Blocks are dense; matrices are constructed explicitly, not only via mat-vec.
+- Total matrix sizes are typically around 1000 x 1000; single-node performance
+  matters most. MPI distribution is out of scope for now.
+
+## 2. Symmetry model
+
+The three symmetries are parity (P), z-signature (S), and isospin (T_z). Each
+acts on the basis as a Z2 grading:
+
+- parity: even / odd
+- z-signature: +1 / -1
+- isospin: proton / neutron
+
+Encode a symmetry sector as a 3-bit integer `s = 0..7`:
+
+- bit 0: parity (0 = even, 1 = odd)
+- bit 1: z-signature (0 = +1, 1 = -1)
+- bit 2: isospin (0 = proton, 1 = neutron)
+
+An operator carries a symmetry word `op` (3 bits) with the same encoding:
+bit 0 = parity of the operator, bit 1 = signature behavior, bit 2 = isoscalar
+(bit clear, preserves proton/neutron) vs isovector-flipping in T_z (bit set).
+
+Selection rule: an operator with symmetry word `op` couples sector `s` to
+exactly one sector:
+
+```
+s' = IEOR(s, op)
+```
+
+Because XOR is an involution, each sector has exactly one partner and an
+operator matrix has at most 8 nonzero blocks (fewer when sectors are empty).
+This is the only place selection rules appear; everything downstream sees a
+flat list of at most 8 dense blocks.
+
+Convention note for antiunitary operations: if any of the three symmetry
+operations is antiunitary (involves complex conjugation) in the convention
+used, the imaginary part of a complex operator carries that bit complemented
+(see section 8). The type supports this by letting the real and imaginary
+parts carry independent symmetry words; it must be decided once, in the
+constructor, based on MOCCa's existing symmetry conventions for q-values.
+
+## 3. Type definitions
+
+Per-block storage is a rank-2 allocatable, not an offset into one flat buffer.
+With at most 8 blocks this costs nothing, keeps each block contiguous with a
+natural leading dimension, and makes population callbacks trivial (direct
+rank-2 view of the destination).
+
+```fortran
+type :: sym_block
+  integer :: srow, scol      ! sector indices 0..7 (bookkeeping for construction)
+  integer :: i0, j0          ! 0-based offsets of the row/column sectors in the global basis
+  real(8), allocatable :: A(:, :)   ! (m, n), contiguous, LDA = m
+  logical :: transposed     ! .true. if this block is reached as +/- transpose
+                            ! of a stored partner (Hermitian pairing)
+end type
+
+integer, parameter :: KIND_GENERAL      = 0
+integer, parameter :: KIND_SYMMETRIC    = 1   ! A(s',s) =   A(s,s')^T
+integer, parameter :: KIND_ANTISYMMETRIC = -1 ! A(s',s) = - A(s,s')^T
+
+type :: sym_matrix
+  integer :: symmetry       ! operator symmetry word, 0..7
+  integer :: kind            ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
+  integer :: n               ! total basis size, sum(HFblocks)
+  integer :: nblocks         ! number of stored blocks, <= 8
+  type(sym_block) :: blocks(8)
+  integer :: off(0:8)        ! 0-based start of each sector in the global basis
+contains
+  procedure :: init, fill_blocks, matvec, apply2, matmat, add_element, ...
+end type
+```
+
+The `kind` sign generalizes Hermitian/anti-Hermitian for real storage: partner
+blocks are related by `A(s',s) = sigma * A(s,s')^T` with `sigma = ±1`. A block
+whose sector is its own partner (`s' = s`, which happens per bit where the
+operator word is 0) is square and internally symmetric or antisymmetric; store
+it dense anyway and use the symmetry only as a consistency check (at 1000 x
+1000 scale dense BLAS beats triangle packing).
+
+### 3a. Indexing conventions (Fortran is 1-based; sector words stay 0-based)
+
+Fortran array bounds are a choice. Distinguish three roles:
+
+- Sector words (0..7) are bit patterns, not array indices. Keep them
+  0-based so `IEOR(s, op)` applies directly and `s > sp` is meaningful.
+  Declare the arrays they index with lower bound 0: `HFblocks(0:7)`,
+  `off(0:8)` (or `st(0:8)`), so no `±1` adjustments leak into logic.
+  A 1-based sector encoding would require `IEOR(s-1, op) + 1` at every use.
+- Global-basis offsets interact with 1-based Fortran vectors. Two coherent
+  schemes; pick one and use it everywhere:
+  1. 0-based offsets: `off(0) = 0`, slices written `x(j0+1 : j0+n)`.
+     Uniform with the sector convention; one `+1` per slice.
+  2. 1-based bounds array (recommended): `st(0:8)` with `st(s)` the first
+     global index of sector `s` and `st(8) = n+1`, slices
+     `x(st(s) : st(s+1)-1)`. The `+1` appears once, in the cumulative sum.
+- The MOCCa boundary is the only place 1-based input appears: existing
+  arrays such as the current `HFblocks` are 1-based with their own block
+  ordering. Convert once in the constructor, which also fixes the
+  bijection between MOCCa's block ordering and the 3-bit sector word.
+
+## 4. Construction from HFblocks
+
+```fortran
+subroutine init(this, HFblocks, symmetry, kind)
+  ! HFblocks(0:7): number of spwfs per sector, in storage order.
+  ! 1. off = cumulative sums of HFblocks.
+  ! 2. For s = 0..7: sp = IEOR(s, symmetry).
+  !    Skip if HFblocks(s) == 0 or HFblocks(sp) == 0.
+  !    If kind /= KIND_GENERAL and s > sp: skip (partner access covers it).
+  !    Otherwise append a block with srow=sp, scol=s, m=HFblocks(sp),
+  !    n=HFblocks(s), i0=off(sp), j0=off(s), allocate A(m,n) = 0.
+end subroutine
+```
+
+Properties after init:
+
+- At most 8 blocks; exactly one stored block per surviving sector pair.
+- For symmetric/antisymmetric matrices with nonzero symmetry word, blocks
+  come in sector pairs and only one per pair is stored; the partner access
+  flips `transposed` and applies the sign.
+- For a totally symmetric operator (`symmetry = 0`), all blocks are diagonal
+  in sector space (square, internally symmetric/antisymmetric).
+- A purely real operator can simply leave the imaginary part absent (see
+  section 8) without special cases.
+
+Index-to-sector mapping for element-wise construction is an 8-entry scan:
+
+```fortran
+pure integer function sector_of(this, i)
+  do s = 7, 0, -1
+    if (i >= this%off(s)) return s
+end function
+```
+
+## 5. Populating the blocks
+
+The clean association mechanism is a callback through a dummy procedure with
+an abstract interface; do not store procedure pointers as components.
+
+```fortran
+abstract interface
+  subroutine block_filler(srow, scol, A, params)
+    integer, intent(in) :: srow, scol   ! sectors 0..7 of row/column
+    real(8), intent(out) :: A(:, :)     ! block to overwrite entirely
+    class(*), intent(in) :: params      ! optional state (fields, couplings, ...)
+  end subroutine
+end interface
+
+subroutine fill_blocks(this, fill, params)
+  ! For each stored block b:
+  !   call fill(blocks(b)%srow, blocks(b)%scol, blocks(b)%A, params)
+  ! OpenMP parallel over blocks is safe: distinct destinations.
+end subroutine
+```
+
+Guarantees and rules:
+
+- The filler is called only for stored blocks. Hermitian/anti-Hermitian
+  partner consistency is the type's responsibility, not the filler's; the
+  type either maintains partners itself or handles them at access time.
+- The filler receives `srow`/`scol` so it can apply the correct symmetry
+  phase factors (this is where MOCCa's signature/isospin phase conventions
+  for matrix elements enter).
+- `params` carries state (fields, densities, coupling constants). Keep the
+  signature fixed; extend `params`, not the interface.
+- An element-wise fallback (`element_filler` returning `A_ij` for given
+  local indices) is useful for tests and prototypes only; it costs one call
+  per element.
+
+Constructor sugar is desirable: `sym_matrix(HFblocks, symmetry, kind, fill,
+params)` builds and fills in one statement.
+
+## 6. Runtime operations
+
+All runtime code loops over `blocks(1:nblocks)` only. No quantum numbers, no
+XOR, no selection-rule checks.
+
+Mat-vec (`y = A x`, full vectors of length n):
+
+- For each block with `.not. transposed`: `dgemv('N', ...)` accumulating into
+  `y(i0+1 : i0+m)`.
+- For each block with `transposed`: `dgemv('T', ...)` with the sign from
+  `kind`, scattering into the partner row range.
+- OpenMP: parallelize over non-transposed blocks (independent output
+  slices); handle transposed scatter separately (serial pass or atomics).
+
+Mat-mat (`C = A B`): if `A` has symmetry word `a` and `B` has `b`, then
+`C` has word `IEOR(a, b)` and one block per sector:
+
+```
+C(s, s⊕c) = A(s, s⊕a) · B(s⊕a, s⊕a⊕b),   c = a⊕b
+```
+
+implemented as at most 8 `dgemm` calls, with block lookup by scanning the
+two 8-entry block lists once at init of the product.
+
+Also needed eventually: transpose/conjugate (same symmetry word, blocks
+transposed, sign rules from `kind`), addition (assert equal symmetry and
+kind), scalar and complex scaling, trace.
+
+## 7. Performance notes
+
+- Link against an optimized real BLAS (OpenBLAS/MKL); all kernel calls are
+  `dgemv`/`dgemm`.
+- Each block is a separate contiguous rank-2 array: good locality, natural
+  LDA, no stride games.
+- Parallelize fill and mat-vec over the (at most 8) blocks.
+- Element-wise construction paths (`add_element`) are for correctness and
+  tooling; hot paths should fill whole blocks via the callback.
+- At the intended scale (total n around 1000, blocks around 100-500 per
+  side) per-block dense storage is the right tradeoff. Triangle packing
+  inside blocks is deliberately not done.
+
+## 8. Complex operators: real/imaginary split
+
+Represent a complex operator as two real matrices, never as complex blocks:
+
+```fortran
+type :: complex_op
+  type(sym_matrix) :: re, im   ! each may be independently absent
+end type
+```
+
+The algebra, with `O = R + iI`, `R` and `I` real:
+
+- O Hermitian       : R symmetric,      I antisymmetric
+- O anti-Hermitian  : R antisymmetric,  I symmetric
+
+Each half is a `sym_matrix` with its own `kind`. The mapping from the complex
+operator's Hermiticity class to the pair of real kinds is fixed:
+
+- Hermitian:      (re: KIND_SYMMETRIC,     im: KIND_ANTISYMMETRIC)
+- Anti-Hermitian: (re: KIND_ANTISYMMETRIC, im: KIND_SYMMETRIC)
+
+Symmetry words: for unitary symmetries both halves share the operator word.
+If a symmetry is antiunitary or involves complex conjugation in the adopted
+convention, the imaginary part carries that bit complemented:
+`im%symmetry = IEOR(op, antiunit_mask)`. Decide the mask once from MOCCa's
+q-value conventions; this is the mechanism behind FAM facts such as fields
+related by complex conjugation connecting complementary signature sectors.
+
+Mat-vec with packed two-column vectors. With `x = x_R + i x_I`, `y = O x`:
+
+```
+y_R = R x_R - I x_I
+y_I = I x_R + R x_I
+```
+
+Pack `X = [x_R | x_I]` as `n x 2`; each half of the operator is one `dgemm`
+pass per block (`apply2`), with the sign/swap folding the multiplication by
+`i`. Two real passes over an `n x 2` array stay in real BLAS and beat one
+complex pass on memory traffic. The same packed layout serves iterative
+solvers over the complex field (mat-vec closure over length-2n vectors).
+
+Mat-mat: `C_R = A_R B_R - A_I B_I`, `C_I = A_R B_I + A_I B_R`, each term a
+real sym_matrix mat-mat with XOR'd symmetry words as in section 6.
+
+A purely real operator leaves `im` unallocated (`nblocks = 0`); no special
+cases anywhere else.
+
+## 9. Testing and validation
+
+- Selection rules: for every operator word 0..7, verify the block list
+  matches the XOR pairing of sectors surviving in `HFblocks`.
+- Symmetry checks: for KIND_SYMMETRIC/ANTISYMMETRIC, verify partner-block
+  consistency including the sign and the transposed access path.
+- Mat-vec correctness: compare against a dense reference mat-vec built by
+  expanding all blocks into a full `n x n` matrix, for random `HFblocks`
+  (including empty sectors), all symmetry words, all kinds, real and
+  complex.
+- Mat-mat: compare against dense multiplication; verify symmetry word of the
+  product is `IEOR(a, b)`.
+- Complex split: verify that reassembling `R + iI` and applying as complex
+  `zgemv` reproduces the packed two-column result, and that Hermitian /
+  anti-Hermitian complex operators produce the promised real kind pairs.
+- Benchmarks: time mat-vec against a dense `dgemv` on the same data;
+  profile with likwid or gprof; check OpenMP scaling over blocks.
+
+## 10. MOCCa integration notes
+
+- Never edit generated solver code. The type belongs in `src_orig/` (solver
+  source), and any build-system or preprocessing adjustments in
+  `Hephaestos.py` / `src_heph/` / `configs/`. The module should be plain
+  Fortran 2003+ with no preprocessor dependencies so it can be included
+  wherever needed.
+- Quantum-number conventions (bit assignments for parity, signature,
+  isospin; phase factors under signature; the antiunitary mask of section 8)
+  must be taken from MOCCa's existing symmetry machinery for q-values, not
+  re-invented. The sector bits and the XOR pairing are internal to the
+  module; only the constructor converts MOCCa conventions to sector words.
+- The natural consumers are the linear-response (FAM) machinery, where
+  response matrices and external fields with various symmetry words appear,
+  and any place where dense operator matrices on the single-particle basis
+  are built explicitly.
+- Suggested module name: something like `OperatorsBlocks` or
+  `SymMatrix`, following MOCCa naming style; `HFblocks` is the existing
+  concept to align with for sector counts.
+
+## 11. Suggested implementation order
+
+1. Core module: sector encoding, `sym_block`, `sym_matrix`, `init` from
+   `HFblocks`, block-list construction with XOR pairing and kind-based
+   partner skipping.
+2. `fill_blocks` with the abstract interface, plus the element-wise
+   fallback.
+3. `matvec` (including transposed access with sign), tested against dense
+   reference.
+4. Symmetric/antisymmetric partner maintenance and consistency checks.
+5. `matmat`, add, scale, trace.
+6. `complex_op` wrapper with the packed two-column `matvec` and the
+   antiunitary-mask constructor logic.
+7. OpenMP over blocks for fill and mat-vec; benchmarks.
+8. Integration into a FAM-relevant code path, behind a Hephaestos config
+   option if appropriate.
+
+## 12. Design decisions to keep
+
+- At most 8 blocks; runtime code never touches quantum numbers.
+- Selection rules are one XOR, resolved entirely in `init`.
+- Per-block rank-2 allocatables, not one flat buffer.
+- Population via dummy-procedure callback with abstract interface; no
+   procedure-pointer components.
+- Complex operators are pairs of real matrices; re/im carry independent
+   symmetry words and kinds; packed two-column vectors for mat-vec.
+- Dense blocks, no triangle packing; single node only for now.

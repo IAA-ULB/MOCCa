@@ -201,7 +201,7 @@ MF_SRC    +=   hdf5_auxiliary.f90
 endif
 MF_SRC  +=   sphericalharmonics.f90 folding.f90 nil8.f90
 MF_SRC  +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
-MF_SRC  +=   pairingcutoffs.f90 parameterization.f90
+MF_SRC  +=   block_matrix_module.f90 pairingcutoffs.f90 parameterization.f90
 MF_SRC  +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 MF_SRC  +=   pairing.f90 densities.f90 moments.f90
@@ -218,7 +218,7 @@ FAM_SRC    +=   hdf5_auxiliary.f90
 endif
 FAM_SRC +=   sphericalharmonics.f90 folding.f90 nil8.f90
 FAM_SRC +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
-FAM_SRC +=   pairingcutoffs.f90 parameterization.f90
+FAM_SRC +=   block_matrix_module.f90 pairingcutoffs.f90 parameterization.f90
 FAM_SRC +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 FAM_SRC +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 FAM_SRC +=   pairing.f90 densities.f90 moments.f90
