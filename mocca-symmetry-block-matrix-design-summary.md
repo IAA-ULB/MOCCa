@@ -36,14 +36,19 @@ acts on the basis as a Z2 grading:
 - z-signature: +1 / -1
 - isospin: proton / neutron
 
-Encode a symmetry sector as a 3-bit integer `s = 0..7`:
+Encode a symmetry sector as a 3-bit integer `s = 0..7`. Bit assignment
+agreed with Wouter (2026-11-16), chosen so that a sector word coincides
+with MOCCa's symmetry-block index minus one:
 
-- bit 0: parity (0 = even, 1 = odd)
-- bit 1: z-signature (0 = +1, 1 = -1)
-- bit 2: isospin (0 = proton, 1 = neutron)
+- bit 0: z-signature (Rz): 0 = q(Rz) = +i, 1 = q(Rz) = -i. Rz is linear
+  and antihermitian, so its eigenvalues are +/- i; the bit carries their
+  sign (time reversal flips it).
+- bit 1: parity (0 = even, 1 = odd)
+- bit 2: isospin (0 = neutron, 1 = proton)
 
 An operator carries a symmetry word `op` (3 bits) with the same encoding:
-bit 0 = parity of the operator, bit 1 = signature behavior, bit 2 = isoscalar
+bit 0 = whether the operator flips the Rz q-value sign, bit 1 = the parity
+of the operator (odd operators carry 1), bit 2 = isoscalar
 (bit clear, preserves proton/neutron) vs isovector-flipping in T_z (bit set).
 
 Selection rule: an operator with symmetry word `op` couples sector `s` to
@@ -57,6 +62,33 @@ Because XOR is an involution, each sector has exactly one partner and an
 operator matrix has at most 8 nonzero blocks (fewer when sectors are empty).
 This is the only place selection rules appear; everything downstream sees a
 flat list of at most 8 dense blocks.
+
+### 2a. Bijection with MOCCa's HFBlocks bookkeeping (confirmed)
+
+Confirmed against the sources: wavefunctions.f90 (block bookkeeping header,
+`iniwavefunctions`), gennilsson.f90 and nil8.f90 (all Nilsson seeds have
+q(Rz) = +i; `kparz` is the parity), transform.f90 (block pairing/merging when
+reading more symmetric solutions) and src_heph/heph_symmetries.py
+(`multiply_quantum_numbers`: per-isospin block slots 1,2 carry the positive
+parity-q, slots 3,4 the negative; even slots carry q = -i).
+
+MOCCa's `HFBlocks(B)` counts the spwfs of sector `s = B - 1`:
+
+| MOCCa block B | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| sector s = B-1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| isospin | n | n | n | n | p | p | p | p |
+| parity | + | + | - | - | + | + | - | - |
+| q(Rz) | +i | -i | +i | -i | +i | -i | +i | -i |
+
+Occupation patterns of the basis sectors:
+
+- EV8 symmetries ('Rz,T,P,STy'): blocks 1, 3, 5, 7 -> sectors 0, 2, 4, 6.
+- Time-reversal broken: blocks 2, 4, 6, 8 additionally populated ->
+  sectors 1, 3, 5, 7.
+- Parity broken ('Rz,T,STy' / 'Rz,STy'): all states in blocks 1, 2, 5, 6
+  -> sectors 0, 1, 4, 5; blocks 3, 4, 7, 8 remain empty throughout the
+  run and the parity bit of a basis sector is vacuous.
 
 Convention note for antiunitary operations: if any of the three symmetry
 operations is antiunitary (involves complex conjugation) in the convention
@@ -75,7 +107,7 @@ rank-2 view of the destination).
 ```fortran
 type :: sym_block
   integer :: srow, scol      ! sector indices 0..7 (bookkeeping for construction)
-  integer :: i0, j0          ! 0-based offsets of the row/column sectors in the global basis
+  integer :: is, js          ! 1-based global start of the row/column sectors
   real(8), allocatable :: A(:, :)   ! (m, n), contiguous, LDA = m
   logical :: transposed     ! .true. if this block is reached as +/- transpose
                             ! of a stored partner (Hermitian pairing)
@@ -91,7 +123,8 @@ type :: sym_matrix
   integer :: n               ! total basis size, sum(HFblocks)
   integer :: nblocks         ! number of stored blocks, <= 8
   type(sym_block) :: blocks(8)
-  integer :: off(0:8)        ! 0-based start of each sector in the global basis
+  integer :: st(0:8)         ! first 1-based global index of each sector,
+                             ! st(8) = n+1 (section 3a, scheme 2)
 contains
   procedure :: init, fill_blocks, matvec, apply2, matmat, add_element, ...
 end type
@@ -120,6 +153,9 @@ Fortran array bounds are a choice. Distinguish three roles:
   2. 1-based bounds array (recommended): `st(0:8)` with `st(s)` the first
      global index of sector `s` and `st(8) = n+1`, slices
      `x(st(s) : st(s+1)-1)`. The `+1` appears once, in the cumulative sum.
+
+Scheme 2 is adopted (2026-11-16): the matrix component is named `st` and
+each block carries the 1-based starts `is`, `js` of its row/column sectors.
 - The MOCCa boundary is the only place 1-based input appears: existing
   arrays such as the current `HFblocks` are 1-based with their own block
   ordering. Convert once in the constructor, which also fixes the
@@ -128,14 +164,16 @@ Fortran array bounds are a choice. Distinguish three roles:
 ## 4. Construction from HFblocks
 
 ```fortran
-subroutine init(this, HFblocks, symmetry, kind)
-  ! HFblocks(0:7): number of spwfs per sector, in storage order.
-  ! 1. off = cumulative sums of HFblocks.
+subroutine init(this, HFBlocks, symmetry, kind)
+  ! HFBlocks(1:8): the GLOBAL MOCCa count array (HFBlocks_global),
+  ! in MOCCa block ordering; sector s = block s+1 (section 2a).
+  ! 1. counts(s) = HFBlocks(s+1)   <- the only 1-based-to-0-based step.
+  !    st(0) = 1; st(s+1) = st(s) + counts(s).
   ! 2. For s = 0..7: sp = IEOR(s, symmetry).
-  !    Skip if HFblocks(s) == 0 or HFblocks(sp) == 0.
+  !    Skip if counts(s) == 0 or counts(sp) == 0.
   !    If kind /= KIND_GENERAL and s > sp: skip (partner access covers it).
-  !    Otherwise append a block with srow=sp, scol=s, m=HFblocks(sp),
-  !    n=HFblocks(s), i0=off(sp), j0=off(s), allocate A(m,n) = 0.
+  !    Otherwise append a block with srow=sp, scol=s, is=st(sp), js=st(s),
+  !    allocate A(counts(sp), counts(s)) = 0.
 end subroutine
 ```
 
@@ -154,8 +192,9 @@ Index-to-sector mapping for element-wise construction is an 8-entry scan:
 
 ```fortran
 pure integer function sector_of(this, i)
+  ! 1 <= i <= n; returns -1 for indices outside the basis
   do s = 7, 0, -1
-    if (i >= this%off(s)) return s
+    if (i >= this%st(s)) return s
 end function
 ```
 
@@ -319,9 +358,12 @@ cases anywhere else.
   response matrices and external fields with various symmetry words appear,
   and any place where dense operator matrices on the single-particle basis
   are built explicitly.
-- Suggested module name: something like `OperatorsBlocks` or
-  `SymMatrix`, following MOCCa naming style; `HFblocks` is the existing
-  concept to align with for sector counts.
+- Module name: `block_matrix_module` in `src_orig/block_matrix_module.f90`,
+  following MOCCa naming style; `HFblocks` is the existing concept aligned
+  with in the constructor. The file must be listed in `no_process_files`
+  in `src_heph/preprocess.py` (and in `FORTRANFILES` in `Hephaestos.py` for
+  the dry-run report) so Hephaestos copies it verbatim into the build tree;
+  an unlisted file is silently skipped by the Makefile-per-file invocation.
 
 ## 11. Suggested implementation order
 
@@ -350,3 +392,8 @@ cases anywhere else.
 - Complex operators are pairs of real matrices; re/im carry independent
    symmetry words and kinds; packed two-column vectors for mat-vec.
 - Dense blocks, no triangle packing; single node only for now.
+- MOCCa boundary: `init` takes the global `HFBlocks_global(1:8)` directly;
+  sector word = MOCCa block index - 1 (section 2a). One constructor, one
+  place where the bijection appears.
+- Offset scheme 2 throughout: 1-based bounds `st(0:8)` with `st(8) = n+1`,
+  block starts `is`, `js`; no 0-based global offsets anywhere.

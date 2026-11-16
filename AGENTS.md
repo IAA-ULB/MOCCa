@@ -143,7 +143,7 @@ that parses numbers out of MOCCa output must be invoked as `LC_ALL=C awk`.
 
 ## Module map
 
-43 Fortran modules over 45 source files in `src_orig/`. Regenerate with:
+44 Fortran modules over 46 source files in `src_orig/`. Regenerate with:
 
 From the repository root:
 
@@ -160,6 +160,9 @@ Grouped (module <- file where both are obvious):
   precondition.f90, derivatives, folding, sphericalharmonics, nil8
 - Wavefunctions and bases: wavefunctions, basis_transform, transform,
   hartreefock <- hartree-fock.f90, BCS, HFB, HFB_direct, HFB_gradient
+- Symmetry-block matrices: block_matrix_module <- block_matrix_module.f90,
+  the matrix_refactor sprint (self-contained: plain Fortran 2003+, no
+  $-markers, no module dependencies)
 - Densities, functional, pairing: densities, functional, parameterization,
   pairing, pairingcutoffs, pairing_strengths, Coulombmod <- coulomb.f90,
   cranking, moments <- moments.f90, momentsofinertia, fission_MOI
@@ -187,6 +190,13 @@ perturbations).
   constructor is the only place converting MOCCa's 1-based `HFBlocks`
   ordering to the 0-based sector word, and it must take global counts
   (`HFBlocks` is rank-local; `HFBlocks_global` is the global twin).
+  Agreed encoding (2026-11-16): bit 0 = z-signature sign (0 = q(Rz) = +i),
+  bit 1 = parity (0 = even), bit 2 = isospin (0 = neutron), so the sector
+  word is simply the MOCCa block index minus one; see design summary §2a.
+- Hephaestos wiring: a new `src_orig/*.f90` file must be added both to
+  `MF_SRC`/`FAM_SRC` in the Makefile and to `no_process_files` in
+  `src_heph/preprocess.py`, or the per-file generation silently skips it
+  (empty output file, compile failure).
 - Storage is single-node by design (summary §1 and §12), not just a
   sprint convenience: keep the type free of rank-dependent logic and
   leave any gathering to whole-basis vectors at call sites.
