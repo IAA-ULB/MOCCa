@@ -63,10 +63,19 @@ program block_matrix_unit_tests
   !      merges to diagonal blocks, mask 7 pairs into empty sectors and
   !      stores nothing
   !
+  ! The partner-reconstructing dense expansion (dense) adds:
+  !   *) shape (n, n) of the expansion, including the empty basis
+  !   *) every stored block sits at its global position with the exact
+  !      callback value; (anti-)symmetric partners are reconstructed
+  !      with the kind sign at the transposed position; everything else
+  !      is exactly zero - verified against a hand-scattered reference
+  !      over the full cross product of patterns, symmetry words, kinds
+  !      and good-quantum-number masks
+  !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of eight routines (plus the check helper that
+  ! The suite consists of nine routines (plus the check helper that
   !  registers every individual condition, and the two probed callbacks
   !  the fill tests use):
   !   test_construction : construction invariants over the full cross
@@ -78,6 +87,7 @@ program block_matrix_unit_tests
   !   test_fill_consistency : block-wise and element-wise paths match
   !   test_sugar       : new_sym_matrix constructor sugar
   !   test_goodqn      : the good-quantum-number mask of design 2b
+  !   test_dense_expansion : partner-reconstructing dense expansion
   !==============================================================================
   use block_matrix_module
 
@@ -127,6 +137,7 @@ program block_matrix_unit_tests
   call test_fill_consistency()
   call test_sugar()
   call test_goodqn()
+  call test_dense_expansion()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
   &     ntest, nfail
@@ -767,6 +778,91 @@ contains
     call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=7)
     call check(M%nblocks .eq. 0, 'goodqn: unmasked word gives empty list')
   end subroutine test_goodqn
+  !----------------------------------------------------------------------------
+  subroutine test_dense_expansion()
+    !---------------------------------------------------------------------------
+    ! Verify the partner-reconstructing dense expansion over the full
+    !  cross product of patterns, symmetry words, kinds and masks 4, 5, 7.
+    !
+    ! Every matrix is populated through the probed block callback with
+    !  deterministic values and its dense expansion compared element by
+    !  element against a hand-scattered reference:
+    !   *) shape (n, n), including the empty basis
+    !   *) every stored block sits at its global position carrying the
+    !      callback's exact value
+    !   *) (anti-)symmetric partners are reconstructed at the transposed
+    !      position with the kind sign (bitwise, since the transpose
+    !      reassigns the same values); diagonal blocks are not mirrored
+    !   *) every element outside stored blocks and their partners is
+    !      exactly zero, so selection-rule holes survive the expansion
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M
+    real(8), allocatable :: D(:, :), Rref(:, :)
+    integer :: p, word, k, kinds(3), q, masks(3), b, r, c, mrow, ncol
+    integer :: i, j
+    real(8) :: offset
+    logical :: match
+    character(len=160) :: label
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    masks = [4, 5, 7]
+    offset = 11.0d0
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do k = 1, 3
+          do q = 1, 3
+            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,             &
+            &  ' word ', word, ' kind ', kinds(k), ' mask ', masks(q)
+            cur_counts(0:7) = patterns(p, 1:8)
+            cur_label = trim(label)
+
+            call M%init(patterns(p, :), word, kinds(k), goodqn=masks(q))
+            call M%fill_blocks(fill_block_probed, int(offset))
+
+            D = M%dense()
+
+            ! Shape: always (n, n), also for the empty basis.
+            call check(size(D, 1) .eq. M%n, trim(label)//': shape (n, n)')
+            call check(size(D, 2) .eq. M%n, trim(label)//': shape (n, n)')
+
+            ! Hand-scattered reference: stored blocks at their global
+            !  positions, partners of (anti-)symmetric matrices with the
+            !  kind sign, zero everywhere else.
+            allocate(Rref(M%n, M%n))
+            Rref = 0.0d0
+            do b = 1, M%nblocks
+              mrow = size(M%blocks(b)%A, 1)
+              ncol = size(M%blocks(b)%A, 2)
+              do r = 1, mrow
+                do c = 1, ncol
+                  Rref(M%blocks(b)%is + r - 1, M%blocks(b)%js + c - 1)        &
+                  & = block_val(M%blocks(b)%srow, M%blocks(b)%scol, r, c,    &
+                  &             offset)
+                  if (kinds(k) .ne. KIND_GENERAL                             &
+                  & .and. M%blocks(b)%srow .ne. M%blocks(b)%scol) then
+                    Rref(M%blocks(b)%js + c - 1, M%blocks(b)%is + r - 1)      &
+                    & = kinds(k)*block_val(M%blocks(b)%srow,                  &
+                    &                      M%blocks(b)%scol, r, c, offset)
+                  endif
+                enddo
+              enddo
+            enddo
+
+            ! The expansion equals the reference exactly.
+            match = .true.
+            do i = 1, M%n
+              do j = 1, M%n
+                match = match .and. (D(i, j) .eq. Rref(i, j))
+              enddo
+            enddo
+            call check(match, trim(label)//': dense equals reference')
+            deallocate(Rref)
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine test_dense_expansion
   !----------------------------------------------------------------------------
   subroutine fill_block_probed(srow, scol, A, params)
     !---------------------------------------------------------------------------

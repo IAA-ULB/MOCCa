@@ -36,8 +36,13 @@ module block_matrix_module
   !  dummy-procedure callbacks (the block-wise fill_blocks and the
   !  per-element fallback fill_elements), plus the new_sym_matrix
   !  constructor sugar and the good-quantum-number mask in init (design
-  !  section 2b). Later phases add mat-vec/mat-mat products and
-  !  the complex-operator wrapper.
+  !  section 2b). It also provides the partner-reconstructing dense
+  !  expansion 'dense' (design sections 9 and 13): the core of the
+  !  print_dense dump, the return shape behind dense wrappers such as
+  !  the new Qlm_spme_fm in moments.f90, and later the dense reference
+  !  builder for the mat-vec/mat-mat validation tests.
+  !  Later phases add mat-vec/mat-mat products and the complex-operator
+  !  wrapper.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Symmetry model
@@ -175,6 +180,7 @@ module block_matrix_module
     procedure :: sector_of => sector_of_sym_matrix
     procedure :: fill_blocks => fill_blocks_sym_matrix
     procedure :: fill_elements => fill_elements_sym_matrix
+    procedure :: dense => dense_sym_matrix
     procedure :: print_dense => print_dense_sym_matrix
   end type sym_matrix
 
@@ -471,6 +477,50 @@ contains
     call M%fill_blocks(fill, params)
   end function new_sym_matrix
   !----------------------------------------------------------------------------
+  pure function dense_sym_matrix(this) result(D)
+    !---------------------------------------------------------------------------
+    ! Partner-reconstructing dense expansion of a sym_matrix: the full
+    !  n x n matrix as one contiguous array, with all stored blocks at
+    !  their global positions and the unstored partners of (anti-)symmetric
+    !  matrices reconstructed as
+    !      A(s', s) = kind * A(s, s')^T .
+    ! Elements not covered by a stored block or its partner are zero.
+    !
+    ! This is the core behind the print_dense dump, the return shape of
+    ! dense wrappers such as Qlm_spme_fm in moments.f90, and later the
+    ! dense reference builder for the mat-vec/mat-mat validation tests of
+    ! the design's later phases. The transposed flag is ignored here in
+    ! the same way as in print_dense: init never sets it and only later
+    !  phases assign it.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   this : the matrix whose stored blocks are expanded
+    ! Output:
+    !   D    : the dense n x n expansion, freshly allocated
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(in) :: this
+    real(8), allocatable :: D(:, :)
+
+    integer :: b, m, ncol
+
+    allocate(D(this%n, this%n))
+    D = 0.0d0
+    do b = 1, this%nblocks
+      if (.not. allocated(this%blocks(b)%A)) cycle
+      m = size(this%blocks(b)%A, 1)
+      ncol = size(this%blocks(b)%A, 2)
+      D(this%blocks(b)%is:this%blocks(b)%is + m - 1,                              &
+      &   this%blocks(b)%js:this%blocks(b)%js + ncol - 1)                           &
+      &   = this%blocks(b)%A
+      if (this%kind .ne. KIND_GENERAL                                                &
+      & .and. this%blocks(b)%srow .ne. this%blocks(b)%scol) then
+        D(this%blocks(b)%js:this%blocks(b)%js + ncol - 1,                            &
+        &   this%blocks(b)%is:this%blocks(b)%is + m - 1)                             &
+        &   = this%kind * transpose(this%blocks(b)%A)
+      endif
+    enddo
+  end function dense_sym_matrix
+  !----------------------------------------------------------------------------
   subroutine print_dense_sym_matrix(this, lun, title)
     !---------------------------------------------------------------------------
     ! Human-friendly dump of a sym_matrix as one dense n x n matrix.
@@ -480,11 +530,11 @@ contains
     !  does not transfer to realistic basis sizes.
     !
     ! (Anti-)symmetric matrices are printed complete: partner blocks that
-    !  init does not store are reconstructed from their stored twin as
+    !  init does not store are reconstructed in the dense helper as
     !      A(s', s) = kind * A(s, s')^T ,
-    !  the same expansion the dense reference of the design's validation
-    !  tests (summary section 9) is built from. The transposed flag is
-    !  ignored here: init never sets it and only later phases assign it.
+    !  the expansion the dense reference of the design's validation tests
+    !  (summary section 9) is built from. The transposed flag is ignored
+    !  there: init never sets it and only later phases assign it.
     !
     ! Layout: a header decoding the symmetry word, the kind, the stored
     !  block list and the populated sectors, then the matrix itself, with
@@ -587,8 +637,9 @@ contains
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! The dense picture: expand all blocks into one n x n matrix,
-    !  reconstructing unstored partners of (anti-)symmetric matrices.
+    ! The dense picture: the partner-reconstructing dense expansion of the
+    !  dense helper - (anti-)symmetric matrices are printed complete since
+    !  init does not store their partner blocks.
     !  Sector boundaries: column/row i starts a sector boundary if it is
     !  the first index of sectors 1..7 (empty sectors leave no gap, so two
     !  successive boundaries can coincide; boundary 1 is never marked).
@@ -598,21 +649,7 @@ contains
       if (this%st(s) >= 2 .and. this%st(s) <= this%n) boundary(this%st(s)) = .true.
     enddo
 
-    allocate(dense(this%n, this%n))
-    dense = 0.0d0
-    do b = 1, this%nblocks
-      if (.not. allocated(this%blocks(b)%A)) cycle
-      m = size(this%blocks(b)%A, 1)
-      ncol = size(this%blocks(b)%A, 2)
-      dense(this%blocks(b)%is:this%blocks(b)%is + m - 1,                             &
-      &     this%blocks(b)%js:this%blocks(b)%js + ncol - 1) = this%blocks(b)%A
-      if (this%kind .ne. KIND_GENERAL                                                &
-      & .and. this%blocks(b)%srow .ne. this%blocks(b)%scol) then
-        dense(this%blocks(b)%js:this%blocks(b)%js + ncol - 1,                          &
-        &     this%blocks(b)%is:this%blocks(b)%is + m - 1)                             &
-        &   = this%kind * transpose(this%blocks(b)%A)
-      endif
-    enddo
+    dense = this%dense()
 
     ! Column ruler with a '(s<sector>)' tag at each sector's first column.
     write(u, '(A)') ''

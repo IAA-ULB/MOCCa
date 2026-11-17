@@ -543,13 +543,20 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   It is the return shape behind `Qlm_spme_fm` and later the dense
   reference builder for the mat-vec/mat-mat tests of steps 4 and 6.
 
-The antisymmetric half is computed in all builds when asked:
-TR-conserving builds yield roundoff-level zeros there, TR-broken builds
-genuinely need it. `$TR`/`$NTR` markers are therefore absent from the
-numerics; a short-circuit for TR-conserving builds remains an optional
-optimisation for later. The old routine's restrictions (even m only, real
-matrix part only, `b^{l/2}` units, marker-guarded selection) all
-disappear.
+The antisymmetric half is computed in all builds when asked. Corrected
+against the sources and measured (row 3, 2026-11-17): it is NOT
+roundoff-level zero in TR-conserving builds. The stored spinor amplitudes
+are genuinely complex in every build - the four HFPsi components are
+(1,2) = (Re, Im) of the spin-up amplitude and (3,4) = (Re, Im) of
+spin-down (pinned by `transform_spwfs_inplace_complex`, the
+`spin_*`/`angmom_*` ME routines and the Nilsson seeds, which populate all
+four components) - so Im < i |Q| j > is nonzero within sector blocks
+regardless of time reversal; E.g. O16 in the maximally symmetric build
+gives |Im Q_20| MEs of order a few fm^2. `$TR`/`$NTR` markers are
+therefore absent from the numerics, and there is no TR-conserving
+short-circuit to make later. The old routine's restrictions (even m
+only, real matrix part only, `b^{l/2}` units, marker-guarded selection)
+all disappear.
 
 ### 13.2 The old routine stays, as oracle
 
@@ -581,8 +588,16 @@ deliberately untouched in this step beyond the source of `Qsp`.
   for exactly this reassociation drift).
 - The antisymmetric half has no legacy oracle (the old code computes the
   real part only): covered by the brute-force conjugated reference inside
-  the hook, antisymmetry and Hermiticity identities, the [R, P] checks in
-  `fam_testing`, and vanish-to-roundoff in TR-conserving runs.
+  the hook, antisymmetry and Hermiticity identities, and the [R, P]
+  checks in `fam_testing`. Two lessons from the row-3 implementation:
+  the brute-force reference must be restricted to the sector-allowed
+  pairs - MOCCa's operator matrices are the symmetry-decomposed objects,
+  identically zero outside their blocks, whereas naive mesh integrals at
+  sector-forbidden pairs (cross-isospin, off-block) are chamber-partial
+  garbage - and it presumes the stored basis in HFBlocks order, reshuffled
+  mid-run by the `diagsphamil` diagonalisation of pure-HF runs
+  (production inertia scenarios pair `pairingscheme=1`, which keeps
+  `diagsphamil` off).
 - Parity-mask correctness: masked-init unit tests plus the NLO-P oracle
   run - the old routine's `$PBROKEN` diagonal-blocks path is the reference
   there.

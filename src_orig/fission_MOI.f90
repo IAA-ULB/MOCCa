@@ -54,6 +54,9 @@ module fission_MOI
   use parameterization
   use moments
   use timing
+  use sphericalharmonics
+  use wavefunctions
+  use block_matrix_module
 
   implicit none
 
@@ -82,6 +85,16 @@ module fission_MOI
   ! moments of inertia always correspond to Q20, Q22, Q30 and Q32
   integer, PARAMETER   :: inertia_l_hardcoded(4) = (/ 2, 2, 3, 3 /)
   integer, PARAMETER   :: inertia_m_hardcoded(4) = (/ 0, 2, 0, 2 /)
+  !-----------------------------------------------------------------------------
+  ! Development oracle switch for the symmetry-block migration of the
+  !  single-particle multipole matrix elements (design summary section
+  !  13.3): when true, calc_collective_inertia computes every requested
+  !  moment both the legacy way (Qlm_spme) and the new way
+  !  (Qlm_spme_matrix) and prints the maximal deviations of the two paths,
+  !  symmetry self-checks and a brute-force reference for the imaginary
+  !  antisymmetric half. OFF BY DEFAULT, armed through the &inertia/
+  !  namelist; committed test inputs never set it.
+  logical :: spme_oracle = .false.
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
@@ -294,6 +307,10 @@ contains
       ! Calculate all relevant single-particle matrix elements              
       Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
                                          ! at the moment
+      ! Development oracle for the symmetry-block migration of these matrix
+      !  elements (design summary section 13.3): off unless spme_oracle is
+      !  set in the &inertia/ namelist.
+      if(spme_oracle) call Qlm_spme_oracle(l,m)
       if(pairingtype.eq.2) then
         ! Transform to the quasiparticle basis if needed
         Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
@@ -371,6 +388,161 @@ contains
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
+
+  subroutine Qlm_spme_oracle(l, m)
+    !---------------------------------------------------------------------------
+    ! Development oracle for the symmetry-block migration of the multipole
+    !  matrix elements (design summary section 13.3). OFF BY DEFAULT: armed
+    !  from the &inertia/ namelist (spme_oracle = .true.), it computes every
+    !  requested moment BOTH ways and prints numbers for eyeballing:
+    !   (a) the legacy Qlm_spme (real part, b^(l/2) units) against the real
+    !       symmetric half of Qlm_spme_matrix (fm^l), rescaled with the
+    !       conversion identity of design section 13.2,
+    !            old [b^(l/2)] = new [fm^l] * 100^(-l/2)
+    !   (b) symmetry self-checks on both dense expansions: the real half
+    !       must be symmetric, the imaginary half antisymmetric
+    !   (c) the imaginary antisymmetric half - never computed by the legacy
+    !       routine - against a brute-force conjugated double-loop mesh
+    !       reference: scalar integrals, no dense products, no symmetry
+    !       shortcuts, restricted to the sector-allowed pairs (naive mesh
+    !       integrals at sector-forbidden pairs are chamber-partial
+    !       garbage; MOCCa's operator matrices are the symmetry-decomposed
+    !       objects, identically zero outside their blocks)
+    !   (d) the magnitude of the imaginary half, nonzero in every build:
+    !       the stored spinor amplitudes are complex (see the banner in
+    !       front of Qlm_spme_matrix in moments.f90)
+    !
+    !   Reassociation drift between the two paths (dense products in the
+    !   new route, scalar loops in the old) is the expected deviation; the
+    !   golden tolerances of the test harness exist for exactly this.
+    !   The hook prints; the numbers are judged by the developer.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l, m : the multipole moment to check
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: l, m
+
+    type(sym_matrix) :: me_re, me_im
+    real(KIND=dp), allocatable :: D_re(:,:), D_im(:,:)
+    real(KIND=dp), allocatable :: me_legacy(:,:)
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    real(KIND=dp), allocatable :: Qdv(:)
+    real(KIND=dp) :: dev, maxdev, lmax, dimmax, symre, symim, sc
+    real(KIND=dp) :: zref, refmax, zij, offblk
+    integer :: stb(0:8)
+    integer, allocatable :: sect(:)
+    integer :: i, j, s, wordeff
+
+    allocate(sect(nwt))
+
+    ! (a) The two paths for the real symmetric half: the legacy matrix in
+    !      b^(l/2) units against the new real half rescaled to the same.
+    me_legacy = Qlm_spme(l, m, .false.)
+    call Qlm_spme_matrix(l, m, .false., me_re, me_im)
+    D_re = me_re%dense()
+    D_im = me_im%dense()
+    sc = 100.0d0**(-real(l,dp)/2.0d0)
+
+    maxdev = 0.0d0
+    lmax = 0.0d0
+    do j=1,nwt
+      do i=1,nwt
+        dev = abs(me_legacy(i,j) - sc*D_re(i,j))
+        if (dev .gt. maxdev) maxdev = dev
+        if (abs(me_legacy(i,j)) .gt. lmax) lmax = abs(me_legacy(i,j))
+      enddo
+    enddo
+
+    ! (b) Symmetry self-checks on the dense expansions.
+    symre = 0.0d0
+    symim = 0.0d0
+    dimmax = 0.0d0
+    do j=1,nwt
+      do i=1,nwt
+        symre = max(symre, abs(D_re(i,j) - D_re(j,i)))
+        symim = max(symim, abs(D_im(i,j) + D_im(j,i)))
+        dimmax = max(dimmax, abs(D_im(i,j)))
+      enddo
+    enddo
+
+    ! (c) Brute-force conjugated double-loop reference for the imaginary
+    !      half. All four mesh integrals spelled out per spin component,
+    !      with the components of HFPsi laid out as
+    !       (1,2) = (Re, Im) of spin up, (3,4) = (Re, Im) of spin down.
+    !      The comparison is restricted to the positions the block
+    !      structure covers: MOCCa's operator matrices are the
+    !      symmetry-decomposed objects, identically zero outside their
+    !      sector blocks (design 2), whereas naive mesh integrals at
+    !      sector-forbidden pairs cancel between the symmetry-related
+    !      mesh chambers and are not meaningful. Outside the blocks, the
+    !      expansion is verified to be exactly zero.
+    allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qdv(mv))
+    call generate_spherical_harmonics(l,nx,ny,nz,                         &
+    &                          meshx_shifted,meshy_shifted,meshz_shifted,   &
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
+    Qdv = reshape(SpherHarmMesh(:,:,:,l,m,1), (/ mv /)) * dv
+    deallocate(SpherHarmMesh)
+
+    ! 1-based global sector bounds from the global block counts, and an
+    !  index-to-sector map for the double loop.
+    stb(0) = 1
+    do i=0,7
+      stb(i+1) = stb(i) + HFBlocks_global(i+1)
+    enddo
+    do i=1,nwt
+      sect(i) = -1
+      do s=7,0,-1
+        if (i .ge. stb(s) .and. sect(i) .lt. 0) sect(i) = s
+      enddo
+    enddo
+
+    ! Effective pairing word: the physical operator word intersected with
+    !  the good-quantum-number mask, exactly the construction rule of
+    !  sym_matrix%init.
+    wordeff = iand( mod(m,2) + 2*mod(l,2), goodqn)
+
+    refmax = 0.0d0
+    zref = 0.0d0
+    offblk = 0.0d0
+    do i=1,nwt
+      do j=1,nwt
+        if (ieor(sect(i), sect(j)) .ne. wordeff) then
+          ! Outside the sector blocks the dense expansion must be exactly
+          !  the structural zero; the naive mesh integral is skipped.
+          offblk = max(offblk, abs(D_im(i,j)))
+          cycle
+        endif
+        zij = 0.0d0
+        do s=1,2
+          zij = zij                                                      &
+          &     + sum( HFPsi(:, 2*s-1, i) * Qdv * HFPsi(:, 2*s,   j) )    &
+          &     - sum( HFPsi(:, 2*s,   i) * Qdv * HFPsi(:, 2*s-1, j) )
+        enddo
+        zref = max(zref, abs(zij))
+        refmax = max(refmax, abs(zij - D_im(i,j)))
+      enddo
+    enddo
+
+    print *, ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print *, ' Qlm_spme oracle (development hook, design 13.3): l =', l,     &
+    &        ' m =', m
+    print *, '   max |Qlm_spme - 100^(-l/2) Qlm_spme_matrix| = ', maxdev
+    if (lmax .gt. 0.0d0) then
+      print *, '   max |Qlm_spme| =', lmax, ' relative deviation = ',       &
+      &        maxdev/lmax
+    else
+      print *, '   max |Qlm_spme| = 0: moment forbidden in this build'
+    endif
+    print *, '   symmetry self-check  max |D_re - D_re^T|  = ', symre
+    print *, '   symmetry self-check  max |D_im + D_im^T|  = ', symim
+    print *, '   imaginary half against brute-force reference: '
+    print *, '     max |me_im - ref| =', refmax, '  max |ref| =', zref
+    print *, '   max |me_im| =', dimmax,                                    &
+    &        ' (genuinely nonzero in all builds: complex amplitudes)'
+    print *, '   max |me_im| outside sector blocks =', offblk,              &
+    &        ' (exactly zero by construction)'
+    print *, ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
+  end subroutine Qlm_spme_oracle
   
   function Ksum_Mij_HF(Qa, Qb, la, lb, Ks) result (Ksum)
     !---------------------------------------------------------------------------
@@ -756,7 +928,7 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     integer :: mpi_err
 #endif
 
-    NameList /inertia/ inertia_l, inertia_m
+    NameList /inertia/ inertia_l, inertia_m, spme_oracle
 
     ! Sanity check
     if(N_inertia .lt. 4) then
@@ -809,6 +981,7 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 #if(USE_MPI > 0)
     call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(spme_oracle, 1, MPI_LOGICAL,0, MPI_COMM_WORLD, mpi_err)
 #endif
   end subroutine read_inertia
    

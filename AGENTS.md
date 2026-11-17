@@ -201,19 +201,59 @@ perturbations).
   (`fill_elements`), and the `new_sym_matrix` constructor sugar. No
   `add_element` — the element-wise path is the callback only (see
   design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
-  Next: step 3 as re-planned 2026-11-17 — generalised multipole matrix
-  elements per design summary §13: `Qlm_spme` moves from fission_MOI.f90 to
-  moments.f90 and is rebuilt on sym_matrix (all l, m, Re/Im; units fm^l;
-  goodqn mask of §2b), with the legacy routine kept as the test oracle.
-  Mat-vec becomes step 4.
+  Next: step 4 (mat-vec) after the step-3 chain completes - see the
+  re-plan below and design §§11/§13.3; step 3's remaining rows are the
+  inertia switch (row 4), the units flip (row 5) and the consumer
+  migration (row 6).
   Landed since (2026-11-17): the goodqn mask (commit 6a6d92c8: optional
-  `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests)
-  and the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
+  `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests),
+  the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
   ProcessMoments parity keys (commit 9faf8238; golden minimal NLO
-  bit-identical). Next up: the generator of design §13.3 row 3 - the
-  dense-expansion helper (with its unit tests), `Qlm_spme_matrix` /
-  `Qlm_spme_fm` in moments.f90, and the off-by-default oracle hook in
-  fission_MOI.
+  bit-identical), and the generator of design §13.3 row 3: the
+  partner-reconstructing dense expansion `sym_matrix%dense()` in
+  block_matrix_module (print_dense refactored onto it, unit-tested over
+  patterns x words x kinds x masks), `Qlm_spme_matrix` (both matrix
+  halves: real symmetric + optional imaginary antisymmetric, fm^l,
+  marker-free, filled through the block_filler callback
+  `Qlm_spme_fill_block`), `Qlm_spme_fm` (dense legacy shape) in
+  moments.f90, and the off-by-default oracle hook in fission_MOI
+  (`spme_oracle` in the &inertia/ namelist; prints legacy-vs-generator,
+  symmetry self-checks and a brute-force reference for the imaginary
+  half). Oracle runs NLO / NLO-T / NLO-P agree to ~1e-15 relative; all
+  four mf configs + fam.NLO compile; golden minimal NLO still
+  bit-identical after the commit. Next up: row 4 - the inertia switch
+  (`Qsp` from `Qlm_spme_fm * 100^(-l/2)` in calc_collective_inertia).
+- Two conventions verified against the sources during the row-3 work
+  (both bite anyone touching these matrix elements; see the banner in
+  front of Qlm_spme_matrix in moments.f90):
+  *) the four HFPsi components are (1,2) = (Re, Im) of the spin-up
+     amplitude and (3,4) = (Re, Im) of spin-down (pinned by
+     transform_spwfs_inplace_complex, spin_z_real/angmom_z_imag and
+     angmom_x_imag); the amplitudes are genuinely complex in EVERY
+     build, so the imaginary antisymmetric half of the multipole MEs is
+     nonzero within sector blocks even in maximally symmetric ones -
+     the design summary's "TR-conserving builds yield roundoff-level
+     zeros there" was wrong and has been corrected in the design doc.
+  *) MOCCa's operator matrices are symmetry-decomposed objects,
+     identically zero outside their sector blocks; naive mesh integrals
+     at sector-forbidden pairs (e.g. cross-isospin) are chamber-partial
+     garbage. Anything comparing against per-(i,j) references must
+     restrict itself to the XOR-allowed pairs
+     IEOR(sector(i), sector(j)) = AND(mod(m,2)+2*mod(l,2), goodqn) -
+     exactly what the oracle hook's brute-force reference does.
+- Oracle-run recipes for the hook (local, gitignored): copy the
+  parameterization (e.g. SLy4.param) next to the executable; TR-broken
+  and parity-broken builds demand even nwn/nwp and
+  `allowtransform=.true.` in &IO/; arm with `N_inertia>=5` in &IO/,
+  an &inertia/ namelist (first four moments hardcoded Q20/Q22/Q30/Q32,
+  worth adding Q40) and `spme_oracle=.true.`. Production-like NLO-T
+  scenario: Mg24 HFB pairingscheme=1, omegaZ=0.3292333881 (cranking.sh
+  style; pure HF inputs force diagsphamil on, which reshuffles the
+  stored basis within blocks mid-run - judge oracle numbers on
+  production-like inputs only). Caveat: with spme_oracle armed the
+  hook runs per calc_collective_inertia call, which fires every
+  iteration while unconverged - keep maxiter small for dev scratch
+  runs.
 - Local test artifacts for step 3 (gitignored, machine-local):
   `exec/fam.NLO.reference.exe` is the parked FAM anchor; exec/MOCCa.NLO.exe
   fam.NLO.exe BXL/T/P/TP executables are freshly rebuilt and validated.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #-------------------------------------------------------------------------------
 # Run the unit tests of the symmetry-block matrix module, phases 1 and 2:
-#  construction of the block list from MOCCa's HFBlocks bookkeeping and
-#  population of the stored blocks through the fill callbacks.
+#  construction of the block list from MOCCa's HFBlocks bookkeeping,
+#  population of the stored blocks through the fill callbacks, and the
+#  partner-reconstructing dense expansion of the design's section 13.
 #
 # The tests are a standalone program that is compiled on the fly together
 #  with the module itself (which has no $-markers and no dependencies on
