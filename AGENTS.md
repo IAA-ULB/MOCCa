@@ -212,35 +212,41 @@ perturbations).
   bit-identical), and the generator of design §13.3 row 3: the
   partner-reconstructing dense expansion `sym_matrix%dense()` in
   block_matrix_module (print_dense refactored onto it, unit-tested over
-  patterns x words x kinds x masks), `Qlm_spme_matrix` (both matrix
-  halves: real symmetric + optional imaginary antisymmetric, fm^l,
-  marker-free, filled through the block_filler callback
+  patterns x words x kinds x masks), `Qlm_spme_matrix` (real symmetric
+  half only, fm^l, marker-free, filled through the block_filler callback
   `Qlm_spme_fill_block`), `Qlm_spme_fm` (dense legacy shape) in
   moments.f90, and the off-by-default oracle hook in fission_MOI
-  (`spme_oracle` in the &inertia/ namelist; prints legacy-vs-generator,
-  symmetry self-checks and a brute-force reference for the imaginary
-  half). Oracle runs NLO / NLO-T / NLO-P agree to ~1e-15 relative; all
+  (`spme_oracle` in the &inertia/ namelist; prints legacy-vs-generator
+  deviations plus symmetry self-checks). The `me_im` half that briefly
+  shipped in row 3 was reverted as a chamber artifact - see the
+  convention correction below; it returns at design step 6/7. Oracle
+  runs NLO / NLO-T / NLO-P: real halves agree to ~1e-15 relative; all
   four mf configs + fam.NLO compile; golden minimal NLO still
   bit-identical after the commit. Next up: row 4 - the inertia switch
   (`Qsp` from `Qlm_spme_fm * 100^(-l/2)` in calc_collective_inertia).
-- Two conventions verified against the sources during the row-3 work
-  (both bite anyone touching these matrix elements; see the banner in
-  front of Qlm_spme_matrix in moments.f90):
+- Convention correction (Wouter, 2026-11-17) - bites anyone touching
+  these matrix elements (see the banners in moments.f90 and design §13.1):
   *) the four HFPsi components are (1,2) = (Re, Im) of the spin-up
-     amplitude and (3,4) = (Re, Im) of spin-down (pinned by
-     transform_spwfs_inplace_complex, spin_z_real/angmom_z_imag and
-     angmom_x_imag); the amplitudes are genuinely complex in EVERY
-     build, so the imaginary antisymmetric half of the multipole MEs is
-     nonzero within sector blocks even in maximally symmetric ones -
-     the design summary's "TR-conserving builds yield roundoff-level
-     zeros there" was wrong and has been corrected in the design doc.
+     amplitude and (3,4) = (Re, Im) of spin-down, as a STORAGE layout
+     (pinned by transform_spwfs_inplace_complex, spin_z_real/angmom_z_imag
+     and angmom_x_imag); it governs the component sum of the REAL half
+     of the multipole MEs. It does NOT make the imaginary half nonzero:
+     the imaginary antisymmetric half of the multipole MEs is
+     identically zero within symmetry blocks in every build conserving
+     a composed antiunitary symmetry such as the time simplex,
+     physically nonzero only for odd-m operators between
+     signature-partner blocks. Naive cross products of the stored
+     components (plain chamber integrals) are artifacts of the
+     symmetry-reduced mesh: they cancel exactly where the physical value
+     vanishes. An earlier note here claiming the opposite was wrong and
+     has been reverted along with the me_im half itself (deferred to
+     design step 6/7).
   *) MOCCa's operator matrices are symmetry-decomposed objects,
      identically zero outside their sector blocks; naive mesh integrals
      at sector-forbidden pairs (e.g. cross-isospin) are chamber-partial
      garbage. Anything comparing against per-(i,j) references must
      restrict itself to the XOR-allowed pairs
-     IEOR(sector(i), sector(j)) = AND(mod(m,2)+2*mod(l,2), goodqn) -
-     exactly what the oracle hook's brute-force reference does.
+     IEOR(sector(i), sector(j)) = AND(mod(m,2)+2*mod(l,2), goodqn).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and

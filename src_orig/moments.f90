@@ -352,10 +352,6 @@ module moments
     ! 1-based global sector bounds st(0:8) exactly as constructed by
     !  sym_matrix%init from the global block counts.
     integer :: st(0:8)
-    ! Which half of the complex matrix elements the callback must fill:
-    !  .false. : real symmetric half     Re < i | Q_lm | j >
-    !  .true.  : imaginary antisymmetric Im < i | Q_lm | j >
-    logical :: imag
   end type Qlm_spme_params
 
 contains
@@ -3514,9 +3510,22 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 !     (Im = .false.) or r^l Im Y_lm (Im = .true.) in the convention of
 !     the module header, evaluated on the COM-shifted mesh exactly as the
 !     legacy routine;
-!   - both matrix halves of the complex elements < i | Q_lm | j > are
-!     available: the real symmetric half and the imaginary antisymmetric
-!     half (Hermitian operator, real operator function);
+!   - only the REAL SYMMETRIC half of the matrix elements is built:
+!     Re < i | Q_lm | j >. The imaginary antisymmetric half is identically
+!     zero within symmetry blocks in every build that conserves a composed
+!     antiunitary symmetry such as the time simplex (the legacy comment
+!     "all these matrix elements are real if ... time simplex is
+!     conserved"), and physically nonzero only for odd-m operators acting
+!     between signature-partner states. Naive cross products of the stored
+!     components do NOT produce those matrix elements: on the
+!     symmetry-reduced mesh the per-component reflection characters of the
+!     extension (sx/sy/sz in wavefunctions.f90) cancel between the
+!     symmetry-related mesh chambers exactly where the physical value
+!     vanishes, so plain octant cross products times dv are artifacts. The
+!     imaginary half is therefore deliberately NOT provided here; it
+!     returns with design step 6/7 (the FAM consumers) with a convention
+!     that respects the component reflection characters and an odd-m
+!     oracle (agreed, 2026-11-17);
 !   - natural units fm^l: the legacy b^(l/2) rescaling is gone; the
 !     boundary conversion is the caller's business (old [b^(l/2)] =
 !     new [fm^l] * 100^(-l/2), design section 13.2);
@@ -3534,44 +3543,45 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 !  With the four stored components of HFPsi laid out as
 !       (1, 2) = (Re, Im) of the spin-up   amplitude
 !       (3, 4) = (Re, Im) of the spin-down amplitude
-!  (see transform_spwfs_inplace_complex in wavefunctions.f90), the
-!  elements per spin s = (up, down) are
+!  (see transform_spwfs_inplace_complex in wavefunctions.f90), the real
+!  half of the matrix elements is the plain component sum of the legacy
+!  routine,
 !       Re  < i |Q| j > = sum_s [ Re_s(i) . Qdv  Re_s(j) + Im_s(i) . Qdv Im_s(j) ]
-!       Im  < i |Q| j > = sum_s [ Re_s(i) .Qdv  Im_s(j) - Im_s(i) . Qdv Re_s(j) ]
-!  each term one dense product A = X^T (Q dv) X (design section 13.1), with
-!  the volume element dv folded into the weight mesh Qdv.
+!  one dense product A = X^T (Q dv) X per mesh component (design section
+!  13.1), with the volume element dv folded into the weight mesh Qdv.
 !==============================================================================
-  subroutine Qlm_spme_matrix(l, m, Im, me_re, me_im)
+  subroutine Qlm_spme_matrix(l, m, Im, me_re)
     !---------------------------------------------------------------------------
-    ! Build the single-particle matrix elements of the electric multipole
-    !  operator r^l Re Y_lm (Im = .false.) or r^l Im Y_lm (Im = .true.) in
-    !  the HF basis, as two symmetry-block matrices:
-    !       < i | Q_lm | j > = me_re + i * me_im
-    !  with
-    !       me_re : KIND_SYMMETRIC     - real symmetric half, always built
-    !       me_im : KIND_ANTISYMMETRIC  - imaginary antisymmetric half,
-    !                                   only if requested
-    !  Both halves carry the physical operator symmetry word
+    ! Build the REAL SYMMETRIC half of the single-particle matrix elements
+    !  of the electric multipole operator r^l Re Y_lm (Im = .false.) or
+    !  r^l Im Y_lm (Im = .true.) in the HF basis, as one symmetry-block
+    !  matrix:
+    !       me_re = Re < i | Q_lm | j > , KIND_SYMMETRIC, in fm^l
+    !
+    ! Note: the imaginary antisymmetric half of the matrix elements is
+    !  deliberately not computed - see the banner above. It is identically
+    !  zero within symmetry blocks in every build conserving a composed
+    !  antiunitary symmetry such as the time simplex, physically nonzero
+    !  only for odd-m operators between signature-partner states, and its
+    !  treatment on the symmetry-reduced mesh (per-component reflection
+    !  characters) is deferred to design step 6/7, the FAM consumers.
+    !
+    ! The matrix carries the physical operator symmetry word
     !       op = mod(m,2) + 2*mod(l,2)
-    !  of design section 13.1 (bit 0 flips q(Rz) for odd m, bit 1 is the
-    !  parity of the operator, bit 2 clear: electric multipoles are
-    !  isoscalar) and are constructed from the global block counts with
-    !  the goodqn mask of geninfo.
+    ! of design section 13.1 (bit 0 flips q(Rz) for odd m, bit 1 is the
+    ! parity of the operator, bit 2 clear: electric multipoles are
+    ! isoscalar) and is constructed from the global block counts with
+    ! the goodqn mask of geninfo.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     l, m : multipole order, 0 <= m <= l <= MaxMoment
     !     Im   : operator half: .false. = r^l Re Y_lm, .true. = r^l Im Y_lm
     ! Output:
     !     me_re : the real symmetric half of the matrix elements (fm^l)
-    !     me_im : the imaginary antisymmetric half of the matrix elements
-    !             (fm^l); optional, computed with one extra block fill when
-    !             present. In TR-conserving builds it vanishes to roundoff;
-    !             no short-circuit is made of this (design section 13.1).
     !---------------------------------------------------------------------------
-    integer, intent(in)          :: l, m
-    logical, intent(in)          :: Im
+    integer, intent(in)           :: l, m
+    logical, intent(in)           :: Im
     type(sym_matrix), intent(out) :: me_re
-    type(sym_matrix), intent(out), optional :: me_im
 
     type(Qlm_spme_params) :: params
     real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
@@ -3590,14 +3600,12 @@ $PBROKEN if( Bi .ne. Bj ) cycle
       call stp('Invalid magnetic quantum number m in Qlm_spme_matrix.')
     endif
 
-    ! Physical symmetry word of the electric multipoles (design 13.1), with
-    !  the good-quantum-number mask of the build applied inside init.
+    ! Symmetry word of the electric multipoles
+    !  m = even/odd => z-signature even/odd
+    !  l = even/odd => parity even/odd
     iop = mod(m, 2) + 2*mod(l, 2)
 
     call me_re%init(HFBlocks_global, iop, KIND_SYMMETRIC, goodqn=goodqn)
-    if (present(me_im)) then
-      call me_im%init(HFBlocks_global, iop, KIND_ANTISYMMETRIC, goodqn=goodqn)
-    endif
 
     ! Symmetry-forbidden moments (or an empty basis) store zero matrices
     !  through their empty block lists: nothing left to do.
@@ -3623,12 +3631,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !  the block list was built with.
     params%st = me_re%st
 
-    params%imag = .false.
     call me_re%fill_blocks(Qlm_spme_fill_block, params)
-    if (present(me_im)) then
-      params%imag = .true.
-      call me_im%fill_blocks(Qlm_spme_fill_block, params)
-    endif
   end subroutine Qlm_spme_matrix
 
   function Qlm_spme_fm(l, m, Imaginary) result(me)
@@ -3638,8 +3641,9 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !  drop-in replacement for the legacy Qlm_spme (which works in b^(l/2))
     !  available for every (l, m) and both operator halves.
     !
-    ! Note: the imaginary antisymmetric half of the matrix elements is not
-    !  returned; ask Qlm_spme_matrix for it.
+    ! Note: the generator provides only the real symmetric half of the
+    !  matrix elements; the imaginary half is deferred to design step 6/7
+    !  (see the banner in front of Qlm_spme_matrix).
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     l, m      : multipole order, 0 <= m <= l <= MaxMoment
@@ -3669,15 +3673,13 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !
     ! The block spans the global row range st(srow) : st(srow+1)-1 and the
     !  global column range st(scol) : st(scol+1)-1 of the HF basis. One
-    !  dense product per spin component per term (a dgemm equivalent, see
-    !  the module-tail banner):
-    !      Re half :  A = sum_<k=1,4>  X_k^T (Qdv) X_k
-    !      Im half :  A = sum_<s=1,2> [ Re_s^T (Qdv) Im_s - Im_s^T (Qdv) Re_s ]
+    !  dense product per mesh component (a dgemm equivalent, see the
+    !  module-tail banner):
+    !      A = sum_(k=1,4)  X_k^T (Qdv) X_k
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     srow, scol : sector words 0..7 of the block as handed by fill_blocks
     !     params     : type(Qlm_spme_params): mesh values + sector bounds
-    !                  + half selection
     ! Output:
     !     A          : the block storage, overwritten entirely
     !---------------------------------------------------------------------------
@@ -3704,32 +3706,15 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 
       allocate(tmp(mv,n))
 
+      ! Real symmetric half: all four components contribute with the
+      !  same product, exactly the integrand of the legacy Qlm_spme.
       A = 0.0d0
-      if (.not. params%imag) then
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Real symmetric half: all four components contribute with the
-        !  same product, exactly the integrand of the legacy Qlm_spme.
-        do s = 1, 4
-          do j = 1, n
-            tmp(:,j) = HFPsi(:,s,sj+j-1) * params%Qdv
-          enddo
-          A = A + matmul( transpose(HFPsi(:,s,si:si+m-1)), tmp )
+      do s = 1, 4
+        do j = 1, n
+          tmp(:,j) = HFPsi(:,s,sj+j-1) * params%Qdv
         enddo
-      else
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Imaginary antisymmetric half: cross the Re/Im amplitudes of each
-        !  spin component (2s-1) = Re, (2s) = Im.
-        do s = 1, 2
-          do j = 1, n
-            tmp(:,j) = HFPsi(:,2*s,sj+j-1) * params%Qdv
-          enddo
-          A = A + matmul( transpose(HFPsi(:,2*s-1,si:si+m-1)), tmp )
-          do j = 1, n
-            tmp(:,j) = HFPsi(:,2*s-1,sj+j-1) * params%Qdv
-          enddo
-          A = A - matmul( transpose(HFPsi(:,2*s,si:si+m-1)), tmp )
-        enddo
-      endif
+        A = A + matmul( transpose(HFPsi(:,s,si:si+m-1)), tmp )
+      enddo
 
     class default
       call stp('Qlm_spme_fill_block: params is not of type Qlm_spme_params.')

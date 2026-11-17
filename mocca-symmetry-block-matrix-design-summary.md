@@ -510,14 +510,13 @@ symmetry-forbidden combinations return zero matrices silently - guarding
 user input against forbidden moments is the business of Hephaestos' moment
 list at the input layer (e.g. `read_inertia`), not of this routine.
 
-Output: the full complex ME matrix in the HF basis, split per section 8
-into two `sym_matrix` halves (routine names provisional, final naming at
-implementation):
+Output: the REAL SYMMETRIC half of the ME matrix in the HF basis,
+`Re <i|Q_lm|j>` as one `sym_matrix` (routine names provisional, final
+naming at implementation):
 
 ```fortran
-! <i|Q_lm|j> = me_re + i*me_im : me_re KIND_SYMMETRIC, me_im KIND_ANTISYMMETRIC
-! me_im is optional (skip where the build kills it; one extra block fill)
-subroutine Qlm_spme_matrix(l, m, Im, me_re, me_im)
+! Re <i|Q_lm|j> = me_re : KIND_SYMMETRIC, in fm^l
+subroutine Qlm_spme_matrix(l, m, Im, me_re)
 ! Legacy dense shape of the real symmetric half: drop-in replacement,
 ! real(nwt,nwt) as before but in fm^l
 function Qlm_spme_fm(l, m, Imaginary) result(me)
@@ -536,27 +535,36 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   functions - no time-reversal/signature-partner shortcuts, hence no
   partner-phase conventions to get wrong. Block fill: one dense product
   per spin component per block (`A = sum_k X_k^T (Q dv) X_k`, a `dgemm`
-  equivalent), with `dv` folded into the weight mesh; the antisymmetric
-  imaginary half crosses the Re/Im wavefunction components the same way.
+  equivalent), with `dv` folded into the weight mesh.
 - helper added to `block_matrix_module`: a partner-reconstructing dense
   expansion of a `sym_matrix` (refactored out of the `print_dense` core).
   It is the return shape behind `Qlm_spme_fm` and later the dense
   reference builder for the mat-vec/mat-mat tests of steps 4 and 6.
 
-The antisymmetric half is computed in all builds when asked. Corrected
-against the sources and measured (row 3, 2026-11-17): it is NOT
-roundoff-level zero in TR-conserving builds. The stored spinor amplitudes
-are genuinely complex in every build - the four HFPsi components are
-(1,2) = (Re, Im) of the spin-up amplitude and (3,4) = (Re, Im) of
-spin-down (pinned by `transform_spwfs_inplace_complex`, the
-`spin_*`/`angmom_*` ME routines and the Nilsson seeds, which populate all
-four components) - so Im < i |Q| j > is nonzero within sector blocks
-regardless of time reversal; E.g. O16 in the maximally symmetric build
-gives |Im Q_20| MEs of order a few fm^2. `$TR`/`$NTR` markers are
-therefore absent from the numerics, and there is no TR-conserving
-short-circuit to make later. The old routine's restrictions (even m
-only, real matrix part only, `b^{l/2}` units, marker-guarded selection)
-all disappear.
+The imaginary antisymmetric half is NOT computed. Convention correction
+(Wouter, 2026-11-17): within the symmetry blocks it is identically zero
+in every build conserving a composed antiunitary symmetry such as the
+time simplex - the legacy module's "all these matrix elements are real
+... if the time simplex is conserved" comment states the physics.
+Physically nonzero imaginary parts occur only for odd-m operators
+acting between signature-partner blocks. The naive cross products of
+the four stored HFPsi components that row 3 initially shipped - and
+the brute-force reference in its oracle, which shared the flaw - do
+NOT give those matrix elements: on the symmetry-reduced mesh, plain
+chamber integrals ignore the per-component reflection characters of
+the symmetry extension (sx/sy/sz in `wavefunctions.f90`), so the
+contributions of symmetry-related mesh chambers cancel exactly where
+the physical value vanishes. The finite |Im Q_20| values the row-3
+oracle printed were such chamber artifacts, not physics. The half is
+deferred to step 6/7: it returns with a convention that respects the
+component reflection characters and an odd-m oracle. The HFPsi storage
+layout survives as a storage fact - (1,2) = (Re, Im) of the spin-up
+amplitude, (3,4) = (Re, Im) of spin-down, pinned by
+`transform_spwfs_inplace_complex` - and governs the component sum of
+the real half. The old routine's restrictions (even m only, real
+matrix part only, `b^{l/2}` units, marker-guarded selection) all
+disappear; the imaginary half is the one thing the generator does not
+(yet) provide.
 
 ### 13.2 The old routine stays, as oracle
 
@@ -573,7 +581,7 @@ the oracle for the agreements below; the conversion identity is
 | 0 | park FAM anchor | build `exec/fam.NLO.reference.exe` from the un-refactored tree and park it | none needed |
 | 1 | goodqn mask | optional `goodqn` in `init` (+ module header), `$GOODQN` injected by Hephaestos into `geninfo`, masked-init unit tests | `block_matrix_unit_tests`; compile NLO, NLO-T, NLO-P, NLO-TP |
 | 2 | pure move | `Qlm_spme` verbatim to `moments.f90` (which gains explicit `use wavefunctions`), deprecation banner | `fission.sh`, `minimal.sh` golden: outputs bit-identical |
-| 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix`, `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks, compare `me_im` against a brute-force conjugated double-loop reference | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
+| 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix` (real symmetric half only), `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks. The `me_im` half that shipped in this row was reverted as a chamber artifact (2026-11-17); the imaginary half returns with step 6/7 | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
 | 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
 | 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
 | 6 | consumer migration | `functional` COM correction (drop `*10`), `fam` multipole/z_com operators (drop `*(100**(l/2))`, `*sqrt(100)`), `fam_testing` [R, P] (drop `*sqrt(100)`) | `fission.sh`, `minimal.sh` golden, `cranking.sh` (NLO-T), `fam_unit_tests`, local runs vs the parked FAM reference |
@@ -586,18 +594,22 @@ deliberately untouched in this step beyond the source of `Qsp`.
 - Oracle agreement to machine precision modulo summation order (BLAS vs
   the old scalar loops - the golden tolerances of `golden_diff.sh` exist
   for exactly this reassociation drift).
-- The antisymmetric half has no legacy oracle (the old code computes the
-  real part only): covered by the brute-force conjugated reference inside
-  the hook, antisymmetry and Hermiticity identities, and the [R, P]
-  checks in `fam_testing`. Two lessons from the row-3 implementation:
-  the brute-force reference must be restricted to the sector-allowed
-  pairs - MOCCa's operator matrices are the symmetry-decomposed objects,
-  identically zero outside their blocks, whereas naive mesh integrals at
-  sector-forbidden pairs (cross-isospin, off-block) are chamber-partial
-  garbage - and it presumes the stored basis in HFBlocks order, reshuffled
-  mid-run by the `diagsphamil` diagonalisation of pure-HF runs
-  (production inertia scenarios pair `pairingscheme=1`, which keeps
-  `diagsphamil` off).
+- The imaginary antisymmetric half is not produced by the generator:
+  identically zero within blocks in every build conserving a composed
+  antiunitary symmetry such as the time simplex; physically nonzero
+  only for odd-m operators between signature-partner blocks. When it
+  returns at step 6/7 it will have no legacy oracle either (the old
+  code computes the real part only): validated then against
+  antisymmetry and Hermiticity identities and the [R, P] checks in
+  `fam_testing`. Two lessons from the row-3 implementation carry over:
+  any per-(i,j) reference must be restricted to the XOR-allowed pairs -
+  MOCCa's operator matrices are the symmetry-decomposed objects,
+  identically zero outside their blocks, whereas naive mesh integrals
+  at sector-forbidden pairs (cross-isospin, off-block) are
+  chamber-partial garbage - and it presumes the stored basis in
+  HFBlocks order, reshuffled mid-run by the `diagsphamil`
+  diagonalisation of pure-HF runs (production inertia scenarios pair
+  `pairingscheme=1`, which keeps `diagsphamil` off).
 - Parity-mask correctness: masked-init unit tests plus the NLO-P oracle
   run - the old routine's `$PBROKEN` diagonal-blocks path is the reference
   there.
