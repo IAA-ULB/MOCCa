@@ -24,8 +24,9 @@
 program block_matrix_unit_tests
 !==============================================================================
   !
-  ! Unit tests for phase 1 of the symmetry-block matrix module: construction
-  !  of the block list from MOCCa's HFBlocks bookkeeping.
+  ! Unit tests for phases 1 and 2 of the symmetry-block matrix module:
+  !  construction of the block list from MOCCa's HFBlocks bookkeeping
+  !  and population of the stored blocks through callbacks.
   !
   ! For a suite of HFBlocks patterns (EV8-like, time-reversal-broken, sparse,
   !  degenerate), every operator symmetry word 0..7 and every matrix kind,
@@ -41,15 +42,32 @@ program block_matrix_unit_tests
   !   *) sector bounds array st(0:8) and the global size n
   !   *) sector_of mapping, including empty sectors and out-of-range indices
   !
+  ! Phase 2 adds the population machinery (design section 5):
+  !   *) fill_blocks invokes the callback once per stored block, for the
+  !      stored sector pairs only, with the block's sector words and the
+  !      right storage shape, and overwrites the entire block
+  !   *) fill_elements queries the callback once per element with local
+  !      indices and overwrites the block element by element
+  !   *) both paths hand the unlimited-polymorphic params through
+  !      verbatim (an integer offset through the block callback, a real
+  !      through the element callback)
+  !   *) an empty block list leaves the callbacks uncalled
+  !   *) new_sym_matrix equals init followed by fill_blocks
+  !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of three routines (plus the check helper that
-  !  registers every individual condition):
+  ! The suite consists of seven routines (plus the check helper that
+  !  registers every individual condition, and the two probed callbacks
+  !  the fill tests use):
   !   test_construction : construction invariants over the full cross
   !                      product of patterns, symmetry words and kinds
   !   test_reinit      : repeated init on the same object
   !   test_sector_of   : global-index-to-sector mapping
+  !   test_fill_blocks : block-wise population through the callback
+  !   test_fill_elements : per-element population through the callback
+  !   test_fill_consistency : block-wise and element-wise paths match
+  !   test_sugar       : new_sym_matrix constructor sugar
   !==============================================================================
   use block_matrix_module
 
@@ -59,6 +77,17 @@ program block_matrix_unit_tests
 
   integer :: patterns(NPAT, 8)
   integer :: nfail, ntest
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! State shared with the probed callbacks of the fill tests: call counters,
+  !  the map of sector pairs the block callback was invoked for, the counts
+  !  of the pattern currently under test (the callbacks check the shapes
+  !  they receive against it) and the label of the current case.
+  integer :: nblockcalls           ! invocations of fill_block_probed
+  integer :: nelemcalls            ! invocations of fill_elem_probed
+  integer :: seen(0:7, 0:7)        ! sector pairs the block callback served
+  integer :: cur_counts(0:7)      ! current pattern, for shape checks
+  character(len=160) :: cur_label  ! current case label
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! HFBlocks patterns: MOCCa ordering, per the table in the module header.
@@ -81,6 +110,10 @@ program block_matrix_unit_tests
   call test_construction()
   call test_reinit()
   call test_sector_of()
+  call test_fill_blocks()
+  call test_fill_elements()
+  call test_fill_consistency()
+  call test_sugar()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
   &     ntest, nfail
@@ -336,6 +369,366 @@ contains
     enddo
     call check(inrange, 'sector_of: all indices in range')
   end subroutine test_sector_of
+  !----------------------------------------------------------------------------
+  subroutine test_fill_blocks()
+    !---------------------------------------------------------------------------
+    ! Verify block population through the block-wise callback over the
+    !  full cross product of patterns, symmetry words and kinds.
+    !
+    ! The probed callback overwrites each block with values identifying
+    !  the sector pair and the local element, offset by the integer
+    !  carried in params. Verified per case:
+    !   *) the callback runs exactly once per stored block, and only for
+    !      the stored sector pairs, which must match the blocks' srow/scol
+    !   *) the storage handed to the callback has the sector-pair shape
+    !   *) the stored content equals the callback's values everywhere:
+    !      the fill overwrites the pollution written before the call
+    !   *) a degenerate empty block list leaves the callback uncalled
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M
+    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, sumseen
+    real(8) :: offset
+    logical :: match
+    character(len=160) :: label, blabel
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    offset = 7.0d0
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do k = 1, 3
+          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
+          &  ' kind ', kinds(k)
+          cur_counts(0:7) = patterns(p, 1:8)
+          cur_label = trim(label)
+
+          call M%init(patterns(p, :), word, kinds(k))
+
+          ! Pollution: every fill must overwrite regardless of prior content.
+          do b = 1, M%nblocks
+            M%blocks(b)%A = -12345.0d0
+          enddo
+
+          nblockcalls = 0
+          seen = 0
+          call M%fill_blocks(fill_block_probed, int(offset))
+
+          ! Exactly the stored blocks, each once: the counter bounds the
+          !  total, the per-block seen entries pin the sector pairs.
+          call check(nblockcalls .eq. M%nblocks,                               &
+          &          trim(label)//': one call per stored block')
+          sumseen = sum(seen)
+          call check(sumseen .eq. M%nblocks,                                    &
+          &          trim(label)//': no calls outside the list')
+          do b = 1, M%nblocks
+            write (blabel, '(a,i0)') trim(label)//' block ', b
+            call check(seen(M%blocks(b)%srow, M%blocks(b)%scol) .eq. 1,       &
+            &          trim(blabel)//': called for its sector pair')
+          enddo
+
+          ! Content: every element must carry the callback's value.
+          do b = 1, M%nblocks
+            mrow = size(M%blocks(b)%A, 1)
+            ncol = size(M%blocks(b)%A, 2)
+            match = .true.
+            do r = 1, mrow
+              do c = 1, ncol
+                match = match                                                &
+                &  .and. (M%blocks(b)%A(r, c) .eq.                            &
+                &          block_val(M%blocks(b)%srow, M%blocks(b)%scol,      &
+                &                      r, c, offset))
+              enddo
+            enddo
+            write (blabel, '(a,i0)') trim(label)//' block ', b
+            call check(match, trim(blabel)//': content overwritten everywhere')
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine test_fill_blocks
+  !----------------------------------------------------------------------------
+  subroutine test_fill_elements()
+    !---------------------------------------------------------------------------
+    ! Verify block population through the per-element callback over the
+    !  full cross product of patterns, symmetry words and kinds.
+    !
+    ! The probed callback returns values identifying the sector pair and
+    !  the local element, offset by the real carried in params. Verified
+    !  per case:
+    !   *) the callback runs exactly once per element of the stored blocks
+    !   *) the stored content equals the callback's values everywhere,
+    !      overwriting the pollution written before the call; this pins
+    !      the local index order: rows of the block span the srow sector
+    !      with local index i, columns the scol sector with local index j
+    !   *) an empty block list leaves the callback uncalled
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M
+    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, nexp
+    real(8) :: offset
+    logical :: match
+    character(len=160) :: label, blabel
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    offset = -3.5d0
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do k = 1, 3
+          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
+          &  ' kind ', kinds(k)
+          cur_counts(0:7) = patterns(p, 1:8)
+          cur_label = trim(label)
+
+          call M%init(patterns(p, :), word, kinds(k))
+
+          do b = 1, M%nblocks
+            M%blocks(b)%A = -12345.0d0
+          enddo
+
+          nelemcalls = 0
+          call M%fill_elements(fill_elem_probed, offset)
+
+          ! Exactly one query per element of all stored blocks.
+          nexp = 0
+          do b = 1, M%nblocks
+            nexp = nexp + size(M%blocks(b)%A, 1)*size(M%blocks(b)%A, 2)
+          enddo
+          write (blabel, '(a)') trim(label)
+          call check(nelemcalls .eq. nexp,                                     &
+          &          trim(blabel)//': one call per element')
+
+          ! Content: every element must carry the callback's value.
+          do b = 1, M%nblocks
+            mrow = size(M%blocks(b)%A, 1)
+            ncol = size(M%blocks(b)%A, 2)
+            match = .true.
+            do r = 1, mrow
+              do c = 1, ncol
+                match = match                                                &
+                &  .and. (M%blocks(b)%A(r, c) .eq.                            &
+                &          block_val(M%blocks(b)%srow, M%blocks(b)%scol,      &
+                &                      r, c, offset))
+              enddo
+            enddo
+            write (blabel, '(a,i0)') trim(label)//' block ', b
+            call check(match, trim(blabel)//': content overwritten everywhere')
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine test_fill_elements
+  !----------------------------------------------------------------------------
+  subroutine test_fill_consistency()
+    !---------------------------------------------------------------------------
+    ! The block-wise and the element-wise population paths must produce
+    !  identical matrices when fed the same value formula: same block
+    !  list, same content, including the way the local element indices
+    !  map onto the block storage. Representative subset of the cross
+    !  product: every pattern, every kind, words 0, 5 and 7.
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M1, M2
+    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, wordsel
+    integer :: wordlist(3)
+    real(8) :: offset
+    logical :: match
+    character(len=160) :: label, blabel
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    wordlist = [0, 5, 7]
+    offset = 3.0d0
+
+    do p = 1, NPAT
+      do wordsel = 1, 3
+        do k = 1, 3
+          word = wordlist(wordsel)
+          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
+          &  ' kind ', kinds(k)
+          cur_counts(0:7) = patterns(p, 1:8)
+          cur_label = trim(label)
+
+          nblockcalls = 0
+          nelemcalls = 0
+          call M1%init(patterns(p, :), word, kinds(k))
+          call M1%fill_blocks(fill_block_probed, int(offset))
+          call M2%init(patterns(p, :), word, kinds(k))
+          call M2%fill_elements(fill_elem_probed, offset)
+
+          call check(nblockcalls + nelemcalls > 0 .or. M1%nblocks .eq. 0,      &
+          &          trim(label)//': matrices exist to compare')
+
+          ! Same storage layout, then the same content block by block.
+          call check(M2%n .eq. M1%n, trim(label)//': same total size')
+          call check(M2%nblocks .eq. M1%nblocks,                               &
+          &          trim(label)//': same nblocks')
+          if (M2%nblocks .ne. M1%nblocks .or. M1%nblocks .eq. 0) cycle
+
+          match = .true.
+          do b = 1, M1%nblocks
+            mrow = size(M1%blocks(b)%A, 1)
+            ncol = size(M1%blocks(b)%A, 2)
+            match = match .and. (mrow .eq. size(M2%blocks(b)%A, 1))           &
+            &                .and. (ncol .eq. size(M2%blocks(b)%A, 2))          &
+            &                .and. (M1%blocks(b)%srow .eq. M2%blocks(b)%srow)   &
+            &                .and. (M1%blocks(b)%scol .eq. M2%blocks(b)%scol)
+            do r = 1, mrow
+              do c = 1, ncol
+                match = match .and. (M1%blocks(b)%A(r, c)                     &
+                &                    .eq. M2%blocks(b)%A(r, c))
+              enddo
+            enddo
+          enddo
+          write (blabel, '(a)') trim(label)
+          call check(match, trim(blabel)//': both fill paths identical')
+        enddo
+      enddo
+    enddo
+  end subroutine test_fill_consistency
+  !----------------------------------------------------------------------------
+  subroutine test_sugar()
+    !---------------------------------------------------------------------------
+    ! new_sym_matrix builds and fills in one statement: its metadata and
+    !  block content must equal those of a matrix built explicitly via
+    !  init plus fill_blocks with the same arguments. Every pattern and
+    !  kind, words 0, 3 and 7. Hygiene check: the fresh result leaves no
+    !  storage in the unused block slots.
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M1, M2
+    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, wordsel
+    integer :: wordlist(3)
+    real(8) :: offset
+    logical :: match
+    character(len=160) :: label, blabel
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    wordlist = [0, 3, 7]
+    offset = 3.0d0
+
+    do p = 1, NPAT
+      do wordsel = 1, 3
+        do k = 1, 3
+          word = wordlist(wordsel)
+          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
+          &  ' kind ', kinds(k)
+          cur_counts(0:7) = patterns(p, 1:8)
+          cur_label = trim(label)
+
+          call M1%init(patterns(p, :), word, kinds(k))
+          call M1%fill_blocks(fill_block_probed, int(offset))
+
+          cur_label = trim(label)
+          M2 = new_sym_matrix(patterns(p, :), word, kinds(k),                   &
+          &                   fill_block_probed, int(offset))
+
+          ! Metadata of the shortcut equals the explicit construction.
+          call check(M2%n .eq. M1%n, trim(label)//': sugar total size')
+          call check(M2%symmetry .eq. M1%symmetry,                              &
+          &          trim(label)//': sugar symmetry word')
+          call check(M2%kind .eq. M1%kind, trim(label)//': sugar kind')
+          call check(M2%nblocks .eq. M1%nblocks,                                &
+          &          trim(label)//': sugar nblocks')
+          call check(all(M2%st .eq. M1%st),                                     &
+          &          trim(label)//': sugar sector bounds')
+
+          ! Content block by block.
+          do b = 1, M1%nblocks
+            mrow = size(M1%blocks(b)%A, 1)
+            ncol = size(M1%blocks(b)%A, 2)
+            match = (mrow .eq. size(M2%blocks(b)%A, 1))                         &
+            &   .and. (ncol .eq. size(M2%blocks(b)%A, 2))
+            do r = 1, mrow
+              do c = 1, ncol
+                match = match .and. (M1%blocks(b)%A(r, c)                      &
+                &                    .eq. M2%blocks(b)%A(r, c))
+              enddo
+            enddo
+            write (blabel, '(a,i0)') trim(label)//' block ', b
+            call check(match, trim(blabel)//': sugar content')
+          enddo
+
+          ! Hygiene: unused slots of the fresh result carry no storage.
+          do b = M2%nblocks + 1, 8
+            write (blabel, '(a,i0)') trim(label)//' unused slot ', b
+            call check(.not. allocated(M2%blocks(b)%A),                        &
+            &          trim(blabel)//': A not allocated')
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine test_sugar
+  !----------------------------------------------------------------------------
+  subroutine fill_block_probed(srow, scol, A, params)
+    !---------------------------------------------------------------------------
+    ! block_filler-shaped test callback: counts its invocations, records
+    !  the sector pair it was called for, checks the shape of the block
+    !  storage it receives against the current pattern (cur_counts) and
+    !  overwrites the block with values from block_val, offset by the
+    !  integer carried in params.
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol
+    real(8), intent(out)  :: A(:, :)
+    class(*), intent(in)  :: params
+
+    real(8) :: offset
+    integer :: r, c, mrow, ncol
+    character(len=160) :: label
+
+    offset = 0.0d0
+    select type (params)
+    type is (integer)
+      offset = real(params, 8)
+    end select
+
+    nblockcalls = nblockcalls + 1
+    seen(srow, scol) = seen(srow, scol) + 1
+
+    label = trim(cur_label)//' callback'
+    mrow = size(A, 1)
+    ncol = size(A, 2)
+    call check(mrow .eq. cur_counts(srow), trim(label)//': row size')
+    call check(ncol .eq. cur_counts(scol), trim(label)//': col size')
+
+    do r = 1, mrow
+      do c = 1, ncol
+        A(r, c) = block_val(srow, scol, r, c, offset)
+      enddo
+    enddo
+  end subroutine fill_block_probed
+  !----------------------------------------------------------------------------
+  function fill_elem_probed(srow, scol, i, j, params) result(val)
+    !---------------------------------------------------------------------------
+    ! element_filler-shaped test callback: counts its invocations and
+    !  returns the block_val of the element, offset by the real carried
+    !  in params.
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol, i, j
+    class(*), intent(in)  :: params
+    real(8)               :: val
+
+    real(8) :: offset
+
+    offset = 0.0d0
+    select type (params)
+    type is (real(8))
+      offset = params
+    end select
+
+    nelemcalls = nelemcalls + 1
+    val = block_val(srow, scol, i, j, offset)
+  end function fill_elem_probed
+  !----------------------------------------------------------------------------
+  pure function block_val(srow, scol, i, j, offset) result(val)
+    !---------------------------------------------------------------------------
+    ! Deterministic value identifying a block element: distinct for each
+    !  combination of sector pair, local element and offset, so any
+    !  misrouting of a fill shows up as a content mismatch. Kept an exact
+    !  multiple of 1/2 so equality comparisons are exact.
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: srow, scol, i, j
+    real(8), intent(in) :: offset
+    real(8)             :: val
+
+    val = offset + 8.0d0*srow + 64.0d0*scol + i + 512.0d0*j
+  end function block_val
   !----------------------------------------------------------------------------
 
 end program block_matrix_unit_tests

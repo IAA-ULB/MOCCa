@@ -30,10 +30,13 @@ module block_matrix_module
   !
   ! Implementation of the design summary
   !  'mocca-symmetry-block-matrix-design-summary.md'. The current version
-  !  covers phase 1 of the design: sector encoding, the sym_block and
-  !  sym_matrix types and construction of the block list from MOCCa's
-  !  HFBlocks bookkeeping. Later phases add block filling, mat-vec/mat-mat
-  !  products and the complex-operator wrapper.
+  !  covers phases 1 and 2 of the design: sector encoding, the sym_block
+  !  and sym_matrix types, construction of the block list from MOCCa's
+  !  HFBlocks bookkeeping, and population of the stored blocks through
+  !  dummy-procedure callbacks (the block-wise fill_blocks and the
+  !  per-element fallback fill_elements), plus the new_sym_matrix
+  !  constructor sugar. Later phases add mat-vec/mat-mat products and
+  !  the complex-operator wrapper.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Symmetry model
@@ -85,6 +88,25 @@ module block_matrix_module
   !
   ! Storage is single-node by design: rank-dependent logic does not belong
   !  in this module; gathering of whole-basis vectors is the caller's task.
+  !
+  ! Population contract (design section 5): blocks are populated
+  !  exclusively through dummy-procedure callbacks with the abstract
+  !  interfaces block_filler (whole blocks) and element_filler (per-element
+  !  fallback); procedure pointers are never stored as components:
+  !   *) callbacks run for stored blocks only. Blocks skipped by the
+  !      kind-based partner rule are not the filler's business: partner
+  !      values are resolved at access time (a later phase), never by
+  !      writing here.
+  !   *) callbacks receive the sector words srow/scol of the block so
+  !      they can apply MOCCa's phase conventions for matrix elements.
+  !   *) both paths OVERWRITE: fill_blocks hands the block storage out as
+  !      an intent(out) dummy, fill_elements assigns element by element.
+  !   *) 'params' is unlimited-polymorphic state handed verbatim to the
+  !      callback. The signature is frozen: extend params, not the
+  !      interface. Callers without state pass any token.
+  !   *) fill_elements costs one callback invocation per element and
+  !      exists for tests and prototypes only; hot paths fill whole
+  !      blocks via fill_blocks.
   !==============================================================================
   implicit none
 
@@ -126,12 +148,60 @@ module block_matrix_module
   contains
     procedure :: init => init_sym_matrix
     procedure :: sector_of => sector_of_sym_matrix
+    procedure :: fill_blocks => fill_blocks_sym_matrix
+    procedure :: fill_elements => fill_elements_sym_matrix
     procedure :: print_dense => print_dense_sym_matrix
   end type sym_matrix
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Population callbacks (design section 5): dummy procedures with an
+  !  abstract interface, never stored as components.
+  abstract interface
+  !----------------------------------------------------------------------------
+  subroutine block_filler(srow, scol, A, params)
+    !---------------------------------------------------------------------------
+    ! Overwrite one whole block. Invoked by fill_blocks once per stored
+    !  block, with the sector words srow/scol of the block and a rank-2
+    !  view of the block storage itself.
+    !
+    ! A is an intent(out) dummy: the callback must overwrite the entire
+    !  block. 'params' is caller state handed through verbatim.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   srow, scol : sector words 0..7 of the block
+    !   params     : caller state, opaque
+    ! Output:
+    !   A          : the block storage, to be overwritten entirely
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol
+    real(8), intent(out)  :: A(:, :)
+    class(*), intent(in)  :: params
+  end subroutine block_filler
+  !----------------------------------------------------------------------------
+  function element_filler(srow, scol, i, j, params) result(val)
+    !---------------------------------------------------------------------------
+    ! Return one matrix element of the block (srow, scol) at the LOCAL
+    !  row/column indices (i, j) of that block, 1-based within the block
+    !  (the global indices are st(srow) + i - 1 and st(scol) + j - 1).
+    ! Invoked by fill_elements for every element of every stored block.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   srow, scol : sector words 0..7 of the block
+    !   params     : caller state, opaque
+    ! Result:
+    !   val        : the matrix element A(i, j) of the block
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol, i, j
+    class(*), intent(in)  :: params
+    real(8)              :: val
+  end function element_filler
+  end interface
 
   private
   public :: sym_block, sym_matrix
   public :: KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC
+  public :: block_filler, element_filler
+  public :: new_sym_matrix
 
 contains
 
@@ -249,6 +319,102 @@ contains
       endif
     enddo
   end function sector_of_sym_matrix
+  !----------------------------------------------------------------------------
+  subroutine fill_blocks_sym_matrix(this, fill, params)
+    !---------------------------------------------------------------------------
+    ! Populate all stored blocks through a block-wise callback.
+    !
+    ! For every stored block the callback 'fill' is invoked once, receiving
+    !  the block's sector words and a direct rank-2 view of the block
+    !  storage as an intent(out) dummy: the callback OVERWRITES the entire
+    !  block, typically via whole-array assignments or dense kernels.
+    !
+    ! The callback runs for stored blocks only; partners skipped by the
+    !  kind-based rule are untouched, as their values are resolved at
+    !  access time (a later phase) and never stored here. Distinct blocks
+    !  occupy disjoint storage, so the loop is safe to parallelise over
+    !  blocks; the OpenMP treatment is deferred to the design's step 7.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input/output:
+    !   this   : the matrix whose stored blocks are populated
+    !   fill   : callback overwriting one block (interface block_filler)
+    !   params : state handed to the callback, verbatim; callers without
+    !            state pass any token
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(inout) :: this
+    procedure(block_filler)           :: fill
+    class(*), intent(in)              :: params
+
+    integer :: b
+
+    do b = 1, this%nblocks
+      call fill(this%blocks(b)%srow, this%blocks(b)%scol,                        &
+      &         this%blocks(b)%A, params)
+    enddo
+  end subroutine fill_blocks_sym_matrix
+  !----------------------------------------------------------------------------
+  subroutine fill_elements_sym_matrix(this, fill, params)
+    !---------------------------------------------------------------------------
+    ! Populate all stored blocks through a per-element callback.
+    !
+    ! Element-wise fallback of the design (section 5): for every stored
+    !  block and every local element (i, j) of it, the callback is queried
+    !  for the value A_ij, which is assigned into the block storage,
+    !  overwriting whatever init or an earlier fill left there.
+    !
+    ! This costs one callback invocation per element and exists for tests
+    !  and prototypes only; hot paths fill whole blocks via fill_blocks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input/output:
+    !   this   : the matrix whose stored blocks are populated
+    !   fill   : callback returning one element (interface element_filler)
+    !   params : state handed to the callback, verbatim
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(inout) :: this
+    procedure(element_filler)         :: fill
+    class(*), intent(in)              :: params
+
+    integer :: b, i, j, m, ncol
+
+    do b = 1, this%nblocks
+      m = size(this%blocks(b)%A, 1)
+      ncol = size(this%blocks(b)%A, 2)
+      do i = 1, m
+        do j = 1, ncol
+          this%blocks(b)%A(i, j) = fill(this%blocks(b)%srow,                     &
+          &                          this%blocks(b)%scol, i, j, params)
+        enddo
+      enddo
+    enddo
+  end subroutine fill_elements_sym_matrix
+  !----------------------------------------------------------------------------
+  function new_sym_matrix(HFBlocks, symmetry, kind, fill, params) result(M)
+    !---------------------------------------------------------------------------
+    ! Constructor sugar (design section 5): build and fill in one statement.
+    !
+    ! Equivalent to init followed by fill_blocks with the same arguments.
+    !  A named function rather than a generic 'sym_matrix': in Fortran a
+    !  name cannot serve as both a derived-type name and a function name.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   HFBlocks(1:8) : GLOBAL MOCCa count array, see init
+    !   symmetry      : operator symmetry word, 0..7
+    !   kind          : KIND_GENERAL, KIND_SYMMETRIC or KIND_ANTISYMMETRIC
+    !   fill          : callback overwriting each stored block
+    !   params        : state handed to the callback, verbatim
+    ! Output:
+    !   M             : the freshly built and filled matrix
+    !---------------------------------------------------------------------------
+    integer, intent(in)     :: HFBlocks(8)
+    integer, intent(in)     :: symmetry
+    integer, intent(in)     :: kind
+    procedure(block_filler) :: fill
+    class(*), intent(in)    :: params
+    type(sym_matrix)        :: M
+
+    call M%init(HFBlocks, symmetry, kind)
+    call M%fill_blocks(fill, params)
+  end function new_sym_matrix
   !----------------------------------------------------------------------------
   subroutine print_dense_sym_matrix(this, lun, title)
     !---------------------------------------------------------------------------

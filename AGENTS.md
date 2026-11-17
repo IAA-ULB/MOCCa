@@ -79,6 +79,15 @@ Consequences when editing near markers:
 
 - Formatting: fprettify with `.fprettify.rc` — indent 2, line length 132.
   Check: `fprettify -d -r -c .fprettify.rc src_orig/`; fix with `-r`.
+- fprettify-version caveat (observed 2026-11-17): the check's output
+  depends on the installed fprettify version. Recent versions impose
+  normalization rules (end do / end if, double-quoted format strings)
+  that the committed sources predate — their check flags essentially
+  all of `src_orig/` (and fatally errors on `functional.f90` line 832),
+  and running fix mode in-place reformats whole files beyond intent.
+  The house style is the committed one: `enddo`, `endif`, single-quoted
+  formats, indent 2, 132 columns. Match it; keep diffs minimal. CI's
+  format step only produces a report artifact, it does not fail builds.
 - Linting: fortitude with `.fortitude.toml` (currently only S201,
   superfluous implicit none, and C001).
   Check: `fortitude --config-file .fortitude.toml check src_orig/`.
@@ -177,7 +186,7 @@ routines), `momentsofinertia.f90` (J_mu matrices and inertia tensors),
 (HF <-> canonical, HFBlocks usage), and `fam.f90` (drho, dkappa, FAM
 perturbations).
 
-## Current focus (dated 2026-11-16 — prune when stale)
+## Current focus (dated 2026-11-17 — prune when stale)
 
 - Refactor sprint on branch `matrix_refactor`: introducing a dense
   symmetry-block matrix type for efficient matrix-element calculation —
@@ -185,6 +194,14 @@ perturbations).
   construction, BLAS-only runtime. The authoritative design is
   `mocca-symmetry-block-matrix-design-summary.md` at the repo root — not
   this file; read it first.
+- Sprint status (implementation order in the design's §11): steps 1-2
+  landed — core types and `init` (phase 1, commit 395bde9d), and the
+  fill machinery (phase 2): `fill_blocks` with the `block_filler`
+  abstract interface, the `element_filler` per-element fallback
+  (`fill_elements`), and the `new_sym_matrix` constructor sugar. No
+  `add_element` — the element-wise path is the callback only (see
+  design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
+  Next: step 3, mat-vec with transposed/sign partner access.
 - Design-to-repo couplings: the module lives in `src_orig/` as plain
   Fortran 2003+ without `$`-markers, identical for every CONFIG; its
   constructor is the only place converting MOCCa's 1-based `HFBlocks`

@@ -126,9 +126,13 @@ type :: sym_matrix
   integer :: st(0:8)         ! first 1-based global index of each sector,
                              ! st(8) = n+1 (section 3a, scheme 2)
 contains
-  procedure :: init, fill_blocks, matvec, apply2, matmat, add_element, ...
+  procedure :: init, fill_blocks, fill_elements, matvec, apply2, matmat, ...
 end type
 ```
+
+(`add_element`, shown in earlier drafts of this snippet, was dropped: the
+element-wise path is the `element_filler` callback through fill_elements, see
+section 5.)
 
 The `kind` sign generalizes Hermitian/anti-Hermitian for real storage: partner
 blocks are related by `A(s',s) = sigma * A(s,s')^T` with `sigma = ±1`. A block
@@ -229,12 +233,21 @@ Guarantees and rules:
   for matrix elements enter).
 - `params` carries state (fields, densities, coupling constants). Keep the
   signature fixed; extend `params`, not the interface.
-- An element-wise fallback (`element_filler` returning `A_ij` for given
-  local indices) is useful for tests and prototypes only; it costs one call
-  per element.
+- Element-wise fallback, confirmed form (2026-11-17): the per-element
+  callback `element_filler(srow, scol, i, j, params)` returns `A_ij` at the
+  LOCAL row/column indices (i, j) of the block; fill_elements queries it
+  for every element of every stored block and OVERWRITES the storage. It
+  costs one call per element, so it stays useful for tests and prototypes
+  only. An `add_element` addressing global (i, j) was considered and
+  dropped: routing non-stored partner elements would either double-count
+  (caller adds both sides) or offload partner logic to callers, and partner
+  consistency is anyway resolved at access time, never by writing.
 
-Constructor sugar is desirable: `sym_matrix(HFblocks, symmetry, kind, fill,
-params)` builds and fills in one statement.
+Constructor sugar: `new_sym_matrix(HFblocks, symmetry, kind, fill, params)`
+builds and fills in one statement (implemented 2026-11-17). A named
+function, not a generic `sym_matrix(...)`: in Fortran a name cannot serve
+as both a derived-type name and a function name. Equivalent to init
+followed by fill_blocks with the same arguments.
 
 ## 6. Runtime operations
 
@@ -271,8 +284,8 @@ kind), scalar and complex scaling, trace.
 - Each block is a separate contiguous rank-2 array: good locality, natural
   LDA, no stride games.
 - Parallelize fill and mat-vec over the (at most 8) blocks.
-- Element-wise construction paths (`add_element`) are for correctness and
-  tooling; hot paths should fill whole blocks via the callback.
+- The element-wise path (`fill_elements`) is for correctness and tooling;
+  hot paths should fill whole blocks via the callback.
 - At the intended scale (total n around 1000, blocks around 100-500 per
   side) per-block dense storage is the right tradeoff. Triangle packing
   inside blocks is deliberately not done.
