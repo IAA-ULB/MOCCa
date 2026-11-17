@@ -36,6 +36,10 @@ module moments
 ! SECOND_AX : $SECOND_AX
 ! TR        : $TR
 ! NTR       : $NTR
+! PCONSERVED: $PCONSERVED
+! PBROKEN   : $PBROKEN
+!  Parity-conservation markers gating the selection rules of the legacy
+!  Qlm_spme routine (single-particle matrix elements) near the end.
 ! CAN_DO_MAGNETIC : $CAN_DO_MAGNETIC
 !==============================================================================
 ! 
@@ -143,6 +147,7 @@ module moments
   use geninfo
   use sphericalharmonics
   use Densities
+  use wavefunctions
 
   implicit none
   
@@ -3307,6 +3312,174 @@ $NTR endif
           Current%Multiplier    =0.0_dp
       endif
   end subroutine ConstrainNonPhysicalMoments
+
+!===============================================================================
+! Legacy single-particle matrix elements of a multipole operator
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+! Moved verbatim from fission_MOI.f90 (2026-11-17) to be the testing
+!  oracle for the sym_matrix-based replacement of design-summary step 3
+!  (section 13 of mocca-symmetry-block-matrix-design-summary.md).
+!  DEPRECATED: this routine covers only even m and the real part of the
+!  matrix elements, works in units of b^(l/2) and resolves its selection
+!  rules by hand. It stays until step 4 (mat-vec) has landed and survived
+!  a shakeout period; new code must use Qlm_spme_fm / Qlm_spme_matrix.
+!===============================================================================
+  function Qlm_spme(l,m,Imaginary) result(me)
+    !---------------------------------------------------------------------------
+    ! Routine to calculate single-particle matrix elements of a given multipole
+    ! moment in the (a) HARTREE-FOCK basis and (b) in units of b^(ell/2) with
+    ! 1 b = 100 fm^2.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l,m       : integers, 
+    !     Imaginary : to calculate < i | Re Q_lm | j > or < i |Im Q_lm | j >
+    !                 logical
+    ! Output:
+    !     me        : single-particle matrix elements of the multipole moment
+    !                 in the canonical basis, real(nwt,nwt), in units of 
+    !                 b^(ell/2).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Notes:
+    ! *) does not allow for the calculation of matrix elements with odd values 
+    !    of m yet; those connect single-particle states with different 
+    !    signature, for the traditional definition of spherical harmonics at 
+    !    least.
+    ! *) This routine shifts the multipole moments with respect to the center
+    !    of mass of the nucleus, since it uses the meshx/y/z_shifted arrays to
+    !    calculate the numerical values of the spherical harmonics on the mesh.
+    !---------------------------------------------------------------------------
+
+    integer, intent(in)        :: l, m
+    logical, intent(in)        :: Imaginary
+    real(KIND=dp)              :: me(nwt,nwt)
+    
+    real(KIND=dp), allocatable         :: SpherHarmMesh(:,:,:,:,:,:)
+    real(KIND=dp), allocatable, target :: Qlm(:)
+    real(KIND=dp), pointer             :: harm_3D(:,:,:)
+    
+    integer :: i, j, Bi, Bj, Ni, Nj, si, sj, im, k
+
+    if(mod(m,2) .eq. 1) then
+      print *, 'Qlm_spme does not allow for the calculation of multipole matrix elements with odd m YET.'
+      stop
+    endif
+    if(Imaginary) then 
+      print *, 'Qlm_spme does not allow for the calculation of imaginary multipole matrix elements YET.'
+      stop
+    endif
+    if((m .lt. 0) .or. (m .gt. l)) then
+      print *, 'Invalid value of m in Qlm_spe.'      
+      stop
+    endif
+    
+    ! Initialize to zero
+    me = 0.0d0
+
+    ! Generate the necessary spherical harmonic
+    allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qlm(nx*ny*nz))
+    call generate_spherical_harmonics(l,nx,ny,nz, &
+    &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis) 
+
+    if(Imaginary) then
+      im  = 2
+    else
+      im  = 1
+    endif
+    
+    harm_3D(1:nx,1:ny,1:nz) => Qlm
+    harm_3D                 = SpherHarmMesh(:,:,:,l,m,im)
+    deallocate(SpherHarmMesh)
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the neutron single-particle states
+    !---------------------------------------------------------------------------
+    si = 0
+    do Bi = 1, 4
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 1, 4
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+
+        if(bj.eq.1) then
+          sj = 0
+        else
+          sj = sum(HFblocks(1:Bj-1))
+        endif
+
+        ! Parity selection rule: if l = even, then only single-particle states
+        !                        of identical parity (and signature) contribute    
+$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
+        ! Parity selection rule: if l = odd, then only single-particle states
+        !                        of different parity contribute
+$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
+        ! (THIS is only needed if parity conserved of course)
+$PBROKEN if( Bi .ne. Bj ) cycle
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
+          me(si+i,sj+j) = 0
+          do k=1,4
+            me(si+i,sj+j) = me(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          me(si+i,sj+j) = me(si+i,sj+j) * dv 
+          me(sj+j,si+i) = me(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the proton single-particle states
+    !---------------------------------------------------------------------------
+    si = nwn
+    do Bi = 5, 8
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 5, 8
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+        sj = sum(HFblocks(1:Bj-1))
+
+        ! Parity selection rule: if l = even, then only single-particle states
+        !                        of identical parity (and signature) contribute    
+$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
+        ! Parity selection rule: if l = odd, then only single-particle states
+        !                        of different parity contribute
+$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
+        ! (THIS is only needed if parity conserved of course)
+$PBROKEN if( Bi .ne. Bj ) cycle
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
+          me(si+i,sj+j) = 0
+          do k=1,4
+            me(si+i,sj+j) = me(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          me(si+i,sj+j) = me(si+i,sj+j) * dv 
+          me(sj+j,si+i) = me(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+    
+    ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
+    me = me/(100.0d0**(l/2.0d0))
+
+  end function Qlm_spme
 
 !===============================================================================
 end module 

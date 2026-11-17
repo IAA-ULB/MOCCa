@@ -199,7 +199,19 @@ def ProcessMoments(fname, src, target, so, fam_active=False, dry_run=False):
   else:
     dic['CAN_DO_MAGNETIC'] = 0
 
-  if(not dry_run):        
+  # Ugly hack to check for parity conservation, entirely analogous to the
+  #  one in ProcessFission_MOI below. Needed since the legacy Qlm_spme
+  #  routine (with its $PCONSERVED/$PBROKEN-gated selection rules) moved
+  #  from fission_MOI.f90 into moments.f90.
+  symdic  = populatesymmetries()
+  dic['PBROKEN']    = ' '
+  dic['PCONSERVED'] = '!'
+  for sym in so.generators:
+    if (sym == symdic['P']):
+      dic['PBROKEN'] = '!'
+      dic['PCONSERVED'] = ''
+
+  if(not dry_run):
     substitute(src+fname, target+fname, dic)
         
 def CartToSpher(x,y,z, so):
