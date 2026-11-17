@@ -142,12 +142,15 @@ The mask is a fact of the build scenario and cannot be recovered from the
 runtime block counts: `[a,b,0,0,p,q,0,0]` arises both in a parity-broken
 build - where an odd-l operator is nonzero within blocks 1, 2, 5, 6 - and in
 a parity-conserving, TR-broken build whose basis simply lacks odd-parity
-states, where the same operator gives exactly zero. In MOCCa the mask is
-derived once, in `geninfo`, from the `SYMSTRING` the executable was generated
-with (bit 0 iff 'Rz' conserved, bit 1 iff 'P' conserved), and handed to the
-constructor by every caller. These three bits are the only build-dependent
-information on this path: the routine of step 3 (section 13) contains no
-`$`-marker logic at all.
+states, where the same operator gives exactly zero. In MOCCa the mask is a
+`geninfo` constant injected by Hephaestos at generation time (`$GOODQN`,
+computed from the build's symmetry generators by the same identity check the
+`$PCONSERVED` substitution uses - bit 0 iff the Rz generator is present, bit
+1 iff the P generator is, which avoids e.g. the 'P' inside a 'PT' generator
+when parsing SYMSTRING tokens), and handed to the constructor by every
+caller. These three bits are the only build-dependent information on this
+path: the routine of step 3 (section 13) contains no `$`-marker logic at
+all.
 
 ## 3. Type definitions
 
@@ -561,9 +564,9 @@ the oracle for the agreements below; the conversion identity is
 | # | Commit | Contents | Regression net |
 |---|---|---|---|
 | 0 | park FAM anchor | build `exec/fam.NLO.reference.exe` from the un-refactored tree and park it | none needed |
-| 1 | goodqn mask | optional `goodqn` in `init` (+ module header), `goodqn` in `geninfo` derived from `SYMSTRING`, masked-init and dense-expansion unit tests | `block_matrix_unit_tests`; compile NLO, NLO-T, NLO-P, NLO-TP |
+| 1 | goodqn mask | optional `goodqn` in `init` (+ module header), `$GOODQN` injected by Hephaestos into `geninfo`, masked-init unit tests | `block_matrix_unit_tests`; compile NLO, NLO-T, NLO-P, NLO-TP |
 | 2 | pure move | `Qlm_spme` verbatim to `moments.f90` (which gains explicit `use wavefunctions`), deprecation banner | `fission.sh`, `minimal.sh` golden: outputs bit-identical |
-| 3 | generator | dense-expansion helper, `Qlm_spme_matrix`, `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks, compare `me_im` against a brute-force conjugated double-loop reference | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
+| 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix`, `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks, compare `me_im` against a brute-force conjugated double-loop reference | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
 | 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
 | 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
 | 6 | consumer migration | `functional` COM correction (drop `*10`), `fam` multipole/z_com operators (drop `*(100**(l/2))`, `*sqrt(100)`), `fam_testing` [R, P] (drop `*sqrt(100)`) | `fission.sh`, `minimal.sh` golden, `cranking.sh` (NLO-T), `fam_unit_tests`, local runs vs the parked FAM reference |

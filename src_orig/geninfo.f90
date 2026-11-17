@@ -38,6 +38,11 @@ module GenInfo
   !   REDUZ    : $REDUZ
   !     Integers indicating the reduction of the Cartesian axes.
   !
+  !   GOODQN   : $GOODQN
+  !     Good quantum numbers of the HF basis blocks (block-matrix design 2b):
+  !     bit 0 = q(Rz), bit 1 = parity, bit 2 = Tz. A bit is set iff this
+  !     build conserves the corresponding symmetry (bit 2 always).
+  !
   !   LINESIZEX : $LINESIZEX
   !   LINESIZEY : $LINESIZEY
   !   LINESIZEZ : $LINESIZEZ
@@ -61,6 +66,21 @@ module GenInfo
   integer, parameter                     :: reduX = $REDUX
   integer, parameter                     :: reduY = $REDUY
   integer, parameter                     :: reduZ = $REDUZ
+  !-----------------------------------------------------------------------------
+  ! Good quantum numbers of the HF basis blocks in this build, with the same
+  !  bit assignment as the symmetry-block sector words (design summary of the
+  !  symmetry-block matrix, sections 2a and 2b):
+  !     bit 0 (1) : q(Rz)  good  - signature grades the basis blocks
+  !     bit 1 (2) : parity good  - parity grades the basis blocks
+  !     bit 2 (4) : Tz     good  - always: neutrons and protons never merge
+  ! A quantum number is good iff the corresponding self-consistent symmetry
+  !  is conserved in this build; if it is broken, the states of both
+  !  characters are merged into a single storage block and the bit is clear.
+  ! Injected by Hephaestos ($GOODQN): a property of the build scenario, not
+  !  recoverable from runtime block counts. The init constructor of
+  !  block_matrix_module intersects the physical symmetry words of operators
+  !  with this mask.
+  integer, parameter                     :: goodqn = $GOODQN
   !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points
   integer :: nx = 30, ny = 30, nz = 30, mv

@@ -54,10 +54,19 @@ program block_matrix_unit_tests
   !   *) an empty block list leaves the callbacks uncalled
   !   *) new_sym_matrix equals init followed by fill_blocks
   !
+  ! The good-quantum-number mask (design section 2b) adds:
+  !   *) the mask is stored and the omitted mask defaults to 7
+  !   *) masked pairing: blocks obey srow = IEOR(scol, AND(word, mask))
+  !   *) equivalence: a masked construction stores exactly the block list
+  !      of the unmasked construction with the effective word
+  !   *) the parity-broken pattern with an odd-parity operator: mask 5
+  !      merges to diagonal blocks, mask 7 pairs into empty sectors and
+  !      stores nothing
+  !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of seven routines (plus the check helper that
+  ! The suite consists of eight routines (plus the check helper that
   !  registers every individual condition, and the two probed callbacks
   !  the fill tests use):
   !   test_construction : construction invariants over the full cross
@@ -68,12 +77,13 @@ program block_matrix_unit_tests
   !   test_fill_elements : per-element population through the callback
   !   test_fill_consistency : block-wise and element-wise paths match
   !   test_sugar       : new_sym_matrix constructor sugar
+  !   test_goodqn      : the good-quantum-number mask of design 2b
   !==============================================================================
   use block_matrix_module
 
   implicit none
 
-  integer, parameter :: NPAT = 6
+  integer, parameter :: NPAT = 7
 
   integer :: patterns(NPAT, 8)
   integer :: nfail, ntest
@@ -97,12 +107,14 @@ program block_matrix_unit_tests
   !   4: empty leading sectors
   !   5: single populated sector
   !   6: completely empty basis
+  !   7: parity-broken bookkeeping (blocks 1, 2, 5, 6 populated only)
   patterns(1, :) = [12, 0, 9, 0, 7, 0, 5, 0]
   patterns(2, :) = [12, 11, 9, 8, 7, 6, 5, 4]
   patterns(3, :) = [3, 0, 0, 2, 5, 0, 1, 0]
   patterns(4, :) = [0, 4, 2, 0, 0, 6, 0, 3]
   patterns(5, :) = [0, 0, 0, 0, 0, 0, 9, 0]
   patterns(6, :) = [0, 0, 0, 0, 0, 0, 0, 0]
+  patterns(7, :) = [8, 6, 0, 0, 5, 4, 0, 0]
 
   nfail = 0
   ntest = 0
@@ -114,6 +126,7 @@ program block_matrix_unit_tests
   call test_fill_elements()
   call test_fill_consistency()
   call test_sugar()
+  call test_goodqn()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
   &     ntest, nfail
@@ -655,6 +668,105 @@ contains
       enddo
     enddo
   end subroutine test_sugar
+  !----------------------------------------------------------------------------
+  subroutine test_goodqn()
+    !---------------------------------------------------------------------------
+    ! Verify the good-quantum-number mask of design section 2b.
+    !
+    ! Over the full cross product of patterns, physical words, kinds and
+    !  masks (4 = only Tz good, 5 = Tz and q(Rz) good, 7 = all good):
+    !   *) the mask is stored on the object and the physical word survives
+    !   *) blocks pair as srow = IEOR(scol, AND(word, goodqn)) and the
+    !      block count follows the masked pairing as in test_construction
+    !   *) a masked construction stores exactly the block list of the
+    !      unmasked construction with the effective word
+    !
+    ! Dedicated scenario - the core of design section 2b: the parity-broken
+    !  pattern with an odd-parity operator (word 2). Mask 5 (parity not
+    !  good) gives the four diagonal blocks of the merged sectors
+    !  0, 1, 4, 5; the all-good mask pairs every populated sector into the
+    !  empty odd-parity sectors and stores nothing at all.
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M, Meff
+    integer :: p, word, k, q, kinds(3), masks(3), b, s, sp, sumexp
+    character(len=160) :: label
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    masks = [4, 5, 7]
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do q = 1, 3
+          do k = 1, 3
+            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,                &
+            &  ' word ', word, ' mask ', masks(q), ' kind ', kinds(k)
+            call M%init(patterns(p, :), word, kinds(k), goodqn=masks(q))
+
+            call check(M%goodqn .eq. masks(q), trim(label)//': mask stored')
+            call check(M%symmetry .eq. word,                                    &
+            &          trim(label)//': physical word stored')
+
+            ! The masked pairing word governs the block list.
+            sumexp = 0
+            do s = 0, 7
+              sp = ieor(s, iand(word, masks(q)))
+              if (patterns(p, s + 1) .eq. 0) cycle
+              if (patterns(p, sp + 1) .eq. 0) cycle
+              if (kinds(k) .ne. KIND_GENERAL .and. s .gt. sp) cycle
+              sumexp = sumexp + 1
+            enddo
+            call check(M%nblocks .eq. sumexp,                                   &
+            &          trim(label)//': expected nblocks')
+            do b = 1, M%nblocks
+              call check(M%blocks(b)%srow .eq.                                  &
+              &          ieor(M%blocks(b)%scol, iand(word, masks(q))),           &
+              &          trim(label)//': srow = IEOR(scol, masked word)')
+            enddo
+
+            ! Equivalence: the block list equals that of the unmasked
+            !  matrix built with the effective word.
+            call Meff%init(patterns(p, :), iand(word, masks(q)), kinds(k))
+            call check(Meff%nblocks .eq. M%nblocks,                             &
+            &          trim(label)//': effective-word nblocks')
+            do b = 1, min(M%nblocks, Meff%nblocks)
+              call check(Meff%blocks(b)%srow .eq. M%blocks(b)%srow,             &
+              &          trim(label)//': effective-word srow')
+              call check(Meff%blocks(b)%scol .eq. M%blocks(b)%scol,             &
+              &          trim(label)//': effective-word scol')
+              call check(size(Meff%blocks(b)%A, 1) .eq. size(M%blocks(b)%A, 1)  &
+              &     .and. size(Meff%blocks(b)%A, 2) .eq. size(M%blocks(b)%A, 2), &
+              &          trim(label)//': effective-word shapes')
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+    ! Default: the omitted mask is 7, and it equals an explicit 7.
+    call M%init(patterns(2, :), 5, KIND_GENERAL)
+    call check(M%goodqn .eq. 7, 'goodqn: default mask is 7')
+    call Meff%init(patterns(2, :), 5, KIND_GENERAL, goodqn=7)
+    call check(Meff%nblocks .eq. M%nblocks, 'goodqn: default nblocks equal')
+
+    ! Core scenario of design section 2b: the parity-broken pattern with
+    !  an odd-parity operator (word 2). Parity not good (mask 5): diagonal
+    !  blocks inside the merged sectors 0, 1, 4, 5.
+    call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=5)
+    call check(M%nblocks .eq. 4, 'goodqn: merged diagonal blocks')
+    do b = 1, M%nblocks
+      call check(M%blocks(b)%srow .eq. M%blocks(b)%scol,                        &
+      &          'goodqn: diagonal within merged blocks')
+      call check(patterns(7, M%blocks(b)%srow + 1) .gt. 0,                      &
+      &          'goodqn: diagonal block is populated')
+    enddo
+
+    ! All quantum numbers good (mask 7): the physical word pairs every
+    !  populated sector into the empty odd-parity sectors and nothing is
+    !  stored - empty, which is where a missing mask would silently go
+    !  wrong.
+    call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=7)
+    call check(M%nblocks .eq. 0, 'goodqn: unmasked word gives empty list')
+  end subroutine test_goodqn
   !----------------------------------------------------------------------------
   subroutine fill_block_probed(srow, scol, A, params)
     !---------------------------------------------------------------------------

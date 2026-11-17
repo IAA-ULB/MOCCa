@@ -144,6 +144,25 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
     dic['REDUX'] = str(so.ReduceAxes[0])
     dic['REDUY'] = str(so.ReduceAxes[1])
     dic['REDUZ'] = str(so.ReduceAxes[2])
+
+    # Good quantum numbers of the HF-basis blocks (block-matrix design, 2b):
+    #  bit 0 (1) : q(Rz) good  - iff this build conserves Rz
+    #  bit 1 (2) : parity good - iff this build conserves P
+    #  bit 2 (4) : Tz good     - always, nucleonic bases never merge n and p
+    # A quantum number that is not good means the corresponding basis blocks
+    #  are merged into one; the init constructor of block_matrix_module
+    #  intersects operator words with this mask. Generator identity check,
+    #  like the PCONSERVED hack further down (avoids e.g. the 'P' inside
+    #  the 'PT' generator when parsing SYMSTRING tokens).
+    from src_heph.heph_symmetries import populatesymmetries
+    symdic    = populatesymmetries()
+    goodqn    = 4
+    for sym in so.generators:
+      if (sym == symdic['Rz']):
+        goodqn = goodqn + 1
+      if (sym == symdic['P']):
+        goodqn = goodqn + 2
+    dic['GOODQN'] = str(goodqn)
     
     #NS: provides symmetry information to
     #    geninfo to calculate k_sh

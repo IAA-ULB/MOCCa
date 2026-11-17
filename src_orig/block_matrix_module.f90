@@ -35,7 +35,8 @@ module block_matrix_module
   !  HFBlocks bookkeeping, and population of the stored blocks through
   !  dummy-procedure callbacks (the block-wise fill_blocks and the
   !  per-element fallback fill_elements), plus the new_sym_matrix
-  !  constructor sugar. Later phases add mat-vec/mat-mat products and
+  !  constructor sugar and the good-quantum-number mask in init (design
+  !  section 2b). Later phases add mat-vec/mat-mat products and
   !  the complex-operator wrapper.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -71,6 +72,28 @@ module block_matrix_module
   !    parity broken                  :  spwfs in blocks 1,2,5,6 only, as the
   !                                      parity grading is absent (the P bit
   !                                      of any operator is then vacuous)
+  !
+  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !  Good quantum numbers of the stored basis
+  !  -----------------------------------------
+  !  The symmetry word of an operator is physical: it tells which quantum
+  !  number of the state it acts on is flipped. Not every build labels its
+  !  basis states with all three quantum numbers: when a self-consistent
+  !  symmetry is broken, the states of both characters are merged into a
+  !  single storage block and the corresponding quantum number is not
+  !  'good' - its bit is vacuous, and an operator acts diagonally in it.
+  !  The classic case is parity: in parity-broken builds an odd-l operator
+  !  couples states WITHIN blocks 1, 2, 5, 6 rather than pairing them into
+  !  the empty blocks 3, 4, 7, 8 as its physical word suggests.
+  !
+  !  init therefore takes an optional 3-bit mask 'goodqn' (same bit
+  !  assignment as the sector words; default 7 = every quantum number
+  !  good) marking the quantum numbers that actually label the basis, and
+  !  pairs every sector s with IEOR(s, AND(symmetry, goodqn)). The mask is
+  !  a fact of the build scenario, not recoverable from the runtime block
+  !  counts: in MOCCa it is the geninfo constant 'goodqn', injected by
+  !  Hephaestos ($GOODQN). With all bits good the pairing is the pure XOR
+  !  above. Standalone callers (unit tests) omit the mask.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Conventions
@@ -138,7 +161,9 @@ module block_matrix_module
   !  After init, all runtime code loops over blocks(1:nblocks) only;
   !  quantum numbers XOR selection rules never appear at runtime again.
   type :: sym_matrix
-    integer :: symmetry       ! operator symmetry word, 0..7
+    integer :: symmetry       ! operator symmetry word, 0..7 (physical)
+    integer :: goodqn         ! good-quantum-number mask of the basis, 0..7
+                              ! (design 2b); 7 = all quantum numbers good
     integer :: kind           ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
     integer :: n              ! total basis size, sum(HFBlocks)
     integer :: nblocks        ! number of stored blocks, <= 8
@@ -206,12 +231,17 @@ module block_matrix_module
 contains
 
   !----------------------------------------------------------------------------
-  subroutine init_sym_matrix(this, HFBlocks, symmetry, kind)
+  subroutine init_sym_matrix(this, HFBlocks, symmetry, kind, goodqn)
     !---------------------------------------------------------------------------
     ! Construct the block list of a symmetry-adapted matrix.
     !
     ! For every populated sector s, the operator couples it to sector
-    !  sp = IEOR(s, symmetry) and to nothing else. A dense block is stored
+    !  sp = IEOR(s, AND(symmetry, goodqn)) and to nothing else - the
+    !  physical word is intersected with the good-quantum-number mask of
+    !  design section 2b, so bits of quantum numbers that do not label the
+    !  basis (broken gradings, e.g. parity in parity-broken builds) act
+    !  diagonally. With the default mask 7 this is the pure XOR
+    !  sp = IEOR(s, symmetry). A dense block is stored
     !  for each populated sector pair; for KIND_SYMMETRIC / KIND_ANTISYMMETRIC
     !  only one block per pair is stored (partner access through the
     !  transposed flag covers the other), and a sector that is its own
@@ -227,15 +257,20 @@ contains
     !                   the GLOBAL count array (HFBlocks_global in the
     !                   wavefunctions module); the rank-local twin must not
     !                   be passed, as this type is single-node by design.
-    !   symmetry      : operator symmetry word, 0..7
+    !   symmetry      : physical operator symmetry word, 0..7
     !   kind          : KIND_GENERAL, KIND_SYMMETRIC or KIND_ANTISYMMETRIC
+    !   goodqn        : optional 3-bit mask of the quantum numbers that are
+    !                   good for this build's basis (design section 2b);
+    !                   default 7 = every quantum number good. In MOCCa,
+    !                   pass the geninfo constant 'goodqn'.
     !---------------------------------------------------------------------------
     class(sym_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
     integer, intent(in)               :: symmetry
     integer, intent(in)               :: kind
+    integer, intent(in), optional      :: goodqn
 
-    integer :: s, sp, b
+    integer :: s, sp, b, qn, word
     integer :: counts(0:7)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -254,13 +289,29 @@ contains
       stop 1
     endif
 
+    ! Good-quantum-number mask (design section 2b): default 7 = every
+    !  quantum number good. It is applied exactly once, in the pairing
+    !  word below; quantum numbers that do not label the basis act
+    !  diagonally.
+    qn = 7
+    if (present(goodqn)) qn = goodqn
+    if (qn < 0 .or. qn > 7) then
+      print *, 'init_sym_matrix: goodqn mask must be in 0..7, got', qn
+      stop 1
+    endif
+
     ! The only place MOCCa's 1-based block ordering is converted to 0-based
     !  sector words: sector s = MOCCa block s + 1 (see table in module header).
     counts(0:7) = HFBlocks(1:8)
 
     this%symmetry = symmetry
+    this%goodqn = qn
     this%kind = kind
     this%n = sum(counts)
+
+    ! The pairing word: the physical operator word intersected with the
+    !  mask - the one place where the good quantum numbers enter the maths.
+    word = iand(symmetry, qn)
 
     ! 1-based bounds: st(s) is the first global index of sector s.
     this%st(0) = 1
@@ -279,11 +330,11 @@ contains
     enddo
 
     ! Append one block per surviving sector pair. The pairing is a single
-    !  XOR; the kind-based skipping keeps at most one block per pair for
-    !  (anti-)symmetric matrices.
+    !  XOR with the (masked) word; the kind-based skipping keeps at most
+    !  one block per pair for (anti-)symmetric matrices.
     b = 0
     do s = 0, 7
-      sp = ieor(s, symmetry)
+      sp = ieor(s, word)
       if (counts(s) .eq. 0) cycle
       if (counts(sp) .eq. 0) cycle
       if (kind .ne. KIND_GENERAL .and. s .gt. sp) cycle
@@ -388,7 +439,8 @@ contains
     enddo
   end subroutine fill_elements_sym_matrix
   !----------------------------------------------------------------------------
-  function new_sym_matrix(HFBlocks, symmetry, kind, fill, params) result(M)
+  function new_sym_matrix(HFBlocks, symmetry, kind, fill, params, goodqn)     &
+  & result(M)
     !---------------------------------------------------------------------------
     ! Constructor sugar (design section 5): build and fill in one statement.
     !
@@ -398,10 +450,12 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   HFBlocks(1:8) : GLOBAL MOCCa count array, see init
-    !   symmetry      : operator symmetry word, 0..7
+    !   symmetry      : physical operator symmetry word, 0..7
     !   kind          : KIND_GENERAL, KIND_SYMMETRIC or KIND_ANTISYMMETRIC
     !   fill          : callback overwriting each stored block
     !   params        : state handed to the callback, verbatim
+    !   goodqn        : optional good-quantum-number mask (design 2b),
+    !                   handed to init
     ! Output:
     !   M             : the freshly built and filled matrix
     !---------------------------------------------------------------------------
@@ -410,9 +464,10 @@ contains
     integer, intent(in)     :: kind
     procedure(block_filler) :: fill
     class(*), intent(in)    :: params
+    integer, intent(in), optional :: goodqn
     type(sym_matrix)        :: M
 
-    call M%init(HFBlocks, symmetry, kind)
+    call M%init(HFBlocks, symmetry, kind, goodqn)
     call M%fill_blocks(fill, params)
   end function new_sym_matrix
   !----------------------------------------------------------------------------
@@ -482,6 +537,10 @@ contains
       if (btest(this%symmetry, 2)) line = line//' Tz'
     endif
     write(u, '(A,I0,A,A)') '  symmetry word ', this%symmetry, ': ', trim(line)
+    if (this%goodqn .ne. 7) then
+      write(u, '(A,I0,A)') '  good quantum numbers mask ', this%goodqn,     &
+      &                    ' (design 2b: bits set = quantum numbers good)'
+    endif
 
     select case (this%kind)
     case (KIND_GENERAL)

@@ -216,8 +216,8 @@ perturbations).
   word is simply the MOCCa block index minus one; see design summary §2a.
   Operator words handed to `init` are physical; the constructor additionally
   takes the good-quantum-number mask (design §2b, agreed 2026-11-17),
-  derived in geninfo from SYMSTRING — no `$`-marker selection logic in the
-  routines that produce or consume sym_matrix objects.
+  injected by Hephaestos into geninfo as $GOODQN — no `$`-marker selection
+  logic in the routines that produce or consume sym_matrix objects.
 - Hephaestos wiring: a new `src_orig/*.f90` file must be added both to
   `MF_SRC`/`FAM_SRC` in the Makefile and to `no_process_files` in
   `src_heph/preprocess.py`, or the per-file generation silently skips it
