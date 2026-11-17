@@ -206,6 +206,29 @@ perturbations).
   moments.f90 and is rebuilt on sym_matrix (all l, m, Re/Im; units fm^l;
   goodqn mask of §2b), with the legacy routine kept as the test oracle.
   Mat-vec becomes step 4.
+  Landed since (2026-11-17): the goodqn mask (commit 6a6d92c8: optional
+  `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests)
+  and the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
+  ProcessMoments parity keys (commit 9faf8238; golden minimal NLO
+  bit-identical). Next up: the generator of design §13.3 row 3 - the
+  dense-expansion helper (with its unit tests), `Qlm_spme_matrix` /
+  `Qlm_spme_fm` in moments.f90, and the off-by-default oracle hook in
+  fission_MOI.
+- Local test artifacts for step 3 (gitignored, machine-local):
+  `exec/fam.NLO.reference.exe` is the parked FAM anchor; exec/MOCCa.NLO.exe
+  fam.NLO.exe BXL/T/P/TP executables are freshly rebuilt and validated.
+  `testing/integration/logs/fission.BXL.pre-move.out` is the inertia
+  baseline produced by the pre-move BXL binary - batch the fission.sh
+  comparison: rerun `bash fission.sh BXL` once the step's numerical gates
+  are due, then `bash golden_diff.sh --no-run fission BXL BXL.pre-move`.
+  fission.sh (Pu240, HFB) is too slow to run per commit.
+- Sprint workflow (2026-11-17): quick compile iterations use the debug
+  profile - `make CONFIG=X clean` then `make CONFIG=X mf INCLUDE=gnu-debug`
+  (-O0, bounds checks, no HDF5; none of this step's test nets needs
+  HDF5). The root make.inc stays frozen (-O3 + HDF5) and must back every
+  numerical gate or golden comparison; remember make.inc is outside the
+  dependency graph, so an INCLUDE= switch without clean yields mixed
+  binaries silently.
 - Design-to-repo couplings: the module lives in `src_orig/` as plain
   Fortran 2003+ without `$`-markers, identical for every CONFIG; its
   constructor is the only place converting MOCCa's 1-based `HFBlocks`
