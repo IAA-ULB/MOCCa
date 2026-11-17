@@ -126,6 +126,7 @@ module block_matrix_module
   contains
     procedure :: init => init_sym_matrix
     procedure :: sector_of => sector_of_sym_matrix
+    procedure :: print_dense => print_dense_sym_matrix
   end type sym_matrix
 
   private
@@ -248,6 +249,198 @@ contains
       endif
     enddo
   end function sector_of_sym_matrix
+  !----------------------------------------------------------------------------
+  subroutine print_dense_sym_matrix(this, lun, title)
+    !---------------------------------------------------------------------------
+    ! Human-friendly dump of a sym_matrix as one dense n x n matrix.
+    !
+    ! Debug and test helper for SMALL matrices ONLY: the full dense matrix
+    !  is materialised, so memory and output scale as n**2 and this routine
+    !  does not transfer to realistic basis sizes.
+    !
+    ! (Anti-)symmetric matrices are printed complete: partner blocks that
+    !  init does not store are reconstructed from their stored twin as
+    !      A(s', s) = kind * A(s, s')^T ,
+    !  the same expansion the dense reference of the design's validation
+    !  tests (summary section 9) is built from. The transposed flag is
+    !  ignored here: init never sets it and only later phases assign it.
+    !
+    ! Layout: a header decoding the symmetry word, the kind, the stored
+    !  block list and the populated sectors, then the matrix itself, with
+    !  '|' and '-' lines drawn at sector boundaries and '.' for exact
+    !  zeros so the block structure can be read at a glance. Entries that
+    !  do not fit the fixed F10.4 field print as asterisks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   this  : the matrix to dump, as built by init
+    !   lun   : optional output unit, defaults to stdout (unit 6)
+    !   title : optional line printed verbatim above the dump
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(in) :: this
+    integer, intent(in), optional :: lun
+    character(*), intent(in), optional :: title
+
+    character(2) :: sig
+    character(4) :: par
+    character(7) :: iso
+    character(6) :: rowlab
+    character(10) :: cell
+    character(len=:), allocatable :: line
+    logical, allocatable :: boundary(:)
+    real(8), allocatable :: dense(:, :)
+    integer :: u, i, j, b, m, ncol, s
+
+    if (present(lun)) then
+      u = lun
+    else
+      u = 6
+    endif
+
+    if (present(title)) write(u, '(A)') trim(title)
+    if (this%n <= 0) then
+      write(u, '(A)') ' sym_matrix is empty or not initialised, nothing to dump'
+      return
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Header: symmetry word decoded into the bits it flips, the kind, the
+    !  stored block list and the populated sectors with index ranges.
+    write(u, '(A,I0)') ' sym_matrix: n = ', this%n
+
+    if (this%symmetry == 0) then
+      line = 'sector-diagonal operator, flips nothing'
+    else
+      line = 'flips:'
+      if (btest(this%symmetry, 0)) line = line//' Rz'
+      if (btest(this%symmetry, 1)) line = line//' P'
+      if (btest(this%symmetry, 2)) line = line//' Tz'
+    endif
+    write(u, '(A,I0,A,A)') '  symmetry word ', this%symmetry, ': ', trim(line)
+
+    select case (this%kind)
+    case (KIND_GENERAL)
+      line = 'general'
+    case (KIND_SYMMETRIC)
+      line = 'symmetric'
+    case (KIND_ANTISYMMETRIC)
+      line = 'antisymmetric'
+    case default
+      line = 'UNKNOWN'
+    end select
+    write(u, '(A,A,A,I0)') '  kind: ', trim(line), ', stored blocks: ', this%nblocks
+
+    do b = 1, this%nblocks
+      m = size(this%blocks(b)%A, 1)
+      ncol = size(this%blocks(b)%A, 2)
+      write(u, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)')              &
+      & '  block ', b, ': sector ', this%blocks(b)%srow, ' rows ',                    &
+      & this%blocks(b)%is, ':', this%blocks(b)%is + m - 1, ' x sector ',              &
+      & this%blocks(b)%scol, ' cols ', this%blocks(b)%js, ':',                         &
+      & this%blocks(b)%js + ncol - 1
+    enddo
+
+    do s = 0, 7
+      if (this%st(s + 1) <= this%st(s)) cycle
+      if (btest(s, 0)) then
+        sig = '-i'
+      else
+        sig = '+i'
+      endif
+      if (btest(s, 1)) then
+        par = 'odd'
+      else
+        par = 'even'
+      endif
+      if (btest(s, 2)) then
+        iso = 'proton'
+      else
+        iso = 'neutron'
+      endif
+      write(u, '(A,I0,A,I0,A,I0,A,A,A,A,A,A,A,A)')                                     &
+      & '  sector ', s, ': indices ', this%st(s), ':', this%st(s + 1) - 1,             &
+      & ' [Rz ', trim(sig), ', P ', trim(par), ', ', trim(iso), ']'
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! The dense picture: expand all blocks into one n x n matrix,
+    !  reconstructing unstored partners of (anti-)symmetric matrices.
+    !  Sector boundaries: column/row i starts a sector boundary if it is
+    !  the first index of sectors 1..7 (empty sectors leave no gap, so two
+    !  successive boundaries can coincide; boundary 1 is never marked).
+    allocate(boundary(this%n))
+    boundary = .false.
+    do s = 1, 7
+      if (this%st(s) >= 2 .and. this%st(s) <= this%n) boundary(this%st(s)) = .true.
+    enddo
+
+    allocate(dense(this%n, this%n))
+    dense = 0.0d0
+    do b = 1, this%nblocks
+      if (.not. allocated(this%blocks(b)%A)) cycle
+      m = size(this%blocks(b)%A, 1)
+      ncol = size(this%blocks(b)%A, 2)
+      dense(this%blocks(b)%is:this%blocks(b)%is + m - 1,                             &
+      &     this%blocks(b)%js:this%blocks(b)%js + ncol - 1) = this%blocks(b)%A
+      if (this%kind .ne. KIND_GENERAL                                                &
+      & .and. this%blocks(b)%srow .ne. this%blocks(b)%scol) then
+        dense(this%blocks(b)%js:this%blocks(b)%js + ncol - 1,                          &
+        &     this%blocks(b)%is:this%blocks(b)%is + m - 1)                             &
+        &   = this%kind * transpose(this%blocks(b)%A)
+      endif
+    enddo
+
+    ! Column ruler with a '(s<sector>)' tag at each sector's first column.
+    write(u, '(A)') ''
+    line = repeat(' ', 6)
+    do j = 1, this%n
+      if (boundary(j)) line = line//'|'
+      cell = ' '
+      if (this%st(this%sector_of(j)) == j) then
+        write(cell, '("(s",I0,")")') this%sector_of(j)
+        cell = adjustl(cell)
+      endif
+      line = line//cell
+    enddo
+    line = line//'|'
+    write(u, '(A)') line
+
+    ! One line per global row, '-' lines between row sectors.
+    do i = 1, this%n
+      if (boundary(i)) then
+        line = repeat(' ', 6)
+        do j = 1, this%n
+          if (boundary(j)) line = line//'|'
+          line = line//repeat('-', 10)
+        enddo
+        line = line//'|'
+        write(u, '(A)') line
+      endif
+      write(rowlab, '(I6)') i
+      line = rowlab
+      do j = 1, this%n
+        if (boundary(j)) line = line//'|'
+        cell = ' '
+        if (dense(i, j) == 0.0d0) then
+          cell(6:6) = '.'
+        else
+          write(cell, '(F10.4)') dense(i, j)
+        endif
+        line = line//cell
+      enddo
+      line = line//'|'
+      write(u, '(A)') line
+    enddo
+
+    ! Closing line under the matrix.
+    line = repeat(' ', 6)
+    do j = 1, this%n
+      if (boundary(j)) line = line//'|'
+      line = line//repeat('-', 10)
+    enddo
+    line = line//'|'
+    write(u, '(A)') line
+    write(u, '(A)') ''
+  end subroutine print_dense_sym_matrix
   !----------------------------------------------------------------------------
 
 end module block_matrix_module
