@@ -97,6 +97,58 @@ used, the imaginary part of a complex operator carries that bit complemented
 parts carry independent symmetry words; it must be decided once, in the
 constructor, based on MOCCa's existing symmetry conventions for q-values.
 
+### 2b. Good quantum numbers of the stored basis (agreed 2026-11-17)
+
+The operator word of section 2 describes the *physical* character of an
+operator. The XOR pairing additionally presumes that the sector words
+describe definite quantum numbers of the stored basis. The two coincide for
+all three bits when the corresponding self-consistent symmetry is conserved,
+but a build may break one: then the states of both characters are merged into
+a single storage block and the corresponding quantum number is not *good*.
+The classic case is parity (section 2a): parity-broken builds store
+everything in blocks 1, 2, 5, 6, and the parity bit of a basis sector is
+vacuous.
+
+Call the discrete quantum numbers that actually label the basis of a given
+build its good quantum numbers, encoded as a 3-bit mask with the same bit
+assignment as the sector words:
+
+```
+bit 0 : q(Rz) good    - set iff this build conserves Rz
+bit 1 : parity good  - set iff this build conserves P
+bit 2 : Tz good      - always set for nucleonic bases
+```
+
+Rule, applied once, inside `init` (section 4):
+
+```
+effective word = AND(physical word, goodqn)  ! bits of quantum numbers that
+                                             ! are not good act diagonally
+s' = IEOR(s, effective word)
+```
+
+- odd-l operator in a parity-broken build: the mask clears the parity bit,
+  the blocks are diagonal - exactly what the by-hand `$PBROKEN` guards
+  achieve in the current `Qlm_spme`.
+- odd-m operator: the signature bit is kept, and populated sectors pair with
+  their signature partners - nonzero when both signatures are stored
+  (TR-broken builds: the wobbling-relevant operators), and exactly zero when
+  only q(Rz) = +i is stored (TR-conserving builds). No special case.
+- parity-conserving build whose single-particle space happens to contain no
+  odd-parity states: the odd-parity sectors are empty, so an odd-l operator
+  yields the (correct) zero matrix through the empty-sector skip.
+
+The mask is a fact of the build scenario and cannot be recovered from the
+runtime block counts: `[a,b,0,0,p,q,0,0]` arises both in a parity-broken
+build - where an odd-l operator is nonzero within blocks 1, 2, 5, 6 - and in
+a parity-conserving, TR-broken build whose basis simply lacks odd-parity
+states, where the same operator gives exactly zero. In MOCCa the mask is
+derived once, in `geninfo`, from the `SYMSTRING` the executable was generated
+with (bit 0 iff 'Rz' conserved, bit 1 iff 'P' conserved), and handed to the
+constructor by every caller. These three bits are the only build-dependent
+information on this path: the routine of step 3 (section 13) contains no
+`$`-marker logic at all.
+
 ## 3. Type definitions
 
 Per-block storage is a rank-2 allocatable, not an offset into one flat buffer.
@@ -118,7 +170,9 @@ integer, parameter :: KIND_SYMMETRIC    = 1   ! A(s',s) =   A(s,s')^T
 integer, parameter :: KIND_ANTISYMMETRIC = -1 ! A(s',s) = - A(s,s')^T
 
 type :: sym_matrix
-  integer :: symmetry       ! operator symmetry word, 0..7
+  integer :: symmetry       ! operator symmetry word, 0..7 (physical, §2b)
+  integer :: goodqn         ! good-quantum-number mask of the basis (§2b);
+                            ! 7 = all quantum numbers good
   integer :: kind            ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
   integer :: n               ! total basis size, sum(HFblocks)
   integer :: nblocks         ! number of stored blocks, <= 8
@@ -168,12 +222,17 @@ each block carries the 1-based starts `is`, `js` of its row/column sectors.
 ## 4. Construction from HFblocks
 
 ```fortran
-subroutine init(this, HFBlocks, symmetry, kind)
+subroutine init(this, HFBlocks, symmetry, kind, goodqn)
   ! HFBlocks(1:8): the GLOBAL MOCCa count array (HFBlocks_global),
   ! in MOCCa block ordering; sector s = block s+1 (section 2a).
+  ! goodqn:        optional good-quantum-number mask of the basis
+  !                (section 2b); default 7 = all quantum numbers good.
   ! 1. counts(s) = HFBlocks(s+1)   <- the only 1-based-to-0-based step.
   !    st(0) = 1; st(s+1) = st(s) + counts(s).
-  ! 2. For s = 0..7: sp = IEOR(s, symmetry).
+  ! 2. word = AND(symmetry, goodqn)  <- the only place the mask of section
+  !    2b is applied; bits of quantum numbers that are not good act
+  !    diagonally.
+  !    For s = 0..7: sp = IEOR(s, word).
   !    Skip if counts(s) == 0 or counts(sp) == 0.
   !    If kind /= KIND_GENERAL and s > sp: skip (partner access covers it).
   !    Otherwise append a block with srow=sp, scol=s, is=st(sp), js=st(s),
@@ -191,6 +250,9 @@ Properties after init:
   in sector space (square, internally symmetric/antisymmetric).
 - A purely real operator can simply leave the imaginary part absent (see
   section 8) without special cases.
+- `symmetry` stores the physical word as handed in; the pairing word derived
+  in init is `AND(symmetry, goodqn)` (section 2b). With the default
+  `goodqn = 7` the pairing reduces to the pure XOR of section 2.
 
 Index-to-sector mapping for element-wise construction is an 8-entry scan:
 
@@ -247,7 +309,9 @@ Constructor sugar: `new_sym_matrix(HFblocks, symmetry, kind, fill, params)`
 builds and fills in one statement (implemented 2026-11-17). A named
 function, not a generic `sym_matrix(...)`: in Fortran a name cannot serve
 as both a derived-type name and a function name. Equivalent to init
-followed by fill_blocks with the same arguments.
+followed by fill_blocks with the same arguments. Step 3 (section 13)
+extends the sugar's signature with the optional `goodqn` argument,
+exactly like `init`.
 
 ## 6. Runtime operations
 
@@ -385,14 +449,21 @@ cases anywhere else.
    partner skipping.
 2. `fill_blocks` with the abstract interface, plus the element-wise
    fallback.
-3. `matvec` (including transposed access with sign), tested against dense
+3. Generalised multipole matrix elements (detailed plan in section 13):
+   the first production consumer. Move the `Qlm_spme`-based machinery from
+   `fission_MOI.f90` to `moments.f90` and rebuild it on `sym_matrix` for
+   all (l, m, Re/Im) electric multipoles in natural units `fm^l`, using the
+   good-quantum-number mask of section 2b. The legacy routine stays in
+   place as the testing oracle. Also lands the mask in `init`/`geninfo`
+   and the dense-expansion helper in the module.
+4. `matvec` (including transposed access with sign), tested against dense
    reference.
-4. Symmetric/antisymmetric partner maintenance and consistency checks.
-5. `matmat`, add, scale, trace.
-6. `complex_op` wrapper with the packed two-column `matvec` and the
+5. Symmetric/antisymmetric partner maintenance and consistency checks.
+6. `matmat`, add, scale, trace.
+7. `complex_op` wrapper with the packed two-column `matvec` and the
    antiunitary-mask constructor logic.
-7. OpenMP over blocks for fill and mat-vec; benchmarks.
-8. Integration into a FAM-relevant code path, behind a Hephaestos config
+8. OpenMP over blocks for fill and mat-vec; benchmarks.
+9. Integration into a FAM-relevant code path, behind a Hephaestos config
    option if appropriate.
 
 ## 12. Design decisions to keep
@@ -410,3 +481,127 @@ cases anywhere else.
   place where the bijection appears.
 - Offset scheme 2 throughout: 1-based bounds `st(0:8)` with `st(8) = n+1`,
   block starts `is`, `js`; no 0-based global offsets anywhere.
+- Operator words handed to `init` are physical (section 2); the
+  good-quantum-number mask of section 2b is applied once, inside the
+  constructor. MOCCa's mask lives in `geninfo`, derived from the build's
+  `SYMSTRING`; producers and consumers of these matrices carry no
+  `$`-marker logic.
+
+## 13. Step 3 detailed: generalised multipole matrix elements
+
+Target (agreed 2026-11-17): move the single-particle matrix elements of the
+electric multipole operators from `fission_MOI.f90` into `moments.f90`,
+rebuild them on `sym_matrix`, generalise to all multipoles in natural
+units, and keep the old routine in place as a testing oracle. Consumers
+found in the tree: `fission_MOI` (collective inertia tensor), `functional`
+(`CompCOMCorrection`, Q_10), `fam` (`get_qpme_op`: multipole fields, z_com),
+`fam_testing` ([R, P] unit tests).
+
+### 13.1 Semantics of the new generator
+
+Operator: multiplication by `r^l Re Y_lm` or `r^l Im Y_lm`, evaluated on
+the COM-shifted mesh (`meshx_shifted/...`, exactly as the current
+`Qlm_spme`), in natural units `fm^l` (the `b^{l/2}` rescaling is dropped).
+Loud input checks (`l <= MaxMoment`, `0 <= m <= l`);
+symmetry-forbidden combinations return zero matrices silently - guarding
+user input against forbidden moments is the business of Hephaestos' moment
+list at the input layer (e.g. `read_inertia`), not of this routine.
+
+Output: the full complex ME matrix in the HF basis, split per section 8
+into two `sym_matrix` halves (routine names provisional, final naming at
+implementation):
+
+```fortran
+! <i|Q_lm|j> = me_re + i*me_im : me_re KIND_SYMMETRIC, me_im KIND_ANTISYMMETRIC
+! me_im is optional (skip where the build kills it; one extra block fill)
+subroutine Qlm_spme_matrix(l, m, Im, me_re, me_im)
+! Legacy dense shape of the real symmetric half: drop-in replacement,
+! real(nwt,nwt) as before but in fm^l
+function Qlm_spme_fm(l, m, Imaginary) result(me)
+```
+
+- physical symmetry word (section 2): `op = mod(m,2) + 2*mod(l,2)` - bit 0
+  flips q(Rz) for odd m, bit 1 is the parity of the operator, bit 2 is
+  always clear (electric multipoles are isoscalar). Both operator halves
+  (Re/Im Y_lm) carry the same word: MOCCa's Rz and P are linear, no
+  antiunitary complement (section 8) arises for electric multipoles.
+- constructor call: `init(HFBlocks_global, op, kind, goodqn = ...)`, with
+  the mask of section 2b taken from `geninfo`. Every build then takes the
+  identical, marker-free code path; empty partner sectors give zero blocks
+  through init's occupancy skip.
+- all matrix elements are direct mesh integrals of the stored basis
+  functions - no time-reversal/signature-partner shortcuts, hence no
+  partner-phase conventions to get wrong. Block fill: one dense product
+  per spin component per block (`A = sum_k X_k^T (Q dv) X_k`, a `dgemm`
+  equivalent), with `dv` folded into the weight mesh; the antisymmetric
+  imaginary half crosses the Re/Im wavefunction components the same way.
+- helper added to `block_matrix_module`: a partner-reconstructing dense
+  expansion of a `sym_matrix` (refactored out of the `print_dense` core).
+  It is the return shape behind `Qlm_spme_fm` and later the dense
+  reference builder for the mat-vec/mat-mat tests of steps 4 and 6.
+
+The antisymmetric half is computed in all builds when asked:
+TR-conserving builds yield roundoff-level zeros there, TR-broken builds
+genuinely need it. `$TR`/`$NTR` markers are therefore absent from the
+numerics; a short-circuit for TR-conserving builds remains an optional
+optimisation for later. The old routine's restrictions (even m only, real
+matrix part only, `b^{l/2}` units, marker-guarded selection) all
+disappear.
+
+### 13.2 The old routine stays, as oracle
+
+The current `Qlm_spme` moves `verbatim` from `fission_MOI.f90` to
+`moments.f90` (a pure move; behaviour preserved bit-for-bit) and remains
+until step 4 (mat-vec) has landed and survived a shakeout period. It is
+the oracle for the agreements below; the conversion identity is
+`old [b^{l/2}] = new [fm^l] * 100^(-l/2)`.
+
+### 13.3 Sequencing (one commit per row)
+
+| # | Commit | Contents | Regression net |
+|---|---|---|---|
+| 0 | park FAM anchor | build `exec/fam.NLO.reference.exe` from the un-refactored tree and park it | none needed |
+| 1 | goodqn mask | optional `goodqn` in `init` (+ module header), `goodqn` in `geninfo` derived from `SYMSTRING`, masked-init and dense-expansion unit tests | `block_matrix_unit_tests`; compile NLO, NLO-T, NLO-P, NLO-TP |
+| 2 | pure move | `Qlm_spme` verbatim to `moments.f90` (which gains explicit `use wavefunctions`), deprecation banner | `fission.sh`, `minimal.sh` golden: outputs bit-identical |
+| 3 | generator | dense-expansion helper, `Qlm_spme_matrix`, `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks, compare `me_im` against a brute-force conjugated double-loop reference | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
+| 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
+| 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
+| 6 | consumer migration | `functional` COM correction (drop `*10`), `fam` multipole/z_com operators (drop `*(100**(l/2))`, `*sqrt(100)`), `fam_testing` [R, P] (drop `*sqrt(100)`) | `fission.sh`, `minimal.sh` golden, `cranking.sh` (NLO-T), `fam_unit_tests`, local runs vs the parked FAM reference |
+
+`Ksum_Mij_HF/BCS/HFB`, `calc_Q20` and the LAPACK inversion are
+deliberately untouched in this step beyond the source of `Qsp`.
+
+### 13.4 Validation and risks
+
+- Oracle agreement to machine precision modulo summation order (BLAS vs
+  the old scalar loops - the golden tolerances of `golden_diff.sh` exist
+  for exactly this reassociation drift).
+- The antisymmetric half has no legacy oracle (the old code computes the
+  real part only): covered by the brute-force conjugated reference inside
+  the hook, antisymmetry and Hermiticity identities, the [R, P] checks in
+  `fam_testing`, and vanish-to-roundoff in TR-conserving runs.
+- Parity-mask correctness: masked-init unit tests plus the NLO-P oracle
+  run - the old routine's `$PBROKEN` diagonal-blocks path is the reference
+  there.
+- No available config breaks Rz today (all four SYMSTRINGs contain 'Rz'),
+  yet the mask derivation is generic: an Rz-broken build clears bit 0 and
+  odd-m operators act within the merged signature blocks - same rule, no
+  new code.
+- The units-flip arithmetic of the `fission.sh` references is verified by
+  computation before editing the file; `make.inc` stays frozen (the trust
+  anchor is untouched).
+- MPI out of scope (the sprint is serial-only): construction takes
+  `HFBlocks_global` and the dense wrappers assume the whole basis on one
+  rank, matching `fission_MOI`'s current inert-under-MPI behaviour
+  (`N_inertia = 0`).
+- Park the FAM reference BEFORE any `fam.f90` edit: commit 0 precedes
+  commit 6.
+
+### 13.5 Deferred (not this step)
+
+- consuming the re/im halves inside FAM response assembly (needs
+  `complex_op`, step 7),
+- odd-m and Im-operator FAM fields end to end,
+- inertia for Im-operator moments (`Ksum`/`calc_Q20` generalisation),
+- the optional `$TR` short-circuit for the antisymmetric half,
+- deleting the old `Qlm_spme`.

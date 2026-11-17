@@ -201,7 +201,11 @@ perturbations).
   (`fill_elements`), and the `new_sym_matrix` constructor sugar. No
   `add_element` — the element-wise path is the callback only (see
   design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
-  Next: step 3, mat-vec with transposed/sign partner access.
+  Next: step 3 as re-planned 2026-11-17 — generalised multipole matrix
+  elements per design summary §13: `Qlm_spme` moves from fission_MOI.f90 to
+  moments.f90 and is rebuilt on sym_matrix (all l, m, Re/Im; units fm^l;
+  goodqn mask of §2b), with the legacy routine kept as the test oracle.
+  Mat-vec becomes step 4.
 - Design-to-repo couplings: the module lives in `src_orig/` as plain
   Fortran 2003+ without `$`-markers, identical for every CONFIG; its
   constructor is the only place converting MOCCa's 1-based `HFBlocks`
@@ -210,6 +214,10 @@ perturbations).
   Agreed encoding (2026-11-16): bit 0 = z-signature sign (0 = q(Rz) = +i),
   bit 1 = parity (0 = even), bit 2 = isospin (0 = neutron), so the sector
   word is simply the MOCCa block index minus one; see design summary §2a.
+  Operator words handed to `init` are physical; the constructor additionally
+  takes the good-quantum-number mask (design §2b, agreed 2026-11-17),
+  derived in geninfo from SYMSTRING — no `$`-marker selection logic in the
+  routines that produce or consume sym_matrix objects.
 - Hephaestos wiring: a new `src_orig/*.f90` file must be added both to
   `MF_SRC`/`FAM_SRC` in the Makefile and to `no_process_files` in
   `src_heph/preprocess.py`, or the per-file generation silently skips it
@@ -228,7 +236,9 @@ perturbations).
   anchor; changing flags invalidates golden comparability.
 - The sprint is explicitly serial-only: MPI behaviour does not have to be
   preserved or validated during it.
-- Still missing: a parked `fam.NLO.reference.exe`. Build it from the
-  un-refactored tree before the first FAM-side refactor lands — the
-  design's step 8 targets FAM, and a golden made from already-refactored
-  code proves nothing (the MF executable exists, the FAM one does not).
+- FAM anchor: `fam.NLO.reference.exe` is parked (built from the un-refactored
+  tree, 2026-11-17) — the FAM-side twin of MOCCa.NLO.reference.exe and step
+  0 of the design's §13. Design step 3 (§11/§13) migrates fam.f90's
+  Qlm_spme consumer in its final commit and design step 9 targets FAM;
+  FAM-side regressions are judged against the parked executable (no
+  committed fam golden log exists, exec/ is untracked).
