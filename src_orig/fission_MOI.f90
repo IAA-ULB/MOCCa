@@ -90,6 +90,10 @@ module fission_MOI
   ! of the collective_inertia. Stored separately so it can be output for 
   ! people wanting to recalculate the collective inertia.
   real(KIND = dp), allocatable :: M1(:,:,:), M2(:,:,:), M3(:,:,:)
+  ! If requested, include the occupation-dependent Q11 scattering channel in
+  ! the collective response. The default preserves the historical treatment,
+  ! where blocked quasiparticles and their partners are simply omitted.
+  logical :: blocked_collective_response = .false.
   !-----------------------------------------------------------------------------
   
 contains 
@@ -266,6 +270,7 @@ contains
     external :: dsytrf, dsytri
 
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
+    real(KIND=dp), allocatable :: Q11(:,:,:)
     real(KIND=dp), allocatable :: work(:), M1_inv(:,:)
     integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
@@ -284,6 +289,9 @@ contains
     
     if(pairingtype.eq.2) then
       allocate(Q20(nwt,nwt,N_inertia))         ;  Q20 = 0.0d0
+      if(blocked_collective_response) then
+        allocate(Q11(nwt,nwt,N_inertia))       ;  Q11 = 0.0d0
+      endif
     endif  
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Step 1 & 2: construct relevant sp matrices
@@ -297,6 +305,9 @@ contains
       if(pairingtype.eq.2) then
         ! Transform to the quasiparticle basis if needed
         Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
+        if(blocked_collective_response) then
+          Q11(:,:,i) = calc_Q11(Qsp(:,:,i), bogoliubov, l)
+        endif
       endif
     enddo
 
@@ -318,7 +329,13 @@ contains
           &                                                      la, lb,(/1,2,3/))
         case(2)
           ! HFB summation
-          Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,2,3/))
+          if(blocked_collective_response) then
+            Mat(i,j,:,:) = Ksum_Mij_blocked(Q20(:,:,i), Q20(:,:,j), &
+            &                               Q11(:,:,i), Q11(:,:,j), &
+            &                               la, lb, (/1,2,3/))
+          else
+            Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb, (/1,2,3/))
+          endif
         end select
       enddo
     enddo
@@ -368,6 +385,7 @@ contains
 
     deallocate(Mat, M1_inv, Qsp)
     if(pairingtype.eq.2) deallocate(Q20)
+    if(allocated(Q11)) deallocate(Q11)
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
@@ -529,6 +547,110 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
 $TR    Ksum = 2*Ksum
     
   end function Ksum_Mij
+
+  function Ksum_Mij_blocked(Q20a, Q20b, Q11a, Q11b, la, lb, Ks) result(Ksum)
+    !---------------------------------------------------------------------------
+    ! Perform the occupation-dependent sums over the quasiparticle space for
+    ! calculations with blocking or statistical quasiparticle occupations.
+    !
+    ! The pair-creation channel is weighted with
+    !
+    !                1 - f_i - f_j
+    ! M_K^20 = sum --------------------- Q20a_ij Q20b_ij,
+    !                  (E_i + E_j)^K
+    !
+    ! while the scattering channel is
+    !
+    !                   f_j - f_i
+    ! M_K^11 = sum --------------------- Q11a_ij Q11b_ij.
+    !                   (E_i - E_j)^K
+    !
+    ! For the real, hermitian operators considered here, the Q11 and Q22
+    ! Nambu-space contributions cancel for even K. They add for odd K, which
+    ! is the contribution retained below. This provides the blocked response
+    ! for M1 and M3, while M2 receives the occupation-weighted Q20 channel.
+    !
+    ! When all f_i vanish, this routine reduces exactly to Ksum_Mij.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: Q20a(:,:), Q20b(:,:)
+    real(KIND=dp), intent(in)  :: Q11a(:,:), Q11b(:,:)
+    real(KIND=dp), allocatable :: Ksum(:,:)
+    integer, intent(in)        :: Ks(:), la, lb
+
+    integer :: Na, N2a, Ta, Ba, Bb, Tb, Nb, N2b, ita, itb, k, i, j, Nk
+    integer :: sai, sbi, sab, sbb, trash
+    real(KIND=dp) :: num20, num11, denom, energy_sum, energy_diff
+    real(KIND=dp) :: fi, fj, fac20, fac11
+
+    Nk = size(Ks)
+    allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
+
+    ! If parity is conserved, there is a parity selection rule
+$PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
+    if(la .eq. lb) trash = 0
+    !         ^---- trash statement to stop compilator complaints
+
+    sai = 0 ; sab = 0
+    do Ba=1,8,2
+      Na = HFBlocks(Ba) ; if(Na.eq.0) cycle
+      N2a= HFBlocks(Ba+1)
+      Ta = Na + N2a
+      ita = 1 ; if(Ba.gt.4) ita=2
+
+      sbi = 0 ; sbb = 0
+      do Bb=1,8,2
+        Nb = HFBlocks(Bb) ; if(Nb.eq.0) cycle
+        N2b= HFBlocks(Bb+1)
+        Tb = Nb + N2b
+        itb= 1 ; if(Bb.gt.4) itb=2
+
+        ! Gain some CPU time
+        if(ita.ne.itb) then
+          sbi = sbi +   Tb
+          sbb = sbb + 2*Tb
+          cycle
+        endif
+
+        do i=1,Ta
+          fi = configmatrix(sab+i)
+          do j=1,Tb
+            fj = configmatrix(sbb+j)
+
+            energy_sum  = qpenergies(sab+Ta+i) + qpenergies(sbb+Tb+j)
+            energy_diff = qpenergies(sab+Ta+i) - qpenergies(sbb+Tb+j)
+
+            fac20 = 1.0d0 - fi - fj
+            fac11 = fj - fi
+            num20 = Q20a(sai+i,sbi+j) * Q20b(sai+i,sbi+j)
+            num11 = Q11a(sai+i,sbi+j) * Q11b(sai+i,sbi+j)
+
+            do k=1,Nk
+              if(abs(fac20).gt.1d-15) then
+                denom = energy_sum**Ks(k)
+                Ksum(k,ita) = Ksum(k,ita) + fac20*num20/denom
+              endif
+
+              ! The Q11 and Q22 contributions cancel for even moments.
+              if(mod(Ks(k),2).ne.0 .and. abs(fac11).gt.1d-15) then
+                if(abs(energy_diff).gt.1d-8) then
+                  denom = energy_diff**Ks(k)
+                  Ksum(k,ita) = Ksum(k,ita) + fac11*num11/denom
+                endif
+              endif
+            enddo
+          enddo
+        enddo
+        sbi = sbi +   Tb
+        sbb = sbb + 2*Tb
+      enddo
+      sai = sai +   Ta
+      sab = sab + 2*Ta
+    enddo
+
+    ! Factor two for the time-reversal partners in the reduced representation.
+$TR    Ksum = 2*Ksum
+
+  end function Ksum_Mij_blocked
     
   function Ksum_Mij_BCS(Qa, Qb, la, lb,  Ks) result(Ksum)
     !---------------------------------------------------------------------------
@@ -740,6 +862,124 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     endif
 
   end function calc_Q20
+
+  function calc_Q11(Qsp, bogo, l) result(Q11)
+    !---------------------------------------------------------------------------
+    ! Function that calculates the one-quasiparticle matrix for a multipole
+    ! moment operator in the case of a HFB calculation.
+    !
+    !  Q11 = U^\dagger Q U - V^\dagger Q^t V
+    !
+    ! where Q is the matrix of single-particle matrix elements of the
+    ! multipole operator.
+    !
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     Qsp       : single-particle matrix elements
+    !     Bogo      : Bogoliubov transformation from the sp basis to the
+    !                 quasiparticle basis
+    !     l         : ell of the multipole moment
+    ! Output:
+    !     Q11       : one-quasiparticle component of Qlm
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Note:
+    !
+    !  * This routine assumes that the single-particle matrix elements
+    !    Qsp are (i) real and (ii) correspond to an operator that conserves
+    !    signature symmetry.
+    !
+    !  * If time-reversal is conserved, the routine assumes IN ADDITION that
+    !    the operator conserves time-reversal symmetry as well, i.e.
+    !                 Q_ab = Q_{\bar{a} \bar{b}}
+    !    where \bar{x} indicates a time-reversal partner.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: Qsp(nwt,nwt), bogo(2*nwt,2*nwt)
+    integer, intent(in)        :: l
+    real(KIND=dp)              :: Q11(nwt,nwt), tmp(nwt,nwt)
+    real(KIND=dp), allocatable :: U(:,:), V(:,:)
+    integer                    :: N, N2, T, si, sb, B, Tp, Tm
+
+    Q11 = 0.0d0
+    tmp = 0.0d0
+
+    !---------------------------------------------------------------------------
+    ! This situation is:
+    !  (a) it concerns a multipole moment with even parity; or
+    !  (b) parity is broken
+    ! In both cases we can simply multiply matrices straightforwardly.
+$PCONSERVED    if(mod(l,2).eq.0) then
+      si = 0 ; sb = 0
+      do B=1,8,2
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        T = N + N2
+
+        allocate(U(T,T), V(T,T))
+        U = bogo(sb+  1:sb+  T,sb+ T+1:sb+2*T)
+        V = bogo(sb+T+1:sb+2*T,sb+ T+1:sb+2*T)
+
+        ! U^dagger Q U
+        Q11(si+1:si+T,si+1:si+T) = matmul(transpose(U),Qsp(si+1:si+T,si+1:si+T))
+        Q11(si+1:si+T,si+1:si+T) = matmul(Q11(si+1:si+T,si+1:si+T), U)
+
+        ! V^dagger Q^t V
+        tmp(si+1:si+T,si+1:si+T) = matmul(transpose(V),transpose(Qsp(si+1:si+T,si+1:si+T)))
+        tmp(si+1:si+T,si+1:si+T) = matmul(tmp(si+1:si+T,si+1:si+T), V)
+
+        Q11(si+1:si+T,si+1:si+T) = Q11(si+1:si+T,si+1:si+T) &
+        &                          - tmp(si+1:si+T,si+1:si+T)
+
+        deallocate(U,V)
+        si = si +   N +   N2
+        sb = sb + 2*N + 2*N2
+      enddo
+$PCONSERVED    endif
+
+$PBROKEN return
+
+    !---------------------------------------------------------------------------
+    ! The following situation concerns only the case for a multipole moment
+    ! with odd l and parity is conserved.
+    if(mod(l,2).eq.1) then
+      si = 0 ; sb = 0
+      do B=1,8,4 ! Just an isospin loop ...
+        ! Size of the positive parity block
+        Tp = HFBlocks(B) + HFBLocks(B+1)
+        ! Size of the negative parity block
+        Tm= HFBlocks(B+2) + HFBLocks(B+3)
+
+        ! Uplus
+        U = bogo(sb+        1:sb+  Tp     , sb+  Tp   +1:sb+2*Tp     )
+        Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+        &  matmul(transpose(U),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm))
+        ! Umin
+        U = bogo(sb+2*Tp+1:sb+2*Tp+Tm      ,sb+2*Tp+Tm+1:sb+2*Tp+2*Tm)
+        Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+        &  matmul(Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm),U)
+
+        ! Vplus
+        V = bogo(sb+ Tp+1:sb+2*Tp          ,sb+  Tp   +1:sb+2*Tp     )
+        tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+        &  matmul(transpose(V),transpose(Qsp(si+Tp+1:si+Tp+Tm,si+1:si+Tp)))
+        ! Vmin
+        V = bogo(sb+2*Tp+Tm+1:sb+2*Tp+2*Tm, sb+2*Tp+Tm+1:sb+2*Tp+2*Tm)
+        tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+        &  matmul(tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm),V)
+
+        Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+        &  Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm) &
+        &  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
+
+        ! Hermiticity of the operator
+        Q11(si+Tp+1:si+Tp+Tm, si+1:si+Tp) = &
+        &                            transpose(Q11(si+1:si+Tp,si+Tp+1:si+Tp+Tm))
+
+        si = si +   Tm  +   Tp
+        sb = sb + 2*Tm  + 2*Tp
+      enddo
+    endif
+
+  end function calc_Q11
 
   function Qlm_spme(l,m,Imaginary) result(me)
     !---------------------------------------------------------------------------

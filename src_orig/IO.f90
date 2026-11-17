@@ -213,7 +213,8 @@ contains
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
     &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
-    &           finfile, foutfile, dhoutfile, N_inertia, potentials_from_file
+    &           finfile, foutfile, dhoutfile, N_inertia, potentials_from_file,&
+    &           blocked_collective_response
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -260,6 +261,8 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
 
     call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(blocked_collective_response, 1      , MPI_LOGICAL, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(potentials_from_file, 1            , MPI_INTEGER, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
@@ -355,6 +358,7 @@ contains
              & '    Ext.field file = ', a80)
   112 format ( ' Checkpointiter =', i10)
   113 format (' Printing spwf details during iterations: ', l5)
+  115 format (' Occupation-weighted collective response: ', l5)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', es8.1, / & 
     &          '  Multipole moment convergence < ', es8.1, / &
@@ -416,6 +420,7 @@ contains
 
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
+      print 115, blocked_collective_response
 
       print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
       print 114, FAMFILE, XYFILE, FOUTFILE, DHOUTFILE
