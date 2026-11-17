@@ -94,6 +94,18 @@ module fission_MOI
   ! the collective response. The default preserves the historical treatment,
   ! where blocked quasiparticles and their partners are simply omitted.
   logical :: blocked_collective_response = .false.
+  ! Phenomenological regularization of the Q11 energy difference, in MeV.
+  ! It simulates the residual interaction omitted in the cranking
+  ! approximation and prevents divergences at quasiparticle crossings.
+  real(KIND=dp) :: blocked_response_delta = 0.2d0
+  ! Regulator used for the Q11 scattering channel:
+  !   0: none
+  !   1: sign-preserving square-root regulator
+  !   2: deformation-independent smooth level-crossing regulator based on
+  !      Li, Zhou and Yao, Phys. Rev. C 112, 014317 (2025),
+  !      arXiv:2409.12402.
+  integer       :: blocked_response_regulator = 1
+  real(KIND=dp) :: blocked_response_k0    = 0.05d0
   !-----------------------------------------------------------------------------
   
 contains 
@@ -286,7 +298,7 @@ contains
     
     allocate(Mat(N_inertia, N_inertia, 3,2)) ;  Mat   = 0.0d0
     allocate(Qsp(nwt,nwt,N_inertia))         ;  Qsp = 0.0d0
-    
+
     if(pairingtype.eq.2) then
       allocate(Q20(nwt,nwt,N_inertia))         ;  Q20 = 0.0d0
       if(blocked_collective_response) then
@@ -580,6 +592,7 @@ $TR    Ksum = 2*Ksum
     integer :: Na, N2a, Ta, Ba, Bb, Tb, Nb, N2b, ita, itb, k, i, j, Nk
     integer :: sai, sbi, sab, sbb, trash
     real(KIND=dp) :: num20, num11, denom, energy_sum, energy_diff
+    real(KIND=dp) :: regularized_diff, regulator, exponent, one_minus_exp
     real(KIND=dp) :: fi, fj, fac20, fac11
 
     Nk = size(Ks)
@@ -633,8 +646,32 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
               ! The Q11 and Q22 contributions cancel for even moments.
               if(mod(Ks(k),2).ne.0 .and. abs(fac11).gt.1d-15) then
                 if(abs(energy_diff).gt.1d-8) then
-                  denom = energy_diff**Ks(k)
-                  Ksum(k,ita) = Ksum(k,ita) + fac11*num11/denom
+                  regulator = 1.0d0
+                  select case(blocked_response_regulator)
+                  case(0)
+                    denom = energy_diff**Ks(k)
+                  case(1)
+                    regularized_diff = sign(                                 &
+                    & sqrt(energy_diff**2 + blocked_response_delta**2),       &
+                    & energy_diff)
+                    denom = regularized_diff**Ks(k)
+                  case(2)
+                    ! Smoothly remove the blocked one-quasiparticle pole.
+                    ! The regulator is k0*DeltaE**4 close to the pole, so
+                    ! regulator/DeltaE and regulator/DeltaE**3 both vanish
+                    ! continuously at a quasiparticle crossing.
+                    exponent = blocked_response_k0 * energy_diff**4
+                    if(exponent.lt.1.0d-3) then
+                      one_minus_exp = exponent *                             &
+                      & (1.0d0 - 0.5d0*exponent + exponent**2/6.0d0)
+                    else
+                      one_minus_exp = 1.0d0 - exp(-exponent)
+                    endif
+                    regulator = one_minus_exp
+                    denom = energy_diff**Ks(k)
+                  end select
+                  Ksum(k,ita) = Ksum(k,ita) +                                &
+                  &                   regulator*fac11*num11/denom
                 endif
               endif
             enddo
