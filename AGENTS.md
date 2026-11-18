@@ -147,7 +147,13 @@ cd testing/integration && bash golden_diff.sh minimal NLO   # run + golden compa
   `work/` directory destroyed at teardown; STDOUT logs written to
   `logs/<test>.<suffix>.out`. The `logs/` tree is gitignored except
   `*.reference.out`.
-- Unit tests: `testing/unit/fam_unit_tests.sh`.
+- Unit tests: `testing/unit/fam_unit_tests.sh` and
+  `testing/unit/moments_unit_tests.sh` (the moments suite also runs in CI:
+  the `moments_unit_tests` job of `.github/workflows/CI.yml`, on the
+  gfortran NLO/NLO-T/NLO-P artifacts; the script takes the CI suffix scheme
+  through an optional three-suffix interface,
+  `moments_unit_tests.sh SUFFIX [SUFFIX_T SUFFIX_P]` - locally the -T/-P
+  suffixes derive from the base).
 - CI (`.github/workflows/CI.yml`) compiles gfortran and ifx builds in
   `ghcr.io/iaa-ulb/mocca-ci` containers and runs `minimal.sh` plus the
   integration batch scripts.

@@ -34,11 +34,16 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash moments_unit_tests.sh [EXESUFFIX] [--pairing HF|BCS|HFB] [--maxiter N]
+#   bash moments_unit_tests.sh [SUFFIX [SUFFIX_T SUFFIX_P]]
+#         [--pairing HF|BCS|HFB] [--maxiter N]
 #
 # where
-# EXESUFFIX       : base configuration, e.g. "NLO" runs MOCCa.NLO.exe,
-#                   MOCCa.NLO-T.exe and MOCCa.NLO-P.exe (default: NLO)
+# SUFFIX           : executable suffix of the conservative build, e.g. "NLO"
+#                    for MOCCa.NLO.exe (default: NLO)
+# SUFFIX_T, SUFFIX_P: the TR-broken and parity-broken executables. Default:
+#                    derived from SUFFIX (MOCCa.NLO-T.exe / MOCCa.NLO-P.exe);
+#                    CI passes them explicitly, since its suffix scheme puts
+#                    the configuration first (MOCCa.NLO-T.gfortran.NUCLEI...).
 # --pairing       : pairing type of the mean-field state (default: HF).
 #                   Note that the trace check is skipped for HFB, whose
 #                   density matrix is canonical.
@@ -96,11 +101,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Restore the positional arguments (the executable suffix)
+# Restore the positional arguments: the executable suffix of the conservative
+#  build, optionally followed by those of the TR-broken and parity-broken
+#  builds. By default the latter two are derived from the conservative suffix
+#  (the local convention MOCCa.NLO-T.exe); CI hands them over explicitly.
 set -- "${args[@]}"
 if [[ "$1" != "" ]]; then
   suffix="$1"
 fi
+suffixT="${2:-$suffix-T}"
+suffixP="${3:-$suffix-P}"
 
 #- - - - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
@@ -113,16 +123,16 @@ source ../functions.sh
 #  written for: correct it for use after the cd into work/.
 setup_test_env "moments_unit_tests" "$suffix" "SLy4"
 EXECDIR="../../../exec/"
-if [ ! -f "$EXECDIR/MOCCa.$suffix-T.exe" ] || [ ! -f "$EXECDIR/MOCCa.$suffix-P.exe" ]; then
-  echo "Error: this test needs MOCCa.$suffix.exe, MOCCa.$suffix-T.exe and MOCCa.$suffix-P.exe."
+if [ ! -f "$EXECDIR/MOCCa.$suffixT.exe" ] || [ ! -f "$EXECDIR/MOCCa.$suffixP.exe" ]; then
+  echo "Error: this test needs MOCCa.$suffix.exe, MOCCa.$suffixT.exe and MOCCa.$suffixP.exe."
   exit 1
 fi
-cp $EXECDIR/MOCCa.$suffix-T.exe .
-cp $EXECDIR/MOCCa.$suffix-P.exe .
-exeT="MOCCa.$suffix-T.exe"
-exeP="MOCCa.$suffix-P.exe"
-outfileT="../logs/moments_unit_tests.$suffix-T.out"
-outfileP="../logs/moments_unit_tests.$suffix-P.out"
+cp $EXECDIR/MOCCa.$suffixT.exe .
+cp $EXECDIR/MOCCa.$suffixP.exe .
+exeT="MOCCa.$suffixT.exe"
+exeP="MOCCa.$suffixP.exe"
+outfileT="../logs/moments_unit_tests.$suffixT.out"
+outfileP="../logs/moments_unit_tests.$suffixP.out"
 
 # - - - - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - -
 # Input files: the same O16/SLy4 nucleus in the same physical 24 fm box for
@@ -241,7 +251,7 @@ echo "NLO  moments unit tests status : $mocca_check"
 echo "NLO-T moments unit tests status: $moccaT_check"
 echo "NLO-P moments unit tests status: $moccaP_check"
 echo "cross-build comparison status  : $cross_check"
-echo "logs at testing/unit/logs/moments_unit_tests.$suffix{,-T,-P}.out"
+echo "logs at testing/unit/logs/moments_unit_tests.$suffix.out , $suffixT.out , $suffixP.out"
 echo "==============================="
 
 [ $mocca_check -eq 0 ] && [ $moccaT_check -eq 0 ] && [ $moccaP_check -eq 0 ] && [ $cross_check -eq 0 ]

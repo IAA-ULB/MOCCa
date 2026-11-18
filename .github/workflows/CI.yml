@@ -764,6 +764,72 @@ jobs:
             testing/unit/logs/fam_unit_tests.${{ env.SUFFIX }}.fam.out
           retention-days: 2
 
+  #-----------------------------------------------------------------------------
+  # Unit tests of the multipole-moment machinery of the moments module: dense
+  # dump of the Qlm matrices (l <= 4), the trace check against the many-body
+  # moment values and the cross-build comparison of the conservative,
+  # TR-broken and parity-broken executables.
+  #-----------------------------------------------------------------------------
+
+  moments_unit_tests:
+    needs: compile-mf-nuclei
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'moments_unit_tests'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+    strategy:
+      matrix:
+        CONFIG: [NLO]
+        COMPILER: [gfortran]
+
+    env:
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_T: ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.NUCLEI.serial
+      SUFFIX_P: ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.NUCLEI.serial
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download conservative executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Download TR-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_T }}
+          path: exec/
+
+      - name: Download parity-broken executable
+        uses: actions/download-artifact@v7
+        with:
+          name: MOCCa.${{ env.SUFFIX_P }}
+          path: exec/
+
+      - name: Make executables
+        run: |
+          chmod +x exec/MOCCa.${{ env.SUFFIX }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_T }}.exe
+          chmod +x exec/MOCCa.${{ env.SUFFIX_P }}.exe
+
+      - name: Run moments_unit_tests
+        run: |
+          cd testing/unit/
+          bash moments_unit_tests.sh ${{ env.SUFFIX }} ${{ env.SUFFIX_T }} ${{ env.SUFFIX_P }}
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: moments_unit_tests.${{ env.SUFFIX }}.logs
+          path: |
+            testing/unit/logs/moments_unit_tests.${{ env.SUFFIX }}.out
+            testing/unit/logs/moments_unit_tests.${{ env.SUFFIX_T }}.out
+            testing/unit/logs/moments_unit_tests.${{ env.SUFFIX_P }}.out
+          retention-days: 2
+
   fam_t0t3:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'fam_t0t3'
