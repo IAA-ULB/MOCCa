@@ -228,7 +228,7 @@ routines), `momentsofinertia.f90` (J_mu matrices and inertia tensors),
 (HF <-> canonical, HFBlocks usage), and `fam.f90` (drho, dkappa, FAM
 perturbations).
 
-## Current focus (dated 2026-11-17 — prune when stale)
+## Current focus (updated 2026-11-19 — prune when stale)
 
 - Refactor sprint on branch `matrix_refactor`: introducing a dense
   symmetry-block matrix type for efficient matrix-element calculation —
@@ -236,185 +236,82 @@ perturbations).
   construction, BLAS-only runtime. The authoritative design is
   `mocca-symmetry-block-matrix-design-summary.md` at the repo root — not
   this file; read it first.
-- Sprint status (implementation order in the design's §11): steps 1-2
-  landed — core types and `init` (phase 1, commit 395bde9d), and the
-  fill machinery (phase 2): `fill_blocks` with the `block_filler`
-  abstract interface, the `element_filler` per-element fallback
-  (`fill_elements`), and the `new_sym_matrix` constructor sugar. No
-  `add_element` — the element-wise path is the callback only (see
-  design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
-  Next: step 4 (matvec) is next up now that the step-3 chain (all five
-  rows of design §13.3) has landed - see the landed bullets below and
-  design §§11/§13.3.
-  Landed since (2026-11-17): the goodqn mask (commit 6a6d92c8: optional
-  `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests),
-  the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
-  ProcessMoments parity keys (commit 9faf8238; golden minimal NLO
-  bit-identical), and the generator of design §13.3 row 3: the
-  partner-reconstructing dense expansion `sym_matrix%dense()` in
-  block_matrix_module (print_dense refactored onto it, unit-tested over
-  patterns x words x kinds x masks), `Qlm_spme_matrix` (real symmetric
-  half only, fm^l, marker-free, filled through the block_filler callback
-  `Qlm_spme_fill_block`), `Qlm_spme_fm` (dense legacy shape) in
-  moments.f90, and the off-by-default oracle hook in fission_MOI
-  (`spme_oracle` in the &inertia/ namelist; prints legacy-vs-generator
-  deviations plus symmetry self-checks). The `me_im` half that briefly
-  shipped in row 3 was reverted then - a superseded decision: the
-  revert's diagnosis was wrong and the half landed for good in the
-  2026-11-19 bullet below. Oracle
-  runs NLO / NLO-T / NLO-P: real halves agree to ~1e-15 relative; all
-  four mf configs + fam.NLO compile; golden minimal NLO still
-  bit-identical after the commit. Next up: the units flip (row 5,
-  amended 2026-11-19) - landed, see the row-5 bullet below.
-- Landed since (2026-11-17): the y-time-simplex characteristic of design
-  §2a in `block_matrix_module`, with `goodqn` extended to 4 bits (bit 3 =
-  STy conserved, injected by Hephaestos via symdic['STy'] alongside Rz
-  and P, default 15; NLO/NLO-T 15, NLO-P/NLO-TP 13).
-- Landed since (2026-11-18): classifiability interface of design §2a -
-  every operator is (anti-)Hermitian and STy-even/odd, so `init` and
-  `new_sym_matrix` take the MANDATORY physical classes `herm`
-  (HERMITIAN/ANTIHERMITIAN) and `sty` (STY_EVEN/STY_ODD) and DERIVE the
-  storage kind as kind = herm*sty; `kind` is no longer an input and
-  KIND_GENERAL/STY_NONE are gone. STy carries no block structure: the
-  classes select the stored HALF of the complex matrix elements (real
-  part even / imaginary part odd), never a block. goodqn bit 3 is not a
-  gate - the mask is stored verbatim as the consumers' completeness
-  criterion (matrix is the entire operator iff bit 3 set; only relevant
-  for hypothetical SYMSTRINGs without STy). `Qlm_spme_matrix` now calls
-  `init(HFBlocks_global, iop, HERMITIAN, STY_EVEN, goodqn=goodqn)`.
-  Gates: unit suite reworked over the herm x sty cross products (33506
-  checks, 0 failures), NLO + NLO-T mf and fam.NLO built with the frozen
-  make.inc, golden minimal NLO bit-identical (4849 numbers identical).
-- Landed since (2026-11-19): corrected classes and imaginary half of
-  Qlm_spme_matrix (user instruction; supersedes the row-3 revert): MOCCa
-  works with the real and imaginary multipole operators, both Hermitian,
-  of opposite STy class - r^l Re Y_lm is STY_EVEN (stored numbers =
-  Re <i|Q|j>, kind KIND_SYMMETRIC), r^l Im Y_lm is STY_ODD (stored
-  numbers = Im <i|Q|j>, kind KIND_ANTISYMMETRIC), for every m. The fill is
-  a chamber-weighted sum over the folded mesh: per spinor-component pair
-  the exact 0-or-1 weight prod_folded((1 + s(k,i)s(k',j) oc)/2), built
-  from the sx/sy/sz extension signs and the operator's reflection
-  characters oc (estimated numerically from mirrored-mesh harmonic
-  generations in Qlm_spme_operator_characters). The weights depend only
-  on the sector pair, the component pair and the operator:
-  Qlm_spme_build_weights checks the sign uniformity once per populated
-  sector and precomputes the whole table into Qlm_spme_params%w(0:7,0:7,
-  4,4) once per matrix - the fill callback consumes params only and
-  never touches a reflection character.
-  For every XOR-allowed block pair all weights are 1 - the real half stays
-  bit-identical to the legacy fill and the oracle agreement (~1e-15
-  relative) survives (NLO smoke run armed with spme_oracle); a weight 0 is
-  the per-amplitude selection rule the sector word cannot express. NOTE:
-  the 2026-11-17 revert message declared the within-block imaginary half
-  "identically zero in every STy-conserving build" - that diagnosis does
-  not survive: with MOCCa's linear antihermitian Rz, STy is the only
-  antiunitary constraint on the stored basis and it fixes the MEs to be
-  purely imaginary without annulling them. The imaginary half ships
-  unvalidated - no reference path covers it yet (2026-11-19); its
-  numbers are to be judged against physics, never against zeros.
-  Gates: block_matrix_unit_tests 33506/0; NLO / NLO-T /
-  NLO-P / NLO-TP mf + fam.NLO compile (debug profile, final source);
-  frozen-make.inc NLO build; golden minimal NLO bit-identical.
-- Landed since (2026-11-19, row 4): the inertia switch -
-  calc_collective_inertia takes Qsp from Qlm_spme_fm * 100^(-l/2)
-  (design §13.3 row 4): the symmetry-block generator in fm^l times the
-  boundary rescale, identical b^(l/2) semantics downstream; Ksum/calc_Q20/
-  the LAPACK inversion untouched by design. The inertia smoke (O16
-  5-moment scratch run, serial) reproduces the legacy-path tensor at the
-  6-digit print precision; golden minimal NLO stays bit-identical
-  (4849 numbers, 2026-11-19). The heavy fission.sh (Pu240 HFB) net of
-  this row is NOT run locally: judged through full CI on GitHub against
-  logs/fission.BXL.pre-move.out (compare with
-  `golden_diff.sh --no-run fission BXL BXL.pre-move` once CI produced
-  logs/fission.BXL.out - or run it locally when convenient).
-- Landed since (2026-11-19, row 5 - amended): the units flip, with the
-  user amendment of 2026-11-19: the inertia chain runs in fm
-  end-to-end internally (Qsp straight from Qlm_spme_fm, no 100^(-l/2)
-  anywhere in calc_collective_inertia), and every PRESENTED number
-  stays in the historical b^(l/2) units that downstream users rely on
-  - the output boundary in print_collective_inertia (STDOUT block) and
-  write_inertias in IO.f90 (inertia file) applies the per-element
-  presentation factors: the tensor element I(i,j) scaled by
-  100^((l_i+l_j)/2) (it counts 1/(Q_i Q_j)), the M1/M2/M3 elements
-  divided by the same factor (they count Q_i Q_j); the two families
-  scale in OPPOSITE directions, see the comments at both output spots.
-  The immutable consequences: printed/file values keep their exact
-  legacy meaning, the 'MeV^{-1} b^{-l}' convention strings stay as
-  they were, fission.sh references and tolerances are UNCHANGED, and
-  the original row-5 fission.sh rescale arithmetic is never needed.
-  The one internal consumer of the stored fm arrays,
-  calc_vibrational_correction (Tr M3^-1 M2, functional.f90), is
-  scale-invariant - no rescale; the pushing model uses legacy Qlm_spme
-  directly (fam.f90/functional.f90 still on the b-units legacy path,
-  untouched until step 9). Gates (2026-11-19): the O16 5-moment scratch
-  run (maxiter=3, spme_oracle armed, frozen make.inc) gives a printed
-  inertia block byte-identical to the pre-row-4 legacy binary's and an
-  inertia FILE bit-identical to the same binary's write_inertias
-  output; oracle agreement ~1e-15 relative survives; golden minimal
-  NLO bit-identical (4849 numbers); fortitude clean; no $-markers in
-  the edited regions, so no per-config compile net (row-4 precedent).
-  The heavy fission.sh gate (Pu240 HFB vs the pre-move baseline) was
-  validated on CI by the user (2026-11-19): the CI fission run compared
-  against logs/fission.BXL.pre-move.out, closing the last deferred
-  numerical gate of the chain. Step 3 of
-  the design is now COMPLETE (all five rows, all gates); next up:
-  step 4 (matvec).
-- Landed since (2026-11-19, moments unit tests, pre-matvec): the
-  `moments_testing` module (src_orig/moments_testing.f90, plain
-  Fortran 2003+/marker-free, Hephaestos-copied verbatim via
-  no_process_files + FORTRANFILES, wired in both MF_SRC and FAM_SRC),
-  styled after fam_testing: `run_moments_tests()` - a dense dump of all
-  Qlm_spme_matrix halves with l <= 4 through sym_matrix%print_dense,
-  and the trace check Tr(rho_can Q) vs the many-body moment values of
-  CalculateMoments (the density matrix is diagonal in the HF basis with
-  rho_can on the diagonal, the cranking/momentsofinertia convention;
-  neutrons are the first nwn states; skipped with a note for
-  pairingtype 2, whose rho_can is canonical; symmetry-forbidden moments
-  compared against the zero both sides produce). The `unit_test` flag
-  MOVED from the fam module/&fam/ namelist into geninfo/&mesh/ (fam_run
-  imports it explicitly now), so every executable arms its own suite;
-  the mf side calls run_moments_tests from Run_MOCCa after
-  run_mean_field - the call contains an exit statement, an armed flag
-  is not a physics calculation. Runscript:
-  `testing/unit/moments_unit_tests.sh NLO` (O16, SLy4, HF by default,
-  identical box to minimal.sh), exit status = test suite status; the
-  O16 golden anchor: the l=0 monopole trace is exactly A/sqrt(4*pi) =
-  2.256758334 per isospin, deformation moments agree at the ~1e-14
-  level. This first execution also exposed and fixed a latent
-  print_dense bug (block_matrix_module: the kind-header line had four
-  format items for a five-item list; nothing had printed a
-  classifiable matrix through that helper before).
-  CAVEAT discovered along the way (pre-existing, reproduced on the
-  parked fam.NLO.reference.exe): fam_unit_tests.sh with its default
-  --parameterisation t0t3 under an NLO fam build stops silently at the
-  .func mismatch banner (stp, exit 0) and the FAM tests NEVER run -
-  use `bash fam_unit_tests.sh NLO --parameterisation SLy4` instead.
-  Extended since (2026-11-19, same session): moments_unit_tests.sh runs
-  the suite for THREE configurations - NLO, NLO-T and NLO-P (even
-  nwn/nwp, allowtransform for the broken builds) - and cross-compares
-  the builds: matrix elements themselves are basis-dependent (the runs
-  store different symmetry-adapted bases), so the comparison uses the
-  basis-independent carriers, the diagonal-density traces of the even-m
-  operators that all three builds represent (odd m is structurally
-  zero in TR-conserving builds). All three runs must converge to the
-  same state (identical total energies, O16 spherical at -128.513125);
-  NLO vs NLO-T then agree to all printed digits, NLO-P to ~1e-8
-  absolute (tolerance 1e-7 + 1e-6 relative). TWO conventions learned
-  the hard way, both user-confirmed: (i) a one-body second moment
-  sum_j <i|Q|j><j|Q|i> presumes the stored basis RESOLVES Q|i> -
-  false for any truncated basis (failure ~1e4 relative, worst for
-  high l), so no Qlm^2-vs-mesh-Squared test exists; (ii) the folded
-  builds carry the z-fold in dv, so nz=12 covers a 24 fm box for NLO
-  and NLO-T, while the parity-broken NLO-P stores the z-axis UNFOLDED
-  and needs nz=24 for the same box - with nz=12 it converges to a
-  different (truncated-box) state with a 88 keV offset, which is a
-  broken input, not new physics.
-  Gates: moments_unit_tests.sh NLO passes (largest trace deviation
-  1.8e-14); fam_unit_tests.sh NLO --parameterisation SLy4 passes;
-  block_matrix_unit_tests 33506/0; golden minimal NLO bit-identical
-  (4849 numbers); fortitude clean; NLO mf + fam.NLO built with the
-  frozen make.inc, NLO-T/NLO-P/NLO-TP mf compile (debug profile - those
-  three executables are now debug binaries).
+- Sprint state (updated 2026-11-19, end of sprint day). Steps 1-3 of the
+  design's §11 - and all five rows of §13.3 - are COMPLETE on top of
+  phases 1-2; every numerical gate is executed and green:
+   * Phases 1-2: core sym_matrix types, init with goodqn mask (4 bits,
+     $GOODQN), the classifiability interface (mandatory herm x sty
+     classes, derived kind), fill machinery (block_filler callback,
+     element_filler fallback, new_sym_matrix sugar). Commits 395bde9d,
+     6a6d92c8, 55272151, 35bf016e. Unit suite:
+     testing/unit/block_matrix_unit_tests (33506 checks).
+   * Step 3, the fm multipole generator: the verbatim Qlm_spme move
+     (9faf8238), Qlm_spme_matrix/Qlm_spme_fm - BOTH halves: r^l Re Y_lm
+     STY_EVEN/kind symmetric, r^l Im Y_lm STY_ODD/kind antisymmetric,
+     chamber-weighted fill (810986ab, d7f42ff2), the dense() helper and
+     the off-by-default spme_oracle hook (59ae4252, whose NLO-T/P/TP
+     smoke runs and the parity keys predate 93e6e8de), the inertia
+     switch (c0262789) and the AMENDED units flip (0b6de03f: the
+     inertia chain is fm-based internally, every presented number stays
+     in the historical b^(l/2) units - design §13.3 row 5 carries the
+     amendment).
+   * Gates all green: golden minimal NLO bit-identical at every row
+     (4849 numbers); oracle agreement ~1e-15 relative (real halves,
+     NLO/NLO-T/NLO-P); O16 inertia smoke byte-identical and inertia
+     file bit-identical to the legacy binary; the heavy fission.sh
+     (Pu240 HFB) validated on CI against the pre-move baseline
+     (user-executed, 2026-11-19).
+   * Pre-matvec test infrastructure: the moments_testing module +
+     unit_test flag move to &mesh/ (cd8d9b8e), the three-configuration
+     cross-build runscript (7dcc6118, NLO/NLO-T/NLO-P) and its CI job
+     (57217a28). Conventions distilled below; usage in the Testing
+     section.
+  NEXT UP: step 4 (matvec) of design §6/§11 - dgemv over stored blocks,
+  transposed access with the kind sign, complex (packed two-column)
+  vectors combined per the STy characteristic (§2a). The dense() helper
+  is the dense reference builder for its tests; block_matrix_unit_tests
+  is the natural home; the three-config moments net can smoke the first
+  consumer. Steps 5 (partner maintenance) and 6 (matmat) follow.
+  OPEN ITEMS when resuming:
+   * The imaginary half of Qlm_spme_matrix still has no reference path:
+     it is exercised only as structural zeros by the NLO trace test (by
+     construction - the diagonal of an antisymmetric matrix vanishes);
+     its off-diagonal content must be validated at the matvec/physics
+     level, judged against physics, never against zeros.
+   * fam.f90's get_qpme_op still consumes the legacy b-units Qlm_spme -
+     decide whether its migration belongs to the step-4 shakeout or to
+     FAM-side step 9; FAM regressions are judged against the parked
+     fam.NLO.reference.exe (no fam golden log is committed).
+   * exec/MOCCa.NLO-TP.exe is a stale debug-profile binary (pre-moments-
+     tests); rebuild frozen before using it as an anchor. The other mf
+     executables (NLO, NLO-T, NLO-P) and fam.NLO are freshly rebuilt
+     with the frozen make.inc.
+- Conventions learned in this sprint (2026-11-19, user-confirmed; full
+  reasoning in the commit messages and the design doc):
+   * Folded meshes: the conservative/TR builds carry the z-fold in dv,
+     so nz=12 describes a 24 fm z box; the parity-broken build stores
+     the z-axis UNFOLDED and needs nz=24 for the same box (nz=12
+     converges to a different truncated-box state, ~88 keV off for
+     O16/SLy4 - a broken input, not new physics). Broken-symmetry
+     inputs also demand even nwn/nwp and allowtransform=.true. in &IO/.
+   * One-body Q^2 through sp matrices presumes the truncated basis
+     RESOLVES Q|i> - false for any MOCCa basis (failure ~1e4 relative,
+     worst for high l): no Qlm^2-vs-mesh-Squared test exists.
+   * Odd-m multipole operators are structurally zero in TR-conserving
+     builds (all stored sectors have q(Rz)=+i, their XOR partners stay
+     empty); their wobbling-relevant content exists only once the
+     TR-broken blocks are populated.
+   * fam_unit_tests.sh with its default --parameterisation t0t3 stops
+     silently at the .func mismatch under an NLO fam build (stp, exit
+     0) and never runs the FAM tests - pass --parameterisation SLy4.
+   * Cross-build comparisons are only meaningful through
+     basis-independent invariants (traces) of operators common to the
+     builds (even m), and only when the runs converge to the same
+     state - witness: identical total energies.
+   * The unit_test flag lives in &mesh/ (geninfo) and arms every
+     executable's own suite (moments: run_moments_tests from
+     Run_MOCCa; fam: run_FAM_tests from fam_run).
+
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and
@@ -429,8 +326,10 @@ perturbations).
   iteration while unconverged - keep maxiter small for dev scratch
   runs.
 - Local test artifacts for step 3 (gitignored, machine-local):
-  `exec/fam.NLO.reference.exe` is the parked FAM anchor; exec/MOCCa.NLO.exe
-  fam.NLO.exe BXL/T/P/TP executables are freshly rebuilt and validated.
+  `exec/fam.NLO.reference.exe` is the parked FAM anchor;
+  exec/MOCCa.NLO.exe, MOCCa.NLO-T.exe, MOCCa.NLO-P.exe and fam.NLO.exe
+  are freshly rebuilt and validated (frozen make.inc, 2026-11-19);
+  MOCCa.NLO-TP.exe is a stale debug binary (see the open items).
   `testing/integration/logs/fission.BXL.pre-move.out` was the inertia
   baseline produced by the pre-move BXL binary; the fission.sh comparison
   against it has been executed through CI (2026-11-19) - the batching
