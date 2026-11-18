@@ -284,12 +284,17 @@ perturbations).
   works with the real and imaginary multipole operators, both Hermitian,
   of opposite STy class - r^l Re Y_lm is STY_EVEN (stored numbers =
   Re <i|Q|j>, kind KIND_SYMMETRIC), r^l Im Y_lm is STY_ODD (stored
-  numbers = Im <i|Q|j>, kind KIND_ANTISYMMETRIC), for every m. The fill
-  callback is now a chamber-weighted sum over the folded mesh: per
-  spinor-component pair the exact 0-or-1 weight
-  prod_folded((1 + s(k,i)s(k',j) oc)/2) built from the sx/sy/sz extension
-  signs and the operator's reflection characters oc (estimated numerically
-  from mirrored-mesh harmonic generations in Qlm_spme_operator_characters).
+  numbers = Im <i|Q|j>, kind KIND_ANTISYMMETRIC), for every m. The fill is
+  a chamber-weighted sum over the folded mesh: per spinor-component pair
+  the exact 0-or-1 weight prod_folded((1 + s(k,i)s(k',j) oc)/2), built
+  from the sx/sy/sz extension signs and the operator's reflection
+  characters oc (estimated numerically from mirrored-mesh harmonic
+  generations in Qlm_spme_operator_characters). The weights depend only
+  on the sector pair, the component pair and the operator:
+  Qlm_spme_build_weights checks the sign uniformity once per populated
+  sector and precomputes the whole table into Qlm_spme_params%w(0:7,0:7,
+  4,4) once per matrix - the fill callback consumes params only and
+  never touches a reflection character.
   For every XOR-allowed block pair all weights are 1 - the real half stays
   bit-identical to the legacy fill and the oracle agreement (~1e-15
   relative) survives (NLO smoke run armed with spme_oracle); a weight 0 is

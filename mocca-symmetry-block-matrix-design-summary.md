@@ -624,17 +624,22 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   always clear (electric multipoles are isoscalar). Both operator halves
   (Re/Im Y_lm) carry the same word: MOCCa's Rz and P are linear, no
   antiunitary complement (section 8) arises for electric multipoles.
-- chamber weighting on the reduced mesh (agreed 2026-11-19, implemented
-  in the fill callback `Qlm_spme_fill_block`): the stored mesh covers
-  2^NUMSYM chambers with `dv` carrying the multiplicity; the spwf
-  components extend across the fold planes with the per-component
-  reflection signs `sx/sy/sz` of `wavefunctions.f90` (the convention the
-  derivative machinery uses), and the operator mesh function is of
-  definite reflection character `O(-axis) = oc(axis) O` with
-  `oc = +/- 1` estimated numerically from the mesh values. Every
-  stored-point component-pair product of a row and a column state carries
-  the exact 0-or-1 weight
-  `w(k,k') = prod_(folded axis) (1 + s(k,i) s(k',j) oc) / 2`.
+- chamber weighting on the reduced mesh (agreed 2026-11-19, the fill
+  callback `Qlm_spme_fill_block` consumes the weights from its `params`):
+  the stored mesh covers 2^NUMSYM chambers with `dv` carrying the
+  multiplicity; the spwf components extend across the fold planes with
+  the per-component reflection signs `sx/sy/sz` of `wavefunctions.f90`
+  (the convention the derivative machinery uses), and the operator mesh
+  function is of definite reflection character `O(-axis) = oc(axis) O`
+  with `oc = +/- 1` estimated numerically from the mesh values. Every
+  stored-point component-pair product of a row and a column state
+  carries the exact 0-or-1 weight
+  `w(k,k') = prod_(folded axis) (1 + s(k,i) s(k',j) oc) / 2`,
+  which depends on nothing but the sector pair, the component pair and
+  the operator: `Qlm_spme_build_weights` checks the sector-wise
+  uniformity of the `sx/sy/sz` signs once, precomputes the entire table
+  into the fill state `Qlm_spme_params` once per matrix, and the fill
+  callback never touches a reflection character.
   For every block pair allowed by the XOR pairing all weights are 1 and
   the fill reduces to the plain dense products of the legacy routine -
   bit-identical numbers on the real half, so the oracle comparison

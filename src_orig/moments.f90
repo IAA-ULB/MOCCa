@@ -358,11 +358,14 @@ module moments
     !  .true.  -> imaginary part  Im < i | Q_lm | j >
     ! (design sections 2a and 13 - see the module-tail banner.)
     logical :: imag
-    ! Reflection characters of the operator mesh function as estimated by
-    !  Qlm_spme_operator_characters:
-    !     O(-x,y,z) = oc(1) O(x,y,z)   and cyclic for y and z.
-    !  Only consulted for the folded axes reduX/reduY/reduZ.
-    real(KIND=dp) :: oc(3)
+    ! Chamber weight of the stored-mesh product of spinor component ki of
+    !  the row state with component ko of the column state, per sector pair
+    !  and component pair - the exact 0-or-1 factors of the module-tail
+    !  banner, precomputed by Qlm_spme_build_weights from the sx/sy/sz
+    !  extension signs and the operator's reflection characters. Pairs
+    !  carrying an empty sector stay at 0: their blocks are never stored,
+    !  so they are never consulted.
+    real(KIND=dp) :: w(0:7, 0:7, 4, 4)
   end type Qlm_spme_params
 
 contains
@@ -3580,7 +3583,10 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 !  oracle comparison against Qlm_spme therefore remains valid. A weight 0
 !  zeroes a component pair whose chamber contributions cancel through the
 !  reflection characters: the fine-grained, per-amplitude selection rule
-!  that the sector word cannot express.
+!  that the sector word cannot express. The weights depend on nothing but
+!  the sector pair, the component pair and the operator:
+!  Qlm_spme_build_weights precomputes the entire table into Qlm_spme_params
+!  once per matrix, and the fill callback consumes params only.
 !==============================================================================
   subroutine Qlm_spme_matrix(l, m, Im, me_half)
     !---------------------------------------------------------------------------
@@ -3621,6 +3627,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 
     type(Qlm_spme_params) :: params
     real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    real(KIND=dp) :: oc(3)
     integer :: iop, ihalf, sty_class
 
     ! Loud input checks; forbidden (l, m) for a build are NOT an error
@@ -3673,9 +3680,8 @@ $PBROKEN if( Bi .ne. Bj ) cycle
       return
     endif
 
-    ! Reflection characters of the operator, for the chamber weights of
-    !  the fill callback.
-    call Qlm_spme_operator_characters(SpherHarmMesh, l, m, ihalf, params%oc)
+    ! Reflection characters of the operator, for the chamber weights.
+    call Qlm_spme_operator_characters(SpherHarmMesh, l, m, ihalf, oc)
     deallocate(SpherHarmMesh)
 
     ! Bounds handed to the callback: identical to the matrices' own sector
@@ -3683,6 +3689,10 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !  the block list was built with.
     params%st    = me_half%st
     params%imag  = Im
+
+    ! Chamber weights per sector pair and component pair: precomputed once
+    !  here, so the fill callback consumes params only.
+    call Qlm_spme_build_weights(oc, params)
 
     call me_half%fill_blocks(Qlm_spme_fill_block, params)
   end subroutine Qlm_spme_matrix
@@ -3817,8 +3827,10 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !  the chamber contributions of the pair cancel through the characters.
     !
     !  The signs are facts of the symmetry blocks, so any state of the
-    !  row/column block may stand in; the fill callback checks that
-    !  uniformity before calling this.
+    !  row/column sector may stand in; Qlm_spme_build_weights checks that
+    !  uniformity once per populated sector and precomputes the per
+    !  sector-pair and component-pair table that the fill callback
+    !  consumes as params%w.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     ki, ko    : the spinor components (1..4) of the row/column product
@@ -3840,41 +3852,67 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     &  w = w * (1.0d0 + sz(ki,rowstate)*sz(ko,colstate)*oc(3)) * 0.5d0
   end function Qlm_spme_chamber_weight
 
-  subroutine Qlm_spme_check_block_signs(si, m, sj, n)
+  subroutine Qlm_spme_build_weights(oc, params)
     !---------------------------------------------------------------------------
-    ! The reflection signs sx/sy/sz are facts of the symmetry blocks:
-    !  verify that every spwf of the row and column sector of a fill call
-    !  carries the same signs, so that one representative state per side
-    !  suffices for the chamber weights. Loud on violation.
+    ! Precompute the chamber weights of the fill callback, once per
+    !  populated sector pair and spinor-component pair, into params%w:
+    !     params%w(srow, scol, ki, ko)
+    !       = Qlm_spme_chamber_weight(ki, ko, st(srow), st(scol), oc)
+    !  with the first states of the sectors as representatives.
+    !
+    !  The reflection signs sx/sy/sz are facts of the symmetry blocks:
+    !  every state of a populated sector is checked, once, to carry the
+    !  same signs as its first state, so the representatives are
+    !  unambiguous. Loud on violation. Pairs carrying an empty sector
+    !  stay at weight 0: the constructor never stores their blocks.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !     si, m : global start and size of the row    sector
-    !     sj, n : global start and size of the column sector
+    !     oc     : operator reflection characters (folded axes only)
+    ! Input/Output:
+    !     params : fill state with its sector bounds st set; w is
+    !              overwritten entirely
     !---------------------------------------------------------------------------
-    integer, intent(in) :: si, m, sj, n
-    integer :: i, k
+    real(KIND=dp), intent(in)        :: oc(3)
+    type(Qlm_spme_params), intent(inout) :: params
 
-    do i = si+1, si+m-1
-      do k = 1, 4
-        if (sx(k,i) .ne. sx(k,si) .or. sy(k,i) .ne. sy(k,si)                  &
-        &   .or. sz(k,i) .ne. sz(k,si)) then
-          print *, 'Qlm_spme_check_block_signs: reflection signs vary ',      &
-          &         'within the row block, at spwf ', i
-          call stp('Reflection signs not uniform within a symmetry block.')
-        endif
+    integer :: counts(0:7)
+    integer :: s, sp, k, kc, i, si
+
+    params%w = 0.0d0
+    counts(0:7) = HFBlocks_global(1:8)
+
+    ! One uniformity check per populated sector: any of its states may
+    !  represent its reflection signs.
+    do s = 0, 7
+      if (counts(s) .eq. 0) cycle
+      si = params%st(s)
+      do i = si+1, si+counts(s)-1
+        do k = 1, 4
+          if (sx(k,i) .ne. sx(k,si) .or. sy(k,i) .ne. sy(k,si)                &
+          &   .or. sz(k,i) .ne. sz(k,si)) then
+            print *, 'Qlm_spme_build_weights: reflection signs vary ',       &
+            &         'within sector ', s, ', at spwf ', i
+            call stp('Reflection signs not uniform within a symmetry block.')
+          endif
+        enddo
       enddo
     enddo
-    do i = sj+1, sj+n-1
-      do k = 1, 4
-        if (sx(k,i) .ne. sx(k,sj) .or. sy(k,i) .ne. sy(k,sj)                  &
-        &   .or. sz(k,i) .ne. sz(k,sj)) then
-          print *, 'Qlm_spme_check_block_signs: reflection signs vary ',      &
-          &         'within the column block, at spwf ', i
-          call stp('Reflection signs not uniform within a symmetry block.')
-        endif
+
+    ! The weight table itself, for every pair of populated sectors.
+    do s = 0, 7
+      if (counts(s) .eq. 0) cycle
+      do sp = 0, 7
+        if (counts(sp) .eq. 0) cycle
+        do k = 1, 4
+          do kc = 1, 4
+            params%w(sp, s, k, kc) =                                          &
+            &       Qlm_spme_chamber_weight(k, kc, params%st(sp),            &
+            &                                params%st(s), oc)
+          enddo
+        enddo
       enddo
     enddo
-  end subroutine Qlm_spme_check_block_signs
+  end subroutine Qlm_spme_build_weights
 
   subroutine Qlm_spme_fill_block(srow, scol, A, params)
     !---------------------------------------------------------------------------
@@ -3884,8 +3922,8 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     ! The block spans the global row range st(srow) : st(srow+1)-1 and the
     !  global column range st(scol) : st(scol+1)-1 of the HF basis. Each
     !  spinor-component term is one dense product (a dgemm equivalent, see
-    !  the module-tail banner), multiplied by the chamber weight of its
-    !  component pair:
+    !  the module-tail banner), multiplied by the precomputed chamber
+    !  weight of its component pair:
     !    real half :  A = sum_(k=1,4)       w(k,k)    X_k^T (Qdv) X_k
     !    imag half :  A = sum_(s=1,2) [ w(2s-1,2s) Re_s^T (Qdv) Im_s
     !                                -  w(2s,2s-1) Im_s^T (Qdv) Re_s ]
@@ -3894,7 +3932,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     ! Input:
     !     srow, scol : sector words 0..7 of the block as handed by fill_blocks
     !     params     : type(Qlm_spme_params): mesh values + sector bounds
-    !                  + half selection + operator characters
+    !                  + half selection + chamber weight table
     ! Output:
     !     A          : the block storage, overwritten entirely
     !---------------------------------------------------------------------------
@@ -3920,10 +3958,6 @@ $PBROKEN if( Bi .ne. Bj ) cycle
         call stp('Sector bounds inconsistent in Qlm_spme_fill_block.')
       endif
 
-      ! One representative state per side carries the block's reflection
-      !  signs - make sure that it really does.
-      call Qlm_spme_check_block_signs(si, m, sj, n)
-
       allocate(tmp(mv,n))
       A = 0.0d0
 
@@ -3933,7 +3967,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
         !  integrand of the legacy Qlm_spme per component.
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         do s = 1, 4
-          w = Qlm_spme_chamber_weight(s, s, si, sj, params%oc)
+          w = params%w(srow, scol, s, s)
           if (w .eq. 0.0d0) cycle
           do j = 1, n
             tmp(:,j) = HFPsi(:,s,sj+j-1) * params%Qdv
@@ -3947,7 +3981,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         do s = 1, 2
           ! + Re_i (Qdv) Im_j
-          w = Qlm_spme_chamber_weight(2*s-1, 2*s, si, sj, params%oc)
+          w = params%w(srow, scol, 2*s-1, 2*s)
           if (w .ne. 0.0d0) then
             do j = 1, n
               tmp(:,j) = HFPsi(:,2*s,sj+j-1) * params%Qdv
@@ -3955,7 +3989,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
             A = A + matmul( transpose(HFPsi(:,2*s-1,si:si+m-1)), tmp )
           endif
           ! - Im_i (Qdv) Re_j
-          w = Qlm_spme_chamber_weight(2*s, 2*s-1, si, sj, params%oc)
+          w = params%w(srow, scol, 2*s, 2*s-1)
           if (w .ne. 0.0d0) then
             do j = 1, n
               tmp(:,j) = HFPsi(:,2*s-1,sj+j-1) * params%Qdv
