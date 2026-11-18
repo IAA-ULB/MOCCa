@@ -379,6 +379,26 @@ perturbations).
   --parameterisation t0t3 under an NLO fam build stops silently at the
   .func mismatch banner (stp, exit 0) and the FAM tests NEVER run -
   use `bash fam_unit_tests.sh NLO --parameterisation SLy4` instead.
+  Extended since (2026-11-19, same session): moments_unit_tests.sh runs
+  the suite for THREE configurations - NLO, NLO-T and NLO-P (even
+  nwn/nwp, allowtransform for the broken builds) - and cross-compares
+  the builds: matrix elements themselves are basis-dependent (the runs
+  store different symmetry-adapted bases), so the comparison uses the
+  basis-independent carriers, the diagonal-density traces of the even-m
+  operators that all three builds represent (odd m is structurally
+  zero in TR-conserving builds). All three runs must converge to the
+  same state (identical total energies, O16 spherical at -128.513125);
+  NLO vs NLO-T then agree to all printed digits, NLO-P to ~1e-8
+  absolute (tolerance 1e-7 + 1e-6 relative). TWO conventions learned
+  the hard way, both user-confirmed: (i) a one-body second moment
+  sum_j <i|Q|j><j|Q|i> presumes the stored basis RESOLVES Q|i> -
+  false for any truncated basis (failure ~1e4 relative, worst for
+  high l), so no Qlm^2-vs-mesh-Squared test exists; (ii) the folded
+  builds carry the z-fold in dv, so nz=12 covers a 24 fm box for NLO
+  and NLO-T, while the parity-broken NLO-P stores the z-axis UNFOLDED
+  and needs nz=24 for the same box - with nz=12 it converges to a
+  different (truncated-box) state with a 88 keV offset, which is a
+  broken input, not new physics.
   Gates: moments_unit_tests.sh NLO passes (largest trace deviation
   1.8e-14); fam_unit_tests.sh NLO --parameterisation SLy4 passes;
   block_matrix_unit_tests 33506/0; golden minimal NLO bit-identical
