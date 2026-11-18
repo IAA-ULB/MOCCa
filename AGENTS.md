@@ -353,8 +353,12 @@ perturbations).
   output; oracle agreement ~1e-15 relative survives; golden minimal
   NLO bit-identical (4849 numbers); fortitude clean; no $-markers in
   the edited regions, so no per-config compile net (row-4 precedent).
-  The heavy fission.sh remains a CI-batched gate as before. Step 3 of
-  the design is now COMPLETE (all five rows); next up: step 4 (matvec).
+  The heavy fission.sh gate (Pu240 HFB vs the pre-move baseline) was
+  validated on CI by the user (2026-11-19): the CI fission run compared
+  against logs/fission.BXL.pre-move.out, closing the last deferred
+  numerical gate of the chain. Step 3 of
+  the design is now COMPLETE (all five rows, all gates); next up:
+  step 4 (matvec).
 - Landed since (2026-11-19, moments unit tests, pre-matvec): the
   `moments_testing` module (src_orig/moments_testing.f90, plain
   Fortran 2003+/marker-free, Hephaestos-copied verbatim via
@@ -427,10 +431,10 @@ perturbations).
 - Local test artifacts for step 3 (gitignored, machine-local):
   `exec/fam.NLO.reference.exe` is the parked FAM anchor; exec/MOCCa.NLO.exe
   fam.NLO.exe BXL/T/P/TP executables are freshly rebuilt and validated.
-  `testing/integration/logs/fission.BXL.pre-move.out` is the inertia
-  baseline produced by the pre-move BXL binary - batch the fission.sh
-  comparison: rerun `bash fission.sh BXL` once the step's numerical gates
-  are due, then `bash golden_diff.sh --no-run fission BXL BXL.pre-move`.
+  `testing/integration/logs/fission.BXL.pre-move.out` was the inertia
+  baseline produced by the pre-move BXL binary; the fission.sh comparison
+  against it has been executed through CI (2026-11-19) - the batching
+  recipe is retired.
   fission.sh (Pu240, HFB) is too slow to run per commit.
 - Sprint workflow (2026-11-17): quick compile iterations use the debug
   profile - `make CONFIG=X clean` then `make CONFIG=X mf INCLUDE=gnu-debug`
