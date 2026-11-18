@@ -3351,6 +3351,13 @@ $NTR endif
 !  matrix elements, works in units of b^(l/2) and resolves its selection
 !  rules by hand. It stays until step 4 (mat-vec) has landed and survived
 !  a shakeout period; new code must use Qlm_spme_fm / Qlm_spme_matrix.
+!
+!  Guard against a past misreading: the in-loop comment below ("all these
+!  matrix elements are real if ... time simplex is conserved") is about
+!  REAL multipole operators only. The imaginary parts are NOT zero by
+!  symmetry - r^l Im Y_lm is a Hermitian STY_ODD operator whose matrix
+!  elements over the STy-invariant basis are purely imaginary and
+!  generally nonzero; the generalised generator below builds that half.
 !===============================================================================
   function Qlm_spme(l,m,Imaginary) result(me)
     !---------------------------------------------------------------------------

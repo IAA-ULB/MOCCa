@@ -253,8 +253,9 @@ perturbations).
   moments.f90, and the off-by-default oracle hook in fission_MOI
   (`spme_oracle` in the &inertia/ namelist; prints legacy-vs-generator
   deviations plus symmetry self-checks). The `me_im` half that briefly
-  shipped in row 3 was reverted as a chamber artifact - see the
-  convention correction below; it returns at design step 6/7. Oracle
+  shipped in row 3 was reverted then - a superseded decision: the
+  revert's diagnosis was wrong and the half landed for good in the
+  2026-11-19 bullet below. Oracle
   runs NLO / NLO-T / NLO-P: real halves agree to ~1e-15 relative; all
   four mf configs + fam.NLO compile; golden minimal NLO still
   bit-identical after the commit. Next up: row 5 - the units flip
