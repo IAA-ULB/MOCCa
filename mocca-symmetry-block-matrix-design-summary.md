@@ -682,7 +682,6 @@ the oracle for the agreements below; the conversion identity is
 | 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix` (both operator halves as of 2026-11-19: real `STY_EVEN`/imaginary `STY_ODD`, chamber-weighted fill - formerly the reverted `me_im` of 2026-11-17), `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks. The imaginary half ships unvalidated until the step-6/7 odd-m oracle | unit tests; oracle runs NLO / NLO-T / NLO-P (real halves); all four configs compile |
 | 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
 | 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
-| 6 | consumer migration | `functional` COM correction (drop `*10`), `fam` multipole/z_com operators (drop `*(100**(l/2))`, `*sqrt(100)`), `fam_testing` [R, P] (drop `*sqrt(100)`) | `fission.sh`, `minimal.sh` golden, `cranking.sh` (NLO-T), `fam_unit_tests`, local runs vs the parked FAM reference |
 
 `Ksum_Mij_HF/BCS/HFB`, `calc_Q20` and the LAPACK inversion are
 deliberately untouched in this step beyond the source of `Qsp`.

@@ -264,7 +264,8 @@ contains
     !
     ! Steps:
     !  (1) Calculate all the single-particle matrix elements of the Qlm
-    !      in the HF-basis with routine Qlm_spme
+    !      in the HF basis with routine Qlm_spme_fm (design section 13,
+    !      the symmetry-block generator), rescaled to b^(l/2) units
     !  (2) Transform these matrix elements to the qp basis
     !      with routine calc_Q20
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
@@ -302,9 +303,15 @@ contains
       l = inertia_l(i)
       m = inertia_m(i)
 
-      ! Calculate all relevant single-particle matrix elements              
-      Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
-                                         ! at the moment
+      ! Calculate all relevant single-particle matrix elements.
+      ! Design summary section 13.3, row 4: they come from the
+      !  symmetry-block generator (Qlm_spme_fm) in fm^l; the boundary
+      !  rescale 100^(-l/2) converts back to b^(l/2) units, exactly what
+      !  the legacy Qlm_spme provided, so that everything downstream of
+      !  this spot is untouched (the units flip is row 5).
+      ! Hardcoded to consider only real parts at the moment.
+      Qsp(:,:,i) = Qlm_spme_fm(l,m,.false.)                                    &
+      &                                    * 100.0d0**(- real(l,dp)/2.0d0)
       ! Development oracle for the symmetry-block migration of these matrix
       !  elements (design summary section 13.3): off unless spme_oracle is
       !  set in the &inertia/ namelist.

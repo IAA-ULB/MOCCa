@@ -239,8 +239,7 @@ perturbations).
   design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
   Next: step 4 (mat-vec) after the step-3 chain completes - see the
   re-plan below and design §§11/§13.3; step 3's remaining rows are the
-  inertia switch (row 4), the units flip (row 5) and the consumer
-  migration (row 6).
+  inertia switch (row 4) and the units flip (row 5).
   Landed since (2026-11-17): the goodqn mask (commit 6a6d92c8: optional
   `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests),
   the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
@@ -258,8 +257,9 @@ perturbations).
   convention correction below; it returns at design step 6/7. Oracle
   runs NLO / NLO-T / NLO-P: real halves agree to ~1e-15 relative; all
   four mf configs + fam.NLO compile; golden minimal NLO still
-  bit-identical after the commit. Next up: row 4 - the inertia switch
-  (`Qsp` from `Qlm_spme_fm * 100^(-l/2)` in calc_collective_inertia).
+  bit-identical after the commit. Next up: row 5 - the units flip
+  (`calc_collective_inertia` end to end in fm^l and the fission.sh
+  reference rescales; design §13.3 row 5).
 - Landed since (2026-11-17): the y-time-simplex characteristic of design
   §2a in `block_matrix_module`, with `goodqn` extended to 4 bits (bit 3 =
   STy conserved, injected by Hephaestos via symdic['STy'] alongside Rz
@@ -308,6 +308,18 @@ perturbations).
   2026-11-19). Gates: block_matrix_unit_tests 33506/0; NLO / NLO-T /
   NLO-P / NLO-TP mf + fam.NLO compile (debug profile, final source);
   frozen-make.inc NLO build; golden minimal NLO bit-identical.
+- Landed since (2026-11-19, row 4): the inertia switch -
+  calc_collective_inertia takes Qsp from Qlm_spme_fm * 100^(-l/2)
+  (design §13.3 row 4): the symmetry-block generator in fm^l times the
+  boundary rescale, identical b^(l/2) semantics downstream; Ksum/calc_Q20/
+  the LAPACK inversion untouched by design. The inertia smoke (O16
+  5-moment scratch run, serial) reproduces the legacy-path tensor at the
+  6-digit print precision; golden minimal NLO stays bit-identical
+  (4849 numbers, 2026-11-19). The heavy fission.sh (Pu240 HFB) net of
+  this row is NOT run locally: judged through full CI on GitHub against
+  logs/fission.BXL.pre-move.out (compare with
+  `golden_diff.sh --no-run fission BXL BXL.pre-move` once CI produced
+  logs/fission.BXL.out - or run it locally when convenient).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and
