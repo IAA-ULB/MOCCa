@@ -105,6 +105,13 @@ module GenInfo
   ! Line element and volume element of the box. dx is in fm, dv in fm^3.
   real(KIND=dp)  :: dx = 0.8_dp
   real(KIND=dp)  :: dv = (0.8_dp**3)*(2**$NUMSYM)
+  !---------------------------------------------------------------------------
+  ! Run the unit tests of the development testing modules on start-up (the
+  ! moments tests in the mean-field executable, the FAM tests in the FAM
+  ! executable): the tests run on the final mean-field state and the code
+  ! stops afterwards - this will not result in a physics calculation.
+  ! Read through the &mesh/ namelist so it is available to every executable.
+  logical        :: unit_test = .false.
   !-----------------------------------------------------------------------------
   ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi = 4.0_dp*atan2(1.0_dp, 1.0_dp)
@@ -264,7 +271,7 @@ contains
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
     &                  block_factor_col, simulate_spherical_bc, angmom_prec
-    Namelist /mesh/ nx, ny, nz, dx
+    Namelist /mesh/ nx, ny, nz, dx, unit_test
 
     if (MPI_rank == 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

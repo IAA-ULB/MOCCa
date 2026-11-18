@@ -753,7 +753,7 @@ contains
     case default
       line = 'UNKNOWN'
     end select
-    write(u, '(A,A,A,I0)') '  kind: ', trim(line), ' (derived, design 2a),',   &
+    write(u, '(A,A,A,A,I0)') '  kind: ', trim(line), ' (derived, design 2a),',   &
     &                      ' stored blocks: ', this%nblocks
 
     do b = 1, this%nblocks

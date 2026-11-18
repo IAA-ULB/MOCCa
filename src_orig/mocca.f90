@@ -38,11 +38,12 @@ contains
       ! meta-codes that want to run MOCCa multiple times.
       !==============================================================================
       use compilation,   only: dp
-      use geninfo,       only: MPI_RANK
+      use geninfo,       only: MPI_RANK, unit_test
       use IO,            only: ReadInput, PrintInput, write_advanced_output
       use IO,            only: readwavefunction, outputfilename, writewavefunction
       use fission_MOI,   only: calc_collective_inertia, print_collective_inertia
       use fission_MOI,   only: N_inertia
+      use moments_testing, only: run_moments_tests
       use version,       only: print_header
       use derivatives,   only: inilag
       use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
@@ -106,6 +107,11 @@ contains
       !------------------------------------------------------------------------------
       ! Go out and try to reach convergence, only to fail time and time again....
       call run_mean_field(iteration, iomsg)
+      !------------------------------------------------------------------------------
+      ! Optionally run the moments unit tests on the final mean-field state.
+      ! Note: contains an exit statement! Arming the flag does not result in
+      ! a physics calculation - no further analysis or output is produced.
+      if (unit_test) call run_moments_tests()
       !------------------------------------------------------------------------------
       ! Perform analysis on the final many-body state
       ! (i) calculate and print the collective moment of inertias

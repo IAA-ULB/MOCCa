@@ -349,6 +349,42 @@ perturbations).
   the edited regions, so no per-config compile net (row-4 precedent).
   The heavy fission.sh remains a CI-batched gate as before. Step 3 of
   the design is now COMPLETE (all five rows); next up: step 4 (matvec).
+- Landed since (2026-11-19, moments unit tests, pre-matvec): the
+  `moments_testing` module (src_orig/moments_testing.f90, plain
+  Fortran 2003+/marker-free, Hephaestos-copied verbatim via
+  no_process_files + FORTRANFILES, wired in both MF_SRC and FAM_SRC),
+  styled after fam_testing: `run_moments_tests()` - a dense dump of all
+  Qlm_spme_matrix halves with l <= 4 through sym_matrix%print_dense,
+  and the trace check Tr(rho_can Q) vs the many-body moment values of
+  CalculateMoments (the density matrix is diagonal in the HF basis with
+  rho_can on the diagonal, the cranking/momentsofinertia convention;
+  neutrons are the first nwn states; skipped with a note for
+  pairingtype 2, whose rho_can is canonical; symmetry-forbidden moments
+  compared against the zero both sides produce). The `unit_test` flag
+  MOVED from the fam module/&fam/ namelist into geninfo/&mesh/ (fam_run
+  imports it explicitly now), so every executable arms its own suite;
+  the mf side calls run_moments_tests from Run_MOCCa after
+  run_mean_field - the call contains an exit statement, an armed flag
+  is not a physics calculation. Runscript:
+  `testing/unit/moments_unit_tests.sh NLO` (O16, SLy4, HF by default,
+  identical box to minimal.sh), exit status = test suite status; the
+  O16 golden anchor: the l=0 monopole trace is exactly A/sqrt(4*pi) =
+  2.256758334 per isospin, deformation moments agree at the ~1e-14
+  level. This first execution also exposed and fixed a latent
+  print_dense bug (block_matrix_module: the kind-header line had four
+  format items for a five-item list; nothing had printed a
+  classifiable matrix through that helper before).
+  CAVEAT discovered along the way (pre-existing, reproduced on the
+  parked fam.NLO.reference.exe): fam_unit_tests.sh with its default
+  --parameterisation t0t3 under an NLO fam build stops silently at the
+  .func mismatch banner (stp, exit 0) and the FAM tests NEVER run -
+  use `bash fam_unit_tests.sh NLO --parameterisation SLy4` instead.
+  Gates: moments_unit_tests.sh NLO passes (largest trace deviation
+  1.8e-14); fam_unit_tests.sh NLO --parameterisation SLy4 passes;
+  block_matrix_unit_tests 33506/0; golden minimal NLO bit-identical
+  (4849 numbers); fortitude clean; NLO mf + fam.NLO built with the
+  frozen make.inc, NLO-T/NLO-P/NLO-TP mf compile (debug profile - those
+  three executables are now debug binaries).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and

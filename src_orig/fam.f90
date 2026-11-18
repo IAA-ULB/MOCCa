@@ -207,14 +207,13 @@ module fam
   ! 2: printing all function calls. Useful for debugging. 
   ! 3: printing all sp matrices at each iteration. Useful for debugging. 
   !-----------------------------------------------------------------------------
-  ! Run the unit tests on start-up; this will not result in a FAM calculation!
-  logical :: unit_test = .false.
+  ! The unit_test flag that starts run_FAM_tests now lives in the &mesh/
+  ! namelist of the geninfo module, so it is available to every executable.
 
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
-
 
 contains
 
@@ -327,7 +326,7 @@ contains
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type, &
+    &               eff_charge_n, eff_charge_p, XYtoF, operator_type, &
     &               remove_spurious
 
     if(MPI_rank .eq. 0) then
