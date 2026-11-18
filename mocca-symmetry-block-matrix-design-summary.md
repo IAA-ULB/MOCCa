@@ -681,7 +681,7 @@ the oracle for the agreements below; the conversion identity is
 | 2 | pure move | `Qlm_spme` verbatim to `moments.f90` (which gains explicit `use wavefunctions`), deprecation banner | `fission.sh`, `minimal.sh` golden: outputs bit-identical |
 | 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix` (both operator halves as of 2026-11-19: real `STY_EVEN`/imaginary `STY_ODD`, chamber-weighted fill - formerly the reverted `me_im` of 2026-11-17), `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks. The imaginary half ships unvalidated (no reference path covers it yet) | unit tests; oracle runs NLO / NLO-T / NLO-P (real halves); all four configs compile |
 | 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
-| 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
+| 5 | units flip | drop the internal rescale: the inertia chain (`Qsp`, `Ksum`, `calc_Q20`, the LAPACK inversion, the stored `collective_inertia`/`M1`/`M2`/`M3` arrays) runs in `fm` units end to end. The OUTPUT boundary restores the historical numbers for downstream users (amended 2026-11-19): `print_collective_inertia` and the inertia file (`write_inertias` in IO.f90) present every number in `b^{l/2}` units - the tensor element `I(i,j)` multiplied by `100^{(l_i+l_j)/2}`, the intermediate matrices `M_n(i,j)` divided by the same factor (they scale with `Q_i Q_j`, the inertia with `1/(Q_i Q_j)`). Printed and file values, their convention strings and the `fission.sh` references are therefore unchanged | `fission.sh` with unchanged references; `minimal.sh` golden |
 
 `Ksum_Mij_HF/BCS/HFB`, `calc_Q20` and the LAPACK inversion are
 deliberately untouched in this step beyond the source of `Qsp`.
@@ -698,9 +698,14 @@ deliberately untouched in this step beyond the source of `Qsp`.
   yet the mask derivation is generic: an Rz-broken build clears bit 0 and
   odd-m operators act within the merged signature blocks - same rule, no
   new code.
-- The units-flip arithmetic of the `fission.sh` references is verified by
-  computation before editing the file; `make.inc` stays frozen (the trust
-  anchor is untouched).
+- The units flip leaves every presented number unchanged (row 5, amended
+  2026-11-19): the fm-based internal chain and the b-units output boundary
+  agree with the legacy chain up to floating-point reassociation only, well
+  inside the `fission.sh` tolerances; the `fission.sh` reference arithmetic
+  of the original row 5 is no longer needed. The one internal consumer of
+  the stored arrays, `calc_vibrational_correction` (`Tr M3^{-1} M2`), is
+  scale-invariant and needs no rescale. `make.inc` stays frozen (the
+  trust anchor is untouched).
 - MPI out of scope (the sprint is serial-only): construction takes
   `HFBlocks_global` and the dense wrappers assume the whole basis on one
   rank, matching `fission_MOI`'s current inert-under-MPI behaviour

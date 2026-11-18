@@ -237,9 +237,9 @@ perturbations).
   (`fill_elements`), and the `new_sym_matrix` constructor sugar. No
   `add_element` — the element-wise path is the callback only (see
   design summary §5). Unit tests: `testing/unit/block_matrix_unit_tests`.
-  Next: step 4 (mat-vec) after the step-3 chain completes - see the
-  re-plan below and design §§11/§13.3; step 3's remaining rows are the
-  inertia switch (row 4) and the units flip (row 5).
+  Next: step 4 (matvec) is next up now that the step-3 chain (all five
+  rows of design §13.3) has landed - see the landed bullets below and
+  design §§11/§13.3.
   Landed since (2026-11-17): the goodqn mask (commit 6a6d92c8: optional
   `goodqn` in `init`, `$GOODQN` injected into geninfo, masked unit tests),
   the pure, byte-for-byte move of `Qlm_spme` into moments.f90 with the
@@ -258,9 +258,8 @@ perturbations).
   2026-11-19 bullet below. Oracle
   runs NLO / NLO-T / NLO-P: real halves agree to ~1e-15 relative; all
   four mf configs + fam.NLO compile; golden minimal NLO still
-  bit-identical after the commit. Next up: row 5 - the units flip
-  (`calc_collective_inertia` end to end in fm^l and the fission.sh
-  reference rescales; design §13.3 row 5).
+  bit-identical after the commit. Next up: the units flip (row 5,
+  amended 2026-11-19) - landed, see the row-5 bullet below.
 - Landed since (2026-11-17): the y-time-simplex characteristic of design
   §2a in `block_matrix_module`, with `goodqn` extended to 4 bits (bit 3 =
   STy conserved, injected by Hephaestos via symdic['STy'] alongside Rz
@@ -322,6 +321,34 @@ perturbations).
   logs/fission.BXL.pre-move.out (compare with
   `golden_diff.sh --no-run fission BXL BXL.pre-move` once CI produced
   logs/fission.BXL.out - or run it locally when convenient).
+- Landed since (2026-11-19, row 5 - amended): the units flip, with the
+  user amendment of 2026-11-19: the inertia chain runs in fm
+  end-to-end internally (Qsp straight from Qlm_spme_fm, no 100^(-l/2)
+  anywhere in calc_collective_inertia), and every PRESENTED number
+  stays in the historical b^(l/2) units that downstream users rely on
+  - the output boundary in print_collective_inertia (STDOUT block) and
+  write_inertias in IO.f90 (inertia file) applies the per-element
+  presentation factors: the tensor element I(i,j) scaled by
+  100^((l_i+l_j)/2) (it counts 1/(Q_i Q_j)), the M1/M2/M3 elements
+  divided by the same factor (they count Q_i Q_j); the two families
+  scale in OPPOSITE directions, see the comments at both output spots.
+  The immutable consequences: printed/file values keep their exact
+  legacy meaning, the 'MeV^{-1} b^{-l}' convention strings stay as
+  they were, fission.sh references and tolerances are UNCHANGED, and
+  the original row-5 fission.sh rescale arithmetic is never needed.
+  The one internal consumer of the stored fm arrays,
+  calc_vibrational_correction (Tr M3^-1 M2, functional.f90), is
+  scale-invariant - no rescale; the pushing model uses legacy Qlm_spme
+  directly (fam.f90/functional.f90 still on the b-units legacy path,
+  untouched until step 9). Gates (2026-11-19): the O16 5-moment scratch
+  run (maxiter=3, spme_oracle armed, frozen make.inc) gives a printed
+  inertia block byte-identical to the pre-row-4 legacy binary's and an
+  inertia FILE bit-identical to the same binary's write_inertias
+  output; oracle agreement ~1e-15 relative survives; golden minimal
+  NLO bit-identical (4849 numbers); fortitude clean; no $-markers in
+  the edited regions, so no per-config compile net (row-4 precedent).
+  The heavy fission.sh remains a CI-batched gate as before. Step 3 of
+  the design is now COMPLETE (all five rows); next up: step 4 (matvec).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and

@@ -1689,6 +1689,10 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     integer                      :: io
     integer                      :: k,it, l, m
     type(Moment), pointer        :: current 
+    ! Presentation factors restoring the historical b^(l/2) units at this
+    ! output boundary (design summary section 13.3, row 5): the stored
+    ! collective_inertia / M1 / M3 are fm-based internal quantities.
+    real(KIND=dp)                :: sc(N_inertia)
 
     1 format ('#', 18x)
     2 format (' B_{ ', i2, i2, '}     ')
@@ -1737,13 +1741,21 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     write(1, *)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Collective inertia
+    ! sc(k) counts the fm^l numbers of moment Q_(l_k m_k) against its
+    ! b^(l/2) units: the tensor elements scale as 1/(Q_i Q_j) and are
+    ! multiplied by sc(i)*sc(j), the intermediate M matrices scale as
+    ! Q_i Q_j and are divided by the same factor.
+    do k=1, N_inertia
+      sc(k) = 100.0d0**( real(inertia_l(k),dp)/2.0d0 )
+    enddo
     write(1, fmt=1)
     write(1, fmt=9)
     write(1, fmt=6)
     do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)
+        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)*sc(k)          &
+        &                                          *sc(1:N_inertia)
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1764,7 +1776,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,M1(k,1:N_inertia ,it)
+        write(1, fmt=7) l,m,M1(k,1:N_inertia ,it)                              &
+        &                        /(sc(k)*sc(1:N_inertia))
       enddo    
     enddo
 
@@ -1786,7 +1799,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,M3(k,1:N_inertia ,it)
+        write(1, fmt=7) l,m,M3(k,1:N_inertia ,it)                              &
+        &                        /(sc(k)*sc(1:N_inertia))
       enddo    
     enddo
   

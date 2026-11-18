@@ -133,6 +133,11 @@ contains
     character(len=120) :: header, sep
     character(len=16) :: tmp
     real(KIND=dp)     :: shiftx, shifty, shiftz
+    ! Presentation factors that restore the historical b^(l/2) units at
+    ! the output boundary (design summary section 13.3, row 5): the
+    ! stored matrices are fm-based internal quantities, and every
+    ! moment number counts 100^(l/2) more in fm^l than in b^(l/2).
+    real(KIND=dp)     :: sc(N_inertia)
     integer :: i
 
     
@@ -143,6 +148,16 @@ contains
     shiftz = -meshz_shifted(1) + meshz(1)      
     print 99, shiftx, shifty, shiftz
     print *
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! b^(l/2) presentation factors: sc(i) counts the fm^l numbers of
+    ! moment Q_(l_i m_i) against its b^(l/2) units. The collective
+    ! inertia scales as 1/(Q_i Q_j), so its elements are multiplied by
+    ! sc(i)*sc(j); the intermediate M matrices scale as Q_i Q_j, so
+    ! their elements are divided by the same factor.
+    do i=1, N_inertia
+      sc(i) = 100.0d0**( real(inertia_l(i),dp)/2.0d0 )
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Constructing the right size separator line
@@ -166,7 +181,8 @@ contains
     print *, '                ', header
     print *,sep
     do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia)
+      print 4, inertia_l(i),inertia_m(i),                                        &
+      &        collective_inertia(i,1:N_inertia)*sc(i)*sc(1:N_inertia)
     enddo
     print *,sep
     print *
@@ -182,14 +198,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,1)
+      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,2)
+      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -205,14 +221,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,1)
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,2)
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -228,14 +244,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,1)
+      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,2)
+      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -265,13 +281,21 @@ contains
     ! Steps:
     !  (1) Calculate all the single-particle matrix elements of the Qlm
     !      in the HF basis with routine Qlm_spme_fm (design section 13,
-    !      the symmetry-block generator), rescaled to b^(l/2) units
+    !      the symmetry-block generator), in fm^l units: the whole chain
+    !      below runs in fm-based units
     !  (2) Transform these matrix elements to the qp basis
     !      with routine calc_Q20
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
     !      the quasiparticle energies, using Ksum_Mij
     !  (4) Invert M_1 with Lapack routines
     !  (5) Calculate M_c
+    !
+    ! Presented numbers: the stored collective_inertia and the
+    !  intermediate matrices M1/M2/M3 are fm-based internal quantities.
+    !  The output routines print_collective_inertia (STDOUT block) and
+    !  write_inertias (inertia file) rescale them back to the historical
+    !  b^(l/2) units that downstream users rely on (design summary
+    !  section 13.3, row 5).
     !          
     !---------------------------------------------------------------------------
     ! Explicit declaration of the external linear algebra routines
@@ -304,14 +328,13 @@ contains
       m = inertia_m(i)
 
       ! Calculate all relevant single-particle matrix elements.
-      ! Design summary section 13.3, row 4: they come from the
-      !  symmetry-block generator (Qlm_spme_fm) in fm^l; the boundary
-      !  rescale 100^(-l/2) converts back to b^(l/2) units, exactly what
-      !  the legacy Qlm_spme provided, so that everything downstream of
-      !  this spot is untouched (the units flip is row 5).
+      ! Design summary section 13.3, row 5: they come from the
+      !  symmetry-block generator (Qlm_spme_fm) in fm^l, and the whole
+      !  inertia chain runs in fm-based units from here. The b^(l/2)
+      !  units of the legacy Qlm_spme are restored only at the output
+      !  boundary (print_collective_inertia / write_inertias).
       ! Hardcoded to consider only real parts at the moment.
-      Qsp(:,:,i) = Qlm_spme_fm(l,m,.false.)                                    &
-      &                                    * 100.0d0**(- real(l,dp)/2.0d0)
+      Qsp(:,:,i) = Qlm_spme_fm(l,m,.false.)
       ! Development oracle for the symmetry-block migration of these matrix
       !  elements (design summary section 13.3): off unless spme_oracle is
       !  set in the &inertia/ namelist.
