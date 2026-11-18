@@ -305,8 +305,9 @@ perturbations).
   not survive: with MOCCa's linear antihermitian Rz, STy is the only
   antiunitary constraint on the stored basis and it fixes the MEs to be
   purely imaginary without annulling them. The imaginary half ships
-  unvalidated until the step-6/7 odd-m oracle (deferral agreed
-  2026-11-19). Gates: block_matrix_unit_tests 33506/0; NLO / NLO-T /
+  unvalidated - no reference path covers it yet (2026-11-19); its
+  numbers are to be judged against physics, never against zeros.
+  Gates: block_matrix_unit_tests 33506/0; NLO / NLO-T /
   NLO-P / NLO-TP mf + fam.NLO compile (debug profile, final source);
   frozen-make.inc NLO build; golden minimal NLO bit-identical.
 - Landed since (2026-11-19, row 4): the inertia switch -

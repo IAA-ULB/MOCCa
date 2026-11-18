@@ -410,8 +410,8 @@ contains
     !   The imaginary half of the matrix elements (r^l Im Y_lm, a
     !  Hermitian STY_ODD operator whose stored numbers are Im
     !  < i |Q| j >) is NOT checked here: this hook runs on the real
-    !  halves of the inertia moments only. Its validation is deferred
-    !  to design step 6/7 (the odd-m oracle); see the generator banner
+    !  halves of the inertia moments only, and no reference path
+    !  covers the imaginary half yet. See the generator banner
     !  in moments.f90 for the chamber-weighted convention it is
     !  computed with.
     !
