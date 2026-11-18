@@ -622,27 +622,6 @@ deliberately untouched in this step beyond the source of `Qsp`.
 - Oracle agreement to machine precision modulo summation order (BLAS vs
   the old scalar loops - the golden tolerances of `golden_diff.sh` exist
   for exactly this reassociation drift).
-- The imaginary antisymmetric half is not produced by the generator:
-  identically zero within blocks in every build conserving a composed
-  antiunitary symmetry such as the time simplex; physically nonzero
-  only for odd-m operators between signature-partner blocks. When it
-  returns at step 6/7 it will have no legacy oracle either (the old
-  code computes the real part only): validated then against
-  antisymmetry and Hermiticity identities and the [R, P] checks in
-  `fam_testing`. Its return shape is settled by section 2a: the
-  imaginary half is a single sty-odd matrix - kind KIND_ANTISYMMETRIC,
-  `sty = STY_ODD`, stored numbers the Im <i|Q_lm|j> - and the real
-  half carries `sty = STY_EVEN`; both characteristics are
-  m-independent (agreed 2026-11-17). Two lessons from the row-3
-  implementation carry over:
-  any per-(i,j) reference must be restricted to the XOR-allowed pairs -
-  MOCCa's operator matrices are the symmetry-decomposed objects,
-  identically zero outside their blocks, whereas naive mesh integrals
-  at sector-forbidden pairs (cross-isospin, off-block) are
-  chamber-partial garbage - and it presumes the stored basis in
-  HFBlocks order, reshuffled mid-run by the `diagsphamil`
-  diagonalisation of pure-HF runs (production inertia scenarios pair
-  `pairingscheme=1`, which keeps `diagsphamil` off).
 - Parity-mask correctness: masked-init unit tests plus the NLO-P oracle
   run - the old routine's `$PBROKEN` diagonal-blocks path is the reference
   there.
