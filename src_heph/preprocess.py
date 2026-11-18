@@ -149,9 +149,16 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
     #  bit 0 (1) : q(Rz) good  - iff this build conserves Rz
     #  bit 1 (2) : parity good - iff this build conserves P
     #  bit 2 (4) : Tz good     - always, nucleonic bases never merge n and p
+    #  bit 3 (8) : STy good    - iff this build conserves the y-time-simplex
+    #              (its matrix-element consequence lives in block_matrix_module:
+    #              with all spwfs STy invariants, operators of definite STy
+    #              characteristic have purely real/even or imaginary/odd matrix
+    #              elements; init downgrades the characteristic to none when
+    #              this bit is clear)
     # A quantum number that is not good means the corresponding basis blocks
     #  are merged into one; the init constructor of block_matrix_module
-    #  intersects operator words with this mask. Generator identity check,
+    #  intersects operator words with bits 0-2 of this mask and gates the STy
+    #  characteristic with bit 3. Generator identity check,
     #  like the PCONSERVED hack further down (avoids e.g. the 'P' inside
     #  the 'PT' generator when parsing SYMSTRING tokens).
     from src_heph.heph_symmetries import populatesymmetries
@@ -162,6 +169,8 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
         goodqn = goodqn + 1
       if (sym == symdic['P']):
         goodqn = goodqn + 2
+      if (sym == symdic['STy']):
+        goodqn = goodqn + 8
     dic['GOODQN'] = str(goodqn)
     
     #NS: provides symmetry information to

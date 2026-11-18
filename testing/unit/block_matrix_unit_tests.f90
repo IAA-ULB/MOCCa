@@ -55,13 +55,23 @@ program block_matrix_unit_tests
   !   *) new_sym_matrix equals init followed by fill_blocks
   !
   ! The good-quantum-number mask (design section 2b) adds:
-  !   *) the mask is stored and the omitted mask defaults to 7
+  !   *) the mask is stored and the omitted mask defaults to 15
   !   *) masked pairing: blocks obey srow = IEOR(scol, AND(word, mask))
   !   *) equivalence: a masked construction stores exactly the block list
   !      of the unmasked construction with the effective word
   !   *) the parity-broken pattern with an odd-parity operator: mask 5
   !      merges to diagonal blocks, mask 7 pairs into empty sectors and
   !      stores nothing
+  !
+  ! The y-time-simplex characteristic (design section 2a) adds:
+  !   *) the effective characteristic is stored: any STY_NONE/EVEN/ODD
+  !      input survives when goodqn bit 3 is set
+  !   *) mask intersection: bit 3 clear downgrades every input to
+  !      STY_NONE; the omitted mask (15, all good) keeps the input
+  !   *) the omitted characteristic defaults to STY_NONE
+  !   *) no block structure: bounds, block count, sector pairs and
+  !      shapes are identical to the characteristic-free construction
+  !      over the full cross product of patterns, words and kinds
   !
   ! The partner-reconstructing dense expansion (dense) adds:
   !   *) shape (n, n) of the expansion, including the empty basis
@@ -75,7 +85,7 @@ program block_matrix_unit_tests
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of nine routines (plus the check helper that
+  ! The suite consists of ten routines (plus the check helper that
   !  registers every individual condition, and the two probed callbacks
   !  the fill tests use):
   !   test_construction : construction invariants over the full cross
@@ -87,6 +97,7 @@ program block_matrix_unit_tests
   !   test_fill_consistency : block-wise and element-wise paths match
   !   test_sugar       : new_sym_matrix constructor sugar
   !   test_goodqn      : the good-quantum-number mask of design 2b
+  !   test_sty         : the y-time-simplex characteristic of design 2a
   !   test_dense_expansion : partner-reconstructing dense expansion
   !==============================================================================
   use block_matrix_module
@@ -137,6 +148,7 @@ program block_matrix_unit_tests
   call test_fill_consistency()
   call test_sugar()
   call test_goodqn()
+  call test_sty()
   call test_dense_expansion()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
@@ -685,7 +697,8 @@ contains
     ! Verify the good-quantum-number mask of design section 2b.
     !
     ! Over the full cross product of patterns, physical words, kinds and
-    !  masks (4 = only Tz good, 5 = Tz and q(Rz) good, 7 = all good):
+    !  masks (4 = only Tz good, 5 = Tz and q(Rz) good, 7 = the sector
+    !  gradings all good, without any time-simplex bit):
     !   *) the mask is stored on the object and the physical word survives
     !   *) blocks pair as srow = IEOR(scol, AND(word, goodqn)) and the
     !      block count follows the masked pairing as in test_construction
@@ -753,10 +766,11 @@ contains
       enddo
     enddo
 
-    ! Default: the omitted mask is 7, and it equals an explicit 7.
+    ! Default: the omitted mask is 15 (all good, incl. the time-simplex
+    !  bit of design 2a), and it equals an explicit 15.
     call M%init(patterns(2, :), 5, KIND_GENERAL)
-    call check(M%goodqn .eq. 7, 'goodqn: default mask is 7')
-    call Meff%init(patterns(2, :), 5, KIND_GENERAL, goodqn=7)
+    call check(M%goodqn .eq. 15, 'goodqn: default mask is 15')
+    call Meff%init(patterns(2, :), 5, KIND_GENERAL, goodqn=15)
     call check(Meff%nblocks .eq. M%nblocks, 'goodqn: default nblocks equal')
 
     ! Core scenario of design section 2b: the parity-broken pattern with
@@ -778,6 +792,86 @@ contains
     call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=7)
     call check(M%nblocks .eq. 0, 'goodqn: unmasked word gives empty list')
   end subroutine test_goodqn
+  !----------------------------------------------------------------------------
+  subroutine test_sty()
+    !---------------------------------------------------------------------------
+    ! Verify the y-time-simplex characteristic of design section 2a.
+    !
+    ! The characteristic is a phase constraint on matrix elements, not a
+    !  block structure: over the full cross product of patterns,
+    !  symmetry words, kinds and characteristics (mask 15, bit 3 set)
+    !   *) the effective characteristic is stored
+    !   *) bounds, block count, sector pairs and shapes of the block
+    !      list are identical to the characteristic-free construction
+    !
+    ! Mask intersection and defaults:
+    !   *) goodqn bit 3 clear downgrades every input to STY_NONE
+    !   *) bit 3 alone (mask 8) keeps the characteristic
+    !   *) the omitted mask defaults to 15 and keeps the characteristic
+    !   *) the omitted characteristic defaults to STY_NONE
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M, Mref
+    integer :: p, word, k, kinds(3), c, stys(3), b
+    character(len=160) :: label
+
+    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    stys = [STY_NONE, STY_EVEN, STY_ODD]
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do k = 1, 3
+          do c = 1, 3
+            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,              &
+            &  ' word ', word, ' kind ', kinds(k), ' sty ', stys(c)
+            call Mref%init(patterns(p, :), word, kinds(k), goodqn=15)
+            call M%init(patterns(p, :), word, kinds(k), goodqn=15,              &
+            &          sty=stys(c))
+
+            ! The effective characteristic survives the mask.
+            call check(M%sty .eq. stys(c),                                      &
+            &          trim(label)//': characteristic stored')
+
+            ! No block structure: the characteristic never touches the
+            !  block list.
+            call check(M%n .eq. Mref%n, trim(label)//': n unchanged')
+            call check(all(M%st .eq. Mref%st),                                  &
+            &          trim(label)//': bounds unchanged')
+            call check(M%nblocks .eq. Mref%nblocks,                             &
+            &          trim(label)//': nblocks unchanged')
+            do b = 1, min(M%nblocks, Mref%nblocks)
+              call check(M%blocks(b)%srow .eq. Mref%blocks(b)%srow,             &
+              &          trim(label)//': srow unchanged')
+              call check(M%blocks(b)%scol .eq. Mref%blocks(b)%scol,             &
+              &          trim(label)//': scol unchanged')
+              call check(size(M%blocks(b)%A, 1) .eq. size(Mref%blocks(b)%A, 1)  &
+              &     .and. size(M%blocks(b)%A, 2) .eq. size(Mref%blocks(b)%A, 2),&
+              &          trim(label)//': shapes unchanged')
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+    ! Bit 3 clear: every input characteristic is downgraded to STY_NONE,
+    !  whatever the state of the grading bits.
+    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=7, sty=STY_ODD)
+    call check(M%sty .eq. STY_NONE, 'sty: bit 3 clear downgrades odd')
+    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=5, sty=STY_EVEN)
+    call check(M%sty .eq. STY_NONE, 'sty: bit 3 clear downgrades even')
+
+    ! Bit 3 alone (mask 8: only the time simplex good, hostile pairing
+    !  word 5 neutralised to 0) keeps the characteristic.
+    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=8, sty=STY_ODD)
+    call check(M%sty .eq. STY_ODD, 'sty: bit 3 set keeps odd')
+
+    ! Defaults: the omitted mask is 15 and keeps the characteristic; the
+    !  omitted characteristic is STY_NONE.
+    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, sty=STY_ODD)
+    call check(M%goodqn .eq. 15, 'sty: default mask is 15')
+    call check(M%sty .eq. STY_ODD, 'sty: omitted mask keeps characteristic')
+    call M%init(patterns(2, :), 5, KIND_SYMMETRIC)
+    call check(M%sty .eq. STY_NONE, 'sty: default characteristic is none')
+  end subroutine test_sty
   !----------------------------------------------------------------------------
   subroutine test_dense_expansion()
     !---------------------------------------------------------------------------

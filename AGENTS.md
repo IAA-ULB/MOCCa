@@ -1,9 +1,8 @@
 # AGENTS.md — MOCCa
 
 Working notes for AI coding agents in this repository. Everything below was
-verified against the code and tooling, not inferred on 2026-11-16, on branch
-`matrix_refactor` at commit 9960e8b2. If the file disagrees with the code,
-the code wins — update this file.
+verified against the code and tooling on 2026-11-16, on branch `matrix_refactor`
+at commit 9960e8b2. If the file disagrees with the code, the code wins — update this file.
 
 MOCCa is a 3D mesh solver for Skyrme mean-field and linear response physics.
 There is no single "source code of the solver": the Fortran sources in
@@ -11,7 +10,12 @@ There is no single "source code of the solver": the Fortran sources in
 User-facing documentation lives in `README.md` and `docs/`; this file is for
 agents who edit and build the code.
 
-## Editable vs generated — the rule that matters most
+## Maths and inconsistencies
+ - This is a challenging refactor that blends a lot of coding and mathematics/physics. 
+ - Do not hesitate to point out inconsistencies / errors in my prompts/conventions/...
+   or to ask for further clarification of the user.
+ - Do NOT try to rederive conventions or guess the precise meaning of operators. Ask the user.
+## Editable vs generated
 
 | Path | What it is | Edit? |
 |---|---|---|
@@ -64,6 +68,8 @@ Consequences when editing near markers:
   `LINEAR_ALGEBRA_LIB`, directory locations. Templates for other machines
   live in `make_include/make.inc.*`; `make INCLUDE=gnu-serial` builds
   without a root `make.inc`.
+- Accelerate compilation when testing by using `make INCLUDE=gnu-debug`,
+  the resulting executable will be slow.
 - `make mf` and `make fam` build the mean-field and FAM executables;
   `make` defaults to `mf` and `CONFIG=default`.
 - `make CONFIG=NLO mf` uses `configs/NLO.py` and produces
@@ -76,7 +82,7 @@ Consequences when editing near markers:
   injected by the Makefile from `git show` and the compiler version.
 
 ## Style
-
+  
 - Formatting: fprettify with `.fprettify.rc` — indent 2, line length 132.
   Check: `fprettify -d -r -c .fprettify.rc src_orig/`; fix with `-r`.
 - fprettify-version caveat (observed 2026-11-17): the check's output
@@ -91,12 +97,42 @@ Consequences when editing near markers:
 - Linting: fortitude with `.fortitude.toml` (currently only S201,
   superfluous implicit none, and C001).
   Check: `fortitude --config-file .fortitude.toml check src_orig/`.
-- CI (`lint-and-format.yml`) runs both on `src_orig/`, and
-  `scripts/pre-commit-hook.sh --install` installs them as a pre-commit
-  hook on staged Fortran files.
 - House comment style: `#`-fenced banners and `- - - -` separators, as
   found throughout the sources and `testing/`.
+- Functions and subroutines should at least have a documentation section 
+  explaining input and output.
+- An example of the comment type expected:
+  `subroutine set_spwf_symmetries(sx,sy,sz,blocks)
+    !---------------------------------------------------------------------------
+    ! Routine that assigns the correct "signs" under symmetry transformation 
+    ! to all single-particle wavefunctions. 
+    !
+    ! Hephaestos fills in all practical signs here, using the following key
+    !
+    !  [dollar sign] SXab
+    !
+    !  where 
+    !      X  = X;Y;Z depending on the direction
+    !      a  = block index, i.e. 1-4 depending on the symmetries of the spwf
+    !      b  = component index, i.e. 1-4 depending on the spinor component
+    !           we are dealing with
+    !---------------------------------------------------------------------------
+    ! Input: blocks 
+    !        The number of spwfs in every symmetry block. 
+    !        This is an input of this routine, because this subroutine could be 
+    !        called for a subset of spwfs when reading from file.
+    !
+    ! Output: sx, sy, sz
+    !        The signs with respect to x/y/z reflection of the components of 
+    !        the spwf spinors. 
+    !---------------------------------------------------------------------------`
 
+## Language 
+- You should aim to be concise yet precise. This is particularly important 
+  for important for in-code documentation.
+- Where possible, use nuclear physics terminology - not terminology borrowed 
+  from other fields. Example: "good quantum numbers" instead of "gradings". 
+  
 ## Testing
 
 All scripts are run from inside their containing directory:
@@ -224,29 +260,21 @@ perturbations).
   four mf configs + fam.NLO compile; golden minimal NLO still
   bit-identical after the commit. Next up: row 4 - the inertia switch
   (`Qsp` from `Qlm_spme_fm * 100^(-l/2)` in calc_collective_inertia).
-- Convention correction (Wouter, 2026-11-17) - bites anyone touching
-  these matrix elements (see the banners in moments.f90 and design §13.1):
-  *) the four HFPsi components are (1,2) = (Re, Im) of the spin-up
-     amplitude and (3,4) = (Re, Im) of spin-down, as a STORAGE layout
-     (pinned by transform_spwfs_inplace_complex, spin_z_real/angmom_z_imag
-     and angmom_x_imag); it governs the component sum of the REAL half
-     of the multipole MEs. It does NOT make the imaginary half nonzero:
-     the imaginary antisymmetric half of the multipole MEs is
-     identically zero within symmetry blocks in every build conserving
-     a composed antiunitary symmetry such as the time simplex,
-     physically nonzero only for odd-m operators between
-     signature-partner blocks. Naive cross products of the stored
-     components (plain chamber integrals) are artifacts of the
-     symmetry-reduced mesh: they cancel exactly where the physical value
-     vanishes. An earlier note here claiming the opposite was wrong and
-     has been reverted along with the me_im half itself (deferred to
-     design step 6/7).
-  *) MOCCa's operator matrices are symmetry-decomposed objects,
-     identically zero outside their sector blocks; naive mesh integrals
-     at sector-forbidden pairs (e.g. cross-isospin) are chamber-partial
-     garbage. Anything comparing against per-(i,j) references must
-     restrict itself to the XOR-allowed pairs
-     IEOR(sector(i), sector(j)) = AND(mod(m,2)+2*mod(l,2), goodqn).
+- Landed since (2026-11-17): the y-time-simplex characteristic of design
+  §2a in `block_matrix_module`: constants STY_NONE/EVEN/ODD, optional
+  physical `sty` argument of `init`/`new_sym_matrix`, stored effective on
+  the object; `goodqn` extended to 4 bits (bit 3 = STy conserved, injected
+  by Hephaestos via symdic['STy'] alongside Rz and P, default 15). STy
+  forces operators of definite characteristic to purely real (even) or
+  purely imaginary (odd) matrix elements and carries NO block structure -
+  the block list is sty-independent (unit-tested). For Hermitian operators
+  it pairs with the kind: STY_EVEN/KIND_SYMMETRIC, STY_ODD/
+  KIND_ANTISYMMETRIC (stored numbers = imaginary parts). No MOCCa caller
+  passes `sty` yet: `Qlm_spme_matrix` tags its halves when `me_im` returns
+  at step 6/7; today's callers only see the goodqn constant change
+  (NLO/NLO-T 15, NLO-P/NLO-TP 13). Gates: unit suite incl. new test_sty
+  (26556 checks), NLO + NLO-T mf compile with the frozen make.inc,
+  golden minimal NLO bit-identical (all numbers identical).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and
@@ -284,8 +312,10 @@ perturbations).
   bit 1 = parity (0 = even), bit 2 = isospin (0 = neutron), so the sector
   word is simply the MOCCa block index minus one; see design summary §2a.
   Operator words handed to `init` are physical; the constructor additionally
-  takes the good-quantum-number mask (design §2b, agreed 2026-11-17),
-  injected by Hephaestos into geninfo as $GOODQN — no `$`-marker selection
+  takes the good-quantum-number mask (design §2b/§2c, a 4-bit word: bits 0-2
+  as the sector words, bit 3 = STy conserved), injected by Hephaestos into
+  geninfo as $GOODQN, and the optional physical `sty` characteristic (design
+  §2a), intersected once with bit 3 — no `$`-marker selection
   logic in the routines that produce or consume sym_matrix objects.
 - Hephaestos wiring: a new `src_orig/*.f90` file must be added both to
   `MF_SRC`/`FAM_SRC` in the Makefile and to `no_process_files` in

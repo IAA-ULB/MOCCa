@@ -15,7 +15,7 @@ small number of dense blocks. The goal is a derived type that:
 - stores only the nonzero blocks dictated by selection rules,
 - keeps all block data contiguous and BLAS-friendly,
 - performs mat-vec and mat-mat products at dense-BLAS speed,
-- supports Hermitian and anti-Hermitian, real and complex operators,
+- supports Hermitian and anti-Hermitian operators,
 - has zero quantum-number logic at runtime (all resolved at construction).
 
 Constraints agreed with Wouter:
@@ -26,11 +26,13 @@ Constraints agreed with Wouter:
 - Blocks are dense; matrices are constructed explicitly, not only via mat-vec.
 - Total matrix sizes are typically around 1000 x 1000; single-node performance
   matters most. MPI distribution is out of scope for now.
+- STy conservation can be assumed in all cases. 
 
 ## 2. Symmetry model
 
-The three symmetries are parity (P), z-signature (S), and isospin (T_z). Each
-acts on the basis as a Z2 grading:
+The three symmetries that induced block structure in all matrices 
+are parity (P), z-signature (Rz), and isospin (T_z). Each acts on 
+the basis as a Z2 grading:
 
 - parity: even / odd
 - z-signature: +1 / -1
@@ -63,7 +65,71 @@ operator matrix has at most 8 nonzero blocks (fewer when sectors are empty).
 This is the only place selection rules appear; everything downstream sees a
 flat list of at most 8 dense blocks.
 
-### 2a. Bijection with MOCCa's HFBlocks bookkeeping (confirmed)
+### 2a. The y-time-simplex characteristic (agreed 2026-11-17)
+
+The y-time-simplex is STy = P x T x Ry, parity times time-reversal times
+y-signature: a hermitian, antilinear involution, STy**2 = +1. The spwfs
+MOCCa stores are its invariants,
+
+  STy \psi = \psi^*(x,-y,z,sigma) = \psi .
+
+For an operator O of definite characteristic STy O STy^-1 = sigma x O,
+sigma = +/- 1, the matrix elements over the stored basis therefore obey
+
+  < i | O | j > = < STy \psi_i | O | STy \psi_j > = sigma x < i | O | j >* ,
+
+so STY_EVEN operators (sigma = +1) have purely real and STY_ODD operators
+(sigma = -1) purely imaginary matrix elements. For even (odd) operators the
+one-body matrix elements are the REAL (IMAGINARY) part of the spinor inner
+product of the spwfs.
+
+STy introduces NO block structure: every stored state is an invariant, so
+there is no grading to pair, no XOR bit, and the pairing machinery of section
+2 is untouched. The characteristic is a phase constraint on the stored
+numbers and joins `kind` on the structure side of the type:
+
+- Encoding: `init` takes the PHYSICAL characteristic as the optional
+  argument `sty` in {STY_NONE = 0, STY_EVEN = +1, STY_ODD = -1} (default
+  STY_NONE, for operators without a definite characteristic). It is
+  intersected exactly once, in the constructor, with goodqn bit 3 (section
+  2c): a build that does not conserve the time simplex downgrades every
+  input to STY_NONE, and the (re, im)-pair model for complex operators
+  (section 12) applies again. The type stores the EFFECTIVE characteristic
+  in its `sty` component; it never touches the block list.
+- Producers: fill callbacks compute the real or the imaginary part of the
+  spinor product according to the characteristic; the callback interface
+  is frozen (section 5), so the producer hands the same value to its
+  callback through `params`.
+- For Hermitian operators the characteristic fixes the kind: STY_EVEN
+  belongs to KIND_SYMMETRIC (real matrix elements), STY_ODD to
+  KIND_ANTISYMMETRIC (the stored numbers are the imaginary parts,
+  antisymmetric real storage representing the complex Hermitian matrix).
+  A single sym_matrix per operator of definite characteristic represents
+  the entire complex operator: the pair model of section 12 collapses to
+  its surviving half, which is exactly the shape in which the deferred
+  `me_im` half of section 13 returns.
+- Consumers: mat-vec on complex (packed two-column) vectors combines the
+  columns per the characteristic - for the real part y_re += A.x_re,
+  y_im += A.x_im; for the imaginary part y_re -= A.x_im, y_im += A.x_re;
+  both are plain dgemv calls on the columns.
+- Character table, electric multipoles (agreed 2026-11-17): r^l Re Y_lm is
+  STY_EVEN and r^l Im Y_lm is STY_ODD for every m - the characteristic is
+  m-independent, unlike the symmetry word, which flips the signature bit
+  for odd m. J_y is STY_ODD. Character tables are producer-side knowledge;
+  for operators acting on spin they depend on MOCCa's spin convention for
+  STy and must be taken from the existing symmetry machinery, not
+  re-derived.
+
+Two convention safeguards. The design presumes the +1 invariance above: a
+basis holding STy \psi = -psi states would need per-state signs theta_i
+theta_j in the reality constraint, which MOCCa's conventions do not
+produce. And a single-particle state cannot simultaneously be an Rz
+eigenstate and a sigma_z = Rz.T invariant - MOCCa stores Rz eigenstates,
+so no second, z-simplex-based reality constraint exists and STy is the one
+antiunitary characteristic the type carries.
+
+
+### 2b. Bijection with MOCCa's HFBlocks bookkeeping (confirmed)
 
 Confirmed against the sources: wavefunctions.f90 (block bookkeeping header,
 `iniwavefunctions`), gennilsson.f90 and nil8.f90 (all Nilsson seeds have
@@ -97,7 +163,7 @@ used, the imaginary part of a complex operator carries that bit complemented
 parts carry independent symmetry words; it must be decided once, in the
 constructor, based on MOCCa's existing symmetry conventions for q-values.
 
-### 2b. Good quantum numbers of the stored basis (agreed 2026-11-17)
+### 2c. Good quantum numbers of the stored basis (agreed 2026-11-17)
 
 The operator word of section 2 describes the *physical* character of an
 operator. The XOR pairing additionally presumes that the sector words
@@ -105,26 +171,33 @@ describe definite quantum numbers of the stored basis. The two coincide for
 all three bits when the corresponding self-consistent symmetry is conserved,
 but a build may break one: then the states of both characters are merged into
 a single storage block and the corresponding quantum number is not *good*.
-The classic case is parity (section 2a): parity-broken builds store
+The classic case is parity (section 2): parity-broken builds store
 everything in blocks 1, 2, 5, 6, and the parity bit of a basis sector is
 vacuous.
 
-Call the discrete quantum numbers that actually label the basis of a given
-build its good quantum numbers, encoded as a 3-bit mask with the same bit
-assignment as the sector words:
+Call the discrete good quantum numbers that actually label the basis of a
+given build its good quantum numbers, encoded as a 4-bit mask: bits 0-2
+with the same bit assignment as the sector words, bit 3 for the
+y-time-simplex characteristic of section 2a:
 
 ```
 bit 0 : q(Rz) good    - set iff this build conserves Rz
 bit 1 : parity good  - set iff this build conserves P
 bit 2 : Tz good      - always set for nucleonic bases
+bit 3 : STy good     - set iff this build conserves the y-time-simplex,
+                       whose invariants the stored spwfs then are
 ```
 
-Rule, applied once, inside `init` (section 4):
+Bits 0-2 and bit 3 play different roles, both applied exactly once,
+inside `init` (section 4):
 
 ```
 effective word = AND(physical word, goodqn)  ! bits of quantum numbers that
                                              ! are not good act diagonally
 s' = IEOR(s, effective word)
+
+effective characteristic = input sty, kept only when bit 3 is set;
+                           downgraded to STY_NONE otherwise (section 2a)
 ```
 
 - odd-l operator in a parity-broken build: the mask clears the parity bit,
@@ -146,11 +219,14 @@ states, where the same operator gives exactly zero. In MOCCa the mask is a
 `geninfo` constant injected by Hephaestos at generation time (`$GOODQN`,
 computed from the build's symmetry generators by the same identity check the
 `$PCONSERVED` substitution uses - bit 0 iff the Rz generator is present, bit
-1 iff the P generator is, which avoids e.g. the 'P' inside a 'PT' generator
-when parsing SYMSTRING tokens), and handed to the constructor by every
-caller. These three bits are the only build-dependent information on this
-path: the routine of step 3 (section 13) contains no `$`-marker logic at
-all.
+1 iff the P generator is, bit 3 iff the STy generator is, which avoids e.g.
+the 'P' inside a 'PT' generator when parsing SYMSTRING tokens), and handed
+to the constructor by every caller. These four bits are the only
+build-dependent information on this path: the routine of step 3 (section 13)
+contains no `$`-marker logic at all. Bit 3 does not mask the pairing (a
+conserved time simplex neither merges nor separates blocks); it gates the
+characteristic of section 2a, and every SYMSTRING in the tree today declares
+STy, so it is set in all existing configs.
 
 ## 3. Type definitions
 
@@ -174,9 +250,16 @@ integer, parameter :: KIND_ANTISYMMETRIC = -1 ! A(s',s) = - A(s,s')^T
 
 type :: sym_matrix
   integer :: symmetry       ! operator symmetry word, 0..7 (physical, §2b)
-  integer :: goodqn         ! good-quantum-number mask of the basis (§2b);
-                            ! 7 = all quantum numbers good
+  integer :: goodqn         ! good-quantum-number mask of the basis (§2c);
+                            ! 0..15, bits 0-2 = sector gradings, bit 3 = STy
+                            ! good (§2a); 15 = every quantum number good
   integer :: kind            ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
+  integer :: sty            ! effective y-time-simplex characteristic (§2a):
+                            ! STY_NONE / STY_EVEN / STY_ODD, the physical input
+                            ! intersected with goodqn bit 3. No block
+                            ! structure: tells producers and consumers which
+                            ! part of the complex matrix elements the stored
+                            ! real numbers represent
   integer :: n               ! total basis size, sum(HFblocks)
   integer :: nblocks         ! number of stored blocks, <= 8
   type(sym_block) :: blocks(8)
@@ -189,7 +272,13 @@ end type
 
 (`add_element`, shown in earlier drafts of this snippet, was dropped: the
 element-wise path is the `element_filler` callback through fill_elements, see
-section 5.)
+section 5.) The characteristic constants live next to the kinds:
+
+```fortran
+integer, parameter :: STY_NONE =  0   ! no constraint: complex elements
+integer, parameter :: STY_EVEN =  1  ! <i|O|j> purely real (§2a)
+integer, parameter :: STY_ODD  = -1  ! <i|O|j> purely imaginary (§2a)
+```
 
 The `kind` sign generalizes Hermitian/anti-Hermitian for real storage: partner
 blocks are related by `A(s',s) = sigma * A(s,s')^T` with `sigma = ±1`. A block
@@ -225,15 +314,22 @@ each block carries the 1-based starts `is`, `js` of its row/column sectors.
 ## 4. Construction from HFblocks
 
 ```fortran
-subroutine init(this, HFBlocks, symmetry, kind, goodqn)
+subroutine init(this, HFBlocks, symmetry, kind, goodqn, sty)
   ! HFBlocks(1:8): the GLOBAL MOCCa count array (HFBlocks_global),
   ! in MOCCa block ordering; sector s = block s+1 (section 2a).
   ! goodqn:        optional good-quantum-number mask of the basis
-  !                (section 2b); default 7 = all quantum numbers good.
+  !                (section 2c); 0..15, bits 0-2 = sector gradings,
+  !                bit 3 = STy good (section 2a); default 15 = every
+  !                quantum number good.
+  ! sty:           optional y-time-simplex characteristic of the operator
+  !                (section 2a): STY_NONE / STY_EVEN / STY_ODD, physical
+  !                input; downgraded to STY_NONE when goodqn bit 3 is
+  !                clear. Stored effective in this%sty; the block list is
+  !                independent of it.
   ! 1. counts(s) = HFBlocks(s+1)   <- the only 1-based-to-0-based step.
   !    st(0) = 1; st(s+1) = st(s) + counts(s).
-  ! 2. word = AND(symmetry, goodqn)  <- the only place the mask of section
-  !    2b is applied; bits of quantum numbers that are not good act
+  ! 2. word = AND(symmetry, goodqn)  <- the only place the grading bits of
+  !    the mask are applied; bits of quantum numbers that are not good act
   !    diagonally.
   !    For s = 0..7: sp = IEOR(s, word).
   !    Skip if counts(s) == 0 or counts(sp) == 0.
@@ -254,8 +350,13 @@ Properties after init:
 - A purely real operator can simply leave the imaginary part absent (see
   section 8) without special cases.
 - `symmetry` stores the physical word as handed in; the pairing word derived
-  in init is `AND(symmetry, goodqn)` (section 2b). With the default
-  `goodqn = 7` the pairing reduces to the pure XOR of section 2.
+  in init is `AND(symmetry, goodqn)` on the grading bits (section 2c). With
+  the default `goodqn = 15` the pairing reduces to the pure XOR of section 2.
+- `sty` stores the effective characteristic of section 2a, the physical
+  input kept iff goodqn bit 3 is set; the block list is exactly the list of
+  the characteristic-free construction. Producers fill the real
+  (STY_EVEN) or imaginary (STY_ODD) part of the spinor product accordingly;
+  consumers read the component to interpret the stored numbers.
 
 Index-to-sector mapping for element-wise construction is an 8-entry scan:
 
@@ -313,8 +414,8 @@ builds and fills in one statement (implemented 2026-11-17). A named
 function, not a generic `sym_matrix(...)`: in Fortran a name cannot serve
 as both a derived-type name and a function name. Equivalent to init
 followed by fill_blocks with the same arguments. Step 3 (section 13)
-extends the sugar's signature with the optional `goodqn` argument,
-exactly like `init`.
+extends the sugar's signature with the optional `goodqn` and `sty`
+arguments, exactly like `init`.
 
 ## 6. Runtime operations
 
@@ -357,54 +458,7 @@ kind), scalar and complex scaling, trace.
   side) per-block dense storage is the right tradeoff. Triangle packing
   inside blocks is deliberately not done.
 
-## 8. Complex operators: real/imaginary split
-
-Represent a complex operator as two real matrices, never as complex blocks:
-
-```fortran
-type :: complex_op
-  type(sym_matrix) :: re, im   ! each may be independently absent
-end type
-```
-
-The algebra, with `O = R + iI`, `R` and `I` real:
-
-- O Hermitian       : R symmetric,      I antisymmetric
-- O anti-Hermitian  : R antisymmetric,  I symmetric
-
-Each half is a `sym_matrix` with its own `kind`. The mapping from the complex
-operator's Hermiticity class to the pair of real kinds is fixed:
-
-- Hermitian:      (re: KIND_SYMMETRIC,     im: KIND_ANTISYMMETRIC)
-- Anti-Hermitian: (re: KIND_ANTISYMMETRIC, im: KIND_SYMMETRIC)
-
-Symmetry words: for unitary symmetries both halves share the operator word.
-If a symmetry is antiunitary or involves complex conjugation in the adopted
-convention, the imaginary part carries that bit complemented:
-`im%symmetry = IEOR(op, antiunit_mask)`. Decide the mask once from MOCCa's
-q-value conventions; this is the mechanism behind FAM facts such as fields
-related by complex conjugation connecting complementary signature sectors.
-
-Mat-vec with packed two-column vectors. With `x = x_R + i x_I`, `y = O x`:
-
-```
-y_R = R x_R - I x_I
-y_I = I x_R + R x_I
-```
-
-Pack `X = [x_R | x_I]` as `n x 2`; each half of the operator is one `dgemm`
-pass per block (`apply2`), with the sign/swap folding the multiplication by
-`i`. Two real passes over an `n x 2` array stay in real BLAS and beat one
-complex pass on memory traffic. The same packed layout serves iterative
-solvers over the complex field (mat-vec closure over length-2n vectors).
-
-Mat-mat: `C_R = A_R B_R - A_I B_I`, `C_I = A_R B_I + A_I B_R`, each term a
-real sym_matrix mat-mat with XOR'd symmetry words as in section 6.
-
-A purely real operator leaves `im` unallocated (`nblocks = 0`); no special
-cases anywhere else.
-
-## 9. Testing and validation
+## 8. Testing and validation
 
 - Selection rules: for every operator word 0..7, verify the block list
   matches the XOR pairing of sectors surviving in `HFblocks`.
@@ -412,17 +466,13 @@ cases anywhere else.
   consistency including the sign and the transposed access path.
 - Mat-vec correctness: compare against a dense reference mat-vec built by
   expanding all blocks into a full `n x n` matrix, for random `HFblocks`
-  (including empty sectors), all symmetry words, all kinds, real and
-  complex.
+  (including empty sectors), all symmetry words, all kinds.
 - Mat-mat: compare against dense multiplication; verify symmetry word of the
   product is `IEOR(a, b)`.
-- Complex split: verify that reassembling `R + iI` and applying as complex
-  `zgemv` reproduces the packed two-column result, and that Hermitian /
-  anti-Hermitian complex operators produce the promised real kind pairs.
 - Benchmarks: time mat-vec against a dense `dgemv` on the same data;
   profile with likwid or gprof; check OpenMP scaling over blocks.
 
-## 10. MOCCa integration notes
+## 9. MOCCa integration notes
 
 - Never edit generated solver code. The type belongs in `src_orig/` (solver
   source), and any build-system or preprocessing adjustments in
@@ -445,7 +495,7 @@ cases anywhere else.
   the dry-run report) so Hephaestos copies it verbatim into the build tree;
   an unlisted file is silently skipped by the Makefile-per-file invocation.
 
-## 11. Suggested implementation order
+## 10. Suggested implementation order
 
 1. Core module: sector encoding, `sym_block`, `sym_matrix`, `init` from
    `HFblocks`, block-list construction with XOR pairing and kind-based
@@ -463,11 +513,6 @@ cases anywhere else.
    reference.
 5. Symmetric/antisymmetric partner maintenance and consistency checks.
 6. `matmat`, add, scale, trace.
-7. `complex_op` wrapper with the packed two-column `matvec` and the
-   antiunitary-mask constructor logic.
-8. OpenMP over blocks for fill and mat-vec; benchmarks.
-9. Integration into a FAM-relevant code path, behind a Hephaestos config
-   option if appropriate.
 
 ## 12. Design decisions to keep
 
@@ -476,8 +521,6 @@ cases anywhere else.
 - Per-block rank-2 allocatables, not one flat buffer.
 - Population via dummy-procedure callback with abstract interface; no
    procedure-pointer components.
-- Complex operators are pairs of real matrices; re/im carry independent
-   symmetry words and kinds; packed two-column vectors for mat-vec.
 - Dense blocks, no triangle packing; single node only for now.
 - MOCCa boundary: `init` takes the global `HFBlocks_global(1:8)` directly;
   sector word = MOCCa block index - 1 (section 2a). One constructor, one
@@ -485,10 +528,17 @@ cases anywhere else.
 - Offset scheme 2 throughout: 1-based bounds `st(0:8)` with `st(8) = n+1`,
   block starts `is`, `js`; no 0-based global offsets anywhere.
 - Operator words handed to `init` are physical (section 2); the
-  good-quantum-number mask of section 2b is applied once, inside the
+  good-quantum-number mask of section 2c is applied once, inside the
   constructor. MOCCa's mask lives in `geninfo`, derived from the build's
   `SYMSTRING`; producers and consumers of these matrices carry no
   `$`-marker logic.
+- The y-time-simplex characteristic is an optional physical input to
+  `init` (section 2a), intersected once with goodqn bit 3 and stored
+  effective on the object. It carries no block structure: the block list
+  is independent of it, and it is the one antiunitary constraint in play
+  (an Rz eigenstate cannot be a sigma_z = Rz.T invariant, and MOCCa
+  stores Rz eigenstates). For Hermitian operators it pairs with the
+  kind: STY_EVEN/KIND_SYMMETRIC and STY_ODD/KIND_ANTISYMMETRIC.
 
 ## 13. Step 3 detailed: generalised multipole matrix elements
 
@@ -530,7 +580,10 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
 - constructor call: `init(HFBlocks_global, op, kind, goodqn = ...)`, with
   the mask of section 2b taken from `geninfo`. Every build then takes the
   identical, marker-free code path; empty partner sectors give zero blocks
-  through init's occupancy skip.
+  through init's occupancy skip. The `sty` argument (section 2a) is NOT
+  passed yet - deliberately: the real symmetric half needs no part
+  switching, and tagging both half generators belongs to the me_im
+  return at step 6/7.
 - all matrix elements are direct mesh integrals of the stored basis
   functions - no time-reversal/signature-partner shortcuts, hence no
   partner-phase conventions to get wrong. Block fill: one dense product
@@ -540,31 +593,6 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   expansion of a `sym_matrix` (refactored out of the `print_dense` core).
   It is the return shape behind `Qlm_spme_fm` and later the dense
   reference builder for the mat-vec/mat-mat tests of steps 4 and 6.
-
-The imaginary antisymmetric half is NOT computed. Convention correction
-(Wouter, 2026-11-17): within the symmetry blocks it is identically zero
-in every build conserving a composed antiunitary symmetry such as the
-time simplex - the legacy module's "all these matrix elements are real
-... if the time simplex is conserved" comment states the physics.
-Physically nonzero imaginary parts occur only for odd-m operators
-acting between signature-partner blocks. The naive cross products of
-the four stored HFPsi components that row 3 initially shipped - and
-the brute-force reference in its oracle, which shared the flaw - do
-NOT give those matrix elements: on the symmetry-reduced mesh, plain
-chamber integrals ignore the per-component reflection characters of
-the symmetry extension (sx/sy/sz in `wavefunctions.f90`), so the
-contributions of symmetry-related mesh chambers cancel exactly where
-the physical value vanishes. The finite |Im Q_20| values the row-3
-oracle printed were such chamber artifacts, not physics. The half is
-deferred to step 6/7: it returns with a convention that respects the
-component reflection characters and an odd-m oracle. The HFPsi storage
-layout survives as a storage fact - (1,2) = (Re, Im) of the spin-up
-amplitude, (3,4) = (Re, Im) of spin-down, pinned by
-`transform_spwfs_inplace_complex` - and governs the component sum of
-the real half. The old routine's restrictions (even m only, real
-matrix part only, `b^{l/2}` units, marker-guarded selection) all
-disappear; the imaginary half is the one thing the generator does not
-(yet) provide.
 
 ### 13.2 The old routine stays, as oracle
 
@@ -601,7 +629,12 @@ deliberately untouched in this step beyond the source of `Qsp`.
   returns at step 6/7 it will have no legacy oracle either (the old
   code computes the real part only): validated then against
   antisymmetry and Hermiticity identities and the [R, P] checks in
-  `fam_testing`. Two lessons from the row-3 implementation carry over:
+  `fam_testing`. Its return shape is settled by section 2a: the
+  imaginary half is a single sty-odd matrix - kind KIND_ANTISYMMETRIC,
+  `sty = STY_ODD`, stored numbers the Im <i|Q_lm|j> - and the real
+  half carries `sty = STY_EVEN`; both characteristics are
+  m-independent (agreed 2026-11-17). Two lessons from the row-3
+  implementation carry over:
   any per-(i,j) reference must be restricted to the XOR-allowed pairs -
   MOCCa's operator matrices are the symmetry-decomposed objects,
   identically zero outside their blocks, whereas naive mesh integrals
@@ -629,8 +662,6 @@ deliberately untouched in this step beyond the source of `Qsp`.
 
 ### 13.5 Deferred (not this step)
 
-- consuming the re/im halves inside FAM response assembly (needs
-  `complex_op`, step 7),
 - odd-m and Im-operator FAM fields end to end,
 - inertia for Im-operator moments (`Ksum`/`calc_Q20` generalisation),
 - the optional `$TR` short-circuit for the antisymmetric half,

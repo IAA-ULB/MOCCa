@@ -73,13 +73,20 @@ module GenInfo
   !     bit 0 (1) : q(Rz)  good  - signature grades the basis blocks
   !     bit 1 (2) : parity good  - parity grades the basis blocks
   !     bit 2 (4) : Tz     good  - always: neutrons and protons never merge
+  !     bit 3 (8) : STy    good  - the y-time-simplex is conserved, all
+  !                 stored spwfs are its invariants, and operators of
+  !                 definite STy characteristic have purely real (even)
+  !                 or purely imaginary (odd) matrix elements
   ! A quantum number is good iff the corresponding self-consistent symmetry
   !  is conserved in this build; if it is broken, the states of both
   !  characters are merged into a single storage block and the bit is clear.
+  !  Bits 0-2 mask the block pairing; bit 3 gates the STy characteristic
+  !  argument of the init constructor, which downgrades it to none when
+  !  the bit is clear.
   ! Injected by Hephaestos ($GOODQN): a property of the build scenario, not
   !  recoverable from runtime block counts. The init constructor of
-  !  block_matrix_module intersects the physical symmetry words of operators
-  !  with this mask.
+  !  block_matrix_module intersects the physical operator words (bits 0-2)
+  !  and the y-time-simplex characteristics (bit 3) with this mask.
   integer, parameter                     :: goodqn = $GOODQN
   !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points

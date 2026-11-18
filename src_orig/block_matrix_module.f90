@@ -35,8 +35,9 @@ module block_matrix_module
   !  HFBlocks bookkeeping, and population of the stored blocks through
   !  dummy-procedure callbacks (the block-wise fill_blocks and the
   !  per-element fallback fill_elements), plus the new_sym_matrix
-  !  constructor sugar and the good-quantum-number mask in init (design
-  !  section 2b). It also provides the partner-reconstructing dense
+  !  constructor sugar, the good-quantum-number mask in init (design
+  !  section 2b) and the y-time-simplex characteristic of design section
+  !  2a. It also provides the partner-reconstructing dense
   !  expansion 'dense' (design sections 9 and 13): the core of the
   !  print_dense dump, the return shape behind dense wrappers such as
   !  the new Qlm_spme_fm in moments.f90, and later the dense reference
@@ -91,14 +92,57 @@ module block_matrix_module
   !  couples states WITHIN blocks 1, 2, 5, 6 rather than pairing them into
   !  the empty blocks 3, 4, 7, 8 as its physical word suggests.
   !
-  !  init therefore takes an optional 3-bit mask 'goodqn' (same bit
-  !  assignment as the sector words; default 7 = every quantum number
-  !  good) marking the quantum numbers that actually label the basis, and
-  !  pairs every sector s with IEOR(s, AND(symmetry, goodqn)). The mask is
-  !  a fact of the build scenario, not recoverable from the runtime block
-  !  counts: in MOCCa it is the geninfo constant 'goodqn', injected by
-  !  Hephaestos ($GOODQN). With all bits good the pairing is the pure XOR
-  !  above. Standalone callers (unit tests) omit the mask.
+  !  init therefore takes an optional 4-bit mask 'goodqn' (bits 0-2 as
+  !  the sector words, bit 3 = the y-time-simplex conserved, see the next
+  !  section; default 15 = every quantum number good) marking the
+  !  quantum numbers that actually label the basis, and pairs every
+  !  sector s with IEOR(s, AND(symmetry, goodqn)). Bits 0-2 are a fact
+  !  of the build scenario, not recoverable from the runtime block
+  !  counts: in MOCCa they come from the geninfo constant 'goodqn',
+  !  injected by Hephaestos ($GOODQN). With all bits good the pairing is
+  !  the pure XOR above. Standalone callers (unit tests) omit the mask.
+  !
+  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !  Characteristic under the y-time-simplex
+  !  ----------------------------------------
+  !  The y-time-simplex  STy = P . T . Ry  is a hermitian antilinear
+  !  involution (STy**2 = +1), and the spwfs MOCCa stores are its
+  !  invariants,
+  !       STy psi = psi^*(x,-y,z,sigma) = psi .
+  !  An operator O of definite characteristic,
+  !       STy O STy^{-1} = sigma * O        (sigma = +/- 1),
+  !  therefore has matrix elements over the stored basis that obey
+  !       < i | O | j > = sigma * < i | O | j >*  :
+  !  STY_EVEN operators have purely REAL, STY_ODD operators purely
+  !  IMAGINARY matrix elements.
+  !
+  !  STy carries NO block structure: every stored state is an invariant,
+  !  so there is no grading to pair and the characteristic never touches
+  !  the block list. It fixes how matrix elements are calculated (the
+  !  real or the imaginary part of the spinor product) and how the
+  !  stored numbers must be interpreted by consumers. For Hermitian
+  !  operators the characteristic fixes the kind: STY_EVEN belongs to
+  !  KIND_SYMMETRIC, STY_ODD to KIND_ANTISYMMETRIC (the stored numbers
+  !  are then the imaginary parts of the matrix elements).
+  !
+  !  Encoding (design summary section 2a): init takes the PHYSICAL
+  !  characteristic (optional 'sty' argument, default STY_NONE for
+  !  operators without one), intersected exactly once with goodqn bit 3:
+  !  a build that does not conserve the time simplex downgrades every
+  !  input to STY_NONE, and the (re, im) pair model for complex
+  !  operators applies again. The component stores the EFFECTIVE
+  !  characteristic. Producers hand the same value to their fill
+  !  callbacks through params (the callback interface is frozen).
+  !  This presumes the +1 invariance convention above; a basis with
+  !  STy psi = -psi states would need per-state signs, which MOCCa's
+  !  conventions do not produce.
+  !
+  !  Typical characteristics (agreed 2026-11-17): r^l Re Y_lm is
+  !  STY_EVEN and r^l Im Y_lm is STY_ODD for every m, and J_y is
+  !  STY_ODD. Character tables per operator family are producer-side
+  !  knowledge; for operators acting on spin (e.g. spin densities) they
+  !  depend on MOCCa's spin convention for STy and must be taken from
+  !  the symmetry machinery, not re-derived here.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Conventions
@@ -150,6 +194,24 @@ module block_matrix_module
   integer, parameter :: KIND_SYMMETRIC      =  1
   integer, parameter :: KIND_ANTISYMMETRIC  = -1
 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Characteristic of an operator under the y-time-simplex STy = P.T.Ry
+  !  (design summary section 2a, and the module header above for the full
+  !  treatment). For  STy O STy^{-1} = sigma * O  with sigma = +/- 1, the
+  !  matrix elements over the stored basis obey
+  !      < i | O | j > = sigma * < i | O | j >* ,
+  !  so STY_EVEN operators have purely real and STY_ODD operators purely
+  !  imaginary matrix elements. This is a phase constraint, not a block
+  !  structure: it never touches the block list, it decides which part of
+  !  a complex spinor product the stored numbers represent, and for
+  !  Hermitian operators it fixes the kind (even -> symmetric, odd ->
+  !  antisymmetric storage of the imaginary parts). STY_NONE marks
+  !  operators without a definite characteristic, and every input in a
+  !  build that does not conserve STy (goodqn bit 3 clear).
+  integer, parameter :: STY_NONE =  0
+  integer, parameter :: STY_EVEN =  1
+  integer, parameter :: STY_ODD  = -1
+
   !------------------------------------------------------------------------------
   ! One dense block: rows span global indices is : is+m-1 of sector srow,
   !  columns span js : js+n-1 of sector scol, with m = size(A,1), n = size(A,2).
@@ -167,9 +229,19 @@ module block_matrix_module
   !  quantum numbers XOR selection rules never appear at runtime again.
   type :: sym_matrix
     integer :: symmetry       ! operator symmetry word, 0..7 (physical)
-    integer :: goodqn         ! good-quantum-number mask of the basis, 0..7
-                              ! (design 2b); 7 = all quantum numbers good
+    integer :: goodqn         ! good-quantum-number mask of the basis,
+                              ! 0..15 (design 2b; bits 0-2 as the sector
+                              ! words, bit 3 = STy conserved, design 2a);
+                              ! 15 = every quantum number good
     integer :: kind           ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
+    integer :: sty            ! effective characteristic under the y-time-
+                              ! simplex (design 2a): STY_NONE / STY_EVEN /
+                              ! STY_ODD, the physical characteristic
+                              ! intersected with goodqn bit 3. Carries no
+                              ! block structure; tells consumers which
+                              ! part of the complex matrix elements the
+                              ! stored real numbers represent (and hence
+                              ! how the blocks were filled)
     integer :: n              ! total basis size, sum(HFBlocks)
     integer :: nblocks        ! number of stored blocks, <= 8
     type(sym_block) :: blocks(8)
@@ -231,13 +303,14 @@ module block_matrix_module
   private
   public :: sym_block, sym_matrix
   public :: KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC
+  public :: STY_NONE, STY_EVEN, STY_ODD
   public :: block_filler, element_filler
   public :: new_sym_matrix
 
 contains
 
   !----------------------------------------------------------------------------
-  subroutine init_sym_matrix(this, HFBlocks, symmetry, kind, goodqn)
+  subroutine init_sym_matrix(this, HFBlocks, symmetry, kind, goodqn, sty)
     !---------------------------------------------------------------------------
     ! Construct the block list of a symmetry-adapted matrix.
     !
@@ -265,16 +338,28 @@ contains
     !                   be passed, as this type is single-node by design.
     !   symmetry      : physical operator symmetry word, 0..7
     !   kind          : KIND_GENERAL, KIND_SYMMETRIC or KIND_ANTISYMMETRIC
-    !   goodqn        : optional 3-bit mask of the quantum numbers that are
+    !   goodqn        : optional 4-bit mask of the quantum numbers that are
     !                   good for this build's basis (design section 2b);
-    !                   default 7 = every quantum number good. In MOCCa,
-    !                   pass the geninfo constant 'goodqn'.
+    !                   bits 0-2 with the same assignment as the sector
+    !                   words, bit 3 = the time simplex conserved (section
+    !                   2a); default 15 = every quantum number good. In
+    !                   MOCCa, pass the geninfo constant 'goodqn'.
+    !   sty           : optional characteristic of the operator under the
+    !                   y-time-simplex (design section 2a): STY_NONE,
+    !                   STY_EVEN or STY_ODD. Physical input, intersected
+    !                   exactly once, here: a build that does not conserve
+    !                   the time simplex (goodqn bit 3 clear) downgrades
+    !                   every input to STY_NONE, leaving complex matrix
+    !                   elements unconstrained. The effective value is
+    !                   stored in this%sty and never touches the block
+    !                   list.
     !---------------------------------------------------------------------------
     class(sym_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
     integer, intent(in)               :: symmetry
     integer, intent(in)               :: kind
     integer, intent(in), optional      :: goodqn
+    integer, intent(in), optional      :: sty
 
     integer :: s, sp, b, qn, word
     integer :: counts(0:7)
@@ -295,15 +380,31 @@ contains
       stop 1
     endif
 
-    ! Good-quantum-number mask (design section 2b): default 7 = every
-    !  quantum number good. It is applied exactly once, in the pairing
-    !  word below; quantum numbers that do not label the basis act
-    !  diagonally.
-    qn = 7
+    ! Good-quantum-number mask (design section 2b): default 15 = every
+    !  quantum number good. Bits 0-2 are applied exactly once, in the
+    !  pairing word below (quantum numbers that do not label the basis
+    !  act diagonally); bit 3 gates the y-time-simplex characteristic.
+    qn = 15
     if (present(goodqn)) qn = goodqn
-    if (qn < 0 .or. qn > 7) then
-      print *, 'init_sym_matrix: goodqn mask must be in 0..7, got', qn
+    if (qn < 0 .or. qn > 15) then
+      print *, 'init_sym_matrix: goodqn mask must be in 0..15, got', qn
       stop 1
+    endif
+
+    ! Characteristic under the y-time-simplex (design section 2a):
+    !  physical input, intersected exactly once with the mask - a build
+    !  that does not conserve the time simplex downgrades every
+    !  characteristic to STY_NONE, leaving complex matrix elements
+    !  unconstrained. The characteristic is a phase constraint on the
+    !  matrix elements, not a block structure: the block list below is
+    !  independent of it.
+    if (present(sty)) then
+      if (sty .ne. STY_NONE .and. sty .ne. STY_EVEN                              &
+      & .and. sty .ne. STY_ODD) then
+        print *, 'init_sym_matrix: sty must be STY_NONE, STY_EVEN or',         &
+        &         ' STY_ODD, got', sty
+        stop 1
+      endif
     endif
 
     ! The only place MOCCa's 1-based block ordering is converted to 0-based
@@ -314,6 +415,13 @@ contains
     this%goodqn = qn
     this%kind = kind
     this%n = sum(counts)
+
+    ! Effective y-time-simplex characteristic (design section 2a): the
+    !  physical input, kept only when the build conserves the time
+    !  simplex. Stored on the object for producers and consumers; it
+    !  never influences the block list built below.
+    this%sty = STY_NONE
+    if (present(sty) .and. btest(qn, 3)) this%sty = sty
 
     ! The pairing word: the physical operator word intersected with the
     !  mask - the one place where the good quantum numbers enter the maths.
@@ -445,7 +553,7 @@ contains
     enddo
   end subroutine fill_elements_sym_matrix
   !----------------------------------------------------------------------------
-  function new_sym_matrix(HFBlocks, symmetry, kind, fill, params, goodqn)     &
+  function new_sym_matrix(HFBlocks, symmetry, kind, fill, params, goodqn, sty)  &
   & result(M)
     !---------------------------------------------------------------------------
     ! Constructor sugar (design section 5): build and fill in one statement.
@@ -462,6 +570,8 @@ contains
     !   params        : state handed to the callback, verbatim
     !   goodqn        : optional good-quantum-number mask (design 2b),
     !                   handed to init
+    !   sty           : optional y-time-simplex characteristic (design 2a),
+    !                   handed to init
     ! Output:
     !   M             : the freshly built and filled matrix
     !---------------------------------------------------------------------------
@@ -471,9 +581,10 @@ contains
     procedure(block_filler) :: fill
     class(*), intent(in)    :: params
     integer, intent(in), optional :: goodqn
+    integer, intent(in), optional :: sty
     type(sym_matrix)        :: M
 
-    call M%init(HFBlocks, symmetry, kind, goodqn)
+    call M%init(HFBlocks, symmetry, kind, goodqn, sty)
     call M%fill_blocks(fill, params)
   end function new_sym_matrix
   !----------------------------------------------------------------------------
@@ -587,9 +698,15 @@ contains
       if (btest(this%symmetry, 2)) line = line//' Tz'
     endif
     write(u, '(A,I0,A,A)') '  symmetry word ', this%symmetry, ': ', trim(line)
-    if (this%goodqn .ne. 7) then
+    if (this%goodqn .ne. 15) then
       write(u, '(A,I0,A)') '  good quantum numbers mask ', this%goodqn,     &
       &                    ' (design 2b: bits set = quantum numbers good)'
+    endif
+    if (this%sty .eq. STY_EVEN) then
+      write(u, '(A)') '  y-time-simplex even: matrix elements purely real'
+    elseif (this%sty .eq. STY_ODD) then
+      write(u, '(A)')                                                        &
+      & '  y-time-simplex odd: stored numbers are the imaginary part'
     endif
 
     select case (this%kind)
