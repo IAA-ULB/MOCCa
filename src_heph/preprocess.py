@@ -153,14 +153,14 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
     #              (its matrix-element consequence lives in block_matrix_module:
     #              with all spwfs STy invariants, operators of definite STy
     #              characteristic have purely real/even or imaginary/odd matrix
-    #              elements; init downgrades the characteristic to none when
-    #              this bit is clear)
+    #              elements; init consumes bits 0-2 for the pairing and stores
+    #              the mask verbatim - consumers read bit 3 as the completeness
+    #              criterion of an STy-tagged matrix)
     # A quantum number that is not good means the corresponding basis blocks
     #  are merged into one; the init constructor of block_matrix_module
-    #  intersects operator words with bits 0-2 of this mask and gates the STy
-    #  characteristic with bit 3. Generator identity check,
-    #  like the PCONSERVED hack further down (avoids e.g. the 'P' inside
-    #  the 'PT' generator when parsing SYMSTRING tokens).
+    #  intersects operator words with bits 0-2 of this mask. Generator
+    #  identity check, like the PCONSERVED hack further down (avoids e.g.
+    #  the 'P' inside the 'PT' generator when parsing SYMSTRING tokens).
     from src_heph.heph_symmetries import populatesymmetries
     symdic    = populatesymmetries()
     goodqn    = 4

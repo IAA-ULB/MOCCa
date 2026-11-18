@@ -28,16 +28,21 @@ program block_matrix_unit_tests
   !  construction of the block list from MOCCa's HFBlocks bookkeeping
   !  and population of the stored blocks through callbacks.
   !
+  ! Every operator handled by the type is classifiable (design 2a): it is
+  !  Hermitian or anti-Hermitian, and it is STY_EVEN or STY_ODD under the
+  !  y-time-simplex. init takes both classes as mandatory inputs and
+  !  derives the storage kind as kind = herm * sty, so all construction
+  !  and population tests loop over the four (herm, sty) combinations.
+  !
   ! For a suite of HFBlocks patterns (EV8-like, time-reversal-broken, sparse,
-  !  degenerate), every operator symmetry word 0..7 and every matrix kind,
-  !  the stored block list is verified against the design invariants:
+  !  degenerate), every operator symmetry word 0..7 and every physical
+  !  class combination, the stored block list is verified against the
+  !  design invariants:
   !
   !   *) selection rules: each stored block couples sectors (srow, scol)
   !      with srow = IEOR(scol, symmetry) and nothing else is stored
-  !   *) kind-based partner skipping: for (anti-)symmetric matrices at most
-  !      one block per sector pair is stored, the skipped one satisfies
-  !      scol > srow
-  !   *) one block per populated sector pair for general matrices
+  !   *) partner skipping: at most one block per sector pair is stored,
+  !      the skipped one satisfies scol > srow
   !   *) block shapes, offsets and zero-initialisation
   !   *) sector bounds array st(0:8) and the global size n
   !   *) sector_of mapping, including empty sectors and out-of-range indices
@@ -63,24 +68,22 @@ program block_matrix_unit_tests
   !      merges to diagonal blocks, mask 7 pairs into empty sectors and
   !      stores nothing
   !
-  ! The y-time-simplex characteristic (design section 2a) adds:
-  !   *) the effective characteristic is stored: any STY_NONE/EVEN/ODD
-  !      input survives when goodqn bit 3 is set
-  !   *) mask intersection: bit 3 clear downgrades every input to
-  !      STY_NONE; the omitted mask (15, all good) keeps the input
-  !   *) the omitted characteristic defaults to STY_NONE
+  ! The physical classes (design section 2a) add:
+  !   *) the characteristic is stored verbatim and the storage kind is
+  !      derived as kind = herm * sty
   !   *) no block structure: bounds, block count, sector pairs and
-  !      shapes are identical to the characteristic-free construction
-  !      over the full cross product of patterns, words and kinds
+  !      shapes are identical for all four class combinations
+  !   *) the mask is stored verbatim too - bit 3 is the consumer's
+  !      completeness criterion, not a constructor gate
   !
   ! The partner-reconstructing dense expansion (dense) adds:
   !   *) shape (n, n) of the expansion, including the empty basis
   !   *) every stored block sits at its global position with the exact
-  !      callback value; (anti-)symmetric partners are reconstructed
-  !      with the kind sign at the transposed position; everything else
+  !      callback value; partners are reconstructed with the derived
+  !      kind sign at the transposed position; everything else
   !      is exactly zero - verified against a hand-scattered reference
-  !      over the full cross product of patterns, symmetry words, kinds
-  !      and good-quantum-number masks
+  !      over the full cross product of patterns, symmetry words, class
+  !      combinations and good-quantum-number masks
   !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
@@ -89,7 +92,8 @@ program block_matrix_unit_tests
   !  registers every individual condition, and the two probed callbacks
   !  the fill tests use):
   !   test_construction : construction invariants over the full cross
-  !                      product of patterns, symmetry words and kinds
+  !                      product of patterns, symmetry words and class
+  !                      combinations
   !   test_reinit      : repeated init on the same object
   !   test_sector_of   : global-index-to-sector mapping
   !   test_fill_blocks : block-wise population through the callback
@@ -97,7 +101,7 @@ program block_matrix_unit_tests
   !   test_fill_consistency : block-wise and element-wise paths match
   !   test_sugar       : new_sym_matrix constructor sugar
   !   test_goodqn      : the good-quantum-number mask of design 2b
-  !   test_sty         : the y-time-simplex characteristic of design 2a
+  !   test_sty         : the physical classes of design 2a
   !   test_dense_expansion : partner-reconstructing dense expansion
   !==============================================================================
   use block_matrix_module
@@ -185,15 +189,16 @@ contains
     !---------------------------------------------------------------------------
     ! Verify every construction invariant of init over the full cross
     !  product of the NPAT HFBlocks patterns, all operator symmetry words
-    !  0..7 and all three matrix kinds.
+    !  0..7 and all four (herm, sty) class combinations.
     !
     ! For each combination a fresh matrix is built and checked for:
-    !   *) stored metadata: symmetry word, kind, total size, nblocks <= 8
+    !   *) stored metadata: symmetry word, derived kind, characteristic,
+    !      total size, nblocks <= 8
     !   *) the bounds array st: st(0) = 1, st(8) = n+1, and the sector
     !      sizes reproduce the differences st(s+1) - st(s)
     !   *) the number of stored blocks: one per populated ordered sector
-    !      pair, with the s > srow partner skipped unless the kind is
-    !      KIND_GENERAL
+    !      pair, with the s > srow partner always skipped (the derived
+    !      kind is never zero)
     !   *) per stored block: srow = IEOR(scol, word), uniqueness of the
     !      (srow, scol) pair, both sectors populated, A allocated with the
     !      sector-pair shape, zero-filled, correct offsets is/js and a
@@ -203,26 +208,31 @@ contains
     !   *) hygiene: block slots beyond nblocks carry no allocation
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M
-    integer :: p, word, k, kinds(3), b, s, sp, counts(0:7)
+    integer :: p, word, h, s, sc, knd, b, sp, counts(0:7)
     integer :: expected, sumexp
+    integer :: herms(2), stys(2)
     logical :: found, occupied(0:7, 0:7)
     character(len=120) :: label
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
 
     do p = 1, NPAT
       counts(0:7) = patterns(p, 1:8)
       do word = 0, 7
-        do k = 1, 3
-          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word, &
-          &  ' kind ', kinds(k)
-          call M%init(patterns(p, :), word, kinds(k))
+        do h = 1, 2
+          do sc = 1, 2
+            knd = herms(h)*stys(sc)
+            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,                &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc)
+            call M%init(patterns(p, :), word, herms(h), stys(sc))
 
-          call check(M%symmetry .eq. word, trim(label)//': symmetry word')
-          call check(M%kind .eq. kinds(k), trim(label)//': kind')
-          call check(M%n .eq. sum(counts), trim(label)//': total size n')
-          call check(M%nblocks .ge. 0 .and. M%nblocks .le. 8,                    &
-          &          trim(label)//': nblocks in 0..8')
+            call check(M%symmetry .eq. word, trim(label)//': symmetry word')
+            call check(M%kind .eq. knd, trim(label)//': derived kind')
+            call check(M%sty .eq. stys(sc), trim(label)//': characteristic')
+            call check(M%n .eq. sum(counts), trim(label)//': total size n')
+            call check(M%nblocks .ge. 0 .and. M%nblocks .le. 8,                    &
+            &          trim(label)//': nblocks in 0..8')
 
           ! Bounds array: st(s) is the first global index of sector s,
           !  st(0) = 1, st(8) = n + 1 and sector sizes reproduce st.
@@ -233,28 +243,28 @@ contains
             &          trim(label)//': sector bounds / sizes')
           enddo
 
-          ! Expected number of stored blocks: one per populated ordered pair,
-          !  with kind-based skipping of the s > srow partner for
-          !  (anti-)symmetric matrices.
+          ! Expected number of stored blocks: one per populated ordered
+          !  pair, with partner skipping (the derived kind is always
+          !  nonzero, so exactly one block per pair survives).
           sumexp = 0
           do s = 0, 7
             sp = ieor(s, word)
             if (counts(s) .eq. 0) cycle
             if (counts(sp) .eq. 0) cycle
-            if (kinds(k) .ne. KIND_GENERAL .and. s .gt. sp) cycle
+            if (s .gt. sp) cycle
             sumexp = sumexp + 1
           enddo
           call check(M%nblocks .eq. sumexp, trim(label)//': expected nblocks')
 
           ! Every stored block obeys the XOR selection rule, is unique,
-          !  points at the right offset, is zero-filled and carries the right
-          !  shape. Partner blocks skipped for non-general kinds stayed away.
+          !  points at the right offset, is zero-filled and carries the
+          !  right shape. Partner blocks stay away.
           occupied = .false.
           do b = 1, M%nblocks
             associate (Blk => M%blocks(b))
-              write (label, '(a,i0,a,i0,a,i0,a,i0)')                            &
-              &  'pattern ', p, ' word ', word, ' kind ', kinds(k),             &
-              &  ' block ', b
+              write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)')                       &
+              &  'pattern ', p, ' word ', word, ' herm ', herms(h),              &
+              &  ' sty ', stys(sc), ' block ', b
 
               call check(Blk%srow .eq. ieor(Blk%scol, word),                    &
               &          trim(label)//': srow = IEOR(scol, word)')
@@ -264,12 +274,10 @@ contains
               &          trim(label)//': unique sector pair')
               occupied(Blk%srow, Blk%scol) = .true.
 
-              ! Partner-skip: a stored block of an (anti-)symmetric matrix
-              !  never sits on the skipped side of its pair.
-              if (kinds(k) .ne. KIND_GENERAL) then
-                call check(Blk%scol .le. Blk%srow,                             &
-                &          trim(label)//': partner skipped, scol <= srow')
-              endif
+              ! Partner-skip: a stored block never sits on the skipped
+              !  side of its pair.
+              call check(Blk%scol .le. Blk%srow,                               &
+              &          trim(label)//': partner skipped, scol <= srow')
 
               call check(counts(Blk%srow) .gt. 0 .and. counts(Blk%scol) .gt. 0,&
               &          trim(label)//': populated sectors')
@@ -295,25 +303,28 @@ contains
             sp = ieor(s, word)
             expected = 0
             if (counts(s) > 0 .and. counts(sp) > 0) then
-              if (kinds(k) .eq. KIND_GENERAL .or. s .le. sp) expected = 1
+              if (s .le. sp) expected = 1
             endif
             found = .false.
             do b = 1, M%nblocks
               if (M%blocks(b)%srow .eq. sp .and. M%blocks(b)%scol .eq. s)       &
               &  found = .true.
             enddo
-            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,               &
-            &  ' word ', word, ' kind ', kinds(k), ' pair (row,col) ', sp
+            write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,         &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),           &
+            &  ' pair (row,col) ', sp
             call check(merge(1, 0, found) .eq. expected,                         &
             &          trim(label)//': expected pair present')
           enddo
 
           ! Unused block slots must be cleaned out.
           do b = M%nblocks + 1, 8
-            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,               &
-            &  ' word ', word, ' kind ', kinds(k), ' unused slot ', b
+            write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,          &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),           &
+            &  ' unused slot ', b
             call check(.not. allocated(M%blocks(b)%A),                          &
             &          trim(label)//': A not allocated')
+          enddo
           enddo
         enddo
       enddo
@@ -330,18 +341,18 @@ contains
     !  sectors. Re-init with the EV8 pattern and word 7: that word pairs
     !  every populated sector {0,2,4,6} with an empty partner ({7,5,3,1}),
     !  so the block list must come out empty and no block storage may
-    !  survive. Finally rebuild with a word-5 antisymmetric matrix to
-    !  verify the list and the symmetry word are restored.
+    !  survive. Finally rebuild with a word-5 matrix of an anti-Hermitian
+    !  operator to verify the list and the symmetry word are restored.
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M
     integer   :: b, nexp
     character(len=120) :: label
 
-    call M%init(patterns(2, :), 0, KIND_SYMMETRIC)
+    call M%init(patterns(2, :), 0, HERMITIAN, STY_EVEN)
     nexp = count(patterns(2, :) > 0)
     call check(M%nblocks .eq. nexp, 'reinit: symmetric word-0 block count')
 
-    call M%init(patterns(1, :), 7, KIND_GENERAL)
+    call M%init(patterns(1, :), 7, HERMITIAN, STY_ODD)
     call check(M%n .eq. sum(patterns(1, :)), 'reinit: n updated')
     call check(M%nblocks .ge. 0, 'reinit: nblocks after shrink')
     ! Word 7 couples every populated sector to a different partner; with the
@@ -356,9 +367,10 @@ contains
     call check(M%nblocks .eq. 0, trim(label)//': no surviving pairs')
 
     ! And back to the full pattern, checking the list is rebuilt.
-    call M%init(patterns(2, :), 5, KIND_ANTISYMMETRIC)
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_EVEN)
     call check(M%nblocks .gt. 0, 'reinit: blocks rebuilt')
     call check(M%symmetry .eq. 5, 'reinit: word updated')
+    call check(M%kind .eq. KIND_ANTISYMMETRIC, 'reinit: derived kind updated')
   end subroutine test_reinit
   !----------------------------------------------------------------------------
   subroutine test_sector_of()
@@ -377,7 +389,7 @@ contains
     logical :: inrange
 
     ! TR-broken pattern with interior empty sectors.
-    call M%init(patterns(3, :), 0, KIND_GENERAL)
+    call M%init(patterns(3, :), 0, HERMITIAN, STY_EVEN)
 
     do b = 1, M%nblocks
       s = M%blocks(b)%scol
@@ -422,23 +434,26 @@ contains
     !   *) a degenerate empty block list leaves the callback uncalled
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M
-    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, sumseen
+    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, sumseen
+    integer :: herms(2), stys(2)
     real(8) :: offset
     logical :: match
     character(len=160) :: label, blabel
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
     offset = 7.0d0
 
     do p = 1, NPAT
       do word = 0, 7
-        do k = 1, 3
-          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
-          &  ' kind ', kinds(k)
+        do h = 1, 2
+          do sc = 1, 2
+          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
+          &  ' herm ', herms(h), ' sty ', stys(sc)
           cur_counts(0:7) = patterns(p, 1:8)
           cur_label = trim(label)
 
-          call M%init(patterns(p, :), word, kinds(k))
+          call M%init(patterns(p, :), word, herms(h), stys(sc))
 
           ! Pollution: every fill must overwrite regardless of prior content.
           do b = 1, M%nblocks
@@ -478,6 +493,7 @@ contains
             write (blabel, '(a,i0)') trim(label)//' block ', b
             call check(match, trim(blabel)//': content overwritten everywhere')
           enddo
+          enddo
         enddo
       enddo
     enddo
@@ -499,23 +515,26 @@ contains
     !   *) an empty block list leaves the callback uncalled
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M
-    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, nexp
+    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, nexp
+    integer :: herms(2), stys(2)
     real(8) :: offset
     logical :: match
     character(len=160) :: label, blabel
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
     offset = -3.5d0
 
     do p = 1, NPAT
       do word = 0, 7
-        do k = 1, 3
-          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
-          &  ' kind ', kinds(k)
+        do h = 1, 2
+          do sc = 1, 2
+          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
+          &  ' herm ', herms(h), ' sty ', stys(sc)
           cur_counts(0:7) = patterns(p, 1:8)
           cur_label = trim(label)
 
-          call M%init(patterns(p, :), word, kinds(k))
+          call M%init(patterns(p, :), word, herms(h), stys(sc))
 
           do b = 1, M%nblocks
             M%blocks(b)%A = -12345.0d0
@@ -549,6 +568,7 @@ contains
             write (blabel, '(a,i0)') trim(label)//' block ', b
             call check(match, trim(blabel)//': content overwritten everywhere')
           enddo
+          enddo
         enddo
       enddo
     enddo
@@ -560,33 +580,37 @@ contains
     !  identical matrices when fed the same value formula: same block
     !  list, same content, including the way the local element indices
     !  map onto the block storage. Representative subset of the cross
-    !  product: every pattern, every kind, words 0, 5 and 7.
+    !  product: every pattern, every class combination, words 0, 5
+    !  and 7.
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M1, M2
-    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, wordsel
+    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, wordsel
     integer :: wordlist(3)
+    integer :: herms(2), stys(2)
     real(8) :: offset
     logical :: match
     character(len=160) :: label, blabel
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
     wordlist = [0, 5, 7]
     offset = 3.0d0
 
     do p = 1, NPAT
       do wordsel = 1, 3
-        do k = 1, 3
+        do h = 1, 2
+          do sc = 1, 2
           word = wordlist(wordsel)
-          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
-          &  ' kind ', kinds(k)
+          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
+          &  ' herm ', herms(h), ' sty ', stys(sc)
           cur_counts(0:7) = patterns(p, 1:8)
           cur_label = trim(label)
 
           nblockcalls = 0
           nelemcalls = 0
-          call M1%init(patterns(p, :), word, kinds(k))
+          call M1%init(patterns(p, :), word, herms(h), stys(sc))
           call M1%fill_blocks(fill_block_probed, int(offset))
-          call M2%init(patterns(p, :), word, kinds(k))
+          call M2%init(patterns(p, :), word, herms(h), stys(sc))
           call M2%fill_elements(fill_elem_probed, offset)
 
           call check(nblockcalls + nelemcalls > 0 .or. M1%nblocks .eq. 0,      &
@@ -615,6 +639,7 @@ contains
           enddo
           write (blabel, '(a)') trim(label)
           call check(match, trim(blabel)//': both fill paths identical')
+          enddo
         enddo
       enddo
     enddo
@@ -625,44 +650,50 @@ contains
     ! new_sym_matrix builds and fills in one statement: its metadata and
     !  block content must equal those of a matrix built explicitly via
     !  init plus fill_blocks with the same arguments. Every pattern and
-    !  kind, words 0, 3 and 7. Hygiene check: the fresh result leaves no
-    !  storage in the unused block slots.
+    !  class combination, words 0, 3 and 7. Hygiene check: the fresh
+    !  result leaves no storage in the unused block slots.
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M1, M2
-    integer :: p, word, k, kinds(3), b, r, c, mrow, ncol, wordsel
+    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, wordsel
     integer :: wordlist(3)
+    integer :: herms(2), stys(2)
     real(8) :: offset
     logical :: match
     character(len=160) :: label, blabel
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
     wordlist = [0, 3, 7]
     offset = 3.0d0
 
     do p = 1, NPAT
       do wordsel = 1, 3
-        do k = 1, 3
+        do h = 1, 2
+          do sc = 1, 2
           word = wordlist(wordsel)
-          write (label, '(a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,      &
-          &  ' kind ', kinds(k)
+          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
+          &  ' herm ', herms(h), ' sty ', stys(sc)
           cur_counts(0:7) = patterns(p, 1:8)
           cur_label = trim(label)
 
-          call M1%init(patterns(p, :), word, kinds(k))
+          call M1%init(patterns(p, :), word, herms(h), stys(sc))
           call M1%fill_blocks(fill_block_probed, int(offset))
 
           cur_label = trim(label)
-          M2 = new_sym_matrix(patterns(p, :), word, kinds(k),                   &
+          M2 = new_sym_matrix(patterns(p, :), word, herms(h), stys(sc),           &
           &                   fill_block_probed, int(offset))
 
           ! Metadata of the shortcut equals the explicit construction.
           call check(M2%n .eq. M1%n, trim(label)//': sugar total size')
           call check(M2%symmetry .eq. M1%symmetry,                              &
           &          trim(label)//': sugar symmetry word')
-          call check(M2%kind .eq. M1%kind, trim(label)//': sugar kind')
-          call check(M2%nblocks .eq. M1%nblocks,                                &
+          call check(M2%kind .eq. M1%kind, trim(label)//': sugar derived kind')
+          call check(M2%sty .eq. M1%sty, trim(label)//': sugar characteristic')
+          call check(M2%goodqn .eq. M1%goodqn,                                    &
+          &          trim(label)//': sugar goodqn mask')
+          call check(M2%nblocks .eq. M1%nblocks,                                  &
           &          trim(label)//': sugar nblocks')
-          call check(all(M2%st .eq. M1%st),                                     &
+          call check(all(M2%st .eq. M1%st),                                       &
           &          trim(label)//': sugar sector bounds')
 
           ! Content block by block.
@@ -686,6 +717,7 @@ contains
             write (blabel, '(a,i0)') trim(label)//' unused slot ', b
             call check(.not. allocated(M2%blocks(b)%A),                        &
             &          trim(blabel)//': A not allocated')
+          enddo
           enddo
         enddo
       enddo
@@ -712,19 +744,24 @@ contains
     !  empty odd-parity sectors and stores nothing at all.
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M, Meff
-    integer :: p, word, k, q, kinds(3), masks(3), b, s, sp, sumexp
+    integer :: p, word, h, s, sc, q, masks(4), b, sp, sumexp
+    integer :: herms(2), stys(2)
     character(len=160) :: label
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
-    masks = [4, 5, 7]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
+    masks = [4, 5, 7, 13]
 
     do p = 1, NPAT
       do word = 0, 7
-        do q = 1, 3
-          do k = 1, 3
-            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,                &
-            &  ' word ', word, ' mask ', masks(q), ' kind ', kinds(k)
-            call M%init(patterns(p, :), word, kinds(k), goodqn=masks(q))
+        do q = 1, 4
+          do h = 1, 2
+            do sc = 1, 2
+            write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,         &
+            &  ' word ', word, ' mask ', masks(q), ' herm ', herms(h),          &
+            &  ' sty ', stys(sc)
+            call M%init(patterns(p, :), word, herms(h), stys(sc),                &
+            &          goodqn=masks(q))
 
             call check(M%goodqn .eq. masks(q), trim(label)//': mask stored')
             call check(M%symmetry .eq. word,                                    &
@@ -736,7 +773,7 @@ contains
               sp = ieor(s, iand(word, masks(q)))
               if (patterns(p, s + 1) .eq. 0) cycle
               if (patterns(p, sp + 1) .eq. 0) cycle
-              if (kinds(k) .ne. KIND_GENERAL .and. s .gt. sp) cycle
+              if (s .gt. sp) cycle
               sumexp = sumexp + 1
             enddo
             call check(M%nblocks .eq. sumexp,                                   &
@@ -749,7 +786,8 @@ contains
 
             ! Equivalence: the block list equals that of the unmasked
             !  matrix built with the effective word.
-            call Meff%init(patterns(p, :), iand(word, masks(q)), kinds(k))
+            call Meff%init(patterns(p, :), iand(word, masks(q)), herms(h),      &
+            &               stys(sc))
             call check(Meff%nblocks .eq. M%nblocks,                             &
             &          trim(label)//': effective-word nblocks')
             do b = 1, min(M%nblocks, Meff%nblocks)
@@ -761,6 +799,7 @@ contains
               &     .and. size(Meff%blocks(b)%A, 2) .eq. size(M%blocks(b)%A, 2), &
               &          trim(label)//': effective-word shapes')
             enddo
+            enddo
           enddo
         enddo
       enddo
@@ -768,15 +807,15 @@ contains
 
     ! Default: the omitted mask is 15 (all good, incl. the time-simplex
     !  bit of design 2a), and it equals an explicit 15.
-    call M%init(patterns(2, :), 5, KIND_GENERAL)
+    call M%init(patterns(2, :), 5, HERMITIAN, STY_EVEN)
     call check(M%goodqn .eq. 15, 'goodqn: default mask is 15')
-    call Meff%init(patterns(2, :), 5, KIND_GENERAL, goodqn=15)
+    call Meff%init(patterns(2, :), 5, HERMITIAN, STY_EVEN, goodqn=15)
     call check(Meff%nblocks .eq. M%nblocks, 'goodqn: default nblocks equal')
 
     ! Core scenario of design section 2b: the parity-broken pattern with
     !  an odd-parity operator (word 2). Parity not good (mask 5): diagonal
     !  blocks inside the merged sectors 0, 1, 4, 5.
-    call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=5)
+    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, goodqn=5)
     call check(M%nblocks .eq. 4, 'goodqn: merged diagonal blocks')
     do b = 1, M%nblocks
       call check(M%blocks(b)%srow .eq. M%blocks(b)%scol,                        &
@@ -789,50 +828,58 @@ contains
     !  populated sector into the empty odd-parity sectors and nothing is
     !  stored - empty, which is where a missing mask would silently go
     !  wrong.
-    call M%init(patterns(7, :), 2, KIND_SYMMETRIC, goodqn=7)
+    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, goodqn=7)
     call check(M%nblocks .eq. 0, 'goodqn: unmasked word gives empty list')
   end subroutine test_goodqn
   !----------------------------------------------------------------------------
   subroutine test_sty()
     !---------------------------------------------------------------------------
-    ! Verify the y-time-simplex characteristic of design section 2a.
+    ! Verify the physical classes of design section 2a: the mandatory
+    !  Hermiticity and y-time-simplex characteristic, from which init
+    !  derives the storage kind.
     !
-    ! The characteristic is a phase constraint on matrix elements, not a
-    !  block structure: over the full cross product of patterns,
-    !  symmetry words, kinds and characteristics (mask 15, bit 3 set)
-    !   *) the effective characteristic is stored
-    !   *) bounds, block count, sector pairs and shapes of the block
-    !      list are identical to the characteristic-free construction
+    ! Over the full cross product of patterns, symmetry words and the
+    !  four (herm, sty) class combinations (mask 15):
+    !   *) the characteristic is stored verbatim
+    !   *) the storage kind is derived as kind = herm * sty
+    !   *) no block structure: bounds, block count, sector pairs and
+    !      shapes of the block list are identical for all four class
+    !      combinations - the classes select the stored HALF (the real
+    !      part or the imaginary part of the matrix elements), never a
+    !      block
     !
-    ! Mask intersection and defaults:
-    !   *) goodqn bit 3 clear downgrades every input to STY_NONE
-    !   *) bit 3 alone (mask 8) keeps the characteristic
-    !   *) the omitted mask defaults to 15 and keeps the characteristic
-    !   *) the omitted characteristic defaults to STY_NONE
+    ! Completeness bookkeeping:
+    !   *) goodqn bit 3 is stored verbatim - it is the consumer's
+    !      completeness criterion (the matrix is the entire operator
+    !      iff the bit is set), not a constructor gate
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M, Mref
-    integer :: p, word, k, kinds(3), c, stys(3), b
+    integer :: p, word, h, sc, b
+    integer :: herms(2), stys(2)
     character(len=160) :: label
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
-    stys = [STY_NONE, STY_EVEN, STY_ODD]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
 
     do p = 1, NPAT
       do word = 0, 7
-        do k = 1, 3
-          do c = 1, 3
+        do h = 1, 2
+          do sc = 1, 2
             write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,              &
-            &  ' word ', word, ' kind ', kinds(k), ' sty ', stys(c)
-            call Mref%init(patterns(p, :), word, kinds(k), goodqn=15)
-            call M%init(patterns(p, :), word, kinds(k), goodqn=15,              &
-            &          sty=stys(c))
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc)
+            call Mref%init(patterns(p, :), word, HERMITIAN, STY_EVEN,           &
+            &              goodqn=15)
+            call M%init(patterns(p, :), word, herms(h), stys(sc),               &
+            &          goodqn=15)
 
-            ! The effective characteristic survives the mask.
-            call check(M%sty .eq. stys(c),                                      &
+            ! The characteristic is stored verbatim, the kind derived.
+            call check(M%sty .eq. stys(sc),                                      &
             &          trim(label)//': characteristic stored')
+            call check(M%kind .eq. herms(h)*stys(sc),                            &
+            &          trim(label)//': kind = herm * sty')
 
-            ! No block structure: the characteristic never touches the
-            !  block list.
+            ! No block structure: the classes never touch the block
+            !  list - they select the stored half, not a block.
             call check(M%n .eq. Mref%n, trim(label)//': n unchanged')
             call check(all(M%st .eq. Mref%st),                                  &
             &          trim(label)//': bounds unchanged')
@@ -852,31 +899,24 @@ contains
       enddo
     enddo
 
-    ! Bit 3 clear: every input characteristic is downgraded to STY_NONE,
-    !  whatever the state of the grading bits.
-    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=7, sty=STY_ODD)
-    call check(M%sty .eq. STY_NONE, 'sty: bit 3 clear downgrades odd')
-    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=5, sty=STY_EVEN)
-    call check(M%sty .eq. STY_NONE, 'sty: bit 3 clear downgrades even')
-
-    ! Bit 3 alone (mask 8: only the time simplex good, hostile pairing
-    !  word 5 neutralised to 0) keeps the characteristic.
-    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, goodqn=8, sty=STY_ODD)
-    call check(M%sty .eq. STY_ODD, 'sty: bit 3 set keeps odd')
-
-    ! Defaults: the omitted mask is 15 and keeps the characteristic; the
-    !  omitted characteristic is STY_NONE.
-    call M%init(patterns(2, :), 5, KIND_SYMMETRIC, sty=STY_ODD)
-    call check(M%goodqn .eq. 15, 'sty: default mask is 15')
-    call check(M%sty .eq. STY_ODD, 'sty: omitted mask keeps characteristic')
-    call M%init(patterns(2, :), 5, KIND_SYMMETRIC)
-    call check(M%sty .eq. STY_NONE, 'sty: default characteristic is none')
+    ! The mask is stored verbatim, bit 3 included: the characteristic is
+    !  not gated by it (a classifiable operator keeps its classes in
+    !  every build; bit 3 only tells consumers whether the stored half
+    !  is the complete operator).
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, goodqn=7)
+    call check(M%sty .eq. STY_ODD, 'sty: bit 3 clear keeps characteristic')
+    call check(M%kind .eq. KIND_SYMMETRIC,                                      &
+    &          'sty: bit 3 clear keeps derived kind')
+    call check(M%goodqn .eq. 7, 'sty: bit 3 stored clear (mask 7)')
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, goodqn=13)
+    call check(M%goodqn .eq. 13, 'sty: bit 3 stored set (mask 13)')
   end subroutine test_sty
   !----------------------------------------------------------------------------
   subroutine test_dense_expansion()
     !---------------------------------------------------------------------------
     ! Verify the partner-reconstructing dense expansion over the full
-    !  cross product of patterns, symmetry words, kinds and masks 4, 5, 7.
+    !  cross product of patterns, symmetry words, class combinations and
+    !  masks 4, 5, 7, 13.
     !
     ! Every matrix is populated through the probed block callback with
     !  deterministic values and its dense expansion compared element by
@@ -884,34 +924,40 @@ contains
     !   *) shape (n, n), including the empty basis
     !   *) every stored block sits at its global position carrying the
     !      callback's exact value
-    !   *) (anti-)symmetric partners are reconstructed at the transposed
-    !      position with the kind sign (bitwise, since the transpose
+    !   *) partners are reconstructed at the transposed position with
+    !      the derived kind sign herm * sty (bitwise, since the transpose
     !      reassigns the same values); diagonal blocks are not mirrored
     !   *) every element outside stored blocks and their partners is
     !      exactly zero, so selection-rule holes survive the expansion
     !---------------------------------------------------------------------------
     type(sym_matrix) :: M
     real(8), allocatable :: D(:, :), Rref(:, :)
-    integer :: p, word, k, kinds(3), q, masks(3), b, r, c, mrow, ncol
-    integer :: i, j
+    integer :: p, word, h, sc, q, masks(4), b, r, c, mrow, ncol
+    integer :: i, j, knd
+    integer :: herms(2), stys(2)
     real(8) :: offset
     logical :: match
     character(len=160) :: label
 
-    kinds = [KIND_GENERAL, KIND_SYMMETRIC, KIND_ANTISYMMETRIC]
-    masks = [4, 5, 7]
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
+    masks = [4, 5, 7, 13]
     offset = 11.0d0
 
     do p = 1, NPAT
       do word = 0, 7
-        do k = 1, 3
-          do q = 1, 3
-            write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,             &
-            &  ' word ', word, ' kind ', kinds(k), ' mask ', masks(q)
+        do h = 1, 2
+          do sc = 1, 2
+          do q = 1, 4
+            knd = herms(h)*stys(sc)
+            write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,         &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),           &
+            &  ' mask ', masks(q)
             cur_counts(0:7) = patterns(p, 1:8)
             cur_label = trim(label)
 
-            call M%init(patterns(p, :), word, kinds(k), goodqn=masks(q))
+            call M%init(patterns(p, :), word, herms(h), stys(sc),               &
+            &          goodqn=masks(q))
             call M%fill_blocks(fill_block_probed, int(offset))
 
             D = M%dense()
@@ -921,8 +967,8 @@ contains
             call check(size(D, 2) .eq. M%n, trim(label)//': shape (n, n)')
 
             ! Hand-scattered reference: stored blocks at their global
-            !  positions, partners of (anti-)symmetric matrices with the
-            !  kind sign, zero everywhere else.
+            !  positions, partners with the derived kind sign, zero
+            !  everywhere else.
             allocate(Rref(M%n, M%n))
             Rref = 0.0d0
             do b = 1, M%nblocks
@@ -933,11 +979,10 @@ contains
                   Rref(M%blocks(b)%is + r - 1, M%blocks(b)%js + c - 1)        &
                   & = block_val(M%blocks(b)%srow, M%blocks(b)%scol, r, c,    &
                   &             offset)
-                  if (kinds(k) .ne. KIND_GENERAL                             &
-                  & .and. M%blocks(b)%srow .ne. M%blocks(b)%scol) then
+                  if (M%blocks(b)%srow .ne. M%blocks(b)%scol) then
                     Rref(M%blocks(b)%js + c - 1, M%blocks(b)%is + r - 1)      &
-                    & = kinds(k)*block_val(M%blocks(b)%srow,                  &
-                    &                      M%blocks(b)%scol, r, c, offset)
+                    & = knd*block_val(M%blocks(b)%srow,                        &
+                    &                M%blocks(b)%scol, r, c, offset)
                   endif
                 enddo
               enddo
@@ -952,6 +997,7 @@ contains
             enddo
             call check(match, trim(label)//': dense equals reference')
             deallocate(Rref)
+          enddo
           enddo
         enddo
       enddo

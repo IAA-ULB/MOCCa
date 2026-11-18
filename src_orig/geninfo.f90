@@ -80,13 +80,16 @@ module GenInfo
   ! A quantum number is good iff the corresponding self-consistent symmetry
   !  is conserved in this build; if it is broken, the states of both
   !  characters are merged into a single storage block and the bit is clear.
-  !  Bits 0-2 mask the block pairing; bit 3 gates the STy characteristic
-  !  argument of the init constructor, which downgrades it to none when
-  !  the bit is clear.
+  !  Bits 0-2 mask the block pairing; bit 3 records the time simplex: the
+  !  init constructor of block_matrix_module takes the operator's physical
+  !  classes - Hermiticity and STy characteristic, derived kind = herm*sty
+  !  - and consumers read bit 3 to know whether an STy-tagged matrix is the
+  !  complete operator (omitted half identically zero) or one half of a
+  !  complex (re, im) pair.
   ! Injected by Hephaestos ($GOODQN): a property of the build scenario, not
   !  recoverable from runtime block counts. The init constructor of
-  !  block_matrix_module intersects the physical operator words (bits 0-2)
-  !  and the y-time-simplex characteristics (bit 3) with this mask.
+  !  block_matrix_module intersects the physical operator words with bits
+  !  0-2 of this mask and stores it verbatim.
   integer, parameter                     :: goodqn = $GOODQN
   !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points

@@ -3552,11 +3552,17 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 !==============================================================================
   subroutine Qlm_spme_matrix(l, m, Im, me_re)
     !---------------------------------------------------------------------------
-    ! Build the REAL SYMMETRIC half of the single-particle matrix elements
+    ! Build the REAL half of the single-particle matrix elements
     !  of the electric multipole operator r^l Re Y_lm (Im = .false.) or
     !  r^l Im Y_lm (Im = .true.) in the HF basis, as one symmetry-block
     !  matrix:
-    !       me_re = Re < i | Q_lm | j > , KIND_SYMMETRIC, in fm^l
+    !       me_re = Re < i | Q_lm | j > , in fm^l
+    !  The multipole operators are Hermitian and the stored numbers are
+    !  the real part of the matrix elements, i.e. the STY_EVEN half
+    !  (design section 2a - the characteristic is now a mandatory init
+    !  input): the derived storage kind is KIND_SYMMETRIC. For the
+    !  r^l Im Y_lm half the characteristic places this real part in the
+    !  symmetry-forbidden zone - see the note below.
     !
     ! Note: the imaginary antisymmetric half of the matrix elements is
     !  deliberately not computed - see the banner above. It is identically
@@ -3605,7 +3611,11 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !  l = even/odd => parity even/odd
     iop = mod(m, 2) + 2*mod(l, 2)
 
-    call me_re%init(HFBlocks_global, iop, KIND_SYMMETRIC, goodqn=goodqn)
+    ! The matrix is the real, STY_EVEN half of the Hermitian multipole
+    !  operator (design section 2a); init derives the storage kind
+    !  KIND_SYMMETRIC from the two mandatory classes.
+    call me_re%init(HFBlocks_global, iop, HERMITIAN, STY_EVEN,                 &
+    &               goodqn=goodqn)
 
     ! Symmetry-forbidden moments (or an empty basis) store zero matrices
     !  through their empty block lists: nothing left to do.

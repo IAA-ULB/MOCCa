@@ -261,20 +261,24 @@ perturbations).
   bit-identical after the commit. Next up: row 4 - the inertia switch
   (`Qsp` from `Qlm_spme_fm * 100^(-l/2)` in calc_collective_inertia).
 - Landed since (2026-11-17): the y-time-simplex characteristic of design
-  §2a in `block_matrix_module`: constants STY_NONE/EVEN/ODD, optional
-  physical `sty` argument of `init`/`new_sym_matrix`, stored effective on
-  the object; `goodqn` extended to 4 bits (bit 3 = STy conserved, injected
-  by Hephaestos via symdic['STy'] alongside Rz and P, default 15). STy
-  forces operators of definite characteristic to purely real (even) or
-  purely imaginary (odd) matrix elements and carries NO block structure -
-  the block list is sty-independent (unit-tested). For Hermitian operators
-  it pairs with the kind: STY_EVEN/KIND_SYMMETRIC, STY_ODD/
-  KIND_ANTISYMMETRIC (stored numbers = imaginary parts). No MOCCa caller
-  passes `sty` yet: `Qlm_spme_matrix` tags its halves when `me_im` returns
-  at step 6/7; today's callers only see the goodqn constant change
-  (NLO/NLO-T 15, NLO-P/NLO-TP 13). Gates: unit suite incl. new test_sty
-  (26556 checks), NLO + NLO-T mf compile with the frozen make.inc,
-  golden minimal NLO bit-identical (all numbers identical).
+  §2a in `block_matrix_module`, with `goodqn` extended to 4 bits (bit 3 =
+  STy conserved, injected by Hephaestos via symdic['STy'] alongside Rz
+  and P, default 15; NLO/NLO-T 15, NLO-P/NLO-TP 13).
+- Landed since (2026-11-18): classifiability interface of design §2a -
+  every operator is (anti-)Hermitian and STy-even/odd, so `init` and
+  `new_sym_matrix` take the MANDATORY physical classes `herm`
+  (HERMITIAN/ANTIHERMITIAN) and `sty` (STY_EVEN/STY_ODD) and DERIVE the
+  storage kind as kind = herm*sty; `kind` is no longer an input and
+  KIND_GENERAL/STY_NONE are gone. STy carries no block structure: the
+  classes select the stored HALF of the complex matrix elements (real
+  part even / imaginary part odd), never a block. goodqn bit 3 is not a
+  gate - the mask is stored verbatim as the consumers' completeness
+  criterion (matrix is the entire operator iff bit 3 set; only relevant
+  for hypothetical SYMSTRINGs without STy). `Qlm_spme_matrix` now calls
+  `init(HFBlocks_global, iop, HERMITIAN, STY_EVEN, goodqn=goodqn)`.
+  Gates: unit suite reworked over the herm x sty cross products (33506
+  checks, 0 failures), NLO + NLO-T mf and fam.NLO built with the frozen
+  make.inc, golden minimal NLO bit-identical (4849 numbers identical).
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and
@@ -314,9 +318,11 @@ perturbations).
   Operator words handed to `init` are physical; the constructor additionally
   takes the good-quantum-number mask (design §2b/§2c, a 4-bit word: bits 0-2
   as the sector words, bit 3 = STy conserved), injected by Hephaestos into
-  geninfo as $GOODQN, and the optional physical `sty` characteristic (design
-  §2a), intersected once with bit 3 — no `$`-marker selection
-  logic in the routines that produce or consume sym_matrix objects.
+  geninfo as $GOODQN, and the mandatory physical operator classes `herm`
+  (HERMITIAN/ANTIHERMITIAN) and `sty` (STY_EVEN/STY_ODD) of design §2a,
+  from which the storage kind is derived as kind = herm*sty — no
+  `$`-marker selection logic in the routines that produce or consume
+  sym_matrix objects.
 - Hephaestos wiring: a new `src_orig/*.f90` file must be added both to
   `MF_SRC`/`FAM_SRC` in the Makefile and to `no_process_files` in
   `src_heph/preprocess.py`, or the per-file generation silently skips it

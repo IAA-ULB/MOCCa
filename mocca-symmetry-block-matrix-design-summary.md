@@ -86,32 +86,44 @@ product of the spwfs.
 STy introduces NO block structure: every stored state is an invariant, so
 there is no grading to pair, no XOR bit, and the pairing machinery of section
 2 is untouched. The characteristic is a phase constraint on the stored
-numbers and joins `kind` on the structure side of the type:
+numbers and joins Hermiticity on the structure side of the type:
 
-- Encoding: `init` takes the PHYSICAL characteristic as the optional
-  argument `sty` in {STY_NONE = 0, STY_EVEN = +1, STY_ODD = -1} (default
-  STY_NONE, for operators without a definite characteristic). It is
-  intersected exactly once, in the constructor, with goodqn bit 3 (section
-  2c): a build that does not conserve the time simplex downgrades every
-  input to STY_NONE, and the (re, im)-pair model for complex operators
-  (section 12) applies again. The type stores the EFFECTIVE characteristic
-  in its `sty` component; it never touches the block list.
+- Classifiability (agreed 2026-11-18): every operator handled by the type is
+  classifiable - Hermitian or anti-Hermitian, and STy-even or STy-odd. Both
+  classes are MANDATORY `init` inputs, `herm` (HERMITIAN / ANTIHERMITIAN)
+  and `sty` (STY_EVEN / STY_ODD); there is no STY_NONE and no general,
+  non-(anti-)Hermitian kind input.
+- The storage kind is DERIVED from the classes as
+
+      kind = herm x sty
+
+  i.e. the stored numbers - the real part (STY_EVEN) or the imaginary part
+  (STY_ODD) of the matrix elements - form a symmetric matrix for a
+  Hermitian STY_EVEN or an anti-Hermitian STY_ODD operator, and an
+  antisymmetric one for a Hermitian STY_ODD or an anti-Hermitian STY_EVEN
+  operator. Hermiticity makes the real part symmetric and the imaginary
+  part antisymmetric; an anti-Hermitian operator flips both.
+- Completeness: in a build that conserves the time simplex (goodqn bit 3,
+  the case for every SYMSTRING in the tree) the omitted half of the
+  complex matrix elements is identically zero and the single stored matrix
+  IS the complete operator. With bit 3 clear the same inputs still define
+  a consistent single matrix - the selected half of the (re, im) pair
+  model of section 12, the other half a separate matrix - but no
+  completeness claim. The mask is stored verbatim by init and read by
+  consumers as the completeness criterion; init does not gate on it.
 - Producers: fill callbacks compute the real or the imaginary part of the
   spinor product according to the characteristic; the callback interface
   is frozen (section 5), so the producer hands the same value to its
   callback through `params`.
-- For Hermitian operators the characteristic fixes the kind: STY_EVEN
-  belongs to KIND_SYMMETRIC (real matrix elements), STY_ODD to
-  KIND_ANTISYMMETRIC (the stored numbers are the imaginary parts,
-  antisymmetric real storage representing the complex Hermitian matrix).
-  A single sym_matrix per operator of definite characteristic represents
-  the entire complex operator: the pair model of section 12 collapses to
-  its surviving half, which is exactly the shape in which the deferred
-  `me_im` half of section 13 returns.
 - Consumers: mat-vec on complex (packed two-column) vectors combines the
   columns per the characteristic - for the real part y_re += A.x_re,
   y_im += A.x_im; for the imaginary part y_re -= A.x_im, y_im += A.x_re;
   both are plain dgemv calls on the columns.
+- Caveat for composed objects: the classifiability assumption covers
+  physical one-body operators. It does NOT cover products of two
+  non-commuting classifiable operators (AB of Hermitian A and B is
+  neither Hermitian nor anti-Hermitian: AB = {A,B}/2 + [A,B]/2), so the
+  mat-mat step must decide how to represent its result before it lands.
 - Character table, electric multipoles (agreed 2026-11-17): r^l Re Y_lm is
   STY_EVEN and r^l Im Y_lm is STY_ODD for every m - the characteristic is
   m-independent, unlike the symmetry word, which flips the signature bit
@@ -188,7 +200,7 @@ bit 3 : STy good     - set iff this build conserves the y-time-simplex,
                        whose invariants the stored spwfs then are
 ```
 
-Bits 0-2 and bit 3 play different roles, both applied exactly once,
+Bits 0-2 and bit 3 play different roles, applied exactly once,
 inside `init` (section 4):
 
 ```
@@ -196,9 +208,16 @@ effective word = AND(physical word, goodqn)  ! bits of quantum numbers that
                                              ! are not good act diagonally
 s' = IEOR(s, effective word)
 
-effective characteristic = input sty, kept only when bit 3 is set;
-                           downgraded to STY_NONE otherwise (section 2a)
+goodqn itself is stored verbatim; bit 3 is NOT a pairing bit - it is the
+completeness criterion for the STy characteristic (section 2a), read by
+consumers to know whether a tagged matrix is the entire operator
 ```
+
+The physical classes `herm` and `sty` are mandatory init inputs and are
+never masked: a classifiable operator keeps its classes in every build.
+Bit 3 only determines whether the stored half is the complete (anti-)
+Hermitian operator (bit set) or one half of the complex pair model
+(section 12).
 
 - odd-l operator in a parity-broken build: the mask clears the parity bit,
   the blocks are diagonal - exactly what the by-hand `$PBROKEN` guards
@@ -224,8 +243,9 @@ the 'P' inside a 'PT' generator when parsing SYMSTRING tokens), and handed
 to the constructor by every caller. These four bits are the only
 build-dependent information on this path: the routine of step 3 (section 13)
 contains no `$`-marker logic at all. Bit 3 does not mask the pairing (a
-conserved time simplex neither merges nor separates blocks); it gates the
-characteristic of section 2a, and every SYMSTRING in the tree today declares
+conserved time simplex neither merges nor separates blocks) and is not a
+gate; it is the consumer's completeness criterion for the characteristic
+of section 2a, and every SYMSTRING in the tree today declares
 STy, so it is set in all existing configs.
 
 ## 3. Type definitions
@@ -244,22 +264,27 @@ type :: sym_block
                             ! of a stored partner (Hermitian pairing)
 end type
 
-integer, parameter :: KIND_GENERAL      = 0
-integer, parameter :: KIND_SYMMETRIC    = 1   ! A(s',s) =   A(s,s')^T
-integer, parameter :: KIND_ANTISYMMETRIC = -1 ! A(s',s) = - A(s,s')^T
+integer, parameter :: HERMITIAN           =  1   ! physical class under O†
+integer, parameter :: ANTIHERMITIAN     = -1   ! physical class under O†
+integer, parameter :: STY_EVEN           =  1   ! <i|O|j> purely real (§2a)
+integer, parameter :: STY_ODD            = -1  ! <i|O|j> purely imaginary (§2a)
+integer, parameter :: KIND_SYMMETRIC    =  1    ! A(s',s) =   A(s,s')^T
+integer, parameter :: KIND_ANTISYMMETRIC = -1   ! A(s',s) = - A(s,s')^T
 
 type :: sym_matrix
   integer :: symmetry       ! operator symmetry word, 0..7 (physical, §2b)
   integer :: goodqn         ! good-quantum-number mask of the basis (§2c);
                             ! 0..15, bits 0-2 = sector gradings, bit 3 = STy
                             ! good (§2a); 15 = every quantum number good
-  integer :: kind            ! KIND_GENERAL / KIND_SYMMETRIC / KIND_ANTISYMMETRIC
-  integer :: sty            ! effective y-time-simplex characteristic (§2a):
-                            ! STY_NONE / STY_EVEN / STY_ODD, the physical input
-                            ! intersected with goodqn bit 3. No block
+  integer :: kind            ! storage kind DERIVED in init as kind =
+                            ! herm * sty (§2a): KIND_SYMMETRIC or
+                            ! KIND_ANTISYMMETRIC, never zero
+  integer :: sty            ! y-time-simplex characteristic (§2a), the input
+                            ! class verbatim: STY_EVEN / STY_ODD. No block
                             ! structure: tells producers and consumers which
                             ! part of the complex matrix elements the stored
-                            ! real numbers represent
+                            ! real numbers are (real part / imaginary part).
+                            ! herm is recoverable as kind * sty
   integer :: n               ! total basis size, sum(HFblocks)
   integer :: nblocks         ! number of stored blocks, <= 8
   type(sym_block) :: blocks(8)
@@ -272,16 +297,12 @@ end type
 
 (`add_element`, shown in earlier drafts of this snippet, was dropped: the
 element-wise path is the `element_filler` callback through fill_elements, see
-section 5.) The characteristic constants live next to the kinds:
+section 5. KIND_GENERAL existed in earlier drafts and was dropped with the
+classifiability agreement of section 2a: the kind is derived from the two
+mandatory physical classes and can never be zero.)
 
-```fortran
-integer, parameter :: STY_NONE =  0   ! no constraint: complex elements
-integer, parameter :: STY_EVEN =  1  ! <i|O|j> purely real (§2a)
-integer, parameter :: STY_ODD  = -1  ! <i|O|j> purely imaginary (§2a)
-```
-
-The `kind` sign generalizes Hermitian/anti-Hermitian for real storage: partner
-blocks are related by `A(s',s) = sigma * A(s,s')^T` with `sigma = ±1`. A block
+The (anti-)Hermitian operator relates partner blocks of the stored real
+numbers by `A(s',s) = kind * A(s,s')^T` with `kind = ±1`. A block
 whose sector is its own partner (`s' = s`, which happens per bit where the
 operator word is 0) is square and internally symmetric or antisymmetric; store
 it dense anyway and use the symmetry only as a consistency check (at 1000 x
@@ -314,18 +335,20 @@ each block carries the 1-based starts `is`, `js` of its row/column sectors.
 ## 4. Construction from HFblocks
 
 ```fortran
-subroutine init(this, HFBlocks, symmetry, kind, goodqn, sty)
+subroutine init(this, HFBlocks, symmetry, herm, sty, goodqn)
   ! HFBlocks(1:8): the GLOBAL MOCCa count array (HFBlocks_global),
   ! in MOCCa block ordering; sector s = block s+1 (section 2a).
+  ! herm:          mandatory physical class: HERMITIAN or ANTIHERMITIAN.
+  ! sty:           mandatory y-time-simplex characteristic (section 2a):
+  !                STY_EVEN (stored numbers = real part of the matrix
+  !                elements) or STY_ODD (= imaginary part).
   ! goodqn:        optional good-quantum-number mask of the basis
   !                (section 2c); 0..15, bits 0-2 = sector gradings,
-  !                bit 3 = STy good (section 2a); default 15 = every
-  !                quantum number good.
-  ! sty:           optional y-time-simplex characteristic of the operator
-  !                (section 2a): STY_NONE / STY_EVEN / STY_ODD, physical
-  !                input; downgraded to STY_NONE when goodqn bit 3 is
-  !                clear. Stored effective in this%sty; the block list is
-  !                independent of it.
+  !                bit 3 = STy good (section 2a), default 15; stored
+  !                verbatim - bits 0-2 enter the pairing word, bit 3 is
+  !                the consumers' completeness criterion for sty.
+  ! 0. kind = herm * sty  <- the derived storage kind; stored in
+  !    this%kind together with the verbatim characteristic in this%sty.
   ! 1. counts(s) = HFBlocks(s+1)   <- the only 1-based-to-0-based step.
   !    st(0) = 1; st(s+1) = st(s) + counts(s).
   ! 2. word = AND(symmetry, goodqn)  <- the only place the grading bits of
@@ -333,7 +356,8 @@ subroutine init(this, HFBlocks, symmetry, kind, goodqn, sty)
   !    diagonally.
   !    For s = 0..7: sp = IEOR(s, word).
   !    Skip if counts(s) == 0 or counts(sp) == 0.
-  !    If kind /= KIND_GENERAL and s > sp: skip (partner access covers it).
+  !    If s > sp: skip (partner access covers it; the derived kind is
+  !    always +/- 1).
   !    Otherwise append a block with srow=sp, scol=s, is=st(sp), js=st(s),
   !    allocate A(counts(sp), counts(s)) = 0.
 end subroutine
@@ -342,9 +366,8 @@ end subroutine
 Properties after init:
 
 - At most 8 blocks; exactly one stored block per surviving sector pair.
-- For symmetric/antisymmetric matrices with nonzero symmetry word, blocks
-  come in sector pairs and only one per pair is stored; the partner access
-  flips `transposed` and applies the sign.
+- Blocks come in sector pairs and only one per pair is stored; the partner
+  access flips `transposed` and applies the derived sign.
 - For a totally symmetric operator (`symmetry = 0`), all blocks are diagonal
   in sector space (square, internally symmetric/antisymmetric).
 - A purely real operator can simply leave the imaginary part absent (see
@@ -352,11 +375,12 @@ Properties after init:
 - `symmetry` stores the physical word as handed in; the pairing word derived
   in init is `AND(symmetry, goodqn)` on the grading bits (section 2c). With
   the default `goodqn = 15` the pairing reduces to the pure XOR of section 2.
-- `sty` stores the effective characteristic of section 2a, the physical
-  input kept iff goodqn bit 3 is set; the block list is exactly the list of
-  the characteristic-free construction. Producers fill the real
-  (STY_EVEN) or imaginary (STY_ODD) part of the spinor product accordingly;
-  consumers read the component to interpret the stored numbers.
+- `kind` stores the DERIVED storage kind `herm * sty` of section 2a and is
+  always +/- 1; `sty` stores the characteristic verbatim. The block list is
+  independent of both. Producers fill the real (STY_EVEN) or imaginary
+  (STY_ODD) part of the spinor product accordingly; consumers read the
+  components to interpret the stored numbers and to combine packed complex
+  vectors.
 
 Index-to-sector mapping for element-wise construction is an 8-entry scan:
 
@@ -413,9 +437,10 @@ Constructor sugar: `new_sym_matrix(HFblocks, symmetry, kind, fill, params)`
 builds and fills in one statement (implemented 2026-11-17). A named
 function, not a generic `sym_matrix(...)`: in Fortran a name cannot serve
 as both a derived-type name and a function name. Equivalent to init
-followed by fill_blocks with the same arguments. Step 3 (section 13)
-extends the sugar's signature with the optional `goodqn` and `sty`
-arguments, exactly like `init`.
+followed by fill_blocks with the same arguments. The sugar carries the
+mandatory physical classes and the optional mask:
+`new_sym_matrix(HFblocks, symmetry, herm, sty, fill, params[, goodqn])`,
+exactly like `init`.
 
 ## 6. Runtime operations
 
@@ -532,13 +557,24 @@ kind), scalar and complex scaling, trace.
   constructor. MOCCa's mask lives in `geninfo`, derived from the build's
   `SYMSTRING`; producers and consumers of these matrices carry no
   `$`-marker logic.
-- The y-time-simplex characteristic is an optional physical input to
-  `init` (section 2a), intersected once with goodqn bit 3 and stored
-  effective on the object. It carries no block structure: the block list
-  is independent of it, and it is the one antiunitary constraint in play
-  (an Rz eigenstate cannot be a sigma_z = Rz.T invariant, and MOCCa
-  stores Rz eigenstates). For Hermitian operators it pairs with the
-  kind: STY_EVEN/KIND_SYMMETRIC and STY_ODD/KIND_ANTISYMMETRIC.
+- Every operator is classifiable (section 2a): `init` takes the mandatory
+  physical classes `herm` (HERMITIAN / ANTIHERMITIAN) and `sty`
+  (STY_EVEN / STY_ODD) and DERIVES the storage kind as kind = herm * sty.
+  No general kind input exists. STy is the one antiunitary constraint in
+  play (an Rz eigenstate cannot be a sigma_z = Rz.T invariant, and MOCCa
+  stores Rz eigenstates); it carries no block structure - the classes
+  select the stored half of the complex matrix elements, never a block.
+- goodqn bit 3 (STy good) is not applied by the constructor: the mask is
+  stored verbatim and read by consumers as the completeness criterion -
+  with the bit set, an STy-tagged matrix is the entire (anti-)Hermitian
+  operator; with the bit clear, it is one half of the (re, im) pair below
+  and both halves must be built.
+- Complex operators are represented as one stored real half plus the
+  characteristic telling which part it is; in STy-conserving builds (all
+  current configs) that half is the entire operator. The (re, im) pair
+  model is retained for any future build that does not declare the time
+  simplex: both halves are then separate classifiable-classes-verbatim
+  matrices, sharing the symmetry word.
 
 ## 13. Step 3 detailed: generalised multipole matrix elements
 
@@ -560,14 +596,15 @@ symmetry-forbidden combinations return zero matrices silently - guarding
 user input against forbidden moments is the business of Hephaestos' moment
 list at the input layer (e.g. `read_inertia`), not of this routine.
 
-Output: the REAL SYMMETRIC half of the ME matrix in the HF basis,
-`Re <i|Q_lm|j>` as one `sym_matrix` (routine names provisional, final
-naming at implementation):
+Output: the REAL half of the ME matrix in the HF basis, `Re <i|Q_lm|j>`
+as one `sym_matrix` (routine names provisional, final naming at
+implementation):
 
 ```fortran
-! Re <i|Q_lm|j> = me_re : KIND_SYMMETRIC, in fm^l
+! Re <i|Q_lm|j> = me_re : Hermitian operator, stored real part
+! (STY_EVEN class; init derives kind = KIND_SYMMETRIC), in fm^l
 subroutine Qlm_spme_matrix(l, m, Im, me_re)
-! Legacy dense shape of the real symmetric half: drop-in replacement,
+! Legacy dense shape of the real half: drop-in replacement,
 ! real(nwt,nwt) as before but in fm^l
 function Qlm_spme_fm(l, m, Imaginary) result(me)
 ```
@@ -577,13 +614,14 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   always clear (electric multipoles are isoscalar). Both operator halves
   (Re/Im Y_lm) carry the same word: MOCCa's Rz and P are linear, no
   antiunitary complement (section 8) arises for electric multipoles.
-- constructor call: `init(HFBlocks_global, op, kind, goodqn = ...)`, with
-  the mask of section 2b taken from `geninfo`. Every build then takes the
-  identical, marker-free code path; empty partner sectors give zero blocks
-  through init's occupancy skip. The `sty` argument (section 2a) is NOT
-  passed yet - deliberately: the real symmetric half needs no part
-  switching, and tagging both half generators belongs to the me_im
-  return at step 6/7.
+- constructor call: `init(HFBlocks_global, op, HERMITIAN, STY_EVEN, goodqn =
+  ...)`, with the mask of section 2b taken from `geninfo`. Every build then
+  takes the identical, marker-free code path; empty partner sectors give zero
+  blocks through init's occupancy skip. The multipole operators are Hermitian
+  and this generator stores the real part of the matrix elements, so the
+  classes are both fixed: init derives kind = KIND_SYMMETRIC. The
+  STY_ODD half - a mandatory-class init call storing the imaginary parts -
+  is exactly the me_im return of step 6/7.
 - all matrix elements are direct mesh integrals of the stored basis
   functions - no time-reversal/signature-partner shortcuts, hence no
   partner-phase conventions to get wrong. Block fill: one dense product
