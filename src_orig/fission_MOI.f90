@@ -400,18 +400,13 @@ contains
     !   (b) a symmetry self-check on the dense expansion: the real half
     !       must be symmetric
     !
-    !   The imaginary antisymmetric half of the matrix elements is NOT
-    !  checked here: it is not computed by Qlm_spme_matrix at all. Within
-    !  the symmetry blocks it is identically zero in every build that
-    !  conserves a composed antiunitary symmetry such as the time simplex;
-    !  physically nonzero imaginary parts occur only for odd-m operators
-    !  acting between signature-partner states. Naive mesh cross products
-    !  of the stored components do NOT produce those matrix elements: on
-    !  the symmetry-reduced mesh they ignore the per-component reflection
-    !  characters of the stored spinor amplitudes and cancel between the
-    !  symmetry-related mesh chambers exactly where the physical value
-    !  vanishes. Its proper treatment returns with design step 6/7, the
-    !  FAM consumers (Wouter, 2026-11-17).
+    !   The imaginary half of the matrix elements (r^l Im Y_lm, a
+    !  Hermitian STY_ODD operator whose stored numbers are Im
+    !  < i |Q| j >) is NOT checked here: this hook runs on the real
+    !  halves of the inertia moments only. Its validation is deferred
+    !  to design step 6/7 (the odd-m oracle); see the generator banner
+    !  in moments.f90 for the chamber-weighted convention it is
+    !  computed with.
     !
     !   Reassociation drift between the two paths (dense products in the
     !   new route, scalar loops in the old) is the expected deviation; the

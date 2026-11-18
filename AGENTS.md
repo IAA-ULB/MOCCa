@@ -279,6 +279,30 @@ perturbations).
   Gates: unit suite reworked over the herm x sty cross products (33506
   checks, 0 failures), NLO + NLO-T mf and fam.NLO built with the frozen
   make.inc, golden minimal NLO bit-identical (4849 numbers identical).
+- Landed since (2026-11-19): corrected classes and imaginary half of
+  Qlm_spme_matrix (user instruction; supersedes the row-3 revert): MOCCa
+  works with the real and imaginary multipole operators, both Hermitian,
+  of opposite STy class - r^l Re Y_lm is STY_EVEN (stored numbers =
+  Re <i|Q|j>, kind KIND_SYMMETRIC), r^l Im Y_lm is STY_ODD (stored
+  numbers = Im <i|Q|j>, kind KIND_ANTISYMMETRIC), for every m. The fill
+  callback is now a chamber-weighted sum over the folded mesh: per
+  spinor-component pair the exact 0-or-1 weight
+  prod_folded((1 + s(k,i)s(k',j) oc)/2) built from the sx/sy/sz extension
+  signs and the operator's reflection characters oc (estimated numerically
+  from mirrored-mesh harmonic generations in Qlm_spme_operator_characters).
+  For every XOR-allowed block pair all weights are 1 - the real half stays
+  bit-identical to the legacy fill and the oracle agreement (~1e-15
+  relative) survives (NLO smoke run armed with spme_oracle); a weight 0 is
+  the per-amplitude selection rule the sector word cannot express. NOTE:
+  the 2026-11-17 revert message declared the within-block imaginary half
+  "identically zero in every STy-conserving build" - that diagnosis does
+  not survive: with MOCCa's linear antihermitian Rz, STy is the only
+  antiunitary constraint on the stored basis and it fixes the MEs to be
+  purely imaginary without annulling them. The imaginary half ships
+  unvalidated until the step-6/7 odd-m oracle (deferral agreed
+  2026-11-19). Gates: block_matrix_unit_tests 33506/0; NLO / NLO-T /
+  NLO-P / NLO-TP mf + fam.NLO compile (debug profile, final source);
+  frozen-make.inc NLO build; golden minimal NLO bit-identical.
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
   and parity-broken builds demand even nwn/nwp and

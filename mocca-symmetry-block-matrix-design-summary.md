@@ -596,41 +596,68 @@ symmetry-forbidden combinations return zero matrices silently - guarding
 user input against forbidden moments is the business of Hephaestos' moment
 list at the input layer (e.g. `read_inertia`), not of this routine.
 
-Output: the REAL half of the ME matrix in the HF basis, `Re <i|Q_lm|j>`
-as one `sym_matrix` (routine names provisional, final naming at
-implementation):
+Output: the stored half of the ME matrix in the HF basis, per the
+operator's STy class, as one `sym_matrix`:
 
 ```fortran
-! Re <i|Q_lm|j> = me_re : Hermitian operator, stored real part
-! (STY_EVEN class; init derives kind = KIND_SYMMETRIC), in fm^l
-subroutine Qlm_spme_matrix(l, m, Im, me_re)
-! Legacy dense shape of the real half: drop-in replacement,
-! real(nwt,nwt) as before but in fm^l
+! Im = .false.: r^l Re Y_lm, Hermitian, STY_EVEN - stored numbers are
+!   Re <i|Q_lm|j>, init derives kind = KIND_SYMMETRIC
+! Im = .true. : r^l Im Y_lm, Hermitian, STY_ODD - stored numbers are
+!   Im <i|Q_lm|j>, init derives kind = KIND_ANTISYMMETRIC; in fm^l
+subroutine Qlm_spme_matrix(l, m, Im, me_half)
+! Dense legacy shape of the stored half, real(nwt,nwt), in fm^l
 function Qlm_spme_fm(l, m, Imaginary) result(me)
 ```
 
+- both operator halves are Hermitian and differ in their STy class:
+  `init(HFBlocks_global, op, HERMITIAN, STY_EVEN/STY_ODD, goodqn = ...)`
+  per the character table of section 2a (agreed 2026-11-19): STY_EVEN for
+  r^l Re Y_lm, STY_ODD for r^l Im Y_lm, for every m. This supersedes the
+  step-3 revert note of 2026-11-17: the within-block imaginary matrix
+  elements are not artifacts - the STY_ODD class makes the imaginary part
+  the physical content of the operator, and with MOCCa's linear
+  antihermitian Rz the only antiunitary constraint on the stored basis is
+  STy itself, which constrains the matrix elements to be purely imaginary
+  but does not annul them.
 - physical symmetry word (section 2): `op = mod(m,2) + 2*mod(l,2)` - bit 0
   flips q(Rz) for odd m, bit 1 is the parity of the operator, bit 2 is
   always clear (electric multipoles are isoscalar). Both operator halves
   (Re/Im Y_lm) carry the same word: MOCCa's Rz and P are linear, no
   antiunitary complement (section 8) arises for electric multipoles.
-- constructor call: `init(HFBlocks_global, op, HERMITIAN, STY_EVEN, goodqn =
-  ...)`, with the mask of section 2b taken from `geninfo`. Every build then
-  takes the identical, marker-free code path; empty partner sectors give zero
-  blocks through init's occupancy skip. The multipole operators are Hermitian
-  and this generator stores the real part of the matrix elements, so the
-  classes are both fixed: init derives kind = KIND_SYMMETRIC. The
-  STY_ODD half - a mandatory-class init call storing the imaginary parts -
-  is exactly the me_im return of step 6/7.
+- chamber weighting on the reduced mesh (agreed 2026-11-19, implemented
+  in the fill callback `Qlm_spme_fill_block`): the stored mesh covers
+  2^NUMSYM chambers with `dv` carrying the multiplicity; the spwf
+  components extend across the fold planes with the per-component
+  reflection signs `sx/sy/sz` of `wavefunctions.f90` (the convention the
+  derivative machinery uses), and the operator mesh function is of
+  definite reflection character `O(-axis) = oc(axis) O` with
+  `oc = +/- 1` estimated numerically from the mesh values. Every
+  stored-point component-pair product of a row and a column state carries
+  the exact 0-or-1 weight
+  `w(k,k') = prod_(folded axis) (1 + s(k,i) s(k',j) oc) / 2`.
+  For every block pair allowed by the XOR pairing all weights are 1 and
+  the fill reduces to the plain dense products of the legacy routine -
+  bit-identical numbers on the real half, so the oracle comparison
+  against `Qlm_spme` survives unchanged; a weight 0 zeroes a component
+  pair whose chamber contributions cancel through the reflection
+  characters, the per-amplitude selection that the sector word cannot
+  express.
 - all matrix elements are direct mesh integrals of the stored basis
   functions - no time-reversal/signature-partner shortcuts, hence no
   partner-phase conventions to get wrong. Block fill: one dense product
-  per spin component per block (`A = sum_k X_k^T (Q dv) X_k`, a `dgemm`
-  equivalent), with `dv` folded into the weight mesh.
-- helper added to `block_matrix_module`: a partner-reconstructing dense
-  expansion of a `sym_matrix` (refactored out of the `print_dense` core).
-  It is the return shape behind `Qlm_spme_fm` and later the dense
-  reference builder for the mat-vec/mat-mat tests of steps 4 and 6.
+  per spinor-component term per block (real half: `A = sum_k X_k^T
+  (Q dv) X_k`; imaginary half: crossed products per spin,
+  `A = sum_s [Re_s^T (Q dv) Im_s - Im_s^T (Q dv) Re_s]`), with `dv`
+  folded into the weight mesh.
+- helper in `block_matrix_module`: the partner-reconstructing dense
+  expansion of a `sym_matrix` (refactored out of the `print_dense`
+  core). It is the return shape behind `Qlm_spme_fm` and later the
+  dense reference builder for the mat-vec/mat-mat tests of steps 4
+  and 6.
+- validation status: the real half is oracle-checked against the legacy
+  `Qlm_spme` (agreement ~1e-15 relative on all requested moments, also
+  with the weighted fill active); the imaginary half ships without an
+  oracle - its validation is deferred to step 6/7 (odd-m oracle).
 
 ### 13.2 The old routine stays, as oracle
 
@@ -647,7 +674,7 @@ the oracle for the agreements below; the conversion identity is
 | 0 | park FAM anchor | build `exec/fam.NLO.reference.exe` from the un-refactored tree and park it | none needed |
 | 1 | goodqn mask | optional `goodqn` in `init` (+ module header), `$GOODQN` injected by Hephaestos into `geninfo`, masked-init unit tests | `block_matrix_unit_tests`; compile NLO, NLO-T, NLO-P, NLO-TP |
 | 2 | pure move | `Qlm_spme` verbatim to `moments.f90` (which gains explicit `use wavefunctions`), deprecation banner | `fission.sh`, `minimal.sh` golden: outputs bit-identical |
-| 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix` (real symmetric half only), `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks. The `me_im` half that shipped in this row was reverted as a chamber artifact (2026-11-17); the imaginary half returns with step 6/7 | unit tests; oracle runs NLO / NLO-T / NLO-P; all four configs compile |
+| 3 | generator | dense-expansion helper (with its unit tests), `Qlm_spme_matrix` (both operator halves as of 2026-11-19: real `STY_EVEN`/imaginary `STY_ODD`, chamber-weighted fill - formerly the reverted `me_im` of 2026-11-17), `Qlm_spme_fm`, and an off-by-default oracle hook in `fission_MOI`: compute both paths for every requested moment, print the max deviation, run symmetry self-checks. The imaginary half ships unvalidated until the step-6/7 odd-m oracle | unit tests; oracle runs NLO / NLO-T / NLO-P (real halves); all four configs compile |
 | 4 | inertia switch | `calc_collective_inertia` takes `Qsp` from `Qlm_spme_fm * 100^(-l/2)`: the boundary rescale holds every presented number in `b` units | `fission.sh`, `minimal.sh` golden within tolerances |
 | 5 | units flip | drop the boundary rescale: inertia chain in `fm` units end to end; `print_collective_inertia` convention strings updated; `fission.sh` reference inertias scaled by `100^(-(l_i+l_j)/2)` (I_2020 x 1e-4, I_2030 x 1e-5, I_3030 x 1e-6) and its header text | `fission.sh` |
 | 6 | consumer migration | `functional` COM correction (drop `*10`), `fam` multipole/z_com operators (drop `*(100**(l/2))`, `*sqrt(100)`), `fam_testing` [R, P] (drop `*sqrt(100)`) | `fission.sh`, `minimal.sh` golden, `cranking.sh` (NLO-T), `fam_unit_tests`, local runs vs the parked FAM reference |
