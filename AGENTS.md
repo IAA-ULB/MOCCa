@@ -290,18 +290,33 @@ perturbations).
   strength famfiles bit-identical, GMRES residuals identical; fam
   builds of NLO / NLO-T / NLO-P compile. The Im half stays deferred
   (design §13.5).
-  LATENT FINDING, parity-odd FAM fields (pre-existing, 2026-11-19, NOT
-  a sprint regression): every parity-odd FAM response NaNs identically
-  in the parked pre-refactor anchor and the current tree - the l=1
-  multipole (including the committed fam_spurious_mode_subtraction
-  scenario, which fails with both exe pairs and both pairings: ||b|| is
-  NaN from GMRES iteration 0) and operator_type='zcom'. The
-  spurious-subtraction script is therefore unusable as a step-5 net;
-  test_RP_commutator (fam_testing, covers the zcom/zmomentum chain)
-  exists but is commented out in fam_run.f90. Consequently the zcom
-  call site has no working runtime gate: it is source-validated by the
-  moments full-box oracle (Qlm_spme_fm(1,0), all three builds) plus
-  verbatim prefactor preservation.
+  PARITY-ODD FAM FIELDS (understood 2026-11-19, user-confirmed): in
+  parity-CONSERVING builds (NLO) the FAM machinery cannot represent a
+  parity-breaking excitation - every parity-odd field NaNs (l=1
+  multipole incl. the committed fam_spurious_mode_subtraction scenario
+  and operator_type='zcom'), identically in the parked pre-refactor
+  anchor: by construction, not a regression. Making such responses
+  available is the long-term goal of this refactoring. For now the
+  working scenario is the PARITY-BROKEN build; NLO-P has no parked fam
+  reference, so the zcom call site's net is source-level (moments
+  full-box oracle, Qlm_spme_fm(1,0), all builds) plus the NLO-P runs
+  below. test_RP_commutator (fam_testing, zcom/zmomentum chain) exists
+  but is commented out in fam_run.f90.
+  NLO-P FAM VALIDATION (2026-11-19, post-step-5 fam.NLO-P.exe, frozen
+  make.inc): O18/SLy4/HFB, nx=ny=8 dx=0.8, nz=16 (unfolded z), even
+  nw=14, allowtransform. operator_type='zcom' and l=1 m=0 both: GMRES
+  converges (17 iterations, residual 1.3e-08), ||b|| finite, strength
+  tables internally consistent (S = -1/pi Im S_complex), <[R,P]> purely
+  imaginary (-0.81 i; sign convention documented in the code, magnitude
+  vs ideal 1i plausibly truncated-basis commutator inexactness), and
+  the spurious-mode subtraction drives S_after to ~1e-17 for BOTH
+  fields (isoscalar dipole = pure COM mode) - the fam_spurious_mode_
+  subtraction PASS criterion holds on NLO-P. Known cosmetics: the
+  strength table's parity + / - rows are vestigial in a parity-broken
+  build (all strength books into parity +), and the box-size check's
+  drho_antisym panel prints NaN exactly as in healthy NLO runs. The
+  committed spurious script itself needs its mf input flipped (nz=16)
+  before it can run against NLO-P executables.
   NEXT UP: the §13.5 deferred items; the natural continuation is the
   CompCOMCorrection migration (see open items) so the Qlm_spme deletion
   gate can close. The parity-odd FAM NaN is a user decision: debug it
@@ -375,8 +390,9 @@ perturbations).
   `exec/fam.NLO.reference.exe` is the parked FAM anchor;
   exec/MOCCa.NLO.exe, MOCCa.NLO-T.exe, MOCCa.NLO-P.exe and fam.NLO.exe
   are freshly rebuilt and validated (frozen make.inc, 2026-11-19; fam.NLO
-  includes the step-5 migration); fam.NLO-T.exe and fam.NLO-P.exe are
-  compiled (2026-11-19) but have no runtime-validated scenario yet;
+  includes the step-5 migration); fam.NLO-P.exe is validated on the
+  zcom/l=1 NLO-P scenarios above; fam.NLO-T.exe is compiled (2026-11-19)
+  but has no runtime-validated scenario yet;
   MOCCa.NLO-TP.exe is a stale debug binary (see the open items).
   fam_unit_tests NLO/SLy4 is the runtime green net for fam.NLO; the
   multipole A/B scratch scenarios live in /tmp only (O18/SLy4/HFB,
