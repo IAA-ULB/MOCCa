@@ -2782,6 +2782,7 @@ $READPOTENTIALS_HDF5
     use fission_MOI
     use densities
     use moments, only: Qlm_spme_fm
+    use linear_momentum, only : Nabla_half_fm, AX_Z
     
     1 format (' Pushing model                 M_0 (MeV/c^2)')
     2 format (25x, 'neutrons        protons          total', / &
@@ -2791,7 +2792,6 @@ $READPOTENTIALS_HDF5
     7 format (1x, 80('-'),/, &
     &         '   Am               | ', 3f16.5, /, 80('-'))
     
-    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
     real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
       
     real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
@@ -2800,9 +2800,11 @@ $READPOTENTIALS_HDF5
     ! Calculate hbar to make its use consistent
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of nabla_z 
-    NablaMElements = compNablaMElements()
-    Psp            =  NablaMElements(3,1,:,:) 
+    ! Calculate single-particle matrix elements of nabla_z in the canonical
+    ! ('DEN') basis from the linear_momentum generator on sym_matrix (design
+    ! 15.5 row 3): the honest z-component, Re half - identical content to the
+    ! legacy compNablaMElements slot (3,1).
+    Psp            =  Nabla_half_fm(AX_Z, .false., 'DEN')
     if(pairingtype.eq.2) then
       ! Attention, in a HFB calculation these are the matrix elements in the 
       ! canonical basis, while Bogoliubov refers to the HF basis. So, we 

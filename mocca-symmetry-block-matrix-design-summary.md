@@ -1471,6 +1471,17 @@ linear_momentum with angular_momentum (user direction), which waits
 until both modules exist and brings the J family's own tau entries
 with it.
 
+STATUS (2026-11-19, evening): rows 1-3 all LANDED. Row 2's A/B
+verdicts and the fac/4-2x open question are recorded in 15.6. Row 3
+(verify_COM_motion, dead code) also migrated its one
+compNablaMElements call to Nabla_half_fm(AX_Z, .false., 'DEN') -
+identical content to the legacy slot (3,1) it consumed; gate is
+source-level plus the NLO/NLO-T mf compiles. The remaining
+CompNablaMelements references are exactly the deferred FAM pair
+(fam.f90 zmomentum, fam_testing.f90 test_RP_commutator), the
+definition itself, and the unit arm's A/B oracle - i.e. row 4 is now
+purely the deletion decision, pending the FAM phase.
+
 ### 15.6 Validation and risks
 
 - No golden path exercises this operator family today: `COM2body`

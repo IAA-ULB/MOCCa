@@ -453,12 +453,22 @@ perturbations).
   are mechanistically the §15.8 mechanism-1 T-pair mirroring stays
   unadjudicated (recorded in §15.6) - the factors were only
   empirically certified as preserved.
-  NEXT UP (gradient thread): design §15.5 row 3 - verify_COM_motion
-  (mf side, dead code) migrated off CompNablaMelements; the source
-  paths compile either way, so the gate is source-level. After row
-  3, the row-4 deletion decision (CompNablaMelements + its MPI
-  machinery, design §15.7) is a user decision; the FAM-side rows
-  stay deferred per user direction.
+  VERIFY_COM_MOTION MIGRATED (2026-11-19, design §15.5 row 3): the
+  mf-side dead routine's single compNablaMElements() call (legacy slot
+  (3,1), the honest nabla_z Re half in the 'DEN' basis) became
+  Nabla_half_fm(AX_Z, .false., 'DEN') - identical array content; the
+  cantransfo HFB back-transform and the per-species hbar rescale are
+  untouched. verify_COM_motion remains call-less dead code; gates:
+  NLO and NLO-T mf compiles green (incremental, frozen make.inc), the
+  change is source-level. The remaining CompNablaMelements references
+  are exactly: fam.f90 zmomentum + fam_testing.f90 test_RP_commutator
+  (the user-deferred FAM phase), the definition in densities.f90, and
+  linear_momentum_testing's A/B oracle - row 4 (design §15.5) is now
+  purely the deletion decision, to be taken with the FAM phase.
+  NEXT UP (gradient thread): design §15.5 row 4 is the deletion
+  decision (user); the §15.4 DEN-vs-cantransfo audit and sym_rotation
+  consumer remain future steps; FAM rows stay deferred per user
+  direction.
   NEXT UP: the calcJ2andBelyaev_HFB consumer migration (design §14.4
   row 3), feeding the sym_rotation consumers of §6a. After that, the
   §13.5 deferred items; alternatively, first dispose of the single
