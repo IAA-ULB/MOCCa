@@ -47,6 +47,18 @@ spurious-mode scenario).
    remaining Qlm_spme reference (DECISIONS.md D-2).
 
 Deferred / parked (not lost - do not re-litigate):
+- COMMENT CLEANUP of the sprint's marker-free modules (raised 2026-11-19
+  after the AGENTS.md style rules landed): block_matrix_module.f90,
+  angular_momentum.f90, linear_momentum.f90 and their *_testing.f90
+  arms measure 28-54% comment lines - they inherited the verbose banner
+  scale the old AGENTS.md example taught. Slim them to the new economy
+  (banners only for signs, units, marker keys, quantum-number
+  encodings; no dates, commit hashes, design restatements). Scope:
+  these ~7 files ONLY - no mass rewrite of legacy sources (minimal
+  diff wins there). Pure-comment change, no numerics touched, so the
+  gate is a frozen-build compile per touched config plus the block
+  matrix unit net; do it in one dedicated commit per module, never
+  mixed with a physics change.
 - §15.6 derivative opposite-half adjudication: the linear-momentum family
   still needs its own full-box reconstruction oracle; the angmom arm's
   check_fullbox (step 9) is the ready template. Artifact reading favoured by
