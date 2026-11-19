@@ -372,10 +372,36 @@ perturbations).
   bit-identical; moments suite green on NLO/NLO-T/NLO-P incl. the
   cross-build comparison; mf builds of all four configs compile
   (NLO-TP had to go serial - the -j4 run races on missing .mod files).
-  NEXT UP: the §13.5 deferred items - first candidate odd-m and
-  Im-operator FAM fields end to end; alternatively, first dispose of
-  the single remaining Qlm_spme reference.
+  NEXT UP: the angular-momentum step of design §14 - the K_x fill fix
+  (commit 1 of §14.4, with the empirical audit of the Belyaev/MOI
+  rows), then the angular_momentum.f90 generators + unit arm (commit
+  2), then the calcJ2andBelyaev_HFB migration feeding the sym_rotation
+  consumers of §6a. After that, the §13.5 deferred items;
+  alternatively, first dispose of the single remaining Qlm_spme
+  reference.
   OPEN ITEMS when resuming:
+   * ANGULAR-MOMENTUM STEP AGREED (2026-11-19, design §14, design stage
+     only): a new marker-free module src_orig/angular_momentum.f90
+     hosting FIVE generators on sym_matrix - the honest trio J_x (word
+     1, HERM x STY_EVEN), J_y (word 1, HERM x STY_ODD), J_z (word 0,
+     HERM x STY_EVEN), wrapping wavefunctions.f90's angmom kernels
+     verbatim, plus the TR-folded pair J_x.T / J_y.T (word 0, both
+     ANTIHERMITIAN; kinds -1 / +1). The folded generators exist in
+     every build (callers gate, not markers: only $TR-marked call sites
+     construct them). Sequencing per design §14.4: (1) the K_x fill fix
+     below, (2) the module + unit arm with the kernel-transpose
+     oracle, (3) the calcJ2andBelyaev_HFB migration, then the
+     sym_rotation consumers (design §6a first production caller).
+   * LATENT BUG (pre-existing, found 2026-11-19, user-CONFIRMED as a
+     bug): the $TR fill of the folded jx sets jx(jj,ii) = jx(ii,jj)
+     (momentsofinertia.f90:832) - symmetric, while the classes of
+     J_x.T (ANTIHERMITIAN x STY_EVEN, kind -1) demand
+     jx(jj,ii) = -jx(ii,jj). The folded jy fill (kind +1) is correct.
+     Likely invisible so far ($TR J2 consumers square the elements),
+     but the Belyaev/MOI rows must be AUDITED EMPIRICALLY at fix time;
+     if golden numbers move, the delta is the correction and is
+     accepted deliberately. Design §14.2; the fix is commit 1 of the
+     §14.4 sequencing.
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
      oracle hook in fission_MOI.f90. Either Qlm_spme and the oracle go
@@ -430,6 +456,17 @@ perturbations).
    * The unit_test flag lives in &mesh/ (geninfo) and arms every
      executable's own suite (moments: run_moments_tests from
      Run_MOCCa; fam: run_FAM_tests from fam_run).
+   * MOCCa's time reversal is FERMIONIC: T**2 = -1 on the spwfs
+     (user-confirmed 2026-11-19; design §14). Consequences recorded
+     with the angular-momentum step: the antilinear composites J_mu.T
+     have user-asserted classes (NOT derived from the §2a
+     linear-operator algebra): K_x = J_x.T is word 0, ANTIHERMITIAN x
+     STY_EVEN (kind -1, antisymmetric real storage), K_y = J_y.T is
+     word 0, ANTIHERMITIAN x STY_ODD (kind +1, symmetric imaginary
+     storage); the empirical arbiter of all kind signs is the
+     kernel-transpose oracle (design §14.3) - the angmom kernels are
+     pure functions, so K(wf_i,wf_j) vs K(wf_j,wf_i) settles each
+     sign numerically.
 
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken

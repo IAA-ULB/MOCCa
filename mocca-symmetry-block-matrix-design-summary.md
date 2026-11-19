@@ -963,3 +963,109 @@ deliberately untouched in this step beyond the source of `Qsp`.
 - inertia for Im-operator moments (`Ksum`/`calc_Q20` generalisation),
 - the optional `$TR` short-circuit for the antisymmetric half,
 - deleting the old `Qlm_spme`.
+
+## 14. Angular momentum operators: the angular_momentum module
+
+Target (agreed 2026-11-19): a new module `src_orig/angular_momentum.f90`
+hosting generators of the angular-momentum one-body matrices on
+sym_matrix - the first producer family since the multipoles of section
+13, and the supplier for the rotation consumers of section 6a (the
+canonical-basis J-matrix chains of the momentsofinertia/Belyaev
+machinery are the first production consumer).
+
+Base conventions recorded on MOCCa's side (user-confirmed 2026-11-19):
+- MOCCa's time reversal is FERMIONIC: T**2 = -1 on the spwfs.
+- The angmom kernels of wavefunctions.f90 are the authoritative ME
+  implementations; the generators below wrap them verbatim as values
+  per stored pair, so the legacy dense loops of
+  `calcJ2andBelyaev_HFB` are themselves the A/B oracle (the step-3
+  precedent: generator vs moved legacy path).
+
+### 14.1 The five operators
+
+| object | word | herm | sty | kind | stored numbers | kernel |
+|---|---|---|---|---|---|---|
+| `J_x` | 1 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_x,j>` | `angmom_x_real` |
+| `J_y` | 1 | HERMITIAN | STY_ODD | -1 antisym. | `Im <i,J_y,j>` | `angmom_y_imag` |
+| `J_z` | 0 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_z,j>` | `angmom_z_real` |
+| `J_x.T` | 0 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | `Re <i,J_x T,j>` | `angmom_xt_real` |
+| `J_y.T` | 0 | ANTIHERMITIAN | STY_ODD | +1 symmetric | `Im <i,J_y T,j>` | `angmom_yt_imag` |
+
+- Honest trio: `J_x`/`J_y` flip q(Rz) (word 1), `J_z` conserves it
+  (word 0); all three are parity-even and isoscalar (bits 1, 2 clear);
+  J_y is the STY_ODD member per the character table of section 2a. In
+  TR-conserving builds the word-1 partners of every stored sector are
+  empty, so honest `J_x`/`J_y` come out structurally zero there - the
+  odd-m multipole precedent, no special case.
+- Folded pair: with only q(Rz) = +i stored, the TR-conserving consumer
+  (`calcJ2andBelyaev_HFB`, `$TR` branch) needs the time-reversal-folded
+  objects `<i, J_mu T, j>` the `t` kernels implement. Both are word 0
+  (T and J_mu each flip the signature, the composite preserves it) and
+  live within the stored +i sectors. Their classes are ASSERTED from
+  MOCCa's fold conventions (2026-11-19, incl. T**2 = -1), not derived:
+  the reality/adjoint algebra of antilinear composites does not carry
+  over verbatim from the linear-operator derivations of section 2a, and
+  no attempt is made to re-derive it here. The empirical arbiter of
+  every kind sign is the kernel-transpose oracle of 14.3.
+- `J_z` needs no folded twin: the `$TR` branch consumes honest
+  `angmom_z_real` within the half (J_z preserves the grading).
+
+### 14.2 Latent bug, pre-existing (user-confirmed 2026-11-19)
+
+The `$TR` fill of the folded jx sets `jx(jj,ii) = jx(ii,jj)`
+(momentsofinertia.f90:832) - SYMMETRIC, while the classes of
+`J_x.T` (ANTIHERMITIAN x STY_EVEN, kind -1) demand
+`jx(jj,ii) = -jx(ii,jj)`. The folded jy fill (kind +1) is correct.
+The wrong-signed lower triangle was plausibly invisible so far: the
+`$TR` J2 consumers square the elements, and the Belyaev/MOI side is to
+be audited empirically at fix time. The fix is the FIRST commit of
+this step, with a documented A/B; if any golden or inertia row moves,
+the delta is the correction (physics, not reassociation) and is
+accepted deliberately, recorded in the commit message.
+
+### 14.3 Module shape, marker policy, validation
+
+- `src_orig/angular_momentum.f90`: plain Fortran, like
+  block_matrix_module free of `$`-markers; takes the angmom kernels
+  from wavefunctions; generators built as
+  `new_sym_matrix`-style constructors
+  (`init(HFBlocks_global, word, herm, sty, goodqn)` per the 14.1 table)
+  with block_filler callbacks looping the kernels over the stored
+  pairs of each block (the kernels are per-pair pure functions; no
+  dgemm restructure is attempted - performance equals the legacy
+  loops). Wiring: MF_SRC/FAM_SRC in the Makefile and
+  `no_process_files` in src_heph/preprocess.py.
+- Marker policy (agreed 2026-11-19): the folded generators EXIST in
+  every build and the module stays marker-free; their CALLERS gate -
+  only `$TR`-marked consumers construct the folded pair. Dead code in
+  the TR-broken builds by construction, not by preprocessing.
+- Validation:
+  *) kernel-transpose oracle: per component, the kinds are settled
+     numerically - `K(wf_i, wf_j)` vs `K(wf_j, wf_i)` measured by the
+     kernels themselves on real states fixes the relation A_ij =
+     (+/-) A_ji per component. The kind signs of 14.1 become test
+     assertions, not assumptions. Runs in every build (kernel
+     property); the folded objects' CONSUMER chain is TR-only, but
+     the sign checks do not need the TR data model.
+  *) legacy A/B: the existing dense loops of
+     `calcJ2andBelyaev_HFB` remain in place as the oracle until the
+     consumer migration; the moved path must be bit-identical for
+     `J_z` within any block and for the `$NTR` honest fills.
+  *) partner-consistency checks: `A(s',s) = kind * A(s,s')^T` per
+     stored block, both kinds, all three builds; XOR block-coverage
+     against the words of 14.1.
+  *) unit arm placement: beside the moments net (moments_testing or
+     an angular_momentum_testing module), armed by the `unit_test` flag
+     of &mesh/ per the §13 test infrastructure.
+
+### 14.4 Sequencing (one commit per row)
+
+| # | Commit | Contents | Regression net |
+|---|---|---|---|
+| 1 | K_x fill fix | `jx(jj,ii) = -jx(ii,jj)` at momentsofinertia.f90:832; the T**2 = -1 convention and the class table recorded in this design | golden minimal NLO + O16 inertia smoke, A/B documented; expected: J2 rows unchanged (squares), MOI/inertia rows audited empirically |
+| 2 | generators | angular_momentum.f90: the five generators, build wiring, the unit arm (kernel-transpose oracle, partner checks, legacy A/B) | the new unit arm on NLO / NLO-T / NLO-P; block_matrix net untouched; four mf configs compile |
+| 3 | consumer migration | `calcJ2andBelyaev_HFB` builds its j-matrices from the generators (`$NTR`: honest trio; `$TR`: honest J_z plus the folded pair from `$TR`-marked call sites); the cantransfo rotations go through sym_rotation (section 6a) in a following row | fam unit net unaffected here; inertia smoke + minimal golden; fission.sh as the heavy gate at the end of the rotation chain |
+
+Consumers further downstream (Bogoliubov J20/J11 images, qp machinery)
+belong to the qp-bookkeeping discussion deferred from section 6a and
+stay out of this module's scope.
