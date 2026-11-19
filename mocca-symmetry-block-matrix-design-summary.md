@@ -1341,9 +1341,11 @@ wrong while the fills were right).
 
 - The tau column is the time parity of section 15.8's mechanism 1:
   the gradient as written is time-EVEN (T antilinear means the i of
-  p = -i(nabla) carries the momentum's time-oddness), and the composites
-  inherit it. Every entry asserted here is oracle-checked (one
-  image-image block computed both ways) before the algebra path arms.
+  p = -i(nabla) carries the momentum's time-oddness), user-confirmed
+  2026-11-19; the composites inherit it via
+  T(OT)T^{-1} = tau(O)(OT). The oracle check (one image-image block
+  computed both ways) remains the standing arbiter before the algebra
+  path arms.
 
 - Classes user-confirmed 2026-11-19: all five antihermitian; the
   per-component characteristics follow the vector pattern of section
@@ -1430,13 +1432,31 @@ identity, not an assumption.
 
 ### 15.5 Sequencing (one commit per row)
 
+Updated 2026-11-19 for the implicit-retrieval contract of 15.8 and the
+tau table of 15.2.
+
 | # | Commit | Contents | Regression net |
 |---|---|---|---|
-| 0 | anchors + scenarios | park pre-migration fam binaries (no committed zmomentum scenario exists); define `COM2body = 1` scratch states (O18/SLy4-style, HFB for the `$NTR` conjugp path) | none |
-| 1 | generators + oracle | `linear_momentum.f90`: the five generators, wiring, the unit arm (kernel-transpose oracle, partner-consistency checks, XOR block-coverage vs the 15.2 words) and an off-by-default oracle hook comparing generator vs legacy `CompNablaMelements` per live state | the new unit arm on NLO / NLO-T / NLO-P; block_matrix net untouched; four mf configs compile; legacy routine untouched |
-| 2 | zmomentum consumer | `get_qpme_op` 'zmomentum' from `-i * dense(\nabla_z)`, prefactors verbatim | fam unit net; A/B against the parked fam binaries: parity-odd NaN behaviour in NLO identical to the parked anchor, NLO-P the working runtime case |
-| 3 | COM correction consumer | `CompCOMCorrection` from the generators: `$TR` = folded pair + honest `\nabla_z`, `$NTR` = honest trio + conjugp sums; basis 'DEN' per-basis fill | `COM2body = 1` scratch A/B vs the legacy binary on NLO (folded) and an NLO-T HFB state (honest); minimal golden untouched (`COM2body` defaults to 0) |
-| 4 | dead-code consumers + gate | test_RP_commutator, verify_COM_motion migrated; the CompNablaMelements deletion decision (with its MPI machinery - they go together) | compiles; source-level, the 4ca0f181 pattern |
+| 0 | scenarios | define `COM2body = 1` scratch states: one NLO (the folded path), one NLO-T HFB state (the honest + conjugp path); run each with the pre-migration binary and keep the logs as reference numbers | none |
+| 1 | generators + accessor + unit arm | `linear_momentum.f90`: the three honest generators, the retrieval accessor of 15.8 (stored blocks served as stored, TT blocks by the `TAU_NABLAFAM = +1` sign flip, cross blocks by the TR-flag kernels; the folded twins reachable as its eager packaging), wiring (Makefile + `no_process_files`), the unit arm (kernel-transpose oracle, partner-consistency checks, XOR block-coverage vs the 15.2 words, the tau both-ways image-image check, doubled-basis full traversal against legacy `CompNablaMelements`); serial only (15.6) | the new unit arm on NLO / NLO-T / NLO-P; block_matrix net untouched; mf builds of all four configs compile (fam builds compile the module too - functional.f90 links it); legacy routine untouched |
+| 2 | COM correction consumer | `CompCOMCorrection` from the generators: `$TR` = fold content retrieved via the accessor (twin packaging) + honest `\nabla_z`, the fac/4 and 2x factors kept verbatim at first (15.8's connection note governs any later re-derivation); `$NTR` = honest trio + conjugp sums; basis 'DEN' per-basis fill | `COM2body = 1` scratch A/B vs the row-0 reference logs (reassociation-level drift expected); minimal golden bit-identical (`COM2body` defaults to 0) |
+| 3 | dead-code consumer | `verify_COM_motion` (mf side) migrated off `CompNablaMelements` | compiles; source-level |
+| 4 | deletion gate | the CompNablaMelements deletion decision (with its MPI machinery - they go together) | decision recorded |
+
+Deferred by user direction (2026-11-19): everything FAM-side. The
+zmomentum consumer of `get_qpme_op` keeps its legacy
+`CompNablaMelements('HF')` call; no fam binaries are parked for this
+step; `test_RP_commutator` (fam_testing) stays on the legacy routine
+with the deferred fam consumers of 13.5. The zmomentum row as
+originally drafted (binary parking, `-i * dense(\nabla_z)`, the
+parity-odd NaN criterion) re-attaches to the fam phase when it comes.
+
+Not in this table, deliberately: the DEN-vs-cantransfo audit and the
+possible sym_rotation switch of CompCOMCorrection (15.4) - a separate
+follow-up step, not a consumer-migration row; and the merge of
+linear_momentum with angular_momentum (user direction), which waits
+until both modules exist and brings the J family's own tau entries
+with it.
 
 ### 15.6 Validation and risks
 
@@ -1522,15 +1542,16 @@ of increasing cost:
        image-image block both ways (honest kernels and sign flip)
        before the algebra path is armed for that operator. Untested
        families default to the honest recompute of mechanism 2.
-   Arithmetic caution, learned the hard way (2026-11-19): tau is a
-   property of the operator as written, not of its physics family -
-   T is antilinear, so the i of p = -i(nabla) is what makes the
-   momentum time-odd; nabla itself is time-EVEN (tau = +1, the
-   gradient family's relation is TT = +SS, NOT the -SS a first draft
-   of this section claimed, borrowing the momentum's parity). The
-   composite OT inherits the parent's tau: T(OT)T^{-1} = tau(O)(OT).
-   The tau table is therefore per-operator and oracle-checked, never
-   intuition-fed.
+   Arithmetic caution, learned the hard way (2026-11-19):
+   tau is a property of the operator as written, not of its physics
+   family - T is antilinear, so the i of p = -i(nabla) is what makes
+   the momentum time-odd; nabla itself is time-EVEN
+   (tau = +1, user-confirmed 2026-11-19; the gradient family's
+   relation is TT = +SS in single-half storage), NOT the -SS a
+   first draft of this section claimed, borrowing the momentum's
+   parity. The composite OT inherits the parent's tau:
+   T(OT)T^{-1} = tau(O)(OT). The tau table is therefore per-operator
+   and oracle-checked, never intuition-fed.
 2. On-demand kernels: the cross blocks of bit-0-set operators - the
    fold content of section 2d - are irreducible, nothing stored
    determines them. They are computed when requested, by the honest
