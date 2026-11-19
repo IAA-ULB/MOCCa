@@ -306,8 +306,15 @@ perturbations).
      0) and never runs the FAM tests - pass --parameterisation SLy4.
    * Cross-build comparisons are only meaningful through
      basis-independent invariants (traces) of operators common to the
-     builds (even m), and only when the runs converge to the same
-     state - witness: identical total energies.
+     builds (even m), and only when the runs act on the SAME state: the
+     moments unit suite (2026-11-19) compares the three builds on their
+     common INITIAlisation with zero SCF iterations (maxiter=0). The
+     CI failure that motivated this: each build stops at a slightly
+     different point of the near-flat convergence landscape, and the
+     parity-broken build's l=4 box-anisotropy rows showed converged
+     traces at ~8e-9 local but ~3e-6 in CI - environment-sensitive by
+     construction, not a machinery error (within each run, matrix trace
+     and density-route moment agreed to 1e-13 in every environment).
    * The unit_test flag lives in &mesh/ (geninfo) and arms every
      executable's own suite (moments: run_moments_tests from
      Run_MOCCa; fam: run_FAM_tests from fam_run).

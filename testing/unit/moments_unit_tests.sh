@@ -15,10 +15,13 @@
 #      Tr( rho Q ) = sum_i rho_can(i) < i | Q | i >,
 #  printed by the three executables must agree: they are the basis-independent
 #  carriers of the matrix content, and the three builds store the same
-#  operator in different symmetry-adapted bases of the same converged state.
+#  operator in different symmetry-adapted bases of the same state.
 #  Element-by-element equality of the matrices is meaningless (different
-#  bases); the traces are the invariants that must not differ beyond the
-#  runs' convergence.
+#  bases); the traces are the invariants that must not differ beyond build
+#  differences. The tests are NOT a convergence test: the runs are started
+#  from the same initialisation (which is identical for the three builds by
+#  construction) and take zero SCF iterations, so the compared state is
+#  independent of the iteration path.
 #
 #  ATTENTION on the input files: the physical box is 24 fm in every direction.
 #  The z-axis of the conservative and TR-broken runs is folded (dv carries
@@ -47,8 +50,9 @@
 # --pairing       : pairing type of the mean-field state (default: HF).
 #                   Note that the trace check is skipped for HFB, whose
 #                   density matrix is canonical.
-# --maxiter       : number of iterations per run (default: 200). More
-#                   iterations make the cross-build comparison tighter.
+# --maxiter       : number of SCF iterations per run (default: 0 - the runs
+#                   act on the common initialisation; see above). Kept for
+#                   debugging runs that iterate towards self-consistency.
 #
 # Dependencies: none - but the three executables must exist.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -58,7 +62,8 @@
 # Initialize default values
 suffix="NLO"     # Default base configuration
 pairing="HF"     # Default pairing type
-maxiter=200      # Default number of iterations per run
+maxiter=0        # SCF iterations per run: zero - this is not a convergence
+                 #  test, the identical initialisation is the whole point
 
 # Tolerances of the cross-build comparison: the traces of the common
 #  operators must agree within  atol + rtol*max|value|  across the three runs.
