@@ -323,6 +323,8 @@ contains
     real(KIND=dp) :: omega=SENTINEL_DP
     integer       :: mixingscheme = 0
     integer       :: maxiter = 100, maxhist = 30
+    integer       :: io
+    character(len=500) :: msg
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
@@ -334,10 +336,11 @@ contains
       ! Reading the information on fam by the first MPI rank
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       if(present(file_number)) then
-        read (unit=file_number, nml=fam)
+        read (unit=file_number, nml=fam, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=fam)
+        read (unit=*, nml=fam, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('fam', msg, file_number)
 
       ! if a single FAM frequency omega is passed, set min and max to omega
       if(omega .ne. SENTINEL_DP) then

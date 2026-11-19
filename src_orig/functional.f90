@@ -249,16 +249,19 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     namelist /func/ name_param
 
     if(MPI_RANK.eq.0) then
       ! Only the very first MPI rank reads stuff
       if(present(file_number)) then
-        read(unit=file_number, nml=func)
+        read(unit=file_number, nml=func, iostat=io, iomsg=msg)
       else
-        read(unit=*, nml=func)
+        read(unit=*, nml=func, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('func', msg, file_number)
     endif
 #if(USE_MPI > 0)
     ! broadcasting the name of the parameterization for consistency

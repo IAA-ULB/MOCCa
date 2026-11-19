@@ -876,6 +876,8 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+    integer :: io
+    character(len=500) :: msg
 
     NameList /inertia/ inertia_l, inertia_m, spme_oracle
 
@@ -890,10 +892,11 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     ! only the very first MPI rank reads input
     if(MPI_RANK.eq.0) then
       if(present(file_number)) then
-        read (unit=file_number, nml=inertia)
+        read (unit=file_number, nml=inertia, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=inertia)
+        read (unit=*, nml=inertia, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('inertia', msg, file_number)
 
       ! Some sanity checks
       do k=1, N_inertia

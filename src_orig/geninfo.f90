@@ -273,25 +273,34 @@ contains
     &                  block_factor_col, simulate_spherical_bc, angmom_prec
     Namelist /mesh/ nx, ny, nz, dx, unit_test
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input is checked and echoed on error: iomsg names unknown variables and
+    ! premature ends (see find_nml_error for what is printed when).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    character(len=500) :: msg
+
     if (MPI_rank == 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reading the information on the nucleus by the first MPI rank
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       if (present(file_number)) then
-        read (unit=file_number, nml=nucleus, iostat=io)
+        read (unit=file_number, nml=nucleus, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=nucleus, iostat=io)
+        read (unit=*, nml=nucleus, iostat=io, iomsg=msg)
       end if
       if (io /= 0) then
-        call find_nml_error('nucleus', int(file_number))
+        call find_nml_error('nucleus', msg, file_number)
       end if
 
       ! Reading information on the mesh
       if (present(file_number)) then
-        read (unit=file_number, nml=mesh)
+        read (unit=file_number, nml=mesh, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=mesh)
+        read (unit=*, nml=mesh, iostat=io, iomsg=msg)
+      end if
+      if (io /= 0) then
+        call find_nml_error('mesh', msg, file_number)
       end if
 
       if (fixfermi .and. (mun == -10d8 .or. mup == -10d8)) then
@@ -500,30 +509,42 @@ contains
 
   end function meshindex
 
-  subroutine find_nml_error(nmlname, iunit)
+  subroutine find_nml_error(nmlname, msg, iunit)
     !---------------------------------------------------------------------------
-    ! Complain about an error in a namelist input, using the backspace command
-    ! to find the offending line in an opened file. Note: this means this cannot
-    ! be used to find errors in STDINPUT.
+    ! Report a failed namelist read and stop the code.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! The runtime message passed up from the read (iomsg) is the primary
+    ! diagnosis: it names variables the code does not know about and says
+    ! whether the input ended before the closing slash. When the namelist
+    ! was read from a file, the offending input line can be echoed by
+    ! repositioning the file; STDIN cannot be repositioned, so there the
+    ! message is everything the user gets.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !     nmlname : namelist name, to tell the user.
-    !     iunit   : unit of the opened file to backspace.
-    !
+    !     nmlname : name of the namelist that failed to read
+    !     msg     : iomsg string returned by the failed read
+    !     iunit   : optional number of the (open) file unit to reposition
     !---------------------------------------------------------------------------
-    character(len=*), intent(in) :: nmlname
-    integer, intent(in)          :: iunit
+    character(len=*), intent(in)        :: nmlname, msg
+    integer(dp), intent(in), optional  :: iunit
+    character(len=1000)                 :: line
 
-    character(len=1000) :: line
-
-    backspace (iunit)
-    read (iunit, fmt='(A)') line
+    line = ' '
+    if (present(iunit)) then
+      backspace (iunit)
+      read (iunit, fmt='(A)') line
+    end if
 
     print *, '--------------------------------------------------------------'
     print *, 'Input problem encountered for namelist ', nmlname
-    print *, 'This is the offending line:'
-    print *, ' > ', trim(line)
-    print *, 'It likely contains a variable the code does not know about.'
+    print *, 'Error message from the compiler runtime:'
+    print *, ' > ', trim(msg)
+    if (present(iunit)) then
+      print *, 'This is the offending line:'
+      print *, ' > ', trim(line)
+    end if
+    print *, 'It likely contains a variable the code does not know about,'
+    print *, 'or the input ended before the closing slash.'
     print *, '--------------------------------------------------------------'
 
     ! Stop the program

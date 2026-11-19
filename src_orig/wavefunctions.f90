@@ -346,6 +346,8 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
     &              max_spwf_per_rank, max_drop_ranks, ini_strategy, &
@@ -354,10 +356,11 @@ contains
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
       if(present(file_number)) then
-        read(unit=file_number, nml = wfs)
+        read(unit=file_number, nml = wfs, iostat=io, iomsg=msg)
       else
-        read(unit=*, nml = wfs)
+        read(unit=*, nml = wfs, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('wfs', msg, file_number)
     endif
 
     ini_strategy = to_upper(ini_strategy)

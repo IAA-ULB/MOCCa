@@ -171,6 +171,8 @@ $NTR  integer             :: j,c
 #if(USE_MPI>0)
     integer             :: mpi_err
 #endif
+    integer             :: io
+    character(len=500)  :: msg
 
     namelist /cranking/ OmegaX, OmegaY, OmegaZ,             &
     &                   CrankX, CrankY, CrankZ,             &
@@ -188,10 +190,11 @@ $NTR  integer             :: j,c
     if(MPI_RANK.eq.0) then
       ! Reading information with the very first MPI rank
       if(present(file_number)) then
-        read (unit=file_number, nml=cranking)
+        read (unit=file_number, nml=cranking, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=cranking)
+        read (unit=*, nml=cranking, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('cranking', msg, file_number)
 
       !----------------- Assigning Constants based on Input --------------------
       CrankValues      = (/ CrankX,CrankY,CrankZ/)

@@ -209,6 +209,8 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: ioerr
+    character(len=500)                  :: msg
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
@@ -218,10 +220,11 @@ contains
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
       if(present(file_number)) then
-        read (unit=file_number, nml=IO)
+        read (unit=file_number, nml=IO, iostat=ioerr, iomsg=msg)
       else
-        read (unit=*          , nml=IO)
+        read (unit=*          , nml=IO, iostat=ioerr, iomsg=msg)
       endif
+      if(ioerr.ne.0) call find_nml_error('IO', msg, file_number)
     endif
 
     ! ... and then broadcasts information

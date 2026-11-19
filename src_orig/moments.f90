@@ -1865,14 +1865,15 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
-  
+    integer(dp), intent(in), optional   :: file_number
+
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType, isoswitch
     real(KIND=dp)       :: Constraint, iq1=-1000000d0, iq2=-1000000d0, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
+    character(len=500)  :: msg
     type(Moment),pointer      ::  Current
     real(KIND=dp), allocatable:: LegacyCon(:)
 #if(USE_MPI>0)
@@ -1903,10 +1904,11 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       ! Reading the general parameters of the module, but only with the very
       ! first MPI rank
       if(present(file_number)) then
-        read(unit=file_number,NML=MomentParam )
+        read(unit=file_number,NML=MomentParam, iostat=iostat, iomsg=msg)
       else
-        read(unit=*          ,NML=MomentParam )
+        read(unit=*          ,NML=MomentParam, iostat=iostat, iomsg=msg)
       endif
+      if(iostat.ne.0) call find_nml_error('MomentParam', msg, file_number)
 
       if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
         call stp('Illegal value of quantisation axis!')
@@ -1976,13 +1978,13 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       if(MPI_RANK .eq. 0) then
         ! Only the very first MPI rank reads stuff
         if(present(file_number)) then
-          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
+          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat, iomsg=msg)
         else
-          read(unit=*          , NML=MomentConstraint, IOSTAT=iostat)
+          read(unit=*          , NML=MomentConstraint, IOSTAT=iostat, iomsg=msg)
         endif
 
         if(iostat .ne. 0) then
-          call stp("Input error for moment constraints.")
+          call find_nml_error('MomentConstraint', msg, file_number)
         endif
         
         ! ... and performs some consistency checks          

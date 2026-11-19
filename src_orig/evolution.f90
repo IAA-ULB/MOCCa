@@ -153,6 +153,8 @@ contains
 #if(USE_MPI>0)
         integer                             :: mpi_err
 #endif
+        integer                             :: io
+        character(len=500)                  :: msg
 
         namelist /evolution/ dt, momentum,                                     &
         &                    gradient_stepsize, gradient_mu,                   &
@@ -166,10 +168,11 @@ contains
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
           if(present(file_number)) then
-            read(unit=file_number, nml=evolution)
+            read(unit=file_number, nml=evolution, iostat=io, iomsg=msg)
           else
-            read(unit=*, nml=evolution)
+            read(unit=*, nml=evolution, iostat=io, iomsg=msg)
           endif
+          if(io.ne.0) call find_nml_error('evolution', msg, file_number)
         endif
 #if(USE_MPI > 0)
         !-----------------------------------------------------------------------
