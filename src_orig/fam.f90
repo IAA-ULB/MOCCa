@@ -1427,12 +1427,9 @@ contains
           f_spme = Rsq_spme()
         else 
           ! Get single-particle matrix elements of Q_lm in the HF basis
-          !  -> calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
-          !     in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
-          f_spme = Qlm_spme(l, m, .false.)
-          
-          ! Convert f_spme to unit fm^l
-          f_spme = f_spme * (100**(l/2.0d0))
+          !  -> the sym_matrix generator in moments.f90, in natural fm^L units:
+          !     it stores the real half Re <i|r^L Re(Y_LK)|j> as it stands
+          f_spme = Qlm_spme_fm(l, m, .false.)
 
           ! Normalise with sqrt(2) if K is not 0
           if(m.ne.0) f_spme = f_spme * sqrt(2.0d0)
@@ -1453,10 +1450,8 @@ contains
         ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
 
         ! Get single-particle matrix elements of Q_10 in the HF basis
-        f_spme = Qlm_spme(1, 0, .false.)
-
-        ! Convert f_spme to unit fm^l
-        f_spme = f_spme * sqrt(100.0d0)
+        !  -> the sym_matrix generator in moments.f90, in natural fm units
+        f_spme = Qlm_spme_fm(1, 0, .false.)
 
         ! Cancel prefactor sqrt(3/4pi)
         f_spme = f_spme * sqrt( 4.0d0 * pi / 3.0d0)
