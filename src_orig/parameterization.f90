@@ -141,6 +141,12 @@ $PARAMDECL
     ! peak
     logical :: exact_coulomb_folding = .true.
     !---------------------------------------------------------------------------
+    !Adding the choice of nucleon form factor
+    !Makes me wonder if something has to be done with the nucleonsize_selfconsistent part, should the parameterization be recalculated? I have to check
+    !For now only gaussian 0, dipole_galster 1
+    !---------------------------------------------------------------------------
+    integer :: nucleon_form_factor = 0
+    !---------------------------------------------------------------------------
     ! Whether to treat the inclusion of the nucleon form factors in the Coulomb
     ! module selfconsistently or not.
     logical       :: nucleonsize_selfconsistent=.true.
@@ -191,8 +197,8 @@ contains
     !    if needed for this parameterization
     !---------------------------------------------------------------------------
     use folding, only: construct_folding_matrices
-    use folding, only: gauss_x_neutron, gauss_y_neutron, gauss_z_neutron
-    use folding, only: gauss_x_proton,  gauss_y_proton, gauss_z_proton
+    use folding, only: form_fact_x_neutron, form_fact_y_neutron, form_fact_z_neutron
+    use folding, only: form_fact_x_proton,  form_fact_y_proton, form_fact_z_proton
 
     character(len=20) :: name, func_file, toopen
     character(len=*), intent(in) :: name_param, func_name
@@ -205,7 +211,7 @@ contains
     ! predefined options
     namelist /skf/ name, func_file, hbm, e2, COM1body, COM2body, coultreatment,&
     &              protonsize, nucleonsize_selfconsistent, neutronsize,        &
-    &              hocomform, exact_coulomb_folding, rotcorr, rotcorrb, rotcorrc,&
+    &              hocomform, exact_coulomb_folding, nucleon_form_factor, rotcorr, rotcorrb, rotcorrc,&
     &              coulorder,Estabp, Estabn, neutroncoulomberror, cutneutron,  &
     &              cutproton, CutType,  rotcorr_cut, rotcutwindow, rotcutmu,   &
     &              vibcorr, vibcorrb, vibcorrl, vibcorrd, eps, pairingmu,      &
@@ -331,6 +337,18 @@ $CHECKPARAMS
         print *, '============================================================='
         call stp('')
       endif
+
+      if(any(exact_coulomb_folding.ne.0.0d0) .and. any(nucleon_form_factor.ne.0.0d0)) then
+                                                                         
+        print *, '============================================================='
+        print *, ' The current implementation of the folding does              '
+        print *, ' not allow the exact folding of others form factors that the '
+        print *, ' Gaussian one '
+        print *, '============================================================='
+        call stp('')
+      endif
+
+
 #if(PASTA > 0)
       if(coultreatment.eq.1) then
         print *, '============================================================='
@@ -359,6 +377,7 @@ $CHECKPARAMS
     call MPI_BCAST(neutronsize        , 2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(hocomform          , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(exact_coulomb_folding, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(nucleon_form_factor, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     
     call MPI_BCAST(neutroncoulomberror       , 1, MPI_LOGICAL, 0, &
     &                                                MPI_COMM_WORLD, mpi_err)
@@ -410,9 +429,9 @@ $BCASTPARAMS
       rotcutmu = pairingmu
     endif
     ! b) constructing the relevant folding matrices 
-    call construct_folding_matrices(protonsize, neutronsize, hocomform,  exact_coulomb_folding,hbm, &
-    &                               gauss_x_neutron, gauss_y_neutron, gauss_z_neutron, &
-    &                               gauss_x_proton,  gauss_y_proton,  gauss_z_proton)
+    call construct_folding_matrices(protonsize, neutronsize, hocomform,  exact_coulomb_folding,nucleon_form_factor,hbm, &
+    &                               form_fact_x_neutron, form_fact_y_neutron, form_fact_z_neutron, &
+    &                               form_fact_x_proton,  form_fact_y_proton,  form_fact_z_proton)
    
   end subroutine readparameterization
     
@@ -435,6 +454,7 @@ $BCASTPARAMS
     nucleonsize_selfconsistent = .true.
     hocomform  = .false.
     exact_coulomb_folding = .false.
+    nucleon_form_factor= 0
     ! Numerical safeguard
     eps        = 1d-20
     ! Rotational and vibrational corrections
@@ -477,7 +497,7 @@ $RESETPARAMS
 
     8  format ('   Protonsize  = ', 2f8.3, /,                                  &
     &          '   Neutronsize = ', 2f8.3 )
-        
+    ! To be modified with the new form factors but I'm not sure to understant the logic with the different neutron size ... Emilien
     81 format ('   Proton form factor  = One Gaussian')
     82 format ('   Proton form factor  = Difference of two Gaussians')
     83 format ('   Neutron form factor = One Gaussian')
