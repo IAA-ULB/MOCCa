@@ -2762,6 +2762,7 @@ $READPOTENTIALS_HDF5
     
     use fission_MOI
     use densities
+    use moments, only: Qlm_spme_fm
     
     1 format (' Pushing model                 M_0 (MeV/c^2)')
     2 format (25x, 'neutrons        protons          total', / &
@@ -2795,9 +2796,9 @@ $READPOTENTIALS_HDF5
         
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate single-particle matrix elements of z-c.o.m. coordinate
-    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
-                    ! Q10 = sqrt(3/4pi) * z 
-                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
+    Qsp            = sqrt(4*pi/3) * Qlm_spme_fm(1,0,.false.)
+                    ! Q10 = sqrt(3/4pi) * z, single-particle matrix
+                    ! elements in fm units from the sym_matrix generator
     Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
     Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
