@@ -1935,6 +1935,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
     !                 ( 1  0 )
+    !
+    ! NOTE: this kernel currently has no caller in production code. Its only
+    !  reference in the tree is the opposite-half purity print of the
+    !  angular-momentum testing arm (angular_momentum_testing.f90).
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
@@ -1947,8 +1951,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Spin part
       angmom = angmom     + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
-      &                            + wf2(i,3) * wf1(i,1)                       &
-      &                            - wf2(i,4) * wf1(i,2))                        
+      &                            + wf2(i,3) * wf1(i,2)                       &
+      &                            - wf2(i,4) * wf1(i,1))                        
       ! Orbital part
       angmom = angmom &
       &           + wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,2,1)             &
@@ -1978,6 +1982,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !       s_x = 1/2*( 0  1 )
     !                 ( 1  0 )
+    !
+    ! NOTE: this kernel currently has no caller anywhere in the tree; it is
+    !  kept as the imaginary half of the spin-x matrix elements for
+    !  completeness.
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
@@ -1989,8 +1997,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Spin part
       sx = sx             + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
-      &                            + wf2(i,3) * wf1(i,1)                       &
-      &                            - wf2(i,4) * wf1(i,2))                        
+      &                            + wf2(i,3) * wf1(i,2)                       &
+      &                            - wf2(i,4) * wf1(i,1))                        
     enddo
     sx = sx * dv
 
