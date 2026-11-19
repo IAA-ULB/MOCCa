@@ -496,6 +496,124 @@ What remains of the runtime surface:
 The transposed-partner access machinery that mat-vec would have needed
 is not built; nothing else requires it.
 
+### 6a. Basis rotations (agreed 2026-11-19)
+
+The type gains exactly one runtime operation beside `dense()`: the change
+of basis of a stored operator by a REAL ORTHOGONAL transformation that is
+sector-diagonal - one square orthonormal block U_s per populated sector s.
+This is the shape MOCCa's rotation producers actually build: `Canonical`
+(HFB.f90) diagonalises rho per MOCCa block (`do B=1,8`) and fills
+`cantransfo` exactly block-diagonal sector-wise; the merged
+signature-pair loops of `basis_transform`'s `transform_mat` are
+conservative about this but mix nothing. In the classifiable,
+STy-invariant setting (section 2a) the general unitary group collapses
+to this orthogonal sector-diagonal shape: no other unitary preserves
+the type's invariants. Out of scope, deliberately (agreed 2026-11-19):
+
+- complex unitaries: a complex combination of STy-invariant spwfs is not
+  an STy invariant (STy is antilinear), so the sty classes - and with
+  them the whole stored-half model - would lose their meaning; there is
+  no caller today.
+- rotations mixing sector partners, e.g. the q(Rz) = +i/-i pairs: the
+  rotated basis has no definite signature, so no sym_matrix can represent
+  an operator over it unless the signature bit stops being a good
+  quantum number (the goodqn-mask machinery of section 2c would cover
+  that case if ever needed); no config in the tree breaks Rz and no
+  producer makes such rotations.
+
+Why this does not reopen the dropped mat-mat (section 6): operator
+products AB remain out - the product of two non-commuting classifiable
+operators is not classifiable. A similarity transform is a different
+animal: it is the SAME operator expressed in a rotated basis, and for a
+real sector-diagonal orthogonal C the transformation preserves
+everything the type stores:
+
+- the rotated basis states are real linear combinations of STy
+  invariants, hence STy invariants themselves: the sty classes of all
+  operators keep their meaning, and the stored numbers remain the
+  selected (real/imaginary) half of the complex matrix elements;
+- every stored block transforms independently,
+      A'(s', s) = U_{s'}^T A(s', s) U_s  ,
+  and the partner relation survives:
+      A'(s, s') = U_s^T A(s, s') U_{s'}
+                = U_s^T (kind * A(s', s)^T) U_{s'}
+                = kind * (U_{s'}^T A(s', s) U_s)^T
+                = kind * A'(s', s)^T  .
+  herm, sty, kind, the symmetry word, goodqn, the block list and the
+  st bounds are ALL unchanged: rotate touches numbers, never metadata.
+  Three dgemms per stored block; the unstored partner blocks are never
+  touched, exactly as everywhere else in section 6.
+
+Type and interface:
+
+```fortran
+! One square orthonormal block per sector; empty sectors stay unallocated.
+type :: sector_rotation
+  real(8), allocatable :: U(:, :)
+end type
+
+type :: sym_rotation
+  integer :: n                    ! total basis size, sum(HFBlocks)
+  integer :: st(0:8)              ! 1-based sector bounds, scheme 2 (3a)
+  type(sector_rotation) :: U(0:7) ! populated sectors only
+contains
+  procedure :: init              ! (HFBlocks): identity per populated sector
+  procedure :: init_from_dense   ! (HFBlocks, C, tol): extract the per-sector
+                                 !  blocks from a full n x n rotation array
+                                 !  (basis_transform convention); refuse a C
+                                 !  with nonvanishing off-sector submatrices
+                                 !  or non-orthonormal blocks
+  procedure :: set_sector        ! hand one sector's block directly (tests);
+                                 !  orthonormality checked on the same tol
+end type
+```
+
+and one addition to sym_matrix's `contains` list:
+
+```fortran
+procedure :: rotate  ! in place: A_b <- U_{srow}^T A_b U_{scol} for every
+                     !  stored block; refuses a rotation whose n and st do
+                     !  not match the operand's exactly (same HFBlocks)
+```
+
+Conventions:
+
+- C convention of `basis_transform`: each COLUMN of C is a new basis
+  vector expressed in the old basis (`psi' = C^T psi`), and the matrix
+  of the same operator in the rotated basis is `C^T A C`. `rotate`
+  implements exactly this, per block. Consumer-side direction flips
+  exist in the tree (e.g. functional.f90 applies `C P C^T` to some of its
+  matrices - the inverse direction): callers wanting that hand `rotate`
+  the sector-wise transpose of their C. The inverse rotation is always
+  the sector-wise transpose (U_s orthogonal: U_s^T = U_s^{-1}); no
+  separate interface is built.
+- Composition: rotating by R1 and then by R2 is a single rotation by
+  the sector-wise composite U_s = U1_s . U2_s; no compose helper is
+  built - callers matmul the per-sector blocks, or simply rotate twice.
+- goodqn plays no role: rotate acts on storage sectors, never on quantum
+  numbers, and inherits every piece of metadata from the operand.
+
+Checks (loud, the module's print-and-stop style), all inside the module:
+
+- `init_from_dense`: every off-sector submatrix of C must vanish within
+  the tolerance (proposed default 1e-12 absolute, a named argument;
+  MOCCa's producers write exact zeros there today) and every extracted
+  block must be orthonormal within it. A C that mixes sectors is
+  REFUSED: the rotated matrix would not be representable, and accepting
+  it would silently corrupt physics.
+- `set_sector`: orthonormality of the handed block, same tolerance.
+- `rotate`: the rotation's n and st must match the operand's exactly.
+
+Consumers, now and later (agreed 2026-11-19: this is an infrastructure
+step - no consumer migrates with it; the block_matrix unit net is the
+net). The production candidates, in the natural order: the `U^T O U`
+factor of the FAM qp-space operator in `get_qpme_op` (the full
+Bogoliubov image `U^T O U - V^T O^T V +/- ...` is NOT a rotation - the
+V terms carry transposes - and stays consumer-side unless its output is
+ever made a sym_matrix over a qp bookkeeping), the canonical-basis
+operator chains of the momentsofinertia / Ksum families, and the
+whole-matrix `transform_mat` call sites once their callers migrate.
+
 ## 7. Performance notes
 
 - Link against an optimized real BLAS (OpenBLAS/MKL); the kernel calls
@@ -518,6 +636,16 @@ is not built; nothing else requires it.
   obey `A(s',s) = kind * A(s,s')^T` (unit-level check; the runtime
   transposed access path is not built, section 6).
 - Mat-vec/mat-mat checks are dropped with the operations (section 6).
+- Basis rotations (section 6a): identity is an exact no-op; the round trip
+  (rotate by R, then by the sector-wise transposed rotation) recovers the
+  blocks at the reassociation level of three dgemms; the dense reference
+  `C^T dense(A) C` agrees with the rotated blocks at their global
+  positions; the partner relation `A'(s', s) = kind * A'(s, s')^T` holds
+  for the rotated matrix of BOTH kinds (a KIND_ANTISYMMETRIC operand
+  stays antisymmetric); the diagonal blocks' per-sector traces are
+  invariant under rotation; both sty classes are exercised; the refusal
+  paths (non-orthonormal U, off-sector-nonzero C, HFBlocks-mismatched
+  rotate) stop loudly.
 - Imaginary half of `Qlm_spme_matrix`: the full-box reconstruction oracle
   (section 13.1, validation) - selected off-diagonal elements recomputed
   by direct mesh quadrature of the chamber-extended spinors, judged
@@ -586,6 +714,12 @@ is not built; nothing else requires it.
    non-commuting classifiable operators are not classifiable (section 2a).
    The remaining small operations (add, scale, trace) land if and when a
    consumer needs them.
+7. (agreed 2026-11-19, intermediate infrastructure step - precedes the
+   deferred section 13.5 items) basis rotations: the `sym_rotation` type
+   and the `rotate` method of sym_matrix (section 6a), plus the
+   extension of the block_matrix unit net (section 8). No consumer
+   migrates with this step; the first production caller is decided
+   later (candidates listed in section 6a).
 
 ## 12. Design decisions to keep
 
@@ -628,6 +762,12 @@ is not built; nothing else requires it.
   mesh through the density route - and operator products are both
   consumer-less and unclassifiable. Partner machinery exists only as
   `dense()` and the consistency checks.
+- Basis rotations (section 6a) are real orthogonal and sector-diagonal
+  only; one bound method `rotate`, in place, metadata-free, touching the
+  stored blocks alone. The structure checks (off-sector vanishing of the
+  dense source array, orthonormality of every handed block, exact n/st
+  match at rotation time) are constructor/rotate-time, loud. Operator
+  products remain out of the type.
 
 ## 13. Step 3 detailed: generalised multipole matrix elements
 

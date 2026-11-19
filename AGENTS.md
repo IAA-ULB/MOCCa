@@ -331,9 +331,29 @@ perturbations).
   verify_COM_motion additionally gained an explicit
   `use moments, only: Qlm_spme_fm` - it reached Qlm_spme before only
   via the transitive use fission_MOI -> use moments chain.
-  NEXT UP: the §13.5 deferred items - first candidate odd-m and
-  Im-operator FAM fields end to end; alternatively, first dispose of
-  the single remaining Qlm_spme reference.
+  NEW INTERMEDIATE STEP AGREED (2026-11-19, design §6a amendment, design
+  stage only - nothing implemented yet): basis rotations. A sym_rotation
+  type in block_matrix_module holding one square real-orthonormal block
+  per populated sector (the shape MOCCa's own producers make: HFB's
+  Canonical diagonalises rho per 8-block, so cantransfo is exactly
+  sector-diagonal; basis_transform's merged signature-pair loops mix
+  nothing), plus an in-place metadata-preserving rotate of a sym_matrix:
+  A_b <- U_{srow}^T A_b U_{scol} per stored block (three dgemms).
+  User-confirmed scope: sector-diagonal real orthogonal ONLY - complex
+  unitaries fall out of the STy-invariant model (STy antilinear) and
+  signature-mixing rotations would need a signature-masked basis no
+  config produces; a rotation preserves herm/sty/kind/symmetry word/
+  goodqn/block list (the same operator in the rotated basis), so the
+  dropped-mat-mat decision stands - a similarity transform is not an
+  operator product. Loud structure checks: off-sector parts of a dense
+  rotation array must vanish, every block orthonormal, n/st must match
+  the operand exactly. Infrastructure step ahead of the §13.5 deferred
+  items; no consumer migrates with it (first production candidates:
+  the U^T O U factor of get_qpme_op's Bogoliubov image, canonical-basis
+  Ksum/MOI chains, transform_mat call sites). NEXT UP: implement design
+  §6a (module additions + block_matrix unit net extension). After that,
+  the §13.5 deferred items; alternatively, first dispose of the single
+  remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
