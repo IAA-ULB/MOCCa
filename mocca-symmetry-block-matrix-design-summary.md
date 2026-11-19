@@ -5,6 +5,15 @@ implemented in the MOCCa repository (github.com/IAA-ULB/MOCCa). It is written so
 that an agent (VIBE CLI) or a collaborator can start implementation without the
 preceding discussion.
 
+## 0. Implementation status
+
+This document records design intent, agreed conventions, amendments and
+measured records - each amendment stays inline in the section it amends,
+dated and commit-referenced. It deliberately carries no running progress
+narrative: live step status (one row per landed step, commit hashes and
+executed gates) is in `SPRINT.md`, open user decisions in `DECISIONS.md`,
+and out-of-scope findings in `FOUND_BUGS.md` - all at the repo root.
+
 ## 1. Purpose and scope
 
 MOCCa calculations are done in a basis of single-particle wavefunctions (spwfs)
@@ -773,6 +782,9 @@ whole-matrix `transform_mat` call sites once their callers migrate.
   an unlisted file is silently skipped by the Makefile-per-file invocation.
 
 ## 10. Suggested implementation order
+
+Live status of the steps below, with commit hashes and executed gates:
+the step table in `SPRINT.md` (repo root) - not this section.
 
 1. Core module: sector encoding, `sym_block`, `sym_matrix`, `init` from
    `HFblocks`, block-list construction with XOR pairing and kind-based
