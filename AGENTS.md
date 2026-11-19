@@ -154,6 +154,12 @@ cd testing/integration && bash golden_diff.sh minimal NLO   # run + golden compa
   through an optional three-suffix interface,
   `moments_unit_tests.sh SUFFIX [SUFFIX_T SUFFIX_P]` - locally the -T/-P
   suffixes derive from the base).
+  Also `testing/unit/block_matrix_unit_tests.sh`: the standalone unit
+  suite of block_matrix_module itself (compiles the module on the fly,
+  no MOCCa executable needed) including the 8 refusal scenarios of the
+  rotation structure guards; its CI job `block_matrix_unit_tests` needs
+  nothing but lint-and-format, so it gives the fastest feedback of the
+  whole workflow.
 - CI (`.github/workflows/CI.yml`) compiles gfortran and ifx builds in
   `ghcr.io/iaa-ulb/mocca-ci` containers and runs `minimal.sh` plus the
   integration batch scripts.

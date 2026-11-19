@@ -831,6 +831,40 @@ jobs:
             testing/unit/logs/moments_unit_tests.${{ env.SUFFIX_P }}.out
           retention-days: 2
 
+  #-----------------------------------------------------------------------------
+  # Unit tests of the symmetry-block matrix module itself (block_matrix_module,
+  # design summary sections 3-6a): construction of the block list from the
+  # HFBlocks bookkeeping, the fill callbacks, the dense expansion and the
+  # basis rotations - a standalone program compiled on the fly against the
+  # module, so no MOCCa executable is needed - plus the refusal scenarios
+  # of the rotation structure guards, which stop the process and are driven
+  # one exit status at a time by the same script.
+  #-----------------------------------------------------------------------------
+
+  block_matrix_unit_tests:
+    needs: lint-and-format
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'block_matrix_unit_tests'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iaa-ulb/mocca-ci:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Run block_matrix_unit_tests
+        run: |
+          cd testing/unit/
+          set -o pipefail
+          bash block_matrix_unit_tests.sh 2>&1 | tee logs/block_matrix_unit_tests.out
+
+      - name: Upload test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: block_matrix_unit_tests.logs
+          path: testing/unit/logs/block_matrix_unit_tests.out
+          retention-days: 2
+
   fam_t0t3:
     needs: [compile-mf-nuclei, compile-fam-nuclei]
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_test == '' || github.event.inputs.target_test == 'fam_t0t3'
