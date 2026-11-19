@@ -85,12 +85,32 @@ program block_matrix_unit_tests
   !      over the full cross product of patterns, symmetry words, class
   !      combinations and good-quantum-number masks
   !
+  ! The basis rotations (design section 6a) add:
+  !   *) the identity rotation is an exact no-op, built both by init
+  !      and extracted from a full identity array by init_from_dense
+  !   *) a rotated matrix keeps every metadata field (symmetry word,
+  !      kind, characteristic, goodqn, n, st) and its block list
+  !      still satisfies the construction invariants
+  !   *) the rotated storage agrees with the dense reference
+  !      C^T dense(M) C within reassociation tolerance
+  !   *) the round trip through the sector-wise transposed rotation
+  !      recovers the original numbers
+  !   *) the traces of the diagonal blocks are invariant (word 0)
+  !   *) for a partner-consistent operand, filled element-wise as a
+  !      symmetric or antisymmetric function of the global indices,
+  !      the dense expansion of the rotated matrix obeys
+  !      D(gj, gi) = kind * D(gi, gj) for both kinds
+  ! The structure guards of the rotation constructors are exercised by
+  !  the companion program block_matrix_refusal_tests.f90, driven by
+  !  the run script - they stop the process and cannot be caught
+  !  inside this suite.
+  !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of ten routines (plus the check helper that
-  !  registers every individual condition, and the two probed callbacks
-  !  the fill tests use):
+  ! The suite consists of eleven routines (plus the check helper that
+  !  registers every individual condition, and the probed callbacks the
+  !  fill and rotation tests use):
   !   test_construction : construction invariants over the full cross
   !                      product of patterns, symmetry words and class
   !                      combinations
@@ -103,6 +123,7 @@ program block_matrix_unit_tests
   !   test_goodqn      : the good-quantum-number mask of design 2b
   !   test_sty         : the physical classes of design 2a
   !   test_dense_expansion : partner-reconstructing dense expansion
+  !   test_rotation   : basis rotations of design section 6a
   !==============================================================================
   use block_matrix_module
 
@@ -123,6 +144,11 @@ program block_matrix_unit_tests
   integer :: seen(0:7, 0:7)        ! sector pairs the block callback served
   integer :: cur_counts(0:7)      ! current pattern, for shape checks
   character(len=160) :: cur_label  ! current case label
+  integer :: cur_st(0:8)           ! sector bounds of the current case,
+                                  !  for the global-index-value callback
+  integer :: cur_knd              ! derived kind of the current case,
+                                  !  selects the (anti)symmetric partner
+                                  !  callback of the rotation tests
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! HFBlocks patterns: MOCCa ordering, per the table in the module header.
@@ -154,6 +180,7 @@ program block_matrix_unit_tests
   call test_goodqn()
   call test_sty()
   call test_dense_expansion()
+  call test_rotation()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
   &     ntest, nfail
@@ -1004,6 +1031,204 @@ contains
     enddo
   end subroutine test_dense_expansion
   !----------------------------------------------------------------------------
+  subroutine test_rotation()
+    !---------------------------------------------------------------------------
+    ! Verify the basis rotations of design section 6a over the full cross
+    !  product of patterns, symmetry words, class combinations and a
+    !  representative set of good-quantum-number masks (15 unmasked, the
+    !  parity-masked 5, 7 and 13 of the dense tests - so the unmasked
+    !  pairing and the diagonal parity-broken case are both exercised).
+    !
+    ! Every case fills the matrix through the probed block callback with
+    !  deterministic values and builds a random orthogonal rotation (one
+    !  hashed Gram-Schmidt block per populated sector, handed through
+    !  set_sector). Judgments, per design section 8:
+    !   *) the identity rotation is an exact no-op, built both by init
+    !      and extracted from a full identity array by init_from_dense
+    !   *) a rotated matrix keeps every metadata field and its block
+    !      list still satisfies the construction invariants
+    !   *) the rotated storage agrees with the dense reference
+    !      C^T dense(M) C within reassociation tolerance
+    !   *) the round trip through the sector-wise transposed rotation
+    !      recovers the original numbers
+    !   *) the traces of the diagonal blocks are invariant (word 0)
+    !
+    ! A closing judgment per case, on a partner-consistent operand
+    !  filled element-wise as a symmetric (kind +1) or antisymmetric
+    !  (kind -1) function of the global indices: after rotation the
+    !  dense expansion obeys D(gj, gi) = kind * D(gi, gj) - the kind
+    !  partner relation survives the rotation, for both kinds.
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M
+    type(sym_rotation) :: Rident, Rrand, Rin
+    real(8), allocatable :: D0(:, :), Drot(:, :), Dref(:, :), C(:, :)
+    real(8), allocatable :: Ublk(:, :), tr_before(:)
+    integer :: p, word, h, sc, q, s, b, k, i, knd, sumexp, sp
+    integer :: herms(2), stys(2), masks(4)
+    real(8), parameter :: tol = 1.0d-8
+    real(8) :: offset, dev, tr_after
+    character(len=160) :: label
+
+    herms = [HERMITIAN, ANTIHERMITIAN]
+    stys = [STY_EVEN, STY_ODD]
+    masks = [15, 5, 7, 13]
+    offset = 11.0d0
+
+    do p = 1, NPAT
+      do word = 0, 7
+        do h = 1, 2
+          do sc = 1, 2
+          do q = 1, 4
+            knd = herms(h)*stys(sc)
+            write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,        &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),          &
+            &  ' mask ', masks(q)
+            cur_counts(0:7) = patterns(p, 1:8)
+            cur_label = trim(label)
+
+            call M%init(patterns(p, :), word, herms(h), stys(sc),              &
+            &          goodqn=masks(q))
+            cur_st = M%st
+            cur_knd = knd
+            call M%fill_blocks(fill_block_probed, int(offset))
+            D0 = M%dense()
+
+            ! Identity rotation through init: an exact no-op.
+            call Rident%init(patterns(p, :))
+            call M%rotate(Rident)
+            Drot = M%dense()
+            call check(all(Drot .eq. D0),                                      &
+            &          trim(label)//': identity init exact no-op')
+
+            ! Identity rotation extracted from a full identity array.
+            if (allocated(C)) deallocate(C)
+            allocate(C(M%n, M%n))
+            C = 0.0d0
+            do i = 1, M%n
+              C(i, i) = 1.0d0
+            enddo
+            call Rident%init_from_dense(patterns(p, :), C)
+            deallocate(C)
+            call M%rotate(Rident)
+            Drot = M%dense()
+            call check(all(Drot .eq. D0),                                      &
+            &          trim(label)//': identity init_from_dense exact no-op')
+
+            ! A random orthogonal rotation, one block per populated sector.
+            call Rrand%init(patterns(p, :))
+            do s = 0, 7
+              k = Rrand%st(s + 1) - Rrand%st(s)
+              if (k .eq. 0) cycle
+              Ublk = random_orthogonal(k, 100*s + 7*p)
+              call Rrand%set_sector(s, Ublk)
+            enddo
+            C = dense_of_rotation(Rrand)
+            Dref = matmul(transpose(C), matmul(D0, C))
+
+            ! Diagonal-block traces before the rotation (word 0: every
+            !  stored block is square and diagonal in sector space).
+            if (word .eq. 0) then
+              allocate(tr_before(M%nblocks))
+              do b = 1, M%nblocks
+                tr_before(b) = 0.0d0
+                do i = 1, min(size(M%blocks(b)%A, 1),                           &
+                &             size(M%blocks(b)%A, 2))
+                  tr_before(b) = tr_before(b) + M%blocks(b)%A(i, i)
+                enddo
+              enddo
+            endif
+
+            call M%rotate(Rrand)
+
+            ! Every metadata field is untouched, and the block list still
+            !  satisfies the construction invariants of that metadata.
+            call check(M%symmetry .eq. word,                                    &
+            &          trim(label)//': symmetry word kept')
+            call check(M%kind .eq. knd,                                         &
+            &          trim(label)//': derived kind kept')
+            call check(M%sty .eq. stys(sc),                                     &
+            &          trim(label)//': characteristic kept')
+            call check(M%goodqn .eq. masks(q),                                  &
+            &          trim(label)//': goodqn mask kept')
+            call check(M%n .eq. sum(cur_counts),                                &
+            &          trim(label)//': total size kept')
+            sumexp = 0
+            do s = 0, 7
+              sp = ieor(s, iand(word, masks(q)))
+              if (cur_counts(s) .eq. 0) cycle
+              if (cur_counts(sp) .eq. 0) cycle
+              if (s .gt. sp) cycle
+              sumexp = sumexp + 1
+            enddo
+            call check(M%nblocks .eq. sumexp,                                   &
+            &          trim(label)//': block count kept')
+            do b = 1, M%nblocks
+              call check(M%blocks(b)%srow                                       &
+              &          .eq. ieor(M%blocks(b)%scol, iand(word, masks(q))),     &
+              &          trim(label)//': block pairing kept')
+              call check(M%blocks(b)%is .eq. M%st(M%blocks(b)%srow),            &
+              &          trim(label)//': row offset kept')
+              call check(M%blocks(b)%js .eq. M%st(M%blocks(b)%scol),            &
+              &          trim(label)//': col offset kept')
+              call check(size(M%blocks(b)%A, 1)                                 &
+              &          .eq. cur_counts(M%blocks(b)%srow),                     &
+              &          trim(label)//': row shape kept')
+              call check(size(M%blocks(b)%A, 2)                                 &
+              &          .eq. cur_counts(M%blocks(b)%scol),                     &
+              &          trim(label)//': col shape kept')
+            enddo
+
+            ! The rotated storage equals the dense reference.
+            Drot = M%dense()
+            dev = 0.0d0
+            if (M%n .gt. 0) dev = maxval(abs(Drot - Dref))
+            call check(dev .le. tol,                                            &
+            &          trim(label)//': rotated equals dense reference')
+
+            ! Diagonal-block traces are invariant.
+            if (word .eq. 0) then
+              do b = 1, M%nblocks
+                tr_after = 0.0d0
+                do i = 1, min(size(M%blocks(b)%A, 1),                           &
+                &             size(M%blocks(b)%A, 2))
+                  tr_after = tr_after + M%blocks(b)%A(i, i)
+                enddo
+                call check(abs(tr_after - tr_before(b))                        &
+                &          .le. tol*max(1.0d0, abs(tr_before(b))),                &
+                &          trim(label)//': diagonal-block trace invariant')
+              enddo
+              deallocate(tr_before)
+            endif
+
+            ! Round trip: the sector-wise transposed rotation undoes Rrand.
+            call Rin%init(patterns(p, :))
+            do s = 0, 7
+              if (.not. allocated(Rrand%U(s)%U)) cycle
+              call Rin%set_sector(s, transpose(Rrand%U(s)%U))
+            enddo
+            call M%rotate(Rin)
+            Drot = M%dense()
+            dev = 0.0d0
+            if (M%n .gt. 0) dev = maxval(abs(Drot - D0))
+            call check(dev .le. tol,                                            &
+            &          trim(label)//': round trip recovers original')
+
+            ! Partner-consistent operand, both kinds: rotating again, the
+            !  dense expansion obeys D(gj, gi) = kind * D(gi, gj).
+            call M%fill_elements(fill_elem_partner, int(0))
+            call M%rotate(Rrand)
+            Drot = M%dense()
+            dev = 0.0d0
+            if (M%n .gt. 0) dev = maxval(abs(Drot - knd*transpose(Drot)))
+            call check(dev .le. tol,                                            &
+            &          trim(label)//': partner relation survives rotation')
+          enddo
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine test_rotation
+  !----------------------------------------------------------------------------
   subroutine fill_block_probed(srow, scol, A, params)
     !---------------------------------------------------------------------------
     ! block_filler-shaped test callback: counts its invocations, records
@@ -1063,6 +1288,105 @@ contains
     nelemcalls = nelemcalls + 1
     val = block_val(srow, scol, i, j, offset)
   end function fill_elem_probed
+  !----------------------------------------------------------------------------
+  function fill_elem_partner(srow, scol, i, j, params) result(val)
+    !---------------------------------------------------------------------------
+    ! element_filler-shaped callback for the partner-consistency judgment of
+    !  the rotation test: the value is a symmetric (kind +1) or
+    !  antisymmetric (kind -1, per cur_knd) function of the GLOBAL index
+    !  pair, through the cur_st bounds of the current case. Such a matrix
+    !  satisfies  A(s', s) = kind * A(s, s')^T  globally, over stored
+    !  blocks and unstored partners alike.
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol, i, j
+    class(*), intent(in)  :: params
+    real(8)               :: val
+
+    integer :: gi, gj
+
+    gi = cur_st(srow) + i - 1
+    gj = cur_st(scol) + j - 1
+    if (cur_knd .gt. 0) then
+      val = 1.5d0*gi*gj + 0.5d0*(gi + gj)
+    else
+      val = 1.5d0*(gi - gj)
+    endif
+  end function fill_elem_partner
+  !----------------------------------------------------------------------------
+  function random_orthogonal(k, seed) result(U)
+    !---------------------------------------------------------------------------
+    ! Deterministic pseudo-random orthogonal block: hashed columns through
+    !  modified Gram-Schmidt, re-orthogonalised once for numerical
+    !  quality, with a unit-vector fallback against degenerate hashes.
+    !  No library dependency - this suite links nothing but the module.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   k    : the block size
+    !   seed : deterministic variation between callers
+    ! Result:
+    !   U    : a (k, k) orthogonal block
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: k
+    integer, intent(in) :: seed
+    real(8) :: U(k, k)
+
+    real(8) :: v(k), nrm, prj
+    integer :: c, r, rr, pass, j
+
+    if (k .eq. 0) return
+
+    do c = 1, k
+      do r = 1, k
+        U(r, c) = cos(0.37d0*(seed + 7*c + 61*r))
+      enddo
+    enddo
+
+    do pass = 1, 2
+      do c = 1, k
+        v = U(:, c)
+        do rr = 1, c - 1
+          prj = dot_product(U(:, rr), v)
+          v = v - prj*U(:, rr)
+        enddo
+        nrm = sqrt(dot_product(v, v))
+        if (nrm .lt. 1.0d-8) then
+          ! Degenerate hash column: fall back to a unit vector outside the
+          !  span built so far - one always exists while c <= k.
+          do j = 1, k
+            v = 0.0d0
+            v(j) = 1.0d0
+            do rr = 1, c - 1
+              prj = dot_product(U(:, rr), v)
+              v = v - prj*U(:, rr)
+            enddo
+            nrm = sqrt(dot_product(v, v))
+            if (nrm .gt. 0.1d0) exit
+          enddo
+        endif
+        U(:, c) = v/nrm
+      enddo
+    enddo
+  end function random_orthogonal
+  !----------------------------------------------------------------------------
+  function dense_of_rotation(R) result(C)
+    !---------------------------------------------------------------------------
+    ! The full n x n array of a sym_rotation: the sector-diagonal blocks
+    !  at their global positions, zero elsewhere - the array a consumer
+    !  would own in the basis_transform convention (columns are the new
+    !  basis vectors expressed in the old basis).
+    !---------------------------------------------------------------------------
+    type(sym_rotation), intent(in) :: R
+    real(8), allocatable :: C(:, :)
+
+    integer :: s
+
+    allocate(C(R%n, R%n))
+    C = 0.0d0
+    do s = 0, 7
+      if (.not. allocated(R%U(s)%U)) cycle
+      C(R%st(s):R%st(s + 1) - 1, R%st(s):R%st(s + 1) - 1) = R%U(s)%U
+    enddo
+  end function dense_of_rotation
   !----------------------------------------------------------------------------
   pure function block_val(srow, scol, i, j, offset) result(val)
     !---------------------------------------------------------------------------

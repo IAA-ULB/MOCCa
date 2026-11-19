@@ -42,10 +42,28 @@ module block_matrix_module
   !  the partner-reconstructing dense
   !  expansion 'dense' (design sections 9 and 13): the core of the
   !  print_dense dump, the return shape behind dense wrappers such as
-  !  the new Qlm_spme_fm in moments.f90, and later the dense reference
-  !  builder for the mat-vec/mat-mat validation tests.
-  !  Later phases add mat-vec/mat-mat products and the complex-operator
-  !  wrapper.
+  !  the new Qlm_spme_fm in moments.f90, and the dense reference of the
+  !  rotation unit tests below. The mat-vec/mat-mat products once
+  !  planned for later phases are dropped (design section 6).
+  !
+  !  Basis rotations (design section 6a): the module also carries the
+  !  change of basis of a stored operator by a real orthogonal,
+  !  sector-diagonal rotation - one square orthonormal block per
+  !  populated sector, the shape MOCCa's own producers make (HFB's
+  !  Canonical diagonalises rho per MOCCa block, so cantransfo is
+  !  exactly sector-diagonal). The sym_rotation type holds the
+  !  per-sector blocks, built as the identity, extracted from a full
+  !  n x n rotation array in the basis_transform convention (each
+  !  column is a new basis vector expressed in the old basis), or
+  !  handed per sector - with loud structure checks in every case. The
+  !  in-place rotate of a sym_matrix transforms every stored block
+  !  independently as  A <- U_{srow}^T A U_{scol} : the SAME operator in
+  !  the rotated basis, with every metadata field preserved. A
+  !  similarity transform is not an operator product - products of
+  !  classifiable operators are unclassifiable and stay out of the type
+  !  (design sections 2a and 6). Complex unitaries (which would break
+  !  the STy-invariance of the stored basis) and rotations mixing
+  !  sector partners are out of scope by design.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Symmetry model
@@ -279,7 +297,36 @@ module block_matrix_module
     procedure :: fill_elements => fill_elements_sym_matrix
     procedure :: dense => dense_sym_matrix
     procedure :: print_dense => print_dense_sym_matrix
+    procedure :: rotate => rotate_sym_matrix
   end type sym_matrix
+
+  !----------------------------------------------------------------------------
+  ! One square orthonormal rotation block belonging to a single sector
+  !  (design section 6a). Left unallocated for empty sectors and for
+  !  objects that have not been through init yet.
+  type :: sector_rotation
+    real(8), allocatable :: U(:, :)   ! (k, k), orthogonal: U^T U = I
+  end type sector_rotation
+
+  !----------------------------------------------------------------------------
+  ! A basis rotation: one real orthonormal block per populated sector,
+  !  i.e. the sector-diagonal change of basis  psi' = C^T psi  whose
+  !  columns are the new basis vectors expressed in the old basis (the
+  !  basis_transform convention). Applied to a sym_matrix through rotate,
+  !  it expresses the SAME operator in the rotated basis and preserves
+  !  every metadata field (design section 6a).
+  type :: sym_rotation
+    integer :: n = 0                  ! total basis size, sum(HFBlocks)
+    integer :: st(0:8) = 0            ! 1-based sector bounds, scheme 2:
+                                      !  sector s spans st(s) .. st(s+1)-1;
+                                      !  st(0) = 1 marks an initialised
+                                      !  object, the default 0 does not
+    type(sector_rotation) :: U(0:7)   ! populated sectors only
+  contains
+    procedure :: init => init_sym_rotation
+    procedure :: init_from_dense => init_from_dense_sym_rotation
+    procedure :: set_sector => set_sector_sym_rotation
+  end type sym_rotation
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Population callbacks (design section 5): dummy procedures with an
@@ -327,6 +374,7 @@ module block_matrix_module
 
   private
   public :: sym_block, sym_matrix
+  public :: sector_rotation, sym_rotation
   public :: HERMITIAN, ANTIHERMITIAN
   public :: KIND_SYMMETRIC, KIND_ANTISYMMETRIC
   public :: STY_EVEN, STY_ODD
@@ -631,11 +679,10 @@ contains
     ! Elements not covered by a stored block or its partner are zero.
     !
     ! This is the core behind the print_dense dump, the return shape of
-    ! dense wrappers such as Qlm_spme_fm in moments.f90, and later the
-    ! dense reference builder for the mat-vec/mat-mat validation tests of
-    ! the design's later phases. The transposed flag is ignored here in
-    ! the same way as in print_dense: init never sets it and only later
-    !  phases assign it.
+    !  dense wrappers such as Qlm_spme_fm in moments.f90, and the dense
+    !  reference of the rotation unit tests (design section 6a). The
+    !  transposed flag is ignored here in the same way as in print_dense:
+    !  init never sets it and no runtime path assigns it.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   this : the matrix whose stored blocks are expanded
@@ -677,7 +724,7 @@ contains
     !      A(s', s) = kind * A(s, s')^T ,
     !  the expansion the dense reference of the design's validation tests
     !  (summary section 9) is built from. The transposed flag is ignored
-    !  there: init never sets it and only later phases assign it.
+    !  there: init never sets it and no runtime path assigns it.
     !
     ! Layout: a header decoding the symmetry word, the kind, the stored
     !  block list and the populated sectors, then the matrix itself, with
@@ -855,6 +902,258 @@ contains
     write(u, '(A)') line
     write(u, '(A)') ''
   end subroutine print_dense_sym_matrix
+  !----------------------------------------------------------------------------
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! BASIS ROTATIONS (design section 6a)
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  subroutine rotate_sym_matrix(this, R)
+    !---------------------------------------------------------------------------
+    ! Rotate a sym_matrix into the basis defined by the sector-diagonal
+    !  orthonormal blocks of R: the matrix of the SAME operator in the
+    !  rotated basis (design section 6a). Every stored block transforms
+    !  independently, with two dense products per block,
+    !      A_b <- U_{srow}^T A_b U_{scol} ,
+    !  and unstored partner blocks are never touched: the kind-based
+    !  partner relation survives the rotation, so the partners of the
+    !  rotated matrix remain reconstructible in dense().
+    !
+    ! A rotation preserves every metadata field - herm, sty, kind, the
+    !  symmetry word, goodqn, the block list and st - and goodqn plays no
+    !  role at all: rotate acts on storage sectors, never on quantum
+    !  numbers. This is a similarity transform, not an operator product
+    !  (products of classifiable operators stay out of the type).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input/output:
+    !   this : the matrix whose stored blocks are rotated, in place
+    !   R    : the rotation; must share this matrix's global HFBlocks
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(inout) :: this
+    class(sym_rotation), intent(in) :: R
+
+    integer :: b, srow, scol
+    real(8), allocatable :: tmp(:, :)
+
+    if (R%n .ne. this%n .or. any(R%st .ne. this%st)) then
+      print *, 'rotate: rotation and matrix must share the same global',       &
+      &         ' HFBlocks (n or st differ)'
+      stop 1
+    endif
+
+    do b = 1, this%nblocks
+      if (.not. allocated(this%blocks(b)%A)) cycle
+      srow = this%blocks(b)%srow
+      scol = this%blocks(b)%scol
+      if (.not. allocated(R%U(srow)%U) .or.                                     &
+      &   .not. allocated(R%U(scol)%U)) then
+        print *, 'rotate: rotation lacks a block of a populated sector'
+        stop 1
+      endif
+      tmp = matmul(this%blocks(b)%A, R%U(scol)%U)
+      this%blocks(b)%A = matmul(transpose(R%U(srow)%U), tmp)
+    enddo
+  end subroutine rotate_sym_matrix
+  !----------------------------------------------------------------------------
+  subroutine init_sym_rotation(this, HFBlocks)
+    !---------------------------------------------------------------------------
+    ! Construct the IDENTITY rotation of the basis described by HFBlocks:
+    !  one k x k identity block per populated sector, nothing for empty
+    !  sectors. Rotating with the result of init is an exact no-op, and
+    !  set_sector/init_from_dense can overwrite any of its blocks later.
+    !  init may be called repeatedly; previous state is discarded cleanly.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   HFBlocks(1:8) : number of spwfs per MOCCa symmetry block, the
+    !                   GLOBAL count array (HFBlocks_global); see init
+    !                   of sym_matrix for the block-to-sector table
+    !---------------------------------------------------------------------------
+    class(sym_rotation), intent(inout) :: this
+    integer, intent(in) :: HFBlocks(8)
+
+    integer :: s, k, i
+    integer :: counts(0:7)
+
+    if (any(HFBlocks < 0)) then
+      print *, 'init_sym_rotation: HFBlocks entries must be >= 0'
+      stop 1
+    endif
+
+    counts(0:7) = HFBlocks(1:8)
+    this%n = sum(counts)
+
+    this%st(0) = 1
+    do s = 0, 7
+      this%st(s + 1) = this%st(s) + counts(s)
+    enddo
+
+    do s = 0, 7
+      if (allocated(this%U(s)%U)) deallocate(this%U(s)%U)
+      k = counts(s)
+      if (k .eq. 0) cycle
+      allocate(this%U(s)%U(k, k))
+      this%U(s)%U = 0.0d0
+      do i = 1, k
+        this%U(s)%U(i, i) = 1.0d0
+      enddo
+    enddo
+  end subroutine init_sym_rotation
+  !----------------------------------------------------------------------------
+  subroutine init_from_dense_sym_rotation(this, HFBlocks, C, tol)
+    !---------------------------------------------------------------------------
+    ! Construct a rotation from a FULL n x n rotation array C, in the
+    !  basis_transform convention: each COLUMN of C is a new basis vector
+    !  expressed in the old basis (psi' = C^T psi). Only the
+    !  sector-diagonal parts of C are kept, one square block per
+    !  populated sector.
+    !
+    ! Loud structure checks, both against the tolerance 'tol'
+    !  (default 1e-12 absolute): C must be sector-diagonal - every
+    !  off-sector submatrix vanishes within tol - and every extracted
+    !  block must be orthonormal within tol. A C that mixes sectors is
+    !  REFUSED: the rotated basis would have no definite good quantum
+    !  numbers and no sym_matrix could represent operators over it.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   HFBlocks(1:8) : global MOCCa count array, see init_sym_rotation
+    !   C             : the full n x n rotation array
+    !   tol           : optional structure tolerance, default 1e-12
+    !---------------------------------------------------------------------------
+    class(sym_rotation), intent(inout) :: this
+    integer, intent(in) :: HFBlocks(8)
+    real(8), intent(in) :: C(:, :)
+    real(8), intent(in), optional :: tol
+
+    integer :: s, sp
+    real(8) :: tol_, dev
+
+    call this%init(HFBlocks)
+
+    if (size(C, 1) .ne. this%n .or. size(C, 2) .ne. this%n) then
+      print *, 'init_from_dense: C must be the full n x n rotation, got',     &
+      &         size(C, 1), 'x', size(C, 2), ' for n =', this%n
+      stop 1
+    endif
+
+    tol_ = 1.0d-12
+    if (present(tol)) tol_ = tol
+    if (tol_ <= 0.0d0) then
+      print *, 'init_from_dense: tolerance must be positive, got', tol_
+      stop 1
+    endif
+
+    do s = 0, 7
+      if (this%st(s + 1) <= this%st(s)) cycle
+
+      do sp = 0, 7
+        if (sp .eq. s) cycle
+        if (this%st(sp + 1) <= this%st(sp)) cycle
+        dev = maxval(abs(C(this%st(s):this%st(s + 1) - 1,                       &
+        &                    this%st(sp):this%st(sp + 1) - 1)))
+        if (dev .gt. tol_) then
+          print *, 'init_from_dense: C is not sector-diagonal: the',           &
+          &         ' off-sector block of sectors ', s, ' and ', sp,             &
+          &         ' has max abs', dev
+          stop 1
+        endif
+      enddo
+
+      this%U(s)%U = C(this%st(s):this%st(s + 1) - 1,                             &
+      &                this%st(s):this%st(s + 1) - 1)
+      dev = deviation_orthonormal(this%U(s)%U)
+      if (dev .gt. tol_) then
+        print *, 'init_from_dense: the block of sector', s, 'is not',           &
+        &         ' orthonormal: max |U^T U - I| =', dev
+        stop 1
+      endif
+    enddo
+  end subroutine init_from_dense_sym_rotation
+  !----------------------------------------------------------------------------
+  subroutine set_sector_sym_rotation(this, s, U, tol)
+    !---------------------------------------------------------------------------
+    ! Hand the orthonormal rotation block of a single sector directly -
+    !  the natural entry for unit tests and for callers that own
+    !  per-sector rotations (e.g. diagonalising one sector at a time).
+    !
+    ! Guards, all loud: the object must have been initialised (init or
+    !  init_from_dense), s must be a populated sector of the basis, U
+    !  must be square of the sector's size, and U must be orthonormal
+    !  within the tolerance 'tol' (default 1e-12 absolute).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   s   : the sector the block belongs to, 0..7
+    !   U   : the square orthonormal block of that sector
+    !   tol : optional orthonormality tolerance, default 1e-12
+    !---------------------------------------------------------------------------
+    class(sym_rotation), intent(inout) :: this
+    integer, intent(in) :: s
+    real(8), intent(in) :: U(:, :)
+    real(8), intent(in), optional :: tol
+
+    integer :: k
+    real(8) :: tol_, dev
+
+    if (this%st(0) .ne. 1 .or. this%n .lt. 0) then
+      print *, 'set_sector: call init or init_from_dense first'
+      stop 1
+    endif
+    if (s < 0 .or. s > 7) then
+      print *, 'set_sector: sector word must be in 0..7, got', s
+      stop 1
+    endif
+    k = this%st(s + 1) - this%st(s)
+    if (k .eq. 0) then
+      print *, 'set_sector: sector', s, 'is empty in this basis'
+      stop 1
+    endif
+    if (size(U, 1) .ne. k .or. size(U, 2) .ne. k) then
+      print *, 'set_sector: the block of sector', s, 'must be square of',    &
+      &         'size', k, ', got', size(U, 1), 'x', size(U, 2)
+      stop 1
+    endif
+
+    tol_ = 1.0d-12
+    if (present(tol)) tol_ = tol
+    dev = deviation_orthonormal(U)
+    if (dev .gt. tol_) then
+      print *, 'set_sector: the block of sector', s, 'is not orthonormal:',   &
+      &         ' max |U^T U - I| =', dev
+      stop 1
+    endif
+
+    if (allocated(this%U(s)%U)) deallocate(this%U(s)%U)
+    allocate(this%U(s)%U(k, k))
+    this%U(s)%U = U
+  end subroutine set_sector_sym_rotation
+  !----------------------------------------------------------------------------
+  pure function deviation_orthonormal(U) result(dev)
+    !---------------------------------------------------------------------------
+    ! Maximal deviation of a square block from orthonormality,
+    !      dev = max |U^T U - I| ,
+    ! zero for an empty block. Callers guarantee squareness; this helper
+    ! is the single place the orthonormality checks of the rotation
+    ! constructors are computed.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   U   : the square block to measure
+    ! Result:
+    !   dev : the maximal deviation from the identity of U^T U
+    !---------------------------------------------------------------------------
+    real(8), intent(in) :: U(:, :)
+    real(8) :: dev
+
+    real(8), allocatable :: G(:, :)
+    integer :: k, i
+
+    dev = 0.0d0
+    k = size(U, 1)
+    if (k .eq. 0) return
+
+    G = matmul(transpose(U), U)
+    do i = 1, k
+      G(i, i) = G(i, i) - 1.0d0
+    enddo
+    dev = maxval(abs(G))
+  end function deviation_orthonormal
   !----------------------------------------------------------------------------
 
 end module block_matrix_module

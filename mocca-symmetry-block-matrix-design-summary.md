@@ -541,7 +541,9 @@ everything the type stores:
                 = kind * A'(s', s)^T  .
   herm, sty, kind, the symmetry word, goodqn, the block list and the
   st bounds are ALL unchanged: rotate touches numbers, never metadata.
-  Three dgemms per stored block; the unstored partner blocks are never
+  Two dense products per stored block (intrinsic matmul: the module
+  stays free of explicit BLAS calls, so the standalone unit suite links
+  no library); the unstored partner blocks are never
   touched, exactly as everywhere else in section 6.
 
 Type and interface:
@@ -638,7 +640,7 @@ whole-matrix `transform_mat` call sites once their callers migrate.
 - Mat-vec/mat-mat checks are dropped with the operations (section 6).
 - Basis rotations (section 6a): identity is an exact no-op; the round trip
   (rotate by R, then by the sector-wise transposed rotation) recovers the
-  blocks at the reassociation level of three dgemms; the dense reference
+  blocks at the reassociation level of two dense products per block; the dense reference
   `C^T dense(A) C` agrees with the rotated blocks at their global
   positions; the partner relation `A'(s', s) = kind * A'(s, s')^T` holds
   for the rotated matrix of BOTH kinds (a KIND_ANTISYMMETRIC operand
@@ -720,6 +722,16 @@ whole-matrix `transform_mat` call sites once their callers migrate.
    extension of the block_matrix unit net (section 8). No consumer
    migrates with this step; the first production caller is decided
    later (candidates listed in section 6a).
+   Landed 2026-11-19: `sector_rotation`/`sym_rotation` (identity `init`,
+   `init_from_dense` with the structure checks, `set_sector`), the
+   in-place `rotate`, the orthonormality helper; the unit net extended
+   to 53562 checks, plus the 8-scenario refusal program
+   `block_matrix_refusal_tests.f90` - the structure guards stop the
+   process, so the script drives them per exit status. Gates: unit net
+   green (0 failures); golden minimal NLO 4849/4849 numbers
+   bit-identical; the moments suite green on NLO / NLO-T / NLO-P
+   including the cross-build comparison; mf builds of all four configs
+   compile with the frozen make.inc.
 
 ## 12. Design decisions to keep
 

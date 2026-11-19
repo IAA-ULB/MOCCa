@@ -244,7 +244,9 @@ perturbations).
      classes, derived kind), fill machinery (block_filler callback,
      element_filler fallback, new_sym_matrix sugar). Commits 395bde9d,
      6a6d92c8, 55272151, 35bf016e. Unit suite:
-     testing/unit/block_matrix_unit_tests (33506 checks).
+     testing/unit/block_matrix_unit_tests (33506 checks at the time;
+     53562 plus the 8-scenario refusal program after design 6a
+     landed, see the sprint state below).
    * Step 3, the fm multipole generator: the verbatim Qlm_spme move
      (9faf8238), Qlm_spme_matrix/Qlm_spme_fm - BOTH halves: r^l Re Y_lm
      STY_EVEN/kind symmetric, r^l Im Y_lm STY_ODD/kind antisymmetric,
@@ -331,29 +333,42 @@ perturbations).
   verify_COM_motion additionally gained an explicit
   `use moments, only: Qlm_spme_fm` - it reached Qlm_spme before only
   via the transitive use fission_MOI -> use moments chain.
-  NEW INTERMEDIATE STEP AGREED (2026-11-19, design §6a amendment, design
-  stage only - nothing implemented yet): basis rotations. A sym_rotation
-  type in block_matrix_module holding one square real-orthonormal block
-  per populated sector (the shape MOCCa's own producers make: HFB's
-  Canonical diagonalises rho per 8-block, so cantransfo is exactly
-  sector-diagonal; basis_transform's merged signature-pair loops mix
-  nothing), plus an in-place metadata-preserving rotate of a sym_matrix:
-  A_b <- U_{srow}^T A_b U_{scol} per stored block (three dgemms).
-  User-confirmed scope: sector-diagonal real orthogonal ONLY - complex
+  STEP 6a LANDED (2026-11-19, design §6a - basis rotations, the
+  intermediate infrastructure step before the §13.5 deferred items):
+  the sym_rotation type in block_matrix_module holds one square real-
+  orthonormal block per populated sector (the shape MOCCa's own
+  producers make: HFB's Canonical diagonalises rho per 8-block, so
+  cantransfo is exactly sector-diagonal; basis_transform's merged
+  signature-pair loops mix nothing), built three ways: init (identity
+  per populated sector), init_from_dense (extracts the sector-diagonal
+  blocks from a full n x n rotation array in the basis_transform
+  convention, REFUSING off-sector-nonzero or non-orthonormal input),
+  set_sector (direct per-sector handover, orthonormality checked;
+  tolerance default 1e-12 absolute on both paths). The in-place rotate
+  of a sym_matrix transforms every stored block independently,
+  A_b <- U_{srow}^T A_b U_{scol} (two matmuls per block, intrinsic
+  matmul - the module stays free of explicit BLAS calls so the
+  standalone unit suite links nothing), preserving every metadata
+  field (herm/sty/kind/symmetry word/goodqn/block list/st): the same
+  operator in the rotated basis, so the dropped-mat-mat decision stands
+  - a similarity transform is not an operator product. Scope stands
+  (user-confirmed): sector-diagonal real orthogonal ONLY - complex
   unitaries fall out of the STy-invariant model (STy antilinear) and
   signature-mixing rotations would need a signature-masked basis no
-  config produces; a rotation preserves herm/sty/kind/symmetry word/
-  goodqn/block list (the same operator in the rotated basis), so the
-  dropped-mat-mat decision stands - a similarity transform is not an
-  operator product. Loud structure checks: off-sector parts of a dense
-  rotation array must vanish, every block orthonormal, n/st must match
-  the operand exactly. Infrastructure step ahead of the §13.5 deferred
-  items; no consumer migrates with it (first production candidates:
-  the U^T O U factor of get_qpme_op's Bogoliubov image, canonical-basis
-  Ksum/MOI chains, transform_mat call sites). NEXT UP: implement design
-  §6a (module additions + block_matrix unit net extension). After that,
-  the §13.5 deferred items; alternatively, first dispose of the single
-  remaining Qlm_spme reference.
+  config produces. No consumer migrated (first production candidates:
+  the U^T O U factor of get_qpme_op's Bogoliubov image, canonical-
+  basis Ksum/MOI chains, transform_mat call sites). Gates green
+  (frozen make.inc): block_matrix unit net 53562 checks, 0 failures
+  (was 33506), plus the new 8-scenario refusal program
+  testing/unit/block_matrix_refusal_tests.f90 driven per exit status
+  by block_matrix_unit_tests.sh (the structure guards stop, so they
+  cannot be caught in-process); golden minimal NLO 4849/4849 numbers
+  bit-identical; moments suite green on NLO/NLO-T/NLO-P incl. the
+  cross-build comparison; mf builds of all four configs compile
+  (NLO-TP had to go serial - the -j4 run races on missing .mod files).
+  NEXT UP: the §13.5 deferred items - first candidate odd-m and
+  Im-operator FAM fields end to end; alternatively, first dispose of
+  the single remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
@@ -371,10 +386,12 @@ perturbations).
      an out-of-bounds in the parity-broken Coulomb folding path that the
      -O3 CI artifacts never check. Do not use debug-profile NLO-P
      builds until it is fixed; the frozen -O3 suite runs green.
-   * exec/MOCCa.NLO-TP.exe is a stale debug-profile binary; the mf
-     executables NLO/NLO-T/NLO-P were rebuilt with the frozen make.inc
-     on 2026-11-19 (including the oracle); MOCCa.NLO-TP.exe and fam.NLO
-     predate the oracle commit.
+   * exec/MOCCa.NLO-TP.exe was rebuilt with the frozen make.inc after
+     the rotation commit (2026-11-19) - no longer the stale debug
+     binary, but compiled only, no runtime-validated scenario; the
+     mf executables NLO/NLO-T/NLO-P were rebuilt with the frozen
+     make.inc on 2026-11-19 (including the oracle) and again after
+     the rotation commit. fam.NLO predates the oracle commit.
 - Conventions learned in this sprint (2026-11-19, user-confirmed; full
   reasoning in the commit messages and the design doc):
    * Folded meshes: the conservative/TR builds carry the z-fold in dv,
@@ -424,11 +441,17 @@ perturbations).
 - Local test artifacts for step 3 (gitignored, machine-local):
   `exec/fam.NLO.reference.exe` is the parked FAM anchor;
   exec/MOCCa.NLO.exe, MOCCa.NLO-T.exe, MOCCa.NLO-P.exe and fam.NLO.exe
-  are freshly rebuilt and validated (frozen make.inc, 2026-11-19; fam.NLO
+  are freshly rebuilt and validated (frozen make.inc; fam.NLO
   includes the step-5 migration); fam.NLO-P.exe is validated on the
   zcom/l=1 NLO-P scenarios above; fam.NLO-T.exe is compiled (2026-11-19)
   but has no runtime-validated scenario yet;
-  MOCCa.NLO-TP.exe is a stale debug binary (see the open items).
+  the four mf executables NLO/NLO-T/NLO-P/NLO-TP were rebuilt with the
+  frozen make.inc after the rotation commit (2026-11-19): NLO golden-
+  validated and moments-suite-validated, NLO-T/NLO-P moments-suite-
+  validated, MOCCa.NLO-TP.exe compiled only - it is no longer the
+  stale debug binary, but has no runtime-validated scenario (the
+  debug-profile latent bug in the parity-broken Coulomb folding path
+  is untouched, see the open items).
   fam_unit_tests NLO/SLy4 is the runtime green net for fam.NLO; the
   multipole A/B scratch scenarios live in /tmp only (O18/SLy4/HFB,
   Q20 and Q22 @ 25 MeV vs the parked anchor, bit-identical famfiles).
