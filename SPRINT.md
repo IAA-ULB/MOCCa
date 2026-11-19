@@ -108,9 +108,8 @@ Deferred / parked (not lost - do not re-litigate):
 
 - Quick compile iterations: debug profile -
   `make CONFIG=X clean` then `make CONFIG=X mf INCLUDE=gnu-debug` (-O0,
-  bounds checks, no HDF5). Caveat: debug-profile NLO-P builds crash on a
-  pre-existing Coulomb bug (FOUND_BUGS.md F-1) - use the frozen -O3 build
-  for NLO-P gates.
+  bounds checks, no HDF5). The debug profile is again usable for every
+  CONFIG now that the Coulomb crash of FOUND_BUGS.md F-1 is fixed.
 - The root `make.inc` stays frozen (-O3 + HDF5) and must back every numerical
   gate or golden comparison (it is the trust anchor for the golden logs and
   parked executables). make.inc is outside the dependency graph: an

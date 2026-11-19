@@ -10,7 +10,7 @@ and the commit messages, not here.
 
 | # | Status | Where found |
 |---|---|---|
-| F-1 | OPEN | coulomb.f90 / debug NLO-P builds |
+| F-1 | FIXED (0d883c19) | coulomb.f90 / debug NLO-P builds |
 | F-2 | FIXED (2421931f) | wavefunctions.f90 dead kernels |
 | F-3 | OPEN (adjudication pending) | linear_momentum arm |
 | F-4 | OPEN (workaround) | Makefile / NLO-TP parallel build |
@@ -20,15 +20,19 @@ and the commit messages, not here.
 | F-8 | OPEN (cosmetic) | FAM output, parity-broken builds |
 | F-9 | KNOWN LIMITATION | cross-build trace comparisons |
 
-### F-1 Coulomb folding out-of-bounds in debug-profile NLO-P builds — OPEN
+### F-1 Coulomb folding out-of-bounds in debug-profile NLO-P builds — FIXED (0d883c19)
 
 Pre-existing, found 2026-11-19 (angular-momentum arm attempt), NOT a sprint
-regression. The debug-profile (-fbounds-check) NLO-P binary crashes in
-coulomb.f90's obtain_folded_potentials (fold_form_factor_reverse, index 26 of
-dimension 3 vs extent 24) during set_up_mean_field. An out-of-bounds in the
-parity-broken Coulomb folding path that the -O3 CI artifacts never check.
-Workaround: do not use debug-profile NLO-P builds; NLO-P gates run on the
-frozen -O3 build (green).
+regression. obtain_folded_potentials sliced F%ExchangePotential - an array on
+the original mesh - with the Coulomb-mesh offsets, so any build storing z
+unfolded ($FULLZ: coul_offset_z = BC) overshoots the z slice to BC+nz,
+crashing under -fbounds-check (index 26 vs extent 24). The direct
+CoulombPotential slice is padded and was correct. Fixed by passing the
+unpadded ExchangePotential. No production numerics were ever corrupted: the
+branch requires coultreatment=1 with folding matrices allocated, a
+combination rejected at startup (parameterization.f90); frozen -O3 NLO-P A/B
+vs the pre-fix binary is token-identical. Debug-profile NLO-P builds work
+again.
 
 ### F-2 angmom_x_imag / spin_x_imag spin-pairing transcription bug — FIXED (2421931f)
 
