@@ -65,7 +65,10 @@ the legacy agrees to 3e-15 exactly as filled.
 ### F-4 make -j4 races on missing .mod files (NLO-TP) — workaround: build serial
 
 A parallel (-j4) mf build of NLO-TP terminated on missing .mod files
-(2026-11-19, rotations gate). Workaround: build NLO-TP serially. The same
+(2026-11-19, rotations gate). Not config-specific: reproduced on NLO-P
+2026-11-19 - the first dispatched consumer whose provider is still
+compiling dies with "Cannot open module file '...mod' for reading"
+(there: IO.o vs io_wf.mod). Workaround: build serially. The same
 missing-.mod-dependency wart bites SERIAL builds too after any module
 interface change (observed 2026-11-19, the find_nml_error signature change):
 consumers keep compiling against a stale .mod. A changed interface in a
