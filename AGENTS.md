@@ -106,37 +106,38 @@ Consequences when editing near markers:
   Check: `fortitude --config-file .fortitude.toml check src_orig/`.
 - House comment style: `#`-fenced banners and `- - - -` separators, as
   found throughout the sources and `testing/`.
-- Functions and subroutines should at least have a documentation section 
-  explaining input and output.
-- An example of the comment type expected:
+- In-code documentation is bounded by information content, not routine
+  size. The house banner format (`!----` fences, Input/Output sections)
+  is reserved for routines whose semantics are genuinely non-obvious -
+  symmetry sign conventions, units, quantum-number encodings, `$`-marker
+  keys, operator classes. Everything else gets one to three `!` lines of
+  purpose, plus Input/Output lines only where the argument names do not
+  carry the meaning.
+- Comment the why and the conventions, never the what. No revision
+  dates, commit hashes, or design-summary restatements inside code
+  comments - the commit message and the design summary are those
+  records. Do not imitate a verbose legacy banner when editing near it,
+  and do not rewrite existing banners without other cause (minimal diff
+  wins); the conciseness rules bind NEW and MOVED code.
+- Self-check before committing: if a comment line can be deleted without
+  a routine's user losing information they need, delete that line.
+- An example of the target economy (deliberately the same routine that
+  used to appear here as a 25-line banner):
   `subroutine set_spwf_symmetries(sx,sy,sz,blocks)
     !---------------------------------------------------------------------------
-    ! Routine that assigns the correct "signs" under symmetry transformation 
-    ! to all single-particle wavefunctions. 
-    !
-    ! Hephaestos fills in all practical signs here, using the following key
-    !
-    !  [dollar sign] SXab
-    !
-    !  where 
-    !      X  = X;Y;Z depending on the direction
-    !      a  = block index, i.e. 1-4 depending on the symmetries of the spwf
-    !      b  = component index, i.e. 1-4 depending on the spinor component
-    !           we are dealing with
+    ! Assigns the x/y/z reflection signs of all spwf spinor components;
+    ! Hephaestos fills them via the $SXab marker key:
+    !   X = direction, a = symmetry-block index, b = spinor component.
     !---------------------------------------------------------------------------
-    ! Input: blocks 
-    !        The number of spwfs in every symmetry block. 
-    !        This is an input of this routine, because this subroutine could be 
-    !        called for a subset of spwfs when reading from file.
-    !
-    ! Output: sx, sy, sz
-    !        The signs with respect to x/y/z reflection of the components of 
-    !        the spwf spinors. 
+    ! Input:  blocks - spwf counts per symmetry block (may be a subset
+    !                  when reading from file)
+    ! Output: sx, sy, sz - per-component reflection signs
     !---------------------------------------------------------------------------`
 
 ## Language 
-- You should aim to be concise yet precise. This is particularly important 
-  for important for in-code documentation.
+- Be concise yet precise, in prose and especially in code comments; shorter
+  than the Style example above means something was lost, longer means
+  something was restated.
 - Where possible, use nuclear physics terminology - not terminology borrowed 
   from other fields. Example: "good quantum numbers" instead of "gradings". 
   
