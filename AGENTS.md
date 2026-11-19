@@ -372,36 +372,53 @@ perturbations).
   bit-identical; moments suite green on NLO/NLO-T/NLO-P incl. the
   cross-build comparison; mf builds of all four configs compile
   (NLO-TP had to go serial - the -j4 run races on missing .mod files).
-  NEXT UP: the angular-momentum step of design §14 - the K_x fill fix
-  (commit 1 of §14.4, with the empirical audit of the Belyaev/MOI
-  rows), then the angular_momentum.f90 generators + unit arm (commit
-  2), then the calcJ2andBelyaev_HFB migration feeding the sym_rotation
-  consumers of §6a. After that, the §13.5 deferred items;
-  alternatively, first dispose of the single remaining Qlm_spme
-  reference.
+  ANGULAR-MOMENTUM GENERATORS LANDED (2026-11-19, design §14.4 row 2;
+  row 1 - the K_x fill fix - CANCELLED by measurement, §14.2): the
+  marker-free module src_orig/angular_momentum.f90 hosts the five
+  generators on sym_matrix - honest J_x (word 1, HERMITIAN x
+  STY_EVEN), J_y (word 1, HERMITIAN x STY_ODD), J_z (word 0,
+  HERMITIAN x STY_EVEN) and the TR-folded twins J_x.T (word 0,
+  HERMITIAN x STY_EVEN) and J_y.T (word 0, ANTIHERMITIAN x STY_ODD,
+  both halves kind +1 SYMMETRIC, measured) - wrapping
+  wavefunctions.f90's angmom kernels verbatim as per-pair values. The
+  folded generators exist in every build; callers gate ($TR-marked
+  call sites only), the module is Hephaestos-marker-free. The arm
+  src_orig/angular_momentum_testing.f90 (run_angular_momentum_tests,
+  armed by the unit_test flag from Run_MOCCa, before
+  run_moments_tests) is the kernel-transpose oracle: per object it
+  verifies the block structure and stored values, measures
+  K(wf_i,wf_j) vs K(wf_j,wf_i) per stored pair with the raw kernels and
+  checks agree with the tagged kind, checks partner consistency
+  A(s',s) = kind*A(s,s')^T, and PRINTS (does not judge) the purity of
+  the opposite-half kernels. Arm verdicts on the O16/SLy4 unit state
+  (maxiter=0): NLO - honest J_x/J_y structural zeros (0 blocks, the
+  odd-m precedent), J_z/J_x.T/J_y.T symmetric at 2.5e-14/1.6e-14/
+  1.1e-14; NLO-T - all five agree (J_y antisymmetric at 2.1e-15, both
+  folds symmetric at 7.5e-15/2.1e-15). NLO-P via the frozen -O3 build
+  only (see the coulomb open item). The §14.2 audit: the suspected
+  K_x fill bug is REFUTED - the symmetric `$TR` fill is correct, an
+  antisymmetric-fill A/B with symmetries.sh breaks exactly the
+  x-consuming rows (Belyaev X 0.9295 -> 3.2213, the two <J^2>-<J>^2
+  definitions split on X), source reverted, no production line
+  changed.
+  NEXT UP: the calcJ2andBelyaev_HFB consumer migration (design §14.4
+  row 3), feeding the sym_rotation consumers of §6a. After that, the
+  §13.5 deferred items; alternatively, first dispose of the single
+  remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
-   * ANGULAR-MOMENTUM STEP AGREED (2026-11-19, design §14, design stage
-     only): a new marker-free module src_orig/angular_momentum.f90
-     hosting FIVE generators on sym_matrix - the honest trio J_x (word
-     1, HERM x STY_EVEN), J_y (word 1, HERM x STY_ODD), J_z (word 0,
-     HERM x STY_EVEN), wrapping wavefunctions.f90's angmom kernels
-     verbatim, plus the TR-folded pair J_x.T / J_y.T (word 0, both
-     ANTIHERMITIAN; kinds -1 / +1). The folded generators exist in
-     every build (callers gate, not markers: only $TR-marked call sites
-     construct them). Sequencing per design §14.4: (1) the K_x fill fix
-     below, (2) the module + unit arm with the kernel-transpose
-     oracle, (3) the calcJ2andBelyaev_HFB migration, then the
-     sym_rotation consumers (design §6a first production caller).
-   * LATENT BUG (pre-existing, found 2026-11-19, user-CONFIRMED as a
-     bug): the $TR fill of the folded jx sets jx(jj,ii) = jx(ii,jj)
-     (momentsofinertia.f90:832) - symmetric, while the classes of
-     J_x.T (ANTIHERMITIAN x STY_EVEN, kind -1) demand
-     jx(jj,ii) = -jx(ii,jj). The folded jy fill (kind +1) is correct.
-     Likely invisible so far ($TR J2 consumers square the elements),
-     but the Belyaev/MOI rows must be AUDITED EMPIRICALLY at fix time;
-     if golden numbers move, the delta is the correction and is
-     accepted deliberately. Design §14.2; the fix is commit 1 of the
-     §14.4 sequencing.
+   * DEAD angmom KERNELS (found 2026-11-19 by the arm's purity print,
+     design §14.2b): angmom_x_imag, angmom_y_real, angmom_z_imag are
+     referenced nowhere in production - the unit arm is their first
+     caller - and all three measure O(1) on real states; in particular
+     angmom_z_imag measures O(1) where the j-distribution comment of
+     calcJ2andBelyaev_HFB asserts jz_ij is always real. Either the
+     dead kernels carry different semantics than their names suggest,
+     or that premise is wrong. The arm prints their magnitudes but
+     does not judge; deciding (and possibly deleting) is a user
+     decision. (The symmetries.*.out logs have been rerun green on
+     the frozen executables after the K_x A/B; the broken-experiment
+     and healthy pre-change evidence of design §14.2 lives only in
+     the doc's recorded numbers now.)
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
      oracle hook in fission_MOI.f90. Either Qlm_spme and the oracle go
@@ -415,9 +432,12 @@ perturbations).
      the debug-profile (-fbounds-check) NLO-P binary crashes in
      coulomb.f90's obtain_folded_potentials (fold_form_factor_reverse,
      index 26 of dimension 3 vs extent 24) during set_up_mean_field -
-     an out-of-bounds in the parity-broken Coulomb folding path that the
-     -O3 CI artifacts never check. Do not use debug-profile NLO-P
-     builds until it is fixed; the frozen -O3 suite runs green.
+     reproduced 2026-11-19 by the angular-momentum arm attempt (the
+     debug moments_unit_tests NLO-P leg terminated on exactly this
+     before the arm could run; the NLO-P arm gate is the frozen -O3
+     build). An out-of-bounds in the parity-broken Coulomb folding path
+     that the -O3 CI artifacts never check. Do not use debug-profile
+     NLO-P builds until it is fixed; the frozen -O3 suite runs green.
    * exec/MOCCa.NLO-TP.exe was rebuilt with the frozen make.inc after
      the rotation commit (2026-11-19) - no longer the stale debug
      binary, but compiled only, no runtime-validated scenario; the
@@ -457,16 +477,17 @@ perturbations).
      executable's own suite (moments: run_moments_tests from
      Run_MOCCa; fam: run_FAM_tests from fam_run).
    * MOCCa's time reversal is FERMIONIC: T**2 = -1 on the spwfs
-     (user-confirmed 2026-11-19; design §14). Consequences recorded
-     with the angular-momentum step: the antilinear composites J_mu.T
-     have user-asserted classes (NOT derived from the §2a
-     linear-operator algebra): K_x = J_x.T is word 0, ANTIHERMITIAN x
-     STY_EVEN (kind -1, antisymmetric real storage), K_y = J_y.T is
-     word 0, ANTIHERMITIAN x STY_ODD (kind +1, symmetric imaginary
-     storage); the empirical arbiter of all kind signs is the
-     kernel-transpose oracle (design §14.3) - the angmom kernels are
-     pure functions, so K(wf_i,wf_j) vs K(wf_j,wf_i) settles each
-     sign numerically.
+     (user-confirmed 2026-11-19; design §14). Consequences, MEASURED
+     2026-11-19 by the kernel-transpose oracle (design §14.1/§14.2;
+     the earlier asserted classes are superseded): the antilinear
+     composite J_mu.T is HERMITIAN as an operator - the user-accepted
+     chain (J.T)^dagger = -T**2 (J.T) = +(J.T) - and BOTH folded twins
+     measure kind +1 SYMMETRIC storage; K_x = J_x.T is word 0,
+     HERMITIAN x STY_EVEN; K_y = J_y.T is word 0, STY_ODD with herm =
+     ANTIHERMITIAN as the kind-COMPLETING label (herm = kind * sty) -
+     not a physical class: the §2a (herm,sty)->kind machinery does not
+     transfer to antilinear composites. All kind signs are test
+     assertions settled by the arm's oracle, never re-derived.
 
 - Oracle-run recipes for the hook (local, gitignored): copy the
   parameterization (e.g. SLy4.param) next to the executable; TR-broken
@@ -488,13 +509,16 @@ perturbations).
   includes the step-5 migration); fam.NLO-P.exe is validated on the
   zcom/l=1 NLO-P scenarios above; fam.NLO-T.exe is compiled (2026-11-19)
   but has no runtime-validated scenario yet;
-  the four mf executables NLO/NLO-T/NLO-P/NLO-TP were rebuilt with the
-  frozen make.inc after the rotation commit (2026-11-19): NLO golden-
-  validated and moments-suite-validated, NLO-T/NLO-P moments-suite-
-  validated, MOCCa.NLO-TP.exe compiled only - it is no longer the
-  stale debug binary, but has no runtime-validated scenario (the
-  debug-profile latent bug in the parity-broken Coulomb folding path
-  is untouched, see the open items).
+  the mf and fam executables of NLO/NLO-T/NLO-P and the mf executable
+  of NLO-TP were rebuilt with the frozen make.inc after the
+  angular-momentum commit (2026-11-19, including the arm): NLO is
+  golden-validated (minimal 4849/4849) and moments-suite-validated
+  with the angular-momentum arm green on all of NLO/NLO-T/NLO-P;
+  NLO-TP is compiled only (the debug-profile latent bug in the
+  parity-broken Coulomb folding path is untouched, see the open
+  items); fam.NLO is fam-unit-validated (SLy4) on the rebuilt binary;
+  fam.NLO-T/fam.NLO-P are compiled only, without a
+  runtime-validated scenario.
   fam_unit_tests NLO/SLy4 is the runtime green net for fam.NLO; the
   multipole A/B scratch scenarios live in /tmp only (O18/SLy4/HFB,
   Q20 and Q22 @ 25 MeV vs the parked anchor, bit-identical famfiles).

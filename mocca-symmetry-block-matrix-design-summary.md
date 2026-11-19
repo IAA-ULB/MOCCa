@@ -176,9 +176,14 @@ Occupation patterns of the basis sectors:
 - EV8 symmetries ('Rz,T,P,STy'): blocks 1, 3, 5, 7 -> sectors 0, 2, 4, 6.
 - Time-reversal broken: blocks 2, 4, 6, 8 additionally populated ->
   sectors 1, 3, 5, 7.
-- Parity broken ('Rz,T,STy' / 'Rz,STy'): all states in blocks 1, 2, 5, 6
-  -> sectors 0, 1, 4, 5; blocks 3, 4, 7, 8 remain empty throughout the
-  run and the parity bit of a basis sector is vacuous.
+- Parity broken ('Rz,T,STy' / 'Rz,STy'): the eight-slot grid PERMITS
+  blocks 1, 2, 5, 6 (sectors 0, 1, 4, 5), but at runtime only blocks
+  1, 5 are populated: the parity blocks MERGE into them, every stored
+  state is q(Rz) = +i (user-confirmed 2026-11-19), and blocks 2, 6
+  carry zero count for as long as T is conserved; blocks 3, 4, 7, 8
+  remain empty throughout the run and the parity bit of a basis sector
+  is vacuous. The s = block - 1 encoding is thereby untouched in every
+  build.
 
 Convention note for antiunitary operations: if any of the three symmetry
 operations is antiunitary (involves complex conjugation) in the convention
@@ -259,6 +264,94 @@ conserved time simplex neither merges nor separates blocks) and is not a
 gate; it is the consumer's completeness criterion for the characteristic
 of section 2a, and every SYMSTRING in the tree today declares
 STy, so it is set in all existing configs.
+
+### 2d. TR-folded composites (agreed 2026-11-19, design stage)
+
+In a build that stores only the q(Rz) = +i sectors - every
+parity-conserving config, blocks 1, 3, 5, 7 - the stored basis is one
+half of the doubled single-particle basis, and the omitted -i partners
+are the time reverses of the stored states (MOCCa's T is fermionic,
+T**2 = -1, section 14). A `$TR`-marked consumer that needs the
+cross-signature content of a signature-flipping operator can then not
+read it off the honest operator matrix - the partner sectors are empty
+and the honest matrix is structurally zero (the odd-m multipole
+precedent). What it needs is the composite
+
+    < i , O T , j >  =  < psi_i | O | T psi_j >  ,
+
+the honest matrix element of O between a stored row state and the
+time-reversal image of a stored column state: a piece of the honest
+operator matrix over the doubled basis, folded back onto the stored half
+- the matrix elements "of nabla with the time reverses of the states", in
+the words of the agreement. Rather than handling this case per family,
+every generator family exposes the folded twin through ONE uniform
+convention:
+
+- Construction: the honest kernel with the time-reversed image of the
+  ket, exactly as the wavefunctions.f90 machinery already implements it
+  - the `t` kernels for the angmom family, the TR flag of
+  `Transfer_psi`/`Transfer_derpsi` for the gradient family. Producers
+  wrap the existing kernels verbatim, values per stored pair, as
+  everywhere in this sprint; no re-derivation of the fold conventions.
+- Word: T conserves parity and isospin and flips the Rz grading, so the
+  twin's physical word is `IEOR(word, 1)` - observed in both existing
+  families (J_x word 1 -> word 0; \nabla_x word 3 -> word 2).
+- Herm: the composite is HERMITIAN as an operator for the angmom family
+  (measured 2026-11-19, section 14.1): with MOCCa's FERMIONIC time
+  reversal, T**2 = -1, the user-accepted chain
+  ` (J.T)^dagger = -T**2 (J.T) = +(J.T)` holds. The blanket ANTIHERMITIAN
+  rule asserted earlier is REFUTED by the oracle: both folded angmom
+  twins measure SYMMETRIC storage (kind +1). CAVEAT: the section-2a
+  kind = herm * sty machinery does not transfer to antilinear composites
+  - the sty-odd twin (K_y) needs herm = ANTIHERMITIAN as the
+  kind-completing LABEL (herm = kind * sty), not as a physical class.
+  Classes of future families (nabla section 15, spin, ...) remain
+  per-family assertions, each settled by its own kernel-transpose oracle:
+  kind signs are test assertions, never assumptions.
+- Sty: carried over from the honest operator, per component. Kind is
+  settled by measurement, not derived (the caveat above): the angmom
+  twins measure kind +1 BOTH (symmetric storage, section 14.1); the
+  \nabla twins of section 15.2 are pending their own oracle.
+- Existence and marker policy: the twins EXIST in every build and the
+  generator modules stay marker-free; their callers gate - only `$TR`
+  -marked call sites construct them, dead code in TR-broken builds by
+  construction, not by preprocessing.
+
+The convention absorbs its own special cases. The twin of an honest
+operator whose word has bit 0 clear (J_z word 0, \nabla_z word 2) has
+bit 0 set: in a `$TR` build its partner sectors are empty and it is
+structurally zero through the ordinary empty-sector skip - "needs
+no folded twin" is a corollary, not a rule. In a `$TR` build exactly one
+of {honest, twin} carries content per family, decided by bit 0 of the
+honest word; in a `$NTR` build the honest objects carry everything and
+no twin is ever constructed.
+
+Every TR-conserving config stores the +i half only, parity-broken
+included (user-corrected 2026-11-19): when parity breaks, the parity
+blocks MERGE - the basis never gains -i states while T is conserved -
+so the collapse above covers NLO-P just like NLO. The +i-only reading
+of the composite - "the honest matrix elements with the time reverses
+of the stored states" - is what every `$TR` call site consumes, and the
+doubled basis materialising T-images alongside the stored states is the
+reference shape for the oracle proposed in 15.6. A bookkeeping caution
+(user-confirmed 2026-11-19): 2b's occupation row lists the grid-PERMITTED
+slots - under merged parity only blocks 1 and 5 are populated at
+runtime and every stored state is q(Rz) = +i, so the constructor's
+`s = block - 1` encoding stands in every build.
+
+Consumers address objects by name (honest vs folded), never through
+build-dependent array slots - dissolving the fill-slot semantic overload
+that CompNablaMelements' array carries today (section 15.1).
+
+Scope: a PRODUCER-SIDE convention. The type changes not at all - a
+folded composite is an ordinary classifiable matrix over the stored
+basis (one stored half, its classes, its masked word), which is why
+block_matrix_module must not learn about time reversal; T-knowledge
+stays with the kernels of the generator modules. Families covered so
+far: the angular-momentum generators of section 14 (K_x, K_y) and the
+gradient generators of section 15 (\nabla_x.T, \nabla_y.T). Multipoles
+are deliberately NOT folded: section 13.5 remains the gate for their
+odd-m / imaginary-operator content end to end.
 
 ## 3. Type definitions
 
@@ -780,6 +873,14 @@ whole-matrix `transform_mat` call sites once their callers migrate.
   dense source array, orthonormality of every handed block, exact n/st
   match at rotation time) are constructor/rotate-time, loud. Operator
   products remain out of the type.
+- TR-folded composites (section 2d) are a producer-side convention, not
+  type machinery: the twin kernel is the honest kernel with T's image of
+  the ket, its physical word is `IEOR(word, 1)`, it is ANTIHERMITIAN
+  (asserted from MOCCa's fold conventions per family, the
+  kernel-transpose oracle as arbiter), sty carries over per component,
+  and only `$TR`-marked call sites construct it. The type never learns
+  about time reversal; folded composites are ordinary classifiable
+  matrices over the stored basis.
 
 ## 13. Step 3 detailed: generalised multipole matrix elements
 
@@ -983,13 +1084,23 @@ Base conventions recorded on MOCCa's side (user-confirmed 2026-11-19):
 
 ### 14.1 The five operators
 
-| object | word | herm | sty | kind | stored numbers | kernel |
-|---|---|---|---|---|---|---|
-| `J_x` | 1 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_x,j>` | `angmom_x_real` |
-| `J_y` | 1 | HERMITIAN | STY_ODD | -1 antisym. | `Im <i,J_y,j>` | `angmom_y_imag` |
-| `J_z` | 0 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_z,j>` | `angmom_z_real` |
-| `J_x.T` | 0 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | `Re <i,J_x T,j>` | `angmom_xt_real` |
-| `J_y.T` | 0 | ANTIHERMITIAN | STY_ODD | +1 symmetric | `Im <i,J_y T,j>` | `angmom_yt_imag` |
+| object | word | herm | sty | kind | stored numbers | kernel | measured mirror (14.3) |
+|---|---|---|---|---|---|---|---|
+| `J_x` | 1 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_x,j>` | `angmom_x_real` | symmetric, 7.8e-15 (NLO-T) |
+| `J_y` | 1 | HERMITIAN | STY_ODD | -1 antisym. | `Im <i,J_y,j>` | `angmom_y_imag` | antisymmetric, 2.1e-15 (NLO-T) |
+| `J_z` | 0 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_z,j>` | `angmom_z_real` | symmetric, 2.5e-14 (NLO) |
+| `J_x.T` | 0 | HERMITIAN | STY_EVEN | +1 symmetric | `Re <i,J_x T,j>` | `angmom_xt_real` | symmetric, 7.5e-15 (NLO-T) |
+| `J_y.T` | 0 | ANTIHERMITIAN* | STY_ODD | +1 symmetric | `Im <i,J_y T,j>` | `angmom_yt_imag` | symmetric, 2.1e-15 (NLO-T) |
+
+MEASURED (2026-11-19, the kernel-transpose oracle of 14.3, O16/SLy4
+unit state, maxiter=0): every tagged kind above agrees with the
+kernel-measured mirror in every build with stored pairs; the table's
+kinds are test assertions that PASSED, not assumptions. In TR-conserving
+builds the honest word-1 objects are structural zeros (the odd-m
+precedent): 0 stored blocks on NLO for J_x/J_y, exactly as predicted.
+NLO-P (frozen -O3): J_z and both folds symmetric at 8.9e-16 / 1.1e-15 /
+4.8e-16, on the merged-parity diagonal blocks - the parity-masked case
+covered; the word-1 honest objects are structural zeros there too.
 
 - Honest trio: `J_x`/`J_y` flip q(Rz) (word 1), `J_z` conserves it
   (word 0); all three are parity-even and isoscalar (bits 1, 2 clear);
@@ -1001,27 +1112,58 @@ Base conventions recorded on MOCCa's side (user-confirmed 2026-11-19):
   (`calcJ2andBelyaev_HFB`, `$TR` branch) needs the time-reversal-folded
   objects `<i, J_mu T, j>` the `t` kernels implement. Both are word 0
   (T and J_mu each flip the signature, the composite preserves it) and
-  live within the stored +i sectors. Their classes are ASSERTED from
-  MOCCa's fold conventions (2026-11-19, incl. T**2 = -1), not derived:
-  the reality/adjoint algebra of antilinear composites does not carry
-  over verbatim from the linear-operator derivations of section 2a, and
-  no attempt is made to re-derive it here. The empirical arbiter of
-  every kind sign is the kernel-transpose oracle of 14.3.
+  live within the stored +i sectors. The composite is HERMITIAN as an
+  operator (user-accepted 2026-11-19): with MOCCa's FERMIONIC time
+  reversal, T**2 = -1, the chain
+  ` (J.T)^dagger = -T**2 (J.T) = +(J.T)` holds - and the ORACLE
+  confirms it operationally: both folded kernels measure SYMMETRIC
+  storage (kind +1). The section-2a (herm,sty)->kind machinery does NOT
+  transfer to the antilinear composite - the sty-odd member `J_y.T`
+  combines a symmetric kind with sty = STY_ODD, so its `herm` input is
+  the kind-completing sign `herm = kind * sty` (marked * in the table):
+  a storage label, not the physical adjoint class. `J_x.T` carries the
+  plain HERMITIAN label. The empirical arbiter of every kind sign is
+  the kernel-transpose oracle of 14.3.
 - `J_z` needs no folded twin: the `$TR` branch consumes honest
   `angmom_z_real` within the half (J_z preserves the grading).
 
-### 14.2 Latent bug, pre-existing (user-confirmed 2026-11-19)
+### 14.2 Convention audit (outcome 2026-11-19: the fill is NOT bugged)
 
-The `$TR` fill of the folded jx sets `jx(jj,ii) = jx(ii,jj)`
-(momentsofinertia.f90:832) - SYMMETRIC, while the classes of
-`J_x.T` (ANTIHERMITIAN x STY_EVEN, kind -1) demand
-`jx(jj,ii) = -jx(ii,jj)`. The folded jy fill (kind +1) is correct.
-The wrong-signed lower triangle was plausibly invisible so far: the
-`$TR` J2 consumers square the elements, and the Belyaev/MOI side is to
-be audited empirically at fix time. The fix is the FIRST commit of
-this step, with a documented A/B; if any golden or inertia row moves,
-the delta is the correction (physics, not reassociation) and is
-accepted deliberately, recorded in the commit message.
+The earlier suspicion that the `$TR` fill `jx(jj,ii) = jx(ii,jj)`
+(momentsofinertia.f90:832) was a sign bug (the asserted ANTIHERMITIAN x
+STY_EVEN classes of K_x demanding an antisymmetric fill) was REFUTED by
+measurement and A/B:
+
+- The kernel-transpose oracle measures BOTH folded kernels SYMMETRIC
+  (14.1 table) - the symmetric fills of `calcJ2andBelyaev_HFB` are
+  correct, and the composite is Hermitian as an operator (14.1, the
+  user-accepted chain with fermionic T).
+- An attempted antisymmetric fill was A/B-tested with `symmetries.sh`
+  (Mg24/SLy4/HFB constrained, the four NLO-family executables): in the
+  pre-change run the routine's two internal definitions of
+  `<J^2> - <J>^2` (pairing cutoff vs collective) agree on every
+  component and the constrained Belyaev run converges to
+  I_B(X) ~ 0.9295; with the antisymmetric fill alone EXACTLY the
+  x-consuming rows move - the two `<J^2>-<J>^2` definitions split on X
+  (pre-change 1.4880 both ways; broken 6.8473 vs 2.2486) and the Belyaev
+  X rows move 0.9295 -> 3.2213, with the Y/Z rows
+  bit-identical. The fill and the `$TR` consumer algebra are a coherent
+  pair; the source was reverted, no production line changed.
+
+The measuring oracle printout in the unit arm is the permanent arbiter:
+any future claim about folded kinds re-runs it, never re-derives.
+
+### 14.2b Open finding: production-unreferenced opposite-half kernels
+
+The arm's purity measurement surfaced that `angmom_x_imag`,
+`angmom_y_real` and `angmom_z_imag` are referenced nowhere in
+production - the unit arm is their first caller. All three measure
+O(1) magnitudes on real states, and in particular `angmom_z_imag`
+measures O(1) at the O16/SLy4 unit state, where the j-distribution
+comment of `calcJ2andBelyaev_HFB` asserts `jz_ij` is always real.
+Either the dead kernels carry different semantics than their names
+suggest, or that premise is wrong. The arm PRINTS these magnitudes but
+does NOT judge them; open item, recorded in AGENTS.md.
 
 ### 14.3 Module shape, marker policy, validation
 
@@ -1062,10 +1204,325 @@ accepted deliberately, recorded in the commit message.
 
 | # | Commit | Contents | Regression net |
 |---|---|---|---|
-| 1 | K_x fill fix | `jx(jj,ii) = -jx(ii,jj)` at momentsofinertia.f90:832; the T**2 = -1 convention and the class table recorded in this design | golden minimal NLO + O16 inertia smoke, A/B documented; expected: J2 rows unchanged (squares), MOI/inertia rows audited empirically |
-| 2 | generators | angular_momentum.f90: the five generators, build wiring, the unit arm (kernel-transpose oracle, partner checks, legacy A/B) | the new unit arm on NLO / NLO-T / NLO-P; block_matrix net untouched; four mf configs compile |
+| 1 | ~~K_x fill fix~~ | CANCELLED by the 14.2 audit: the symmetric fill is correct (measured); no source change, no commit |
+| 2 | generators | LANDED 2026-11-19: angular_momentum.f90 (the five generators with the measured 14.1 classes), build wiring (MF_SRC/FAM_SRC, no_process_files), the unit arm `angular_momentum_testing.f90` (kernel-transpose oracle, partner checks, structural-zero and purity prints, legacy A/B check) armed from Run_MOCCa beside run_moments_tests | arm green on NLO / NLO-T / NLO-P on the frozen make.inc (2026-11-19; debug-profile NLO-P is unusable per the known pre-existing coulomb-folding OOB, AGENTS.md open item); golden minimal NLO 4849/4849 bit-identical (the arm runs only when unit_test is armed); block_matrix net untouched; mf+fam of NLO/NLO-T/NLO-P and mf of NLO-TP compile clean |
 | 3 | consumer migration | `calcJ2andBelyaev_HFB` builds its j-matrices from the generators (`$NTR`: honest trio; `$TR`: honest J_z plus the folded pair from `$TR`-marked call sites); the cantransfo rotations go through sym_rotation (section 6a) in a following row | fam unit net unaffected here; inertia smoke + minimal golden; fission.sh as the heavy gate at the end of the rotation chain |
 
 Consumers further downstream (Bogoliubov J20/J11 images, qp machinery)
 belong to the qp-bookkeeping discussion deferred from section 6a and
 stay out of this module's scope.
+
+## 15. Gradient operators: the linear_momentum module
+
+Target (agreed 2026-11-19, design stage): the single-particle matrix
+elements of the gradient operator family migrate from densities.f90's
+`CompNablaMelements` to sym_matrix generators in a new marker-free
+module `src_orig/linear_momentum.f90` - separate from the
+angular_momentum module for now, to be merged with it once both exist
+(user decision; both wrap wavefunctions.f90 kernels and both carry the
+folded pair of section 2d). The legacy routine stays in place, verbatim,
+as the A/B oracle until a deletion-gate decision, the section 13.2
+precedent. MPI is DROPPED in the generators (user decision): the sprint
+is serial-only, the type is single-node by design, and the routine's own
+TODO already listed "removing the MPI, as this is functionality that is
+not currently used". The legacy routine keeps its MPI machinery for as
+long as it exists, so the deletion gate is the only place MPI users lose
+anything.
+
+### 15.1 What CompNablaMelements actually computes (audit 2026-11-19)
+
+The function advertises `NablaMElements(3,2,nwt,nwt)`, but only three of
+the six `(mu, half)` slots are ever filled, each with the partner
+triangle written by a sign:
+
+    (1,1) : Re <i|\nabla_x|j>  , partner fill MINUS (antisymmetric)
+    (2,2) : Im <i|\nabla_y|j>  , partner fill PLUS  (symmetric)
+    (3,1) : Re <i|\nabla_z|j>  , partner fill MINUS (antisymmetric)
+
+one stored half per component, exactly as the classes of section 2a
+demand; the other three slots stay zero in every build (goodqn bit 3 is
+set in all current configs). The `$TR`/`$NTR`/`$PBROKEN` branch maze is
+the masked-XOR pairing of section 2c hand-rolled:
+
+- honest `\nabla_z`, word 2 (P-odd, Rz-even): block pairs 1-3 / 2-4 in
+  every build; the `$PBROKEN` within-block loops are the parity bit
+  cleared in the mask, the diagonal case of the same word.
+- honest `\nabla_x`/`\nabla_y`, word 3 (P-odd, Rz-flipping): `$NTR`
+  loops over pairs 1-4 / 2-3; the `$PBROKEN $NTR` 1-2 loop is word 3
+  masked to 1 by the parity-broken mask.
+- the `$TR` hidden_TR loops are NOT honest operators at all: they
+  compute the section 2d folded pair `\nabla_x.T`/`\nabla_y.T` (word 2)
+  over the same block pairs 1-3 / 2-4 as `\nabla_z`, plus the `$PBROKEN`
+  diagonals.
+
+The load-bearing wart: the SAME array slots hold honest matrix elements
+in `$NTR` builds and folded ones in `$TR` builds. The migration
+dissolves this semantic overload into named generators, and consumers
+request honest-vs-folded by construction, per section 2d. No fill-bug
+suspicion arises here (and the 14.2 audit dissolved the angmom one
+anyway): the sign of every partner fill matches the kind demanded by the
+classes below - but per the amended section 2d the folded kinds are
+MEASURED by their own kernel-transpose oracle before they arm, not read
+off the class rule (the angmom precedent: the asserted classes were
+wrong while the fills were right).
+
+### 15.2 The five generators
+
+| object | word | herm | sty | kind | tau (15.8) | stored numbers |
+|---|---|---|---|---|---|---|
+| `\nabla_x` | 3 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (T-even) | `Re <i,\nabla_x,j>` |
+| `\nabla_y` | 3 | ANTIHERMITIAN | STY_ODD | +1 sym. | +1 (T-even) | `Im <i,\nabla_y,j>` |
+| `\nabla_z` | 2 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (T-even) | `Re <i,\nabla_z,j>` |
+| `\nabla_x.T` | 2 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (inherited) | `Re <i,\nabla_x T,j>` |
+| `\nabla_y.T` | 2 | ANTIHERMITIAN | STY_ODD | +1 sym. | +1 (inherited) | `Im <i,\nabla_y T,j>` |
+
+- The tau column is the time parity of section 15.8's mechanism 1:
+  the gradient as written is time-EVEN (T antilinear means the i of
+  p = -i(nabla) carries the momentum's time-oddness), and the composites
+  inherit it. Every entry asserted here is oracle-checked (one
+  image-image block computed both ways) before the algebra path arms.
+
+- Classes user-confirmed 2026-11-19: all five antihermitian; the
+  per-component characteristics follow the vector pattern of section
+  14.1 with the parity bit set (`\nabla` is a P-odd, isoscalar vector;
+  `\nabla_x`/`\nabla_y` additionally flip q(Rz), `\nabla_z` conserves
+  it). The twins obey the section 2d convention; the kind signs read
+  off the legacy fills (antisymmetric Re slots, symmetric Im slot) and
+  are settled as test assertions by the kernel-transpose oracle.
+- `\nabla_z` has no folded twin with content: honest word 2 -> twin word
+  3 -> partner sectors empty in a `$TR` build (every TR-conserving
+  build stores the +i half, parity-broken included), the section 2d
+  collapse. The honest object serves every such build, like `J_z`.
+- Suggested interface (one function per operator, the 14.3 shape):
+  `init(HFBlocks_global, word, ANTIHERMITIAN, sty, goodqn)` with a
+  `block_filler` callback; kernels are `Transfer_psi`/`Transfer_derpsi
+  (direction, TR flag, basis)` - the folded generators pass the TR flag
+  the legacy `$TR` loops pass, TimeReverse applied to the transferred
+  derivative, verbatim. Like section 14 no dgemm restructure of the
+  kernel arithmetic is required, but the block fill MAY materialise
+  per-block component arrays and use dense products, the section 13.1
+  pattern: the `\nabla_z`/`\nabla_x` Re halves are
+  `A = sum_c Psi_c^T (dv) Der_c`; the `\nabla_y` Im half is the crossed
+  four-product-per-spin shape of the 13.1 imaginary half,
+  `A = Psi_1^T D Der_2 - Psi_2^T D Der_1 - Psi_3^T D Der_4 +
+  Psi_4^T D Der_3` with D the dv weight. No chamber-weight table: the
+  derivative machinery owns the fold planes and the legacy fill is
+  plain `dv*sum(...)`, preserved exactly.
+- The generators take the same optional basis argument as the legacy
+  routine (`'HF'`/`'CAN'`/`'DEN'`, default `'DEN'`) and fill from
+  `Transfer_psi(basis=...)/Transfer_derpsi(basis=...)`. This is
+  deliberately NOT a sym_rotation consumer yet - the basis strategy is
+  section 15.4.
+- Wiring the module per section 14.3: MF_SRC/FAM_SRC in the Makefile,
+  `no_process_files` in src_heph/preprocess.py; unit arm beside the
+  moments net (moments_testing or a linear_momentum_testing module),
+  armed by the `unit_test` flag of &mesh/.
+
+### 15.3 Consumers (audit 2026-11-19)
+
+Four call sites for `CompNablaMelements`, two live:
+
+1. `fam.f90` `get_qpme_op`, `operator_type='zmomentum'` (live): wants
+   the full complex `\nabla_z` sp matrix in the HF basis, assembled as
+   `f_spme = dcmplx(NablaMElements(3,2,:,:), -NablaMElements(3,1,:,:))`.
+   With `\nabla_z` STY_EVEN and goodqn bit 3 set, the Imaginary slot is
+   identically zero in every build - so
+   `f_spme = -i * dense(\nabla_z stored half)`, complex with zero real
+   part. This is the FIRST live use of the section 2a/2c completeness
+   claim outside the multipole family: the -i and the hbar convention of
+   P_z stay at the call site, the step-5 precedent. Runtime caveat,
+   inherited from the operator's word 2: a P-odd response field is not
+   representable in parity-conserving FAM builds and is expected to NaN
+   exactly as the zcom/l=1 fields do (the parked-anchor criterion); the
+   working gate is the NLO-P fam build, per the zcom precedent.
+2. `functional.f90` `CompCOMCorrection`, the `COM2body = 1` path
+   (live): contracts squared nabla matrix elements against
+   `rho_can`/`kappa_can` in the DEN basis. `$TR`: the folded pair plus
+   honest `\nabla_z` (engineering factors 1/4 and the factor 2 for
+   the TR half-sum kept verbatim); `$NTR`: the honest trio plus the
+   `conjugp` double sums (nabla_{i j} nabla_{i bar j bar} against
+   `kappa_can`), with the existing stop guard for TR-broken HF.
+   All contractions are elementwise and remain consumer-side (section
+   6); the migration replaces the SOURCE of the numbers, mainly so
+   that the `$TR` branch's request reads as the folded pair by
+   construction instead of "slot (1,1) semantics".
+3&4. `fam_testing.f90` `test_RP_commutator` and `functional.f90`
+   `verify_COM_motion`: dead code (no call sites), migrated alongside
+   as in the 4ca0f181 cleanup. verify_COM_motion already does a
+   by-hand `cantransfo` rotation of a dense nabla matrix in its HFB
+   branch - its migration can foreshadow the section 15.4 audit.
+
+### 15.4 Basis strategy (audit, then rotate - user decision 2026-11-19)
+
+The generator phase fills per requested basis, verbatim legacy
+semantics, so every consumer migrates safely without a semantics bet.
+Separately, the audit question: is the DEN basis verbatim the HF basis
+rotated by `cantransfo` (sector-diagonal per section 6a, `Canonical`
+diagonalises per MOCCa block)? If yes, CompCOMCorrection switches to
+the HF generators plus sym_rotation(cantransfo) - the FIRST production
+consumer of the section 6a rotations, the natural showcase of `rotate`
+'s metadata preservation. Until the audit says yes, per-basis filling
+is the shipped behaviour; `Rsq_spme`-style direct oracles decide the
+identity, not an assumption.
+
+### 15.5 Sequencing (one commit per row)
+
+| # | Commit | Contents | Regression net |
+|---|---|---|---|
+| 0 | anchors + scenarios | park pre-migration fam binaries (no committed zmomentum scenario exists); define `COM2body = 1` scratch states (O18/SLy4-style, HFB for the `$NTR` conjugp path) | none |
+| 1 | generators + oracle | `linear_momentum.f90`: the five generators, wiring, the unit arm (kernel-transpose oracle, partner-consistency checks, XOR block-coverage vs the 15.2 words) and an off-by-default oracle hook comparing generator vs legacy `CompNablaMelements` per live state | the new unit arm on NLO / NLO-T / NLO-P; block_matrix net untouched; four mf configs compile; legacy routine untouched |
+| 2 | zmomentum consumer | `get_qpme_op` 'zmomentum' from `-i * dense(\nabla_z)`, prefactors verbatim | fam unit net; A/B against the parked fam binaries: parity-odd NaN behaviour in NLO identical to the parked anchor, NLO-P the working runtime case |
+| 3 | COM correction consumer | `CompCOMCorrection` from the generators: `$TR` = folded pair + honest `\nabla_z`, `$NTR` = honest trio + conjugp sums; basis 'DEN' per-basis fill | `COM2body = 1` scratch A/B vs the legacy binary on NLO (folded) and an NLO-T HFB state (honest); minimal golden untouched (`COM2body` defaults to 0) |
+| 4 | dead-code consumers + gate | test_RP_commutator, verify_COM_motion migrated; the CompNablaMelements deletion decision (with its MPI machinery - they go together) | compiles; source-level, the 4ca0f181 pattern |
+
+### 15.6 Validation and risks
+
+- No golden path exercises this operator family today: `COM2body`
+  defaults to 0, no integration script sets `zmomentum`. Net is built
+  deliberately (row 0); the legacy routine is the oracle
+  (`CompNablaMelements` stays in place verbatim, like `Qlm_spme`).
+- Reassociation: legacy fills are scalar per-pair sums, the generator's
+  block fill is dense products - expect ~1e-13-level drift of the
+  golden-tolerance philosophy, judged per the oracle hook's max
+  deviation, not by bit-identity.
+- Structural coverage: NLO exercises the folded path and honest
+  `\nabla_z`; NLO-T the honest trio with `$PBROKEN` masked lists only
+  via config differences; NLO-P the parity-bit-masked diagonal case.
+  The honest path needs pairing (HF + `$NTR` stopped by construction),
+  so the `$NTR` A/B is an HFB/BCS scratch state.
+- Main rewire risk: the `$TR` branch of CompCOMCorrection must receive
+  the FOLDED generators, not honest word-3 objects (which are
+  structurally zero there anyway - a wrong choice fails loudly as
+  zeros, not silently as wrong numbers).
+- The DEN-basis audit precedes any sym_rotation consumer (section
+  15.4); per-basis filling stays the shipped safety until then.
+- MPI behaviour is unchanged for as long as the legacy routine exists;
+  dropping it at the deletion gate is a user decision, recorded as such.
+- NLO-P bookkeeping (user-confirmed 2026-11-19): a parity-broken build
+  does NOT store both signature sectors - the parity blocks MERGE into
+  runtime-populated blocks 1, 5 (slots 2, 6 are permitted by the grid
+  but carry zero count while T is conserved, so the legacy `$PBROKEN`
+  block-2 loops are no-ops). Every stored state is q(Rz) = +i: the
+  generators see the same +i-only basis as in NLO, and the
+  constructor's `s = block - 1` encoding stands unchanged. The
+  occupation row of 2b is amended accordingly.
+- Doubled-basis oracle (proposed 2026-11-19 with the section 2d
+  discussion, user reading: the folded composites are the honest matrix
+  elements of O between stored rows and the time reverses of the stored
+  columns): materialise the T-images as explicit basis states, hand
+  `init` a doubled HFBlocks (+i entries copied to their -i partner
+  slots; pure XOR, no new type machinery), build the honest O over the
+  doubled basis by its honest kernels, and check its stored-stored
+  blocks against the honest generator and its cross blocks against the
+  twin. This settles the twin class table empirically - the strongest
+  arbiter available, subsuming the kernel-transpose checks - and makes
+  the identity between the legacy hidden fold
+  (`TimeReverse(derivative)`) and the literal matrix element with the
+  T-image state (`derivative(TimeReverse)`) a test rather than an
+  interpretation.
+
+### 15.7 Deferred (not this step)
+
+- the sym_rotation switch of CompCOMCorrection (after the 15.4 audit),
+- folding the multipole family (a section 13.5 decision, if ever),
+- deleting `CompNablaMelements` (and its MPI machinery with it).
+
+### 15.8 The complete matrix, implicit (user direction 2026-11-19)
+
+Complete-fill (eager: the generators always materialise every block of
+the doubled-basis matrix - was considered as the previous wording of
+this section) is rejected in favour of the intermediate the user chose:
+the additional matrix elements - those involving the T-image states -
+are carried IMPLICITLY, not computed and stored at construction but
+RETRIEVABLE by consumers on demand. This extends the philosophy the
+type already applies to the Hermitian partner blocks (section 6: one
+block per sector pair stored, partners reconstructed at access time to
+dense() by the kind sign): the complete doubled-basis matrix of an
+operator is a documented CONTRACT backed by three retrieval mechanisms
+of increasing cost:
+
+1. Algebra from stored numbers - the computational-gain route
+   (reinstated 2026-11-19: the per-family ruling of section 2d bans
+   ASSUMING the relation for untested families, not USING it where the
+   unit arm confirms it):
+   (a) the Hermitian partner blocks, kind sign - the existing algebra
+   of dense();
+   (b) the image-image blocks of bit-0-clear operators:
+       <Tu|O|Tv> = tau(O) * conj(<u|O|v>) - they cost a sign,
+       not a fill. tau(O), the operator's time parity
+       (T O T^{-1} = tau O), is recorded per operator as a tau column
+       in the producer's class table (15.2), asserted per family and
+       ARBITERED EMPIRICALLY: the unit arm computes one image-image
+       block both ways (honest kernels and sign flip) before the
+       algebra path is armed for that operator. Untested families
+       default to the honest recompute of mechanism 2.
+   Arithmetic caution, learned the hard way (2026-11-19): tau is a
+   property of the operator as written, not of its physics family -
+   T is antilinear, so the i of p = -i(nabla) is what makes the
+   momentum time-odd; nabla itself is time-EVEN (tau = +1, the
+   gradient family's relation is TT = +SS, NOT the -SS a first draft
+   of this section claimed, borrowing the momentum's parity). The
+   composite OT inherits the parent's tau: T(OT)T^{-1} = tau(O)(OT).
+   The tau table is therefore per-operator and oracle-checked, never
+   intuition-fed.
+2. On-demand kernels: the cross blocks of bit-0-set operators - the
+   fold content of section 2d - are irreducible, nothing stored
+   determines them. They are computed when requested, by the honest
+   kernels on the TimeReverse images (the TR flags of
+   Transfer_psi/Transfer_derpsi). The cost equals the eager twin fill
+   of 15.2, paid lazily, once per consumer request (cacheable by the
+   caller within a consumer call).
+3. Structural zeros: there are no other blocks - the XOR pairing
+   annihilates them (no stored x image blocks for bit-0-clear
+   operators, no stored x stored blocks for bit-0-set ones).
+
+Placement: the retrieval contract lives in the GENERATOR MODULES -
+block_matrix_module stays a plain data container (no stored procedure
+components, section 5; no T-knowledge, section 2d), and the T-status
+gate stays with the caller: only `$TR`-marked call sites may ask for
+image-involving blocks, the standing marker policy. One accessor per
+family is the suggested shape:
+
+    ! Any block of the complete doubled-basis matrix of \nabla_mu:
+    ! stored and algebraically reconstructible blocks served from the
+    ! stored sym_matrix, image-involving blocks materialised by the
+    ! kernels on demand; the $TR call-site gate supplies the images.
+    function nabla_block(mu, srow, scol, basis) result(A)
+
+Packaging note: for consumers contracting against stored-basis
+quantities (rho_can, kappa_can over nwt), the natural packaging of
+the cross blocks is the section 2d twin - the image columns relabelled
+by their stored partners (the stored-k <-> image-k correspondence) -
+so that the `$TR` consumer code keeps the shape of the legacy loops.
+The five generators of 15.2 are then the EAGER materialisation of
+what the accessor yields lazily (identical numbers, the legacy A/B
+unchanged), and implementors may keep them behind it. Consumers under
+the implicit design:
+
+- zmomentum: stored-stored blocks of `\nabla_z` only - as today;
+- `CompCOMCorrection` `$TR`: requests the fold content via the
+  accessor, packaged as the twins, once per call - numerically
+  identical to the eager design, with no family-wide doubled storage;
+- `$NTR` consumers: the full basis already is the object; the
+  accessor degenerates to the stored blocks.
+
+What the implicit design buys over the five-generator eager one:
+numerically nothing changes, the consumers keep their code shape; the
+win is conceptual - three physical operators with one retrieval
+contract instead of five named objects - and economical, no eager cost
+for content nobody consumes. The doubled-basis oracle of 15.6 remains
+the arbiter: the unit arm exercises the contract by requesting every
+block of the complete matrix and judging it against the legacy
+routine's honest half and fold - and, per mechanism 1, the tau table
+by one image-image block per operator computed both ways.
+
+Connection to the legacy bookkeeping (to be audited at migration
+time, not assumed): CompCOMCorrection's `$TR` factors - fac/4 with
+"rho_can is twice too large if T is conserved" and the doubling
+"2 * COM2_*_debug" for "we summed over only half the states" - look
+like the mechanism-1 algebra applied by hand inside the consumer: the
+assumption that the omitted T-pairs' contributions mirror the summed
+ones. The tau table makes those factors verifiable by the unit arm
+instead of maintained as magic numbers; whether they are pure
+T-pair mirroring or also carry the fermionic-T pairing phase is an
+open empirical question for the migration's A/B.

@@ -66,7 +66,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                          'fam_run.f90', 'fam_gmres.f90', \
                          'hdf5_auxiliary.f90', \
                          'IO_aux.f90', 'basis_transform.f90', \
-                         'block_matrix_module.f90', 'moments_testing.f90' ]
+                         'block_matrix_module.f90', 'moments_testing.f90', \
+                         'angular_momentum.f90', \
+                         'angular_momentum_testing.f90' ]
     # List of files that can be processed by a generic preprocessor
     generic_process_files = [ 'mocca.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \

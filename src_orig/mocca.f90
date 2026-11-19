@@ -44,6 +44,7 @@ contains
       use fission_MOI,   only: calc_collective_inertia, print_collective_inertia
       use fission_MOI,   only: N_inertia
       use moments_testing, only: run_moments_tests
+      use angular_momentum_testing, only: run_angular_momentum_tests
       use version,       only: print_header
       use derivatives,   only: inilag
       use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
@@ -108,7 +109,11 @@ contains
       ! Go out and try to reach convergence, only to fail time and time again....
       call run_mean_field(iteration, iomsg)
       !------------------------------------------------------------------------------
-      ! Optionally run the moments unit tests on the final mean-field state.
+      ! Optionally run the angular-momentum and moments unit tests on the
+      ! final mean-field state. Both suites are armed with unit_test = .true.
+      ! in &mesh/; the angular-momentum suite returns on success so the
+      ! moments tests (which terminate the program) still run afterwards.
+      if (unit_test) call run_angular_momentum_tests()
       ! Note: contains an exit statement! Arming the flag does not result in
       ! a physics calculation - no further analysis or output is produced.
       if (unit_test) call run_moments_tests()
