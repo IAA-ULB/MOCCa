@@ -1336,8 +1336,21 @@ wrong while the fills were right).
 | `\nabla_x` | 3 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (T-even) | `Re <i,\nabla_x,j>` |
 | `\nabla_y` | 3 | ANTIHERMITIAN | STY_ODD | +1 sym. | +1 (T-even) | `Im <i,\nabla_y,j>` |
 | `\nabla_z` | 2 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (T-even) | `Re <i,\nabla_z,j>` |
-| `\nabla_x.T` | 2 | ANTIHERMITIAN | STY_EVEN | -1 antisym. | +1 (inherited) | `Re <i,\nabla_x T,j>` |
+| `\nabla_x.T` | 2 | HERMITIAN | STY_EVEN | +1 sym. | +1 (inherited) | `Re <i,\nabla_x T,j>` |
 | `\nabla_y.T` | 2 | ANTIHERMITIAN | STY_ODD | +1 sym. | +1 (inherited) | `Im <i,\nabla_y T,j>` |
+
+AMENDED 2026-11-19 by the mirror oracle at the first unit-arm run: the
+folded x row drafted here as ANTIHERMITIAN x STY_EVEN (kind -1, after
+the legacy in-loop partner fill) was measured SYMMETRIC - max
+|a_ij - a_ji| ~ 5e-15 against max |a_ij + a_ji| ~ 0.7 - and the tags
+follow the arbiter (section 2d's own rule): folded `\nabla_x.T` is
+HERMITIAN x STY_EVEN, kind +1. Exactly the J family's story: the
+legacy's transposed-position fill carries a sign bug for the
+composite (the 14.2-style wart; class tags drafted from it inherit
+the bug), invisible to every consumer because CompOMCorrection
+contracts squares. The folded y row was confirmed as drafted. Both
+folded objects now carry the same per-component (herm, sty) shape as
+the landed angular-momentum family's K_x / K_y.
 
 - The tau column is the time parity of section 15.8's mechanism 1:
   the gradient as written is time-EVEN (T antilinear means the i of
@@ -1345,7 +1358,7 @@ wrong while the fills were right).
   2026-11-19; the composites inherit it via
   T(OT)T^{-1} = tau(O)(OT). The oracle check (one image-image block
   computed both ways) remains the standing arbiter before the algebra
-  path arms.
+  path arms - first measurement 2026-11-19: agrees at 4e-15.
 
 - Classes user-confirmed 2026-11-19: all five antihermitian; the
   per-component characteristics follow the vector pattern of section
@@ -1489,6 +1502,23 @@ with it.
   generators see the same +i-only basis as in NLO, and the
   constructor's `s = block - 1` encoding stands unchanged. The
   occupation row of 2b is amended accordingly.
+- OPEN FINDING, measured 2026-11-19 at the first unit-arm run,
+  deliberately NOT judged: the "purity" identity of the honest
+  generators - opposite half (eta-stripped) blocks vanishing, i.e.
+  <STy-|nabla|STy+> ~ 0 - FAILS for the derivative family. Magnitudes
+  O(0.2) against a O(0.35) element scale, on both the maxiter=0 and
+  a converged state, on the crossed-component pairs. The basis is not
+  at fault (the multipole full-box oracle proves STy cleanliness at
+  1e-16 on this very machinery), so the suspicion points at how the
+  derivative kernels treat the crossed component pairs - the section
+  13.1 chamber-weight territory. The angular-momentum family's
+  angmom_z_imag check is the same finding (same kernels), so this is
+  not introduced by the migration. The unit arm MEASURES and reports
+  both halves; judgment (and any fix) is deferred until the
+  derivative-kernel chamber audit - which is a prerequisite for
+  nothing in this section, since every consumer contracts real
+  densities against these elements and the legacy agrees to 3e-15
+  exactly as filled.
 - Doubled-basis oracle (proposed 2026-11-19 with the section 2d
   discussion, user reading: the folded composites are the honest matrix
   elements of O between stored rows and the time reverses of the stored

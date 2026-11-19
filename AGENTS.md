@@ -401,6 +401,42 @@ perturbations).
   x-consuming rows (Belyaev X 0.9295 -> 3.2213, the two <J^2>-<J>^2
   definitions split on X), source reverted, no production line
   changed.
+  GRADIENT GENERATORS LANDED (2026-11-19, design §15.5 row 1; FAM
+  machinery deferred by user direction): the marker-free module
+  src_orig/linear_momentum.f90 hosts the honest gradient generators
+  on sym_matrix - nabla_x / nabla_y (word 3, ANTIHERMITIAN x STY_EVEN /
+  STY_ODD) and nabla_z (word 2, ANTIHERMITIAN x STY_EVEN) - wrapping
+  wavefunctions.f90's Nabla kernels verbatim as per-pair values, with
+  basis selectors 'HF'/'CAN'/'DEN'; and the TR-folded twins
+  NablaT_spme_matrix (word 2, both kind +1 SYMMETRIC, measured):
+  nabla_x.T is HERMITIAN x STY_EVEN - NOT the drafted ANTIHERMITIAN,
+  the mirror oracle flipped it at the first arm run, exactly the
+  K_x story: the legacy transposed-position fill carries the
+  14.2-style sign wart and a class tag drafted from it inherits the
+  bug - while nabla_y.T is ANTIHERMITIAN x STY_ODD as drafted. The
+  retrieval accessor get_nabla_block implements the §15.8
+  complete-matrix contract (tau sign TAU_NABLAFAM = +1,
+  user-confirmed: the gradient is time-EVEN; stored blocks served as
+  stored, image-image blocks by the tau flip, mixed blocks by honest
+  kernels). The arm src_orig/linear_momentum_testing.f90
+  (run_linear_momentum_tests, wired in mocca.f90 next to the angmom
+  arm) checks block structure, the values against the untouched
+  legacy CompNablaMelements (magnitudes for the folded twins), the
+  mirror-kind oracle, folded partner consistency, the tau both-ways
+  image check, and PRINTS (does not judge) the opposite-half purity.
+  Gates green: NLO and NLO-T arms on debug builds (legacy agreement
+  2-5e-15, tau 4e-15), NLO-P arm on the frozen -O3 build (nz=24
+  unfolded z, allowtransform), NLO-TP compile, block_matrix net
+  53562 checks 0 failures.
+  NEXT UP (gradient thread): design §15.5 row 2 - the
+  CompCOMCorrection consumer migration ($TR branch = folded twins +
+  honest nabla_z, factors verbatim; $NTR branch = honest trio +
+  conjugp sums; basis 'DEN'), gates vs the row-0 reference logs in
+  /tmp/mocca-linmom/logs/ plus the minimal golden - note
+  exec/MOCCa.NLO.exe must be rebuilt with the frozen make.inc
+  (current binary is a debug build from the row-1 iteration) before
+  any golden or numerical gate. Row 3 is verify_COM_motion; FAM
+  rows stay deferred.
   NEXT UP: the calcJ2andBelyaev_HFB consumer migration (design §14.4
   row 3), feeding the sym_rotation consumers of §6a. After that, the
   §13.5 deferred items; alternatively, first dispose of the single
@@ -446,6 +482,21 @@ perturbations).
      logs have been rerun green on the frozen executables after the
      K_x A/B; the broken-experiment and healthy pre-change evidence
      of design §14.2 lives only in the doc's recorded numbers now.)
+   * OPPOSITE-HALF PURITY OF DERIVATIVE OPERATORS (found 2026-11-19 by
+     the gradient arm, recorded in design §15.6, deliberately
+     UNADJUDICATED): the honest nabla generators' opposite halves
+     (eta-stripped cross-STy blocks) do NOT vanish - O(0.2) against
+     O(0.35) element scale, on maxiter=0 AND converged states, on the
+     crossed-component pairs - while the multipole full-box oracle
+     proves the basis STy-clean at 1e-16 on the same machinery. Same
+     signature as the angmom arm's angmom_z_imag finding above (same
+     kernels' relatives); suspicion points at the derivative kernels'
+     crossed-component treatment, the design §13.1 chamber-weight
+     territory. Both arms MEASURE and print, neither judges; the
+     deciding full-box reconstruction test (the §13.1 step-4 pattern)
+     is not built. Nothing in production is affected: every consumer
+     contracts real densities and the legacy agrees to 3e-15 as
+     filled.
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
      oracle hook in fission_MOI.f90. Either Qlm_spme and the oracle go

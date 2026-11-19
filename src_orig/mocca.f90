@@ -45,6 +45,7 @@ contains
       use fission_MOI,   only: N_inertia
       use moments_testing, only: run_moments_tests
       use angular_momentum_testing, only: run_angular_momentum_tests
+      use linear_momentum_testing, only: run_linear_momentum_tests
       use version,       only: print_header
       use derivatives,   only: inilag
       use timing,        only: start_timer, stop_timer, print_all_timers, T_MOCCa,&
@@ -114,6 +115,7 @@ contains
       ! in &mesh/; the angular-momentum suite returns on success so the
       ! moments tests (which terminate the program) still run afterwards.
       if (unit_test) call run_angular_momentum_tests()
+      if (unit_test) call run_linear_momentum_tests()
       ! Note: contains an exit statement! Arming the flag does not result in
       ! a physics calculation - no further analysis or output is produced.
       if (unit_test) call run_moments_tests()
