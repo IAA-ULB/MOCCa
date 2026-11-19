@@ -1153,17 +1153,74 @@ measurement and A/B:
 The measuring oracle printout in the unit arm is the permanent arbiter:
 any future claim about folded kinds re-runs it, never re-derives.
 
-### 14.2b Open finding: production-unreferenced opposite-half kernels
+### 14.2b The angmom_z_imag error (OPEN, unresolved)
 
-The arm's purity measurement surfaced that `angmom_x_imag`,
-`angmom_y_real` and `angmom_z_imag` are referenced nowhere in
-production - the unit arm is their first caller. All three measure
-O(1) magnitudes on real states, and in particular `angmom_z_imag`
-measures O(1) at the O16/SLy4 unit state, where the j-distribution
-comment of `calcJ2andBelyaev_HFB` asserts `jz_ij` is always real.
-Either the dead kernels carry different semantics than their names
-suggest, or that premise is wrong. The arm PRINTS these magnitudes but
-does NOT judge them; open item, recorded in AGENTS.md.
+The claim in the code, verbatim - the block comment above the
+j-matrix fill of `calcJ2andBelyaev_HFB` (momentsofinertia.f90, two
+branches, `$NTR` lines 774-775 and `$TR` line 792):
+
+    jz_ij is a always a real number, and only non-zero if i and j are
+    in the same 'half' of the basis (...)
+    jz_ij and jx_ij are always real, and jy_ij is always imaginary.
+
+This is not a free-standing comment: it is the COMPLETENESS premise of
+the storage - section 2a's corollary for J_z (HERMITIAN x STY_EVEN):
+with goodqn bit 3 set (STy conserved, every config in the tree) every
+matrix element of J_z over the stored basis is purely real, the stored
+`Re <i,J_z,j>` half is the complete operator, and `Im <i,J_z,j>` is
+identically zero.
+
+The measurement (angular_momentum_testing purity print, 2026-11-19,
+O16/SLy4 unit state, maxiter=0): `angmom_z_imag(psi_i, psi_j, dwf_j)`
+under the SAME calling convention that the arm validates for
+`angmom_z_real` (stored spinors, HFdpsi or fresh Derive_* gradients)
+returns values of the SAME ORDER as the real half, in every build:
+
+    NLO   : opposite-half max 1.4146   vs stored-half max 1.9146
+    NLO-T : opposite-half max 0.8594   vs stored-half max 1.6500
+    NLO-P : opposite-half max 0.8064   vs stored-half max 1.0000
+
+The tension is sharp: if `angmom_z_imag` is what its name says - the
+imaginary half of `< wf2 | J_z | wf1 >`, and a structural reading of
+its spin and orbital terms against the complex product supports that
+reading - then the measured O(1) contradicts the identically-zero
+claim and the section 2a completeness argument behind the whole
+stored-half model. x and y are in the same position (`angmom_x_imag`,
+`angmom_y_real`, also O(1), also production-dead: the arm is their
+first caller). NOTHING in production is affected whatever the answer:
+the stored real halves are mirror-oracle-clean, and the dead kernels
+have no consumer. The arm PRINTS the magnitudes, it does not judge
+them.
+
+Two candidate resolutions, deliberately not adjudicated here:
+
+(a) REDUCED-MESH ARTIFACT (suspected, UNVERIFIED): the purity
+    evaluation integrates one chamber of the folded mesh with the dv
+    multiplicity, exactly like the generator fills - valid only for
+    component-pair products UNIFORM across chambers. The
+    opposite-half products are precisely the cross-parity terms the
+    multipole chamber-weight table (13.1) assigns weight ZERO: they
+    cancel across the fold planes in the full box, so the true
+    Im <i|J_z|j> is ~0 as the comment claims, and the naive
+    single-chamber integral produces the O(1) residue. On this
+    reading the premise stands, the kernel is worthless as called on
+    the reduced mesh, and no bug exists - only a trap.
+
+(b) GENUINE KERNEL BUG or packing-convention mismatch in the dead
+    kernel: the premise then needs re-examination wherever the
+    comment feeds consumer algebra.
+
+The deciding test, not yet built: the full-box reconstruction oracle
+of Im <i|J_z|j> per the step-4 (13.1) pattern - spinors extended
+across the fold planes with the sx/sy/sz component signs, J_z
+evaluated fresh at every chamber's coordinates, plain cell volumes.
+A zero result confirms (a) and the comment; an O(1) result convicts
+the kernel. Until then the arm's purity print is a recorded anomaly.
+
+The same-halves reading holds for the opposite-half kernels of the
+honest x/y components (`angmom_x_imag`, `angmom_y_real`): also
+production-unreferenced, also O(1) on the reduced mesh, same two
+candidates, same deciding test. 
 
 ### 14.3 Module shape, marker policy, validation
 
@@ -1451,11 +1508,14 @@ of increasing cost:
        <Tu|O|Tv> = tau(O) * conj(<u|O|v>) - they cost a sign,
        not a fill. tau(O), the operator's time parity
        (T O T^{-1} = tau O), is recorded per operator as a tau column
-       in the producer's class table (15.2), asserted per family and
-       ARBITERED EMPIRICALLY: the unit arm computes one image-image
-       block both ways (honest kernels and sign flip) before the
-       algebra path is armed for that operator. Untested families
-       default to the honest recompute of mechanism 2.
+       in the producer's class table (15.2) - in code, a named integer
+       parameter per family in the generator module (the accessor is
+       per-operator, so its own code path is the metadata; no runtime
+       lookup, no sym_matrix component). The value is asserted per
+       family and ARBITERED EMPIRICALLY: the unit arm computes one
+       image-image block both ways (honest kernels and sign flip)
+       before the algebra path is armed for that operator. Untested
+       families default to the honest recompute of mechanism 2.
    Arithmetic caution, learned the hard way (2026-11-19): tau is a
    property of the operator as written, not of its physics family -
    T is antilinear, so the i of p = -i(nabla) is what makes the

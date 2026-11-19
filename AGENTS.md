@@ -406,19 +406,29 @@ perturbations).
   §13.5 deferred items; alternatively, first dispose of the single
   remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
-   * DEAD angmom KERNELS (found 2026-11-19 by the arm's purity print,
-     design §14.2b): angmom_x_imag, angmom_y_real, angmom_z_imag are
-     referenced nowhere in production - the unit arm is their first
-     caller - and all three measure O(1) on real states; in particular
-     angmom_z_imag measures O(1) where the j-distribution comment of
-     calcJ2andBelyaev_HFB asserts jz_ij is always real. Either the
-     dead kernels carry different semantics than their names suggest,
-     or that premise is wrong. The arm prints their magnitudes but
-     does not judge; deciding (and possibly deleting) is a user
-     decision. (The symmetries.*.out logs have been rerun green on
-     the frozen executables after the K_x A/B; the broken-experiment
-     and healthy pre-change evidence of design §14.2 lives only in
-     the doc's recorded numbers now.)
+   * DEAD angmom KERNELS / THE jz-IS-REAL ERROR (found 2026-11-19 by
+     the arm's purity print, recorded PRECISELY in design §14.2b):
+     angmom_x_imag, angmom_y_real, angmom_z_imag are referenced
+     nowhere in production (the unit arm is their first caller) and
+     all three measure O(1) on the reduced mesh (same order as the
+     validated halves), in NLO/NLO-T/NLO-P alike. This CONTRADICTS
+     the code's own completeness premise - momentsofinertia.f90:774/
+     :792: "jz_ij is always a real number", the §2a corollary that
+     the stored real half is the complete operator. Two candidates,
+     unadjudicated: (a) reduced-mesh artifact - the purity print
+     integrates one chamber with dv multiplicity and the
+     opposite-half cross-parity products would cancel across the fold
+     planes of the full box (the multipole chamber-weight-0 case of
+     design §13.1), so the true Im<jz> IS ~0 and only the naive
+     single-chamber integral is O(1); (b) a genuine bug or packing
+     mismatch in the dead kernel, which would put the premise in
+     doubt. Deciding test (not built): full-box reconstruction of
+     Im<i|J_z|j> per the §13.1 step-4 pattern. Nothing in production
+     is affected either way; deciding (and then possibly deleting
+     the dead kernels) is a user decision. (The symmetries.*.out
+     logs have been rerun green on the frozen executables after the
+     K_x A/B; the broken-experiment and healthy pre-change evidence
+     of design §14.2 lives only in the doc's recorded numbers now.)
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
      routine's only remaining reference is the off-by-default spme
      oracle hook in fission_MOI.f90. Either Qlm_spme and the oracle go
