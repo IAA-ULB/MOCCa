@@ -214,8 +214,9 @@ contains
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
     &           tofile, blockfile, inertfile,  famfile, xyfile, xyinfile,      &
     &           finfile, foutfile, dhoutfile, N_inertia, potentials_from_file,&
-    &           blocked_collective_response, blocked_response_delta,         &
-    &           blocked_response_regulator, blocked_response_k0
+    &           blocked_collective_response, blocked_q20_only_response,      &
+    &           blocked_response_delta, blocked_response_regulator,          &
+    &           blocked_response_k0
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -265,6 +266,8 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(blocked_collective_response, 1      , MPI_LOGICAL, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(blocked_q20_only_response, 1         , MPI_LOGICAL, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(blocked_response_delta, 1            , MPI_DOUBLE_PRECISION, 0, &
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(blocked_response_regulator, 1        , MPI_INTEGER, 0, &
@@ -287,6 +290,9 @@ contains
 
   if(blocked_response_delta .lt. 0.0d0) then
     call stp('blocked_response_delta cannot be negative.')
+  endif
+  if(blocked_collective_response .and. blocked_q20_only_response) then
+    call stp('blocked_collective_response and blocked_q20_only_response are mutually exclusive.')
   endif
   if(blocked_response_regulator.lt.0 .or. blocked_response_regulator.gt.2) then
     call stp('blocked_response_regulator must be 0, 1 or 2.')
@@ -376,6 +382,7 @@ contains
   112 format ( ' Checkpointiter =', i10)
   113 format (' Printing spwf details during iterations: ', l5)
   115 format (' Occupation-weighted collective response: ', l5)
+  119 format (' Occupation-weighted Q20-only response: ', l5)
   116 format (' Blocked response regularization delta  : ', f10.5, ' MeV')
   117 format (' Blocked response regulator             : ', i10)
   118 format (' Smooth regulator k0                   : ', f10.5, ' MeV^-4')
@@ -441,6 +448,7 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
       print 115, blocked_collective_response
+      print 119, blocked_q20_only_response
       if(blocked_collective_response) then
         print 117, blocked_response_regulator
         if(blocked_response_regulator.eq.1) print 116, blocked_response_delta

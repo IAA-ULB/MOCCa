@@ -94,6 +94,10 @@ module fission_MOI
   ! the collective response. The default preserves the historical treatment,
   ! where blocked quasiparticles and their partners are simply omitted.
   logical :: blocked_collective_response = .false.
+  ! If requested, retain only the occupation-weighted Q20 pair-creation
+  ! channel. This avoids both the historical hard removal of blocked states
+  ! and the Q11 energy-difference denominators.
+  logical :: blocked_q20_only_response = .false.
   ! Phenomenological regularization of the Q11 energy difference, in MeV.
   ! It simulates the residual interaction omitted in the cranking
   ! approximation and prevents divergences at quasiparticle crossings.
@@ -345,6 +349,9 @@ contains
             Mat(i,j,:,:) = Ksum_Mij_blocked(Q20(:,:,i), Q20(:,:,j), &
             &                               Q11(:,:,i), Q11(:,:,j), &
             &                               la, lb, (/1,2,3/))
+          else if(blocked_q20_only_response) then
+            Mat(i,j,:,:) = Ksum_Mij_blocked_Q20(Q20(:,:,i), Q20(:,:,j), &
+            &                                   la, lb, (/1,2,3/))
           else
             Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb, (/1,2,3/))
           endif
@@ -559,6 +566,81 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
 $TR    Ksum = 2*Ksum
     
   end function Ksum_Mij
+
+  function Ksum_Mij_blocked_Q20(Q20a, Q20b, la, lb, Ks) result(Ksum)
+    !---------------------------------------------------------------------------
+    ! Occupation-weighted Q20 pair-creation response for blocked or statistical
+    ! quasiparticle occupations,
+    !
+    !                     1 - f_i - f_j
+    ! M_K^20 = sum ----------------------------- Q20a_ij Q20b_ij.
+    !                       (E_i + E_j)^K
+    !
+    ! No Q11 scattering terms are included.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: Q20a(:,:), Q20b(:,:)
+    real(KIND=dp), allocatable :: Ksum(:,:)
+    integer, intent(in)        :: Ks(:), la, lb
+
+    integer :: Na, N2a, Ta, Ba, Bb, Tb, Nb, N2b, ita, itb, k, i, j, Nk
+    integer :: sai, sbi, sab, sbb, trash
+    real(KIND=dp) :: num20, denom, energy_sum, fi, fj, fac20
+
+    Nk = size(Ks)
+    allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
+
+    ! If parity is conserved, there is a parity selection rule
+$PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
+    if(la .eq. lb) trash = 0
+    !         ^---- trash statement to stop compilator complaints
+
+    sai = 0 ; sab = 0
+    do Ba=1,8,2
+      Na = HFBlocks(Ba) ; if(Na.eq.0) cycle
+      N2a= HFBlocks(Ba+1)
+      Ta = Na + N2a
+      ita = 1 ; if(Ba.gt.4) ita=2
+
+      sbi = 0 ; sbb = 0
+      do Bb=1,8,2
+        Nb = HFBlocks(Bb) ; if(Nb.eq.0) cycle
+        N2b= HFBlocks(Bb+1)
+        Tb = Nb + N2b
+        itb= 1 ; if(Bb.gt.4) itb=2
+
+        ! Gain some CPU time
+        if(ita.ne.itb) then
+          sbi = sbi +   Tb
+          sbb = sbb + 2*Tb
+          cycle
+        endif
+
+        do i=1,Ta
+          fi = configmatrix(sab+i)
+          do j=1,Tb
+            fj = configmatrix(sbb+j)
+            fac20 = 1.0d0 - fi - fj
+            if(abs(fac20).le.1d-15) cycle
+
+            energy_sum = qpenergies(sab+Ta+i) + qpenergies(sbb+Tb+j)
+            num20 = Q20a(sai+i,sbi+j) * Q20b(sai+i,sbi+j)
+            do k=1,Nk
+              denom = energy_sum**Ks(k)
+              Ksum(k,ita) = Ksum(k,ita) + fac20*num20/denom
+            enddo
+          enddo
+        enddo
+        sbi = sbi +   Tb
+        sbb = sbb + 2*Tb
+      enddo
+      sai = sai +   Ta
+      sab = sab + 2*Ta
+    enddo
+
+    ! Factor two for the time-reversal partners in the reduced representation.
+$TR    Ksum = 2*Ksum
+
+  end function Ksum_Mij_blocked_Q20
 
   function Ksum_Mij_blocked(Q20a, Q20b, Q11a, Q11b, la, lb, Ks) result(Ksum)
     !---------------------------------------------------------------------------
