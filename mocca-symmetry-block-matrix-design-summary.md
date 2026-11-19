@@ -14,19 +14,23 @@ small number of dense blocks. The goal is a derived type that:
 
 - stores only the nonzero blocks dictated by selection rules,
 - keeps all block data contiguous and BLAS-friendly,
-- performs mat-vec and mat-mat products at dense-BLAS speed,
+- hands the stored blocks to consumers that contract them with
+  densities, amplitudes and other operator matrices at dense-BLAS speed,
 - supports Hermitian and anti-Hermitian operators,
 - has zero quantum-number logic at runtime (all resolved at construction).
+
+Mat-vec and mat-mat operations were part of the original goal and are
+dropped by the consumer audit of 2026-11-19 (section 6).
 
 Constraints agreed with Wouter:
 
 - Basis states are ordered; a simple integer array `HFblocks(0:7)` gives the
   number of states in each symmetry sector, in storage order.
 - Isospin is limited to `T_z = ±1/2` (proton / neutron).
-- Blocks are dense; matrices are constructed explicitly, not only via mat-vec.
+- Blocks are dense; matrices are constructed explicitly, in full.
 - Total matrix sizes are typically around 1000 x 1000; single-node performance
   matters most. MPI distribution is out of scope for now.
-- STy conservation can be assumed in all cases. 
+- STy conservation can be assumed in all cases.
 
 ## 2. Symmetry model
 
@@ -115,15 +119,23 @@ numbers and joins Hermiticity on the structure side of the type:
   spinor product according to the characteristic; the callback interface
   is frozen (section 5), so the producer hands the same value to its
   callback through `params`.
-- Consumers: mat-vec on complex (packed two-column) vectors combines the
-  columns per the characteristic - for the real part y_re += A.x_re,
-  y_im += A.x_im; for the imaginary part y_re -= A.x_im, y_im += A.x_re;
-  both are plain dgemv calls on the columns.
+- Consumers (audited 2026-11-19): every consumer in the tree contracts
+  the matrices with other matrices or reads them elementwise - traces
+  against densities (moments, CompCOMCorrection), elementwise products
+  of two operator matrices (the `Ksum_Mij` ATDHFB sums), elementwise
+  contractions with the FAM amplitude matrices (`X = -(F + dH)`, the
+  strength sums), and within-block matmuls against consumer-owned
+  Bogoliubov/canonical transformations. No consumer applies an operator
+  to a basis vector, so the planned mat-vec combination of packed
+  two-column complex vectors is dropped (section 6).
 - Caveat for composed objects: the classifiability assumption covers
   physical one-body operators. It does NOT cover products of two
   non-commuting classifiable operators (AB of Hermitian A and B is
-  neither Hermitian nor anti-Hermitian: AB = {A,B}/2 + [A,B]/2), so the
-  mat-mat step must decide how to represent its result before it lands.
+  neither Hermitian nor anti-Hermitian: AB = {A,B}/2 + [A,B]/2) - one
+  more reason the mat-mat product is out of scope entirely (dropped
+  2026-11-19, section 6): no consumer forms operator products, and
+  one-body Q^2 through sp matrices is impossible in any MOCCa basis
+  (the truncated basis does not resolve Q|i>).
 - Character table, electric multipoles (agreed 2026-11-17): r^l Re Y_lm is
   STY_EVEN and r^l Im Y_lm is STY_ODD for every m - the characteristic is
   m-independent, unlike the symmetry word, which flips the signature bit
@@ -291,7 +303,7 @@ type :: sym_matrix
   integer :: st(0:8)         ! first 1-based global index of each sector,
                              ! st(8) = n+1 (section 3a, scheme 2)
 contains
-  procedure :: init, fill_blocks, fill_elements, matvec, apply2, matmat, ...
+  procedure :: init, sector_of, fill_blocks, fill_elements, dense, print_dense
 end type
 ```
 
@@ -444,39 +456,54 @@ exactly like `init`.
 
 ## 6. Runtime operations
 
-All runtime code loops over `blocks(1:nblocks)` only. No quantum numbers, no
-XOR, no selection-rule checks.
+All runtime code loops over `blocks(1:nblocks)` only. No quantum numbers,
+no XOR, no selection-rule checks.
 
-Mat-vec (`y = A x`, full vectors of length n):
+Amendment (agreed 2026-11-19): the mat-vec and mat-mat steps of the
+original design are DROPPED. A consumer audit over the tree found no
+place where MOCCa applies a one-body operator matrix to a basis vector:
 
-- For each block with `.not. transposed`: `dgemv('N', ...)` accumulating into
-  `y(i0+1 : i0+m)`.
-- For each block with `transposed`: `dgemv('T', ...)` with the sign from
-  `kind`, scattering into the partner row range.
-- OpenMP: parallelize over non-transposed blocks (independent output
-  slices); handle transposed scatter separately (serial pass or atomics).
+- moments, CompCOMCorrection, the moments unit net: traces Tr(rho Q)
+  against the density, elementwise;
+- fission_MOI `Ksum_Mij_*`: elementwise products Qa(i,j) Qb(i,j) summed
+  over particle-hole pairs - the ATDHFB sums contract two operator
+  matrices, they are never matrix products;
+- FAM: `X = -(F + dH)` elementwise on the n x n amplitude matrices,
+  strength sums `S = sum conjg(F(i,j)) X(i,j)` elementwise, Bogoliubov
+  qp<->sp transforms as within-block matmuls against consumer-owned U/V
+  blocks, the free response diagonal in the sp/qp energies, elementwise;
+- momentsofinertia: within-block canonical/HF transforms plus
+  Belyaev-type trace sums.
 
-Mat-mat (`C = A B`): if `A` has symmetry word `a` and `B` has `b`, then
-`C` has word `IEOR(a, b)` and one block per sector:
+Root cause: MOCCa acts with fields on wavefunctions on the mesh through
+the density route, never in HF coefficient space. Single-particle ME
+matrices exist only to be contracted with other matrices or read
+elementwise; `y = A x` over global basis vectors has no caller. Products
+of operators have no caller either, and a product of two non-commuting
+classifiable operators is itself not classifiable (section 2a), so
+mat-mat would not even fit the type.
 
-```
-C(s, s⊕c) = A(s, s⊕a) · B(s⊕a, s⊕a⊕b),   c = a⊕b
-```
+What remains of the runtime surface:
 
-implemented as at most 8 `dgemm` calls, with block lookup by scanning the
-two 8-entry block lists once at init of the product.
+- `dense()` / `print_dense`: the partner-reconstructing full n x n
+  expansion - the consumer shape behind `Qlm_spme_fm`. It is the only
+  place partner blocks are synthesised at access time, applying the
+  derived kind sign.
+- partner-consistency CHECKS: a unit-test operation, not a runtime path -
+  verify stored blocks obey `A(s',s) = kind * A(s,s')^T`.
+- traces and elementwise contractions stay at the call sites, as today.
 
-Also needed eventually: transpose/conjugate (same symmetry word, blocks
-transposed, sign rules from `kind`), addition (assert equal symmetry and
-kind), scalar and complex scaling, trace.
+The transposed-partner access machinery that mat-vec would have needed
+is not built; nothing else requires it.
 
 ## 7. Performance notes
 
-- Link against an optimized real BLAS (OpenBLAS/MKL); all kernel calls are
-  `dgemv`/`dgemm`.
+- Link against an optimized real BLAS (OpenBLAS/MKL); the kernel calls
+  are the dense products inside the fill callbacks and at consumer call
+  sites (`dgemm`, and `dgemv` only where a consumer owns a genuine vector).
 - Each block is a separate contiguous rank-2 array: good locality, natural
   LDA, no stride games.
-- Parallelize fill and mat-vec over the (at most 8) blocks.
+- Parallelize fill over the (at most 8) blocks.
 - The element-wise path (`fill_elements`) is for correctness and tooling;
   hot paths should fill whole blocks via the callback.
 - At the intended scale (total n around 1000, blocks around 100-500 per
@@ -487,15 +514,17 @@ kind), scalar and complex scaling, trace.
 
 - Selection rules: for every operator word 0..7, verify the block list
   matches the XOR pairing of sectors surviving in `HFblocks`.
-- Symmetry checks: for KIND_SYMMETRIC/ANTISYMMETRIC, verify partner-block
-  consistency including the sign and the transposed access path.
-- Mat-vec correctness: compare against a dense reference mat-vec built by
-  expanding all blocks into a full `n x n` matrix, for random `HFblocks`
-  (including empty sectors), all symmetry words, all kinds.
-- Mat-mat: compare against dense multiplication; verify symmetry word of the
-  product is `IEOR(a, b)`.
-- Benchmarks: time mat-vec against a dense `dgemv` on the same data;
-  profile with likwid or gprof; check OpenMP scaling over blocks.
+- Symmetry checks: for KIND_SYMMETRIC/ANTISYMMETRIC, verify stored blocks
+  obey `A(s',s) = kind * A(s,s')^T` (unit-level check; the runtime
+  transposed access path is not built, section 6).
+- Mat-vec/mat-mat checks are dropped with the operations (section 6).
+- Imaginary half of `Qlm_spme_matrix`: the full-box reconstruction oracle
+  (section 13.1, validation) - selected off-diagonal elements recomputed
+  by direct mesh quadrature of the chamber-extended spinors, judged
+  against physics: purely imaginary oracle values for the STY_ODD
+  operator, `<j|O|i> = <i|O|j>*` with the stored antisymmetry.
+- Benchmarks: profile the fill callbacks' dense products; check OpenMP
+  scaling over blocks.
 
 ## 9. MOCCa integration notes
 
@@ -534,10 +563,18 @@ kind), scalar and complex scaling, trace.
    good-quantum-number mask of section 2b. The legacy routine stays in
    place as the testing oracle. Also lands the mask in `init`/`geninfo`
    and the dense-expansion helper in the module.
-4. `matvec` (including transposed access with sign), tested against dense
-   reference.
-5. Symmetric/antisymmetric partner maintenance and consistency checks.
-6. `matmat`, add, scale, trace.
+4. (amended 2026-11-19, replaces mat-vec) full-box reconstruction oracle
+   for the imaginary half of `Qlm_spme_matrix`: selected off-diagonal
+   elements recomputed by direct mesh quadrature of the chamber-extended
+   spinors, as a development hook in `moments_testing` beside the moments
+   unit net. Together with the partner-consistency checks this closes the
+   validation gap the mat-vec step had been assigned.
+5. FAM-side migration: `get_qpme_op` off the legacy b-units `Qlm_spme`
+   (design step 9); regressions against the parked `fam.NLO.reference.exe`.
+6. (dropped 2026-11-19) mat-mat: no consumer, and products of two
+   non-commuting classifiable operators are not classifiable (section 2a).
+   The remaining small operations (add, scale, trace) land if and when a
+   consumer needs them.
 
 ## 12. Design decisions to keep
 
@@ -575,6 +612,11 @@ kind), scalar and complex scaling, trace.
   model is retained for any future build that does not declare the time
   simplex: both halves are then separate classifiable-classes-verbatim
   matrices, sharing the symmetry word.
+- No mat-vec and no mat-mat in the type (dropped 2026-11-19): no consumer
+  applies an operator to a basis vector - MOCCa acts with fields on the
+  mesh through the density route - and operator products are both
+  consumer-less and unclassifiable. Partner machinery exists only as
+  `dense()` and the consistency checks.
 
 ## 13. Step 3 detailed: generalised multipole matrix elements
 
@@ -656,21 +698,41 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   folded into the weight mesh.
 - helper in `block_matrix_module`: the partner-reconstructing dense
   expansion of a `sym_matrix` (refactored out of the `print_dense`
-  core). It is the return shape behind `Qlm_spme_fm` and later the
-  dense reference builder for the mat-vec/mat-mat tests of steps 4
-  and 6.
+  core). It is the return shape behind `Qlm_spme_fm` and the reference
+  shape for the elementwise oracle checks of the amended step 4
+  (section 10).
 - validation status: the real half is oracle-checked against the legacy
   `Qlm_spme` (agreement ~1e-15 relative on all requested moments, also
-  with the weighted fill active); the imaginary half ships without an
-  oracle - no reference path covers it yet (2026-11-19).
+  with the weighted fill active). The imaginary half is covered by the
+  full-box reconstruction oracle (amended step 4): selected off-diagonal
+  elements recomputed by extending the spinors across the fold planes
+  with the `sx/sy/sz` per-component reflection signs (the folding
+  convention of the derivative machinery) and integrating
+  `r^l Im Y_lm`, evaluated fresh at the full-box coordinates with the
+  same COM shift, with plain cell volumes. The oracle shares only the
+  trusted raw inputs with production - the chamber-weight table and the
+  numeric `oc` character estimation are bypassed, so the weighting
+  machinery itself is under test. Element selection: the
+  largest-magnitude element plus a few random off-diagonal ones per
+  stored block, in both orderings (i,j) and (j,i). Physics checks:
+  purely imaginary oracle values for the STY_ODD operator,
+  `<j|O|i> = <i|O|j>*`, and agreement with the stored blocks to ~1e-12
+  relative (scalar summation vs the block dgemm products reorders the
+  sum). Even-m imaginary halves carry within-sector antisymmetric
+  content in every build, so NLO already exercises the type; NLO-T
+  populates the odd-m signature-partner blocks additionally and NLO-P
+  the parity-masked diagonal case. In the parity-broken build only the
+  folded axes are reconstructed (the z-axis is stored unfolded).
 
 ### 13.2 The old routine stays, as oracle
 
 The current `Qlm_spme` moves `verbatim` from `fission_MOI.f90` to
 `moments.f90` (a pure move; behaviour preserved bit-for-bit) and remains
-until step 4 (mat-vec) has landed and survived a shakeout period. It is
-the oracle for the agreements below; the conversion identity is
-`old [b^{l/2}] = new [fm^l] * 100^(-l/2)`.
+until the amended step 4 (the full-box oracle) validates the imaginary
+half AND the FAM consumer `get_qpme_op` has migrated (step 5 / design
+step 9) - the deletion gate was redefined 2026-11-19 with the dropping
+of the mat-vec step. It is the oracle for the agreements below; the
+conversion identity is `old [b^{l/2}] = new [fm^l] * 100^(-l/2)`.
 
 ### 13.3 Sequencing (one commit per row)
 

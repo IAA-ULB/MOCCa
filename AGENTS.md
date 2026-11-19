@@ -237,7 +237,7 @@ perturbations).
   `mocca-symmetry-block-matrix-design-summary.md` at the repo root — not
   this file; read it first.
 - Sprint state (updated 2026-11-19, end of sprint day). Steps 1-3 of the
-  design's §11 - and all five rows of §13.3 - are COMPLETE on top of
+  design's §10 - and all five rows of §13.3 - are COMPLETE on top of
   phases 1-2; every numerical gate is executed and green:
    * Phases 1-2: core sym_matrix types, init with goodqn mask (4 bits,
      $GOODQN), the classifiability interface (mandatory herm x sty
@@ -261,27 +261,43 @@ perturbations).
      file bit-identical to the legacy binary; the heavy fission.sh
      (Pu240 HFB) validated on CI against the pre-move baseline
      (user-executed, 2026-11-19).
-   * Pre-matvec test infrastructure: the moments_testing module +
+   * Moments test infrastructure: the moments_testing module +
      unit_test flag move to &mesh/ (cd8d9b8e), the three-configuration
      cross-build runscript (7dcc6118, NLO/NLO-T/NLO-P) and its CI job
      (57217a28). Conventions distilled below; usage in the Testing
      section.
-  NEXT UP: step 4 (matvec) of design §6/§11 - dgemv over stored blocks,
-  transposed access with the kind sign, complex (packed two-column)
-  vectors combined per the STy characteristic (§2a). The dense() helper
-  is the dense reference builder for its tests; block_matrix_unit_tests
-  is the natural home; the three-config moments net can smoke the first
-  consumer. Steps 5 (partner maintenance) and 6 (matmat) follow.
+  NEXT UP (amended 2026-11-19): step 4 of design §10 is no longer matvec.
+  A consumer audit found NO place in the tree that applies a one-body
+  operator matrix to a basis vector - every consumer (moments traces,
+  Ksum_Mij ATDHFB sums, FAM's elementwise X = -(F+dH) and strength
+  contractions, Bogoliubov/canonical within-block transforms) contracts
+  matrices with matrices or reads them elementwise; MOCCa acts with
+  fields on the mesh through the density route, never in HF coefficient
+  space. Matvec AND matmat are dropped from the type and the plan
+  (design §6 and §10 amended); partner machinery survives only as
+  dense() and the consistency checks. The amended step 4: the full-box
+  reconstruction oracle for the IMAGINARY half of Qlm_spme_matrix - off-
+  diagonal elements recomputed by extending the spinors across the fold
+  planes with the sx/sy/sz component signs and integrating r^l Im Y_lm
+  over the reconstructed full box, bypassing the chamber-weight table
+  (shares only the trusted raw inputs), in moments_testing, judged
+  against physics (purely imaginary values, Hermitian conjugate partner,
+  ~1e-12 relative against the stored blocks). Step 5 is then the FAM
+  migration of get_qpme_op (design step 9), against the parked
+  fam.NLO.reference.exe.
   OPEN ITEMS when resuming:
-   * The imaginary half of Qlm_spme_matrix still has no reference path:
+   * The imaginary half of Qlm_spme_matrix has no reference path yet -
      it is exercised only as structural zeros by the NLO trace test (by
-     construction - the diagonal of an antisymmetric matrix vanishes);
-     its off-diagonal content must be validated at the matvec/physics
-     level, judged against physics, never against zeros.
-   * fam.f90's get_qpme_op still consumes the legacy b-units Qlm_spme -
-     decide whether its migration belongs to the step-4 shakeout or to
-     FAM-side step 9; FAM regressions are judged against the parked
-     fam.NLO.reference.exe (no fam golden log is committed).
+     construction - the diagonal of an antisymmetric matrix vanishes).
+     The amended step 4 (full-box oracle, above) is the validation
+     route; its content must be judged against physics, never against
+     zeros.
+   * fam.f90's get_qpme_op still consumes the legacy b-units Qlm_spme;
+     its migration is the amended step 5 (FAM-side design step 9); FAM
+     regressions are judged against the parked fam.NLO.reference.exe
+     (no fam golden log is committed). The Qlm_spme deletion gate is
+     redefined accordingly (design §13.2): the oracle validates the
+     imaginary half AND get_qpme_op has migrated.
    * exec/MOCCa.NLO-TP.exe is a stale debug-profile binary (pre-moments-
      tests); rebuild frozen before using it as an anchor. The other mf
      executables (NLO, NLO-T, NLO-P) and fam.NLO are freshly rebuilt
@@ -372,6 +388,13 @@ perturbations).
 - Storage is single-node by design (summary §1 and §12), not just a
   sprint convenience: keep the type free of rank-dependent logic and
   leave any gathering to whole-basis vectors at call sites.
+- No matvec/matmat in sym_matrix (2026-11-19, user-confirmed after a
+  consumer audit of the tree): nothing applies a one-body operator
+  matrix to a basis vector - sp ME matrices are only traced against
+  densities, contracted elementwise with other operator or amplitude
+  matrices, or fed through within-block U/V basis transforms; fields act
+  on wavefunctions on the mesh through the density route. Design §6/§10
+  carry the amendment; the Qlm_spme deletion gate is redefined in §13.2.
 - BLAS kernels (`dgemv`/`dgemm`) come from the existing
   `LINEAR_ALGEBRA_LIB` (`-llapack -lblas`); the summary's OpenBLAS/MKL
   suggestion (its §7) is deferred while `make.inc` stays frozen.
@@ -385,7 +408,7 @@ perturbations).
   preserved or validated during it.
 - FAM anchor: `fam.NLO.reference.exe` is parked (built from the un-refactored
   tree, 2026-11-17) — the FAM-side twin of MOCCa.NLO.reference.exe and step
-  0 of the design's §13. Design step 3 (§11/§13) migrates fam.f90's
+  0 of the design's §13. Design step 3 (§10/§13) migrates fam.f90's
   Qlm_spme consumer in its final commit and design step 9 targets FAM;
   FAM-side regressions are judged against the parked executable (no
   committed fam golden log exists, exec/ is untracked).
