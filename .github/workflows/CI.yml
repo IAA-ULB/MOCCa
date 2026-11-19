@@ -767,8 +767,9 @@ jobs:
   #-----------------------------------------------------------------------------
   # Unit tests of the multipole-moment machinery of the moments module: dense
   # dump of the Qlm matrices (l <= 4), the trace check against the many-body
-  # moment values and the cross-build comparison of the conservative,
-  # TR-broken and parity-broken executables.
+  # moment values, the full-box reconstruction oracle for both operator
+  # halves (the reference path of the imaginary half) and the cross-build
+  # comparison of the conservative, TR-broken and parity-broken executables.
   #-----------------------------------------------------------------------------
 
   moments_unit_tests:

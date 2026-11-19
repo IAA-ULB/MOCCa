@@ -45,13 +45,27 @@ module moments_testing
   ! Both tests are exact identities up to floating-point reassociation: the
   ! matrix elements and the mesh moments are the same integrals, summed in
   ! a different order.
+  !
+  ! One oracle, armed alongside the tests:
+  !  (3) test_Qlm_fullbox: the full-box reconstruction oracle of the amended
+  !      step 4 of design-summary section 10 - the reference path for the
+  !      imaginary operator half. It recomputes selected matrix elements of
+  !      both halves by independent mesh quadrature over the chamber-
+  !      extended spinors, bypassing the chamber-weight table and the
+  !      reflection-character estimation of the production fill. All three
+  !      identities below are judged against physics, never against zeros.
   !--------------------------------------------------------------------------------
   use compilation,        only: dp
+  use geninfo,            only: stp, nx, ny, nz, mv, dv, meshx_shifted,        &
+  &                              meshy_shifted, meshz_shifted
+  use geninfo,            only: reduX, reduY, reduZ
+  use sphericalharmonics, only: generate_spherical_harmonics
   use moments,            only: Qlm_spme_matrix, FindMoment, MaxMoment
   use moments,            only: Moment
+  use moments,            only: QuantisationAxis, SecondaryAxis
   use pairing,            only: rho_can, PairingType
-  use wavefunctions,      only: nwn, nwt
-  use block_matrix_module, only: sym_matrix
+  use wavefunctions,      only: nwn, nwt, HFPsi, sx, sy, sz
+  use block_matrix_module, only: sym_matrix, sym_block
 
   implicit none
 
@@ -83,7 +97,7 @@ contains
     12 format (' All tests passed! ')
     13 format (' Some tests failed! ')
 
-    integer :: ifail_dense, ifail_trace, ifail
+    integer :: ifail_dense, ifail_trace, ifail_fullbox, ifail
     ! Maximum multipole order the tests act on: all l up to 4.
     integer, parameter :: lmax = 4
 
@@ -101,11 +115,14 @@ contains
     call test_Qlm_trace(min(lmax, MaxMoment), ifail_trace)
     print 1, 'Tr( rho_can Qlm ) vs moment value'   , ifail_trace
 
+    call test_Qlm_fullbox(min(lmax, MaxMoment), ifail_fullbox)
+    print 1, 'Full-box oracle vs stored Qlm'        , ifail_fullbox
+
     print *
     print 10
     print 11
 
-    ifail = max(ifail_dense, ifail_trace)
+    ifail = max(ifail_dense, ifail_trace, ifail_fullbox)
     if(ifail.eq.0) print 12
     if(ifail.eq.1) print 13
     call exit(ifail)
@@ -280,5 +297,395 @@ contains
     print 4, maxdev
 
   end subroutine test_Qlm_trace
+
+!===============================================================================
+  subroutine test_Qlm_fullbox(lmax, ifail)
+    !------------------------------------------------------------------------------
+    ! Full-box reconstruction oracle for the single-particle multipole matrices
+    ! (the amended step 4 of design-summary section 10): the reference path
+    ! for the imaginary operator half, active for both halves.
+    !
+    ! For every multipole order l <= lmax, all m and both operator halves,
+    ! selected matrix elements are recomputed INDEPENDENTLY of the Qlm_spme
+    ! fill machinery: the spwfs are extended from the stored fundamental
+    ! chamber to the full box with the per-component reflection signs
+    ! sx/sy/sz (the folding convention of the derivative machinery), the
+    ! operator mesh function is regenerated at the chamber coordinates, and
+    ! the full complex matrix element < i | Q_lm | j > is obtained by plain
+    ! mesh quadrature with the plain cell volume. The chamber-weight table
+    ! and the numeric reflection-character estimation of the production
+    ! fill are bypassed by construction; only the trusted raw inputs are
+    ! shared.
+    !
+    ! Judged against physics, never against zeros, per element:
+    !  (1) identity: the stored half agrees with the corresponding part
+    !      (real/imaginary) of the full complex matrix element, at both the
+    !      stored position and its partner position - the latter through the
+    !      dense() partner reconstruction, so the storage-kind sign is
+    !      validated along the way;
+    !  (2) STy characteristic: the opposite part of the complex matrix
+    !      element vanishes - purely real matrix elements for r^l Re Y_lm
+    !      (STY_EVEN), purely imaginary ones for r^l Im Y_lm (STY_ODD);
+    !  (3) Hermiticity: the reversed element is the complex conjugate.
+    !
+    ! Per stored block, the elements checked are the corner (1,1) - zero by
+    ! construction for the antisymmetric halves, a genuine check through
+    ! identity (1) - one element of the first row and of the first column,
+    ! one hashed interior element and the largest-magnitude element, each
+    ! in both orderings.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   lmax    : maximum multipole order to test
+    ! Output:
+    !   ifail   : 0 if every checked element survived, 1 otherwise
+    !------------------------------------------------------------------------------
+
+    1 format (' --------- Full-box reconstruction oracle for the multipole',   &
+    &         ' matrices up to l =', i3, ' ---------')
+    2 format (4x, ' l', 2x, ' m', 5x, 'half', 3x, '#elem', 8x, 'identity',    &
+    &         10x, 'STy half', 9x, 'Hermiticity')
+    3 format (i6, i4, 5x, a2, i9, 4x, 3es14.5)
+    4 format (' largest deviations of the full-box oracle -   identity:',     &
+    &         es12.3, '   STy half:', es12.3, '   Hermiticity:', es12.3)
+    5 format ('  fullbox oracle: ', a, ' mismatch for l =', i2, ' m =', i2,    &
+    &         'half ', a2, ' block', i2, ' element (', i5, ',', i5, ')')
+    6 format (i6, i4, 5x, a2, '     structurally empty matrix - skipped')
+
+    integer, intent(in)  :: lmax
+    integer, intent(out) :: ifail
+
+    type(sym_matrix)          :: me
+    real(KIND=dp), allocatable :: D(:, :)
+    real(KIND=dp), allocatable :: Qc(:, :)
+    integer, allocatable       :: flips(:, :)
+    integer :: nch, l, m, ihalf, b, pk, npick, npairs, npairs_mom
+    integer :: gi, gj
+    integer, parameter :: PICK_MAX = 6
+    integer :: ipick(2, PICK_MAX)
+    real(KIND=dp) :: va_re, va_im, vb_re, vb_im
+    real(KIND=dp) :: dev, tol, matmax
+    real(KIND=dp) :: max_dev, max_sty, max_her, mom_dev, mom_sty, mom_her
+    logical :: Im
+
+    ifail  = 0
+    npairs = 0
+    max_dev = 0.0d0
+    max_sty = 0.0d0
+    max_her = 0.0d0
+
+    print 1, lmax
+    print 2
+
+    do l = 0, lmax
+      do m = 0, l
+        do ihalf = 1, 2
+          Im = (ihalf .eq. 2)
+
+          call Qlm_spme_matrix(l, m, Im, me)
+          if (me%nblocks .eq. 0) then
+            print 6, l, m, merge('Im', 'Re', Im)
+            cycle
+          endif
+
+          D  = me%dense()
+          call fullbox_chambers(l, m, ihalf, nch, flips, Qc)
+
+          matmax  = maxval(abs(D))
+          dev     = 0.0d0
+          npairs_mom = 0
+          mom_dev = 0.0d0
+          mom_sty = 0.0d0
+          mom_her = 0.0d0
+
+          do b = 1, me%nblocks
+            call fullbox_block_picks(me%blocks(b), b, PICK_MAX, ipick, npick)
+            do pk = 1, npick
+              gi = me%blocks(b)%is + ipick(1, pk) - 1
+              gj = me%blocks(b)%js + ipick(2, pk) - 1
+
+              call fullbox_me(Qc, flips, gi, gj, va_re, va_im)
+              call fullbox_me(Qc, flips, gj, gi, vb_re, vb_im)
+              npairs = npairs + 1
+              npairs_mom = npairs_mom + 1
+
+              ! Tolerance: relative to the magnitudes at play, with a floor
+              !  on the matrix scale so that structural zeros (diagonals of
+              !  the antisymmetric halves, zero element picks) are judged
+              !  against the noise of the quadrature rather than against
+              !  exact zero.
+              tol = 1.0d-9*(abs(va_re) + abs(va_im) + abs(vb_re) + abs(vb_im))&
+              &   + 1.0d-10*matmax
+
+              ! (1) identity against the stored half, both orderings - the
+              !  partner side runs through the dense() reconstruction.
+              ! (2) the STy-selected other part of the matrix element
+              !  vanishes for both orderings.
+              if (ihalf .eq. 1) then
+                dev = abs(va_re - D(gi, gj)) + abs(vb_re - D(gj, gi))
+                max_dev = max(max_dev, dev)
+                mom_dev = max(mom_dev, dev)
+                if (dev .gt. tol) then
+                  print 5, 'stored-half', l, m, 'Re', b, gi, gj
+                  ifail = 1
+                endif
+                dev = abs(va_im) + abs(vb_im)
+                max_sty = max(max_sty, dev)
+                mom_sty = max(mom_sty, dev)
+                if (dev .gt. tol) then
+                  print 5, 'STy-half  ', l, m, 'Re', b, gi, gj
+                  ifail = 1
+                endif
+              else
+                dev = abs(va_im - D(gi, gj)) + abs(vb_im - D(gj, gi))
+                max_dev = max(max_dev, dev)
+                mom_dev = max(mom_dev, dev)
+                if (dev .gt. tol) then
+                  print 5, 'stored-half', l, m, 'Im', b, gi, gj
+                  ifail = 1
+                endif
+                dev = abs(va_re) + abs(vb_re)
+                max_sty = max(max_sty, dev)
+                mom_sty = max(mom_sty, dev)
+                if (dev .gt. tol) then
+                  print 5, 'STy-half  ', l, m, 'Im', b, gi, gj
+                  ifail = 1
+                endif
+              endif
+
+              ! (3) Hermiticity of the full complex matrix element:
+              !      < j | Q | i > = conj( < i | Q | j > )
+              dev = abs(va_re - vb_re) + abs(va_im + vb_im)
+              max_her = max(max_her, dev)
+              mom_her = max(mom_her, dev)
+              if (dev .gt. tol) then
+                print 5, 'Hermitian ', l, m, merge('Im', 'Re', Im), b, gi, gj
+                ifail = 1
+              endif
+            enddo
+          enddo
+
+          print 3, l, m, merge('Im', 'Re', Im), npairs_mom, mom_dev,          &
+          &        mom_sty, mom_her
+        enddo
+      enddo
+    enddo
+
+    print 4, max_dev, max_sty, max_her
+    print *, ' number of matrix elements checked:', npairs
+
+  end subroutine test_Qlm_fullbox
+
+!===============================================================================
+  subroutine fullbox_chambers(l, m, ihalf, nch, flips, Qc)
+    !------------------------------------------------------------------------------
+    ! Chamber setup of the full-box oracle: the operator mesh function
+    ! evaluated freshly at the coordinates of EVERY chamber of the full box,
+    ! with the per-chamber axis-flip masks and the plain cell volume folded
+    ! in.
+    !
+    ! The stored mesh is the fundamental chamber: 2^nch folds with
+    ! nch = reduX + reduY + reduZ, and dv carries the multiplicity, so the
+    ! full-box cell volume is dv / 2^nch. For every chamber the spherical
+    ! harmonics are regenerated with the mirrored coordinate arrays, so the
+    ! reflection behaviour of the operator enters through the mesh values
+    ! only.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   l, m, ihalf : the operator slice r^l Re Y_lm (ihalf = 1) or
+    !                 r^l Im Y_lm (ihalf = 2), conventions as Qlm_spme_matrix
+    ! Output:
+    !   nch         : number of chambers of the full box
+    !   flips       : flips(1:3, 1:nch) - per-axis flip of each chamber
+    !                 (0: stored mesh, 1: mirrored axis)
+    !   Qc          : Qc(:, c) = operator values of chamber c, flattened over
+    !                 the stored mesh points, in fm^l and multiplied by
+    !                 dv / nch
+    !------------------------------------------------------------------------------
+
+    integer, intent(in)   :: l, m, ihalf
+    integer, intent(out)  :: nch
+    integer, allocatable, intent(out)  :: flips(:, :)
+    real(KIND=dp), allocatable, intent(out) :: Qc(:, :)
+
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    integer :: c, ic, fx, fy, fz
+
+    nch = 2**(reduX + reduY + reduZ)
+    allocate(flips(3, nch), Qc(mv, nch))
+    allocate(SpherHarmMesh(nx, ny, nz, 0:l, 0:l, 2))
+
+    do c = 1, nch
+      ! Chamber index decomposition over the folded axes only: axis bits of
+      !  unfolded builds do not exist in the full box.
+      ic = c - 1
+      fx = 0
+      fy = 0
+      fz = 0
+      if (reduX .eq. 1) then
+        fx = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduY .eq. 1) then
+        fy = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduZ .eq. 1) then
+        fz = mod(ic, 2)
+      endif
+      flips(:, c) = (/ fx, fy, fz /)
+
+      ! The operator values at the chamber coordinates: the COM-shifted mesh
+      !  mirrors with the flipped axes only.
+      call generate_spherical_harmonics(l, nx, ny, nz,                        &
+      &       merge(-meshx_shifted, meshx_shifted, fx .eq. 1),                &
+      &       merge(-meshy_shifted, meshy_shifted, fy .eq. 1),                &
+      &       merge(-meshz_shifted, meshz_shifted, fz .eq. 1),                &
+      &       SpherHarmMesh, QuantisationAxis, SecondaryAxis)
+      Qc(:, c) = reshape(SpherHarmMesh(:,:,:,l,m,ihalf), (/ mv /))            &
+      &        * (dv/nch)
+    enddo
+
+    deallocate(SpherHarmMesh)
+
+  end subroutine fullbox_chambers
+
+!===============================================================================
+  subroutine fullbox_me(Qc, flips, gi, gj, me_re, me_im)
+    !------------------------------------------------------------------------------
+    ! One matrix element of the full-box oracle: the plain mesh quadrature of
+    ! the full complex matrix element
+    !
+    !     < i | Q_lm | j > = sum_spin Int_fullbox d^3r  chi_i,s*(r) Q(r) chi_j,s(r)
+    !
+    ! over the chamber-extended spinors. At the full-box points of chamber c
+    ! every spinor component k of state i takes the value of its mirror image
+    ! in the stored chamber, multiplied by the product of the per-component
+    ! reflection signs sx/sy/sz over the chamber's flipped axes (the folding
+    ! convention of the derivative machinery).
+    !
+    ! With the real component storage of HFPsi - (2s-1) = Re and (2s) = Im of
+    ! spin projection s - the summand reads
+    !   Q (Re_i Re_j + Im_i Im_j) + i Q (Re_i Im_j - Im_i Re_j)
+    ! per spin projection, the second bracket being the imaginary part that
+    ! the STY_ODD operator half stores.
+    !
+    ! Qc carries the operator values per chamber with the full-box cell
+    !  volume folded in, so the chamber sum below is the entire integral.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   Qc, flips : the chamber state, as built by fullbox_chambers
+    !   gi, gj    : global HF-basis indices of the row/column state
+    ! Output:
+    !   me_re, me_im : Re / Im of < i | Q_lm | j >
+    !------------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in)  :: Qc(:, :)
+    integer, intent(in)        :: flips(:, :)
+    integer, intent(in)        :: gi, gj
+    real(KIND=dp), intent(out) :: me_re, me_im
+
+    integer :: c, k, s
+    real(KIND=dp) :: si(4), sj(4)
+    real(KIND=dp), allocatable :: Rei(:), Imi(:), Rej(:), Imj(:)
+
+    if (gi .lt. 1 .or. gj .lt. 1 .or. gi .gt. nwt .or. gj .gt. nwt) then
+      print *, 'fullbox_me: state index outside the basis: ', gi, gj
+      call stp('State index outside the basis in fullbox_me.')
+    endif
+
+    allocate(Rei(mv), Imi(mv), Rej(mv), Imj(mv))
+    me_re = 0.0d0
+    me_im = 0.0d0
+
+    do c = 1, size(Qc, 2)
+      ! Extension signs of both states' four components for this chamber.
+      si = 1.0d0
+      sj = 1.0d0
+      do k = 1, 4
+        if (flips(1, c) .eq. 1) then
+          si(k) = si(k)*sx(k, gi)
+          sj(k) = sj(k)*sx(k, gj)
+        endif
+        if (flips(2, c) .eq. 1) then
+          si(k) = si(k)*sy(k, gi)
+          sj(k) = sj(k)*sy(k, gj)
+        endif
+        if (flips(3, c) .eq. 1) then
+          si(k) = si(k)*sz(k, gi)
+          sj(k) = sj(k)*sz(k, gj)
+        endif
+      enddo
+
+      do s = 1, 2
+        Rei = si(2*s-1)*HFPsi(:, 2*s-1, gi)
+        Imi = si(2*s  )*HFPsi(:, 2*s  , gi)
+        Rej = sj(2*s-1)*HFPsi(:, 2*s-1, gj)
+        Imj = sj(2*s  )*HFPsi(:, 2*s  , gj)
+        me_re = me_re + dot_product(Qc(:, c), Rei*Rej + Imi*Imj)
+        me_im = me_im + dot_product(Qc(:, c), Rei*Imj - Imi*Rej)
+      enddo
+    enddo
+
+    deallocate(Rei, Imi, Rej, Imj)
+
+  end subroutine fullbox_me
+
+!===============================================================================
+  subroutine fullbox_block_picks(blk, b, pick_max, ipick, npick)
+    !------------------------------------------------------------------------------
+    ! Deterministic element selection of one stored block for the full-box
+    !  oracle: the corner (1,1) - zero by construction for the antisymmetric
+    !  halves - one element of the first row and of the first column, one
+    !  hashed interior element and the largest-magnitude element.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   blk       : one stored block of the matrix under test
+    !   b         : its position in the block list, for the hashed interior
+    !   pick_max  : size of the pick list handed in
+    ! Output:
+    !   ipick     : local (row, column) picks of the block, 1-based
+    !   npick     : their number, <= pick_max
+    !------------------------------------------------------------------------------
+
+    type(sym_block), intent(in)  :: blk
+    integer, intent(in)          :: b, pick_max
+    integer, intent(out)        :: ipick(2, pick_max)
+    integer, intent(out)        :: npick
+
+    integer :: m1, n1, ij
+    integer :: iloc(2)
+
+    npick = 0
+    m1 = size(blk%A, 1)
+    n1 = size(blk%A, 2)
+
+    npick = npick + 1
+    ipick(1, npick) = 1
+    ipick(2, npick) = 1
+    if (n1 .ge. 2) then
+      npick = npick + 1
+      ipick(1, npick) = 1
+      ipick(2, npick) = 2
+    endif
+    if (m1 .ge. 2) then
+      npick = npick + 1
+      ipick(1, npick) = 2
+      ipick(2, npick) = 1
+    endif
+    npick = npick + 1
+    ipick(1, npick) = 1 + mod(7*b + 3, m1)
+    ipick(2, npick) = 1 + mod(11*b + 5, n1)
+
+    ! Largest-magnitude element; maxloc returns the first maximum, so the
+    !  pick is reproducible run to run.
+    iloc = maxloc(abs(blk%A))
+    ij = iloc(1)
+    npick = npick + 1
+    ipick(1, npick) = 1 + mod(ij - 1, m1)
+    ipick(2, npick) = 1 + (ij - 1)/m1
+    if (npick .gt. pick_max)                                                   &
+    &  call stp('Pick list overflow in fullbox_block_picks.')
+
+  end subroutine fullbox_block_picks
 
 end module

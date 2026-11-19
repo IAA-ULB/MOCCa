@@ -5,8 +5,12 @@
 #  time-reversal- and parity-conserving build, the time-reversal-broken build
 #  and the parity-broken build. The per-run tests are defined in the Fortran
 #  code of the moments_testing module: a dense dump of all multipole matrices
-#  with l <= 4 and the trace check of those matrices against the many-body
-#  moment values.
+#  with l <= 4, the trace check of those matrices against the many-body moment
+#  values, and the full-box reconstruction oracle - the reference path for
+#  the imaginary operator half (design summary, amended step 4 of section
+#  10), which recomputes selected elements by independent mesh quadrature of
+#  the chamber-extended spinors and checks identity, STy characteristic and
+#  Hermiticity against physics.
 #
 #  On top of the three runs, the script cross-compares the runs: for every
 #  multipole operator that all three builds represent - the even-m operators,
