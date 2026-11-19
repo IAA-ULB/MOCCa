@@ -60,6 +60,7 @@ module folding
 
 contains
 
+
  pure function gaussian(r1,r2, r0) result(G)
   !-----------------------------------------------------------------------------
   ! Returns the 1D Gaussian function given by
@@ -70,128 +71,11 @@ contains
   real(KIND=dp) :: dr, G
   
   dr = abs(r1-r2)/(r0)
-  G = 1.0d0/(r0 * sqrt(pi)) * exp(-dr**2)
+  G = 1.0/(r0 * sqrt(pi)) * exp(-dr**2)
   return
  end function gaussian
 
- !Trying to define the galster param in r space
-
-
- !---------------------------------------------------------------------------
- ! Proton electric form factor: dipole spatial distribution
- !
- ! Input:
- !   r : radial distance in fm
- !
- ! Output:
- !   rho_p : spatial density in fm**(-3)
- !---------------------------------------------------------------------------
-
- pure function dipole_density(r) result(rho_p)
-
-  real(KIND=dp), intent(in) :: r
-  real(KIND=dp) :: rho_p
-  real(KIND=dp) :: radius, lambda_fm
-
-  real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
-  real(KIND=dp), parameter :: lambda2 = 0.71_dp
-
-  radius = abs(r)
-
-  ! Convert the dipole mass scale from GeV to fm**(-1)
-  lambda_fm = sqrt(lambda2) / hbarc
-
-  rho_p = lambda_fm**3 / (8.0_dp*pi) * exp(-lambda_fm*radius)
-
-  return
- end function dipole_density
-
-
- !---------------------------------------------------------------------------
- ! Neutron electric form factor: generalized Galster spatial distribution
- !
- ! Input:
- !   r : radial distance in fm
- !
- ! Output:
- !   rho_n : spatial density in fm**(-3)
- !---------------------------------------------------------------------------
-
- pure function galster_density(r) result(rho_n)
-
-  real(KIND=dp), intent(in) :: r
-  real(KIND=dp) :: rho_n
-
-  real(KIND=dp) :: radius
-  real(KIND=dp) :: alpha, beta
-  real(KIND=dp) :: mass_alpha, mass_beta
-  real(KIND=dp) :: coeff_c, coeff_e
-  real(KIND=dp) :: diff_over_r
-
-  real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
-  real(KIND=dp), parameter :: mn = 0.939565421_dp
-  real(KIND=dp), parameter :: lambda2 = 0.71_dp
-
-  real(KIND=dp), parameter :: A_g = 1.73_dp
-  real(KIND=dp), parameter :: B_g = 4.59_dp
-
-  radius = abs(r)
-
-  ! Momentum scales, expressed in fm**(-2)
-  alpha = 4.0_dp*mn**2 / (B_g*hbarc**2)
-  beta  = lambda2 / hbarc**2
-
-  mass_alpha = sqrt(alpha)
-  mass_beta  = sqrt(beta)
-
-  ! Coefficients from the partial fraction decomposition
-  coeff_c = -alpha*beta**2 / (beta-alpha)**2
-  coeff_e = beta**3 / (beta-alpha)
-
-  ! Evaluate the exponential difference divided by r.
-  ! Use a Taylor expansion close to the origin to avoid
-  ! loss of numerical precision from subtracting exponentials.
-  if (radius < 1.0e-4_dp) then
-
-     diff_over_r = (mass_beta-mass_alpha) &
-          + 0.5_dp*(mass_alpha**2-mass_beta**2)*radius &
-          + (mass_beta**3-mass_alpha**3)*radius**2/6.0_dp &
-          + (mass_alpha**4-mass_beta**4)*radius**3/24.0_dp &
-          + (mass_beta**5-mass_alpha**5)*radius**4/120.0_dp
-
-  else
-
-     diff_over_r = (exp(-mass_alpha*radius) &
-                  - exp(-mass_beta*radius))/radius
-
-  end if
-
-  rho_n = (A_g/B_g) * ( &
-       coeff_c/(4.0_dp*pi)*diff_over_r &
-       + coeff_e/(8.0_dp*pi*mass_beta) &
-       * exp(-mass_beta*radius) )
-
-  return
- end function galster_density
-
-
- pure function gamma_function(r1,r2, r0,n,L) result(G)
-  !-----------------------------------------------------------------------------
-  ! Returns the 1D Gamma function given by
-  ! 
-  !     G(|r1 - r2|) = exp[-(pi*r0/L*(n+1/2))**2]*cos(2*pi/L*(n+1/2)*(r1-r2))
-  !-----------------------------------------------------------------------------
-  real(KIND=dp), intent(in) :: r1, r2, r0, L
-  integer, intent(in)       :: n
-  real(KIND=dp)             :: exponent, cos_arg, G
-  
-  exponent = pi * r0 / L * (n + 1.0_dp/2.0_dp)
-  cos_arg  = 2.0_dp * pi / L * (n + 1.0_dp/2.0_dp) * (r1 - r2)
-  G = exp(-exponent**2) * cos(cos_arg)
-  return
- end function gamma_function
- 
- subroutine gauss_1D(G, mesh, m, r0, p)
+subroutine gauss_1D(G, mesh, m, r0, p)
     !---------------------------------------------------------------------------
     ! Function that constructs a matrix to fold in 1-D with a Gaussian of
     ! parameter r0 and symmetry sign p. 
@@ -272,134 +156,316 @@ contains
     
     G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine gauss_1D
+ 
+
+ !Trying to define the galster and dipole form factors in r space
 
 
+ !---------------------------------------------------------------------------
+ ! Proton electric form factor: dipole spatial distribution
+ !
+ ! Input:
+ !   r1 and r2 with r2-r1 : radial distance in fm
+ !
+ ! Output:
+ !   rho_p : spatial density in fm**(-3) = 
+ !---------------------------------------------------------------------------
 
-! ================================================================
-! 1D spatial folding kernels
-!
-! We use a coordinate-space construction. The 1D kernel is obtained
-! by integrating the corresponding spherical 3D density over the
-! two transverse coordinates:
-!
-!   K_1D(x) = integral dy dz rho_3D(sqrt(x**2 + y**2 + z**2))
-!
-! Its Fourier transform is the original 3D form factor evaluated
-! for momentum along the x axis.
-!
-! The same 1D kernel is used for the x, y and z directions.
-! Multiplying the three 1D kernels is a separable approximation:
-! it reproduces the form factor along the Cartesian axes, but not
-! generally for arbitrary momentum directions.
-!
-! IMPORTANT:
-! Do not normalize these kernels using the Gaussian normalization
-! in gauss_1D. The proton kernel integrates to 1, whereas the
-! neutron kernel integrates to 0. The latter is physically required
-! because the neutron electric form factor satisfies G_E^n(0) = 0.
-! ================================================================
+pure function dipole(r1, r2, beta_GeV2) result(D)
 
+  real(kind=dp), intent(in) :: r1, r2, beta_GeV2
+  real(kind=dp) :: D
+  real(kind=dp) :: r, m_D_fm
 
-! ----------------------------------------------------------------
-! Proton: standard dipole parametrization
-!
-! G_E^p(q^2) = [1 + q^2/beta]^-2
-!
-! beta = Lambda^2 / (hbar*c)^2
-!
-! The analytical 1D inverse Fourier transform is:
-!
-! K_p(x) = beta/4 * (1 + sqrt(beta)*abs(x))
-!                    * exp(-sqrt(beta)*abs(x))
-!
-! Its integral over x is exactly 1.
-! ----------------------------------------------------------------
-pure function dipole_kernel_1D(x) result(kernel)
-    real(KIND=dp), intent(in) :: x
-    real(KIND=dp) :: kernel
-    real(KIND=dp) :: radius, mass_beta
+  real(kind=dp), parameter :: hbarc = 0.1973269804_dp
 
-    real(KIND=dp), parameter :: hbarc   = 0.1973269804_dp
-    real(KIND=dp), parameter :: lambda2 = 0.71_dp
+  ! Distance along the folding axis (in fm)
+  r = abs(r1-r2)
 
-    radius = abs(x)
-    mass_beta = sqrt(lambda2) / hbarc
+  ! Convert the dipole parameter beta from GeV^2 to fm^(-2)
+  ! The dipole density in 3D is given by:
+  !
+  ! rho_D(r) = m_D^3/(8*pi) * exp(-m_D*r)
+  !
+  ! with m_D = sqrt(beta)/hbarc
+  m_D_fm = sqrt(beta_GeV2)/hbarc
 
-    kernel = (mass_beta**2 / 4.0_dp) * &
-             (1.0_dp + mass_beta*radius) * &
-             exp(-mass_beta*radius)
+  !---------------------------------------------------------------------------
+  ! Change of coordinates and transverse integration
+  !
+  ! The original 3D dipole density depends on the radial distance:
+  !
+  !   r_3D = sqrt(x^2 + y^2 + z^2)
+  !
+  ! To construct a 1D folding kernel along the x-axis, we integrate the density
+  ! over the two transverse coordinates y and z:
+  !
+  !   K_D(x) = integral dy dz rho_D(sqrt(x^2+y^2+z^2))
+  !
+  ! Using cylindrical coordinates in the transverse plane:
+  !
+  !   y = s*cos(phi), z = s*sin(phi)
+  !   dy dz = s*ds*dphi
+  !
+  ! This gives:
+  !
+  !   K_D(x) = 2*pi * integral_0^infinity s ds
+  !             * m_D^3/(8*pi)
+  !             * exp(-m_D*sqrt(x^2+s^2))
+  !
+  ! After performing the integral analytically:
+  !
+  !   K_D(x) = m_D^2/4 * (1+m_D*|x|) * exp(-m_D*|x|)
+  !
+  ! This is the transverse marginal of the 3D dipole density. It is normalized
+  ! to unity over the x coordinate and is the kernel used for 1D folding.
+  !---------------------------------------------------------------------------
 
-end function dipole_kernel_1D
+  D = m_D_fm**2 / 4.0_dp * (1.0_dp + m_D_fm*r) &
+      & * exp(-m_D_fm*r)
 
+end function dipole
 
-! ----------------------------------------------------------------
-! Neutron: generalized Galster parametrization
-!
-! G_E^n(q^2) = A*tau/(1 + B*tau) * G_D(q^2)
-!
-! tau = (hbar*c)^2*q^2 / (4*Mn^2)
-! G_D = [1 + q^2/beta]^-2
-!
-! The form factor is decomposed into simple poles:
-!
-! G_E^n(q^2) = (A/B) * [
-!       C/(q^2 + alpha)
-!     + D/(q^2 + beta)
-!     + E/(q^2 + beta)^2
-! ]
-!
-! The inverse 1D Fourier transform is evaluated analytically.
-! Its integral over x is zero, as required by G_E^n(0) = 0.
-! ----------------------------------------------------------------
-pure function galster_kernel_1D(x) result(kernel)
-    real(KIND=dp), intent(in) :: x
-    real(KIND=dp) :: kernel
+subroutine dipole_1D(D, mesh, m, beta_GeV2, p)
 
-    real(KIND=dp) :: radius
-    real(KIND=dp) :: alpha, beta
-    real(KIND=dp) :: mass_alpha, mass_beta
-    real(KIND=dp) :: coeff_c, coeff_d, coeff_e
-
-    real(KIND=dp), parameter :: hbarc = 0.1973269804_dp
-    real(KIND=dp), parameter :: mn    = 0.939565421_dp
-    real(KIND=dp), parameter :: lambda2 = 0.71_dp
-
-    ! Generalized Galster parameters from the Python implementation.
-    real(KIND=dp), parameter :: A_g = 1.73_dp
-    real(KIND=dp), parameter :: B_g = 4.59_dp
-
-    radius = abs(x)
-
-    ! Convert the momentum-space parameters to inverse-fm units.
-    beta  = lambda2 / hbarc**2
-    alpha = 4.0_dp*mn**2 / (B_g*hbarc**2)
-
-    mass_beta  = sqrt(beta)
-    mass_alpha = sqrt(alpha)
-
-    ! Coefficients of the partial-fraction decomposition.
-    coeff_c = -alpha*beta**2 / (beta-alpha)**2
-    coeff_d =  alpha*beta**2 / (beta-alpha)**2
-    coeff_e =  beta**3 / (beta-alpha)
-
-    ! Inverse 1D Fourier transform:
+    !---------------------------------------------------------------------------
+    ! Constructs a 1D foldinD matrix usinD the dipole form factor kernel
     !
-    ! FT^-1[1/(q^2 + m^2)] =
-    !       exp(-m*abs(x))/(2*m)
+    ! Input:
+    !   mesh       : mesh coordinates along this direction
+    !   m          : number of mesh points
+    !   beta_GeV2 : dipole parameter in GeV^2
+    !   p          : symmetry sign for reflection along this direction
     !
-    ! FT^-1[1/(q^2 + m^2)^2] =
-    !       (1 + m*abs(x))*exp(-m*abs(x))/(4*m^3)
+    ! Output:
+    !   G          : constructed folding matrix
+    !
+    ! The 1D kernel is the transverse marginal of the 3D dipole density:
+    !
+    ! K_D(x) = m_D^2/4 * (1 + m_D*|x|) * exp(-m_D*|x|)
+    !
+    ! where m_D = sqrt(beta)/hbarc.
+    !---------------------------------------------------------------------------
 
-    kernel = (A_g/B_g) * ( &
-          coeff_c/(2.0_dp*mass_alpha) * &
-              exp(-mass_alpha*radius) &
-        + coeff_d/(2.0_dp*mass_beta) * &
-              exp(-mass_beta*radius) &
-        + coeff_e/(4.0_dp*mass_beta**3) * &
-              (1.0_dp + mass_beta*radius) * &
-              exp(-mass_beta*radius) )
+    real(kind=dp)             :: D(m,m)
+    integer, intent(in)       :: m, p
+    real(kind=dp), intent(in) :: beta_GeV2, mesh(m)
 
-end function galster_kernel_1D
+    integer :: i, j, ind
+
+    ! Elements actually represented on the mesh
+    do i=1,m
+        do j=1,m
+            D(i,j) = dipole(mesh(i), mesh(j), beta_GeV2)
+        enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+    ! Elements obtained by symmetry
+    do i=1,m
+        do j=1,m
+            D(i,j) = D(i,j) + p*dipole(-mesh(i), mesh(j), beta_GeV2)
+        enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+    ! Periodic boundary conditions
+#if(USE_Periodic==1)
+    do i=1,m
+        do j=1,m
+            D(i,j) = D(i,j) &
+            & + dipole(mesh(i)-(1+p)*m*dx, mesh(j), beta_GeV2) &
+            & + dipole((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), beta_GeV2)
+        enddo
+    enddo
+#endif
+
+    !---------------------------------------------------------------------------
+    ! Normalize to compensate for mesh discretization errors
+    ind = m/2 + 1
+
+    D(:,:) = D(:,:) / sum(D(:,ind)*dx)
+
+end subroutine dipole_1D
+
+ !---------------------------------------------------------------------------
+ ! Neutron electric form factor: generalized Galster spatial distribution
+ !
+ ! Input:
+ !   r : radial distance in fm
+ !
+ ! Output:
+ !   rho_n : spatial density in fm**(-3)
+ !---------------------------------------------------------------------------
+
+
+
+pure function galster(r1, r2) result(G)
+
+  real(kind=dp), intent(in) :: r1, r2
+  real(kind=dp) :: G
+
+  real(kind=dp) :: radius
+  real(kind=dp) :: alpha, beta
+  real(kind=dp) :: mass_alpha, mass_beta
+  real(kind=dp) :: coeff_c, coeff_e
+
+  real(kind=dp), parameter :: hbarc = 0.1973269804_dp
+  real(kind=dp), parameter :: mn = 0.939565421_dp
+  real(kind=dp), parameter :: lambda2 = 0.71_dp
+
+  real(kind=dp), parameter :: A_g = 1.73_dp
+  real(kind=dp), parameter :: B_g = 5.6_dp
+
+  ! Distance along the folding axis (in fm)
+  radius = abs(r1-r2)
+
+  ! Momentum scales, expressed in fm^(-2)
+  alpha = 4.0_dp*mn**2 / (B_g*hbarc**2)
+  beta  = lambda2 / hbarc**2
+
+  mass_alpha = sqrt(alpha)
+  mass_beta  = sqrt(beta)
+
+  ! Coefficients from the partial fraction decomposition
+  coeff_c = -alpha*beta**2 / (beta-alpha)**2
+  coeff_e = beta**3 / (beta-alpha)
+
+  !---------------------------------------------------------------------------
+  ! Change of coordinates and transverse integration
+  !
+  ! The original 3D Galster distribution depends on:
+  !
+  !   r_3D = sqrt(x^2 + y^2 + z^2)
+  !
+  ! To construct a 1D folding kernel along the x-axis, we integrate the density
+  ! over the two transverse coordinates y and z:
+  !
+  !   K_n(x) = integral dy dz rho_n(sqrt(x^2+y^2+z^2))
+  !
+  ! Using cylindrical coordinates in the transverse plane:
+  !
+  !   y = s*cos(phi), z = s*sin(phi)
+  !   dy dz = s*ds*dphi
+  !
+  ! This gives:
+  !
+  !   K_n(x) = 2*pi * integral_0^infinity s ds rho_n(sqrt(x^2+s^2))
+  !
+  ! The transverse integrals can be evaluated analytically:
+  !
+  !   integral_0^infinity s*exp(-m*sqrt(x^2+s^2))
+  !                    /sqrt(x^2+s^2) ds = exp(-m*|x|)/m
+  !
+  !   integral_0^infinity s*exp(-m*sqrt(x^2+s^2)) ds
+  !                  = exp(-m*|x|)*(|x|/m + 1/m^2)
+  !
+  ! The resulting 1D Galster kernel is:
+  !
+  !   K_n(x) = (A_g/B_g) * [
+  !       C/(2*m_alpha) * exp(-m_alpha*|x|)
+  !      -C/(2*m_beta)  * exp(-m_beta*|x|)
+  !      +E/(4*m_beta^3) * (1+m_beta*|x|) * exp(-m_beta*|x|)
+  !   ]
+  !
+  ! No division by radius is present in the final expression, therefore the
+  ! numerical cancellation occurring in the original 3D expression at r=0
+  ! is avoided.
+  !
+  !
+  !
+  ! Probleme pour la normalisation a 0 ...
+  !---------------------------------------------------------------------------
+
+  G = (A_g/B_g) * ( &
+       coeff_c/(2.0_dp*mass_alpha) * exp(-mass_alpha*radius) &
+       - coeff_c/(2.0_dp*mass_beta) * exp(-mass_beta*radius) &
+       + coeff_e/(4.0_dp*mass_beta**3) &
+         * (1.0_dp+mass_beta*radius) * exp(-mass_beta*radius) )
+
+
+end function galster
+
+subroutine galster_1D(G, mesh, m, p)
+
+    real(kind=dp)             :: G(m,m)
+    integer, intent(in)       :: m, p
+    real(kind=dp), intent(in) :: mesh(m)
+
+    integer :: i, j
+    integer :: log_unit, ios, ind
+    real(kind=dp) :: galster_integral
+
+    ! Construct the kernel
+    do i=1,m
+        do j=1,m
+            G(i,j) = galster(mesh(i), mesh(j))
+        enddo
+    enddo
+
+    ! Symmetry contribution
+    do i=1,m
+        do j=1,m
+            G(i,j) = G(i,j) &
+                & + p*galster(-mesh(i), mesh(j))
+        enddo
+    enddo
+
+#if(USE_Periodic==1)
+    ! Periodic images
+    do i=1,m
+        do j=1,m
+            G(i,j) = G(i,j) &
+                & + galster(mesh(i)-(1+p)*m*dx, mesh(j)) &
+                & + galster((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j))
+        enddo
+    enddo
+#endif
+
+    ! Numerical integral of the central column
+    ind = m/2 + 1
+    galster_integral = sum(G(:,ind))*dx
+
+    ! Write diagnostic to log file
+    open(newunit=log_unit, &
+         file='/home/schroeder/Desktop/Codes/CoulombCorrections/galster_errors.log', &
+         status='unknown', position='append', action='write', iostat=ios)
+
+    if (ios == 0) then
+        write(log_unit,'(A,I6,A,I6,A,ES16.8)') &
+            'm = ', m, ', p = ', p, &
+            ', Galster integral = ', galster_integral
+        close(log_unit)
+    endif
+
+end subroutine galster_1D
+
+
+
+ pure function gamma_function(r1,r2, r0,n,L) result(G)
+  !-----------------------------------------------------------------------------
+  ! Returns the 1D Gamma function given by
+  ! 
+  !     G(|r1 - r2|) = exp[-(pi*r0/L*(n+1/2))**2]*cos(2*pi/L*(n+1/2)*(r1-r2))
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in) :: r1, r2, r0, L
+  integer, intent(in)       :: n
+  real(KIND=dp)             :: exponent, cos_arg, G
+  
+  exponent = pi * r0 / L * (n + 1.0_dp/2.0_dp)
+  cos_arg  = 2.0_dp * pi / L * (n + 1.0_dp/2.0_dp) * (r1 - r2)
+  G = exp(-exponent**2) * cos(cos_arg)
+  return
+ end function gamma_function
+ 
+ 
+
+
+
+
+
+
+
 
 
 
@@ -680,7 +746,7 @@ end function galster_kernel_1D
 
  end subroutine fold_form_factor_reverse_complex
 
- function fold_form_factor_species(f, Gx,Gy,Gz, mx, my, mz, sx, sy, sz) result(Folded)
+ function fold_form_factor_species(f, FFx,FFy,FFz, mx, my, mz, sx, sy, sz) result(Folded)
   !----------------------------------------------------------------------------------
   ! Fold a function f with possibly multiple form Gaussian form factors.
   ! 
@@ -694,34 +760,36 @@ end function galster_kernel_1D
   !   folded : the folded function, defined on a (mx,my,mz) mesh
   !-----------------------------------------------------------------------------------
   real(KIND=dp), intent(in)              :: f(mx,my,mz)
-  real(KIND=dp), intent(in), allocatable :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
+  real(KIND=dp), intent(in), allocatable :: FFx(:,:,:,:), FFy(:,:,:,:), FFz(:,:,:,:)
   integer, intent(in)                    :: mx,my,mz
   integer, intent(in)                    :: sx,sy,sz
   real(KIND=dp)                          :: folded(mx,my,mz)
 
    folded = 0.0d0 
-   if(allocated(Gx)) then
+   if(allocated(FFx)) then
     ! Fold with a Gaussian with positive sign 
-    folded =   folded + fold_one_gaussian(f, &
-    &                                        Gx(:,:,:,1), &
-    &                                        Gy(:,:,:,1), &
-    &                                        Gz(:,:,:,1), & 
+    folded =   folded + fold_one_form_factor(f, &
+    &                                        FFx(:,:,:,1), &
+    &                                        FFy(:,:,:,1), &
+    &                                        FFz(:,:,:,1), & 
     &                                        mx, my, mz, sx, sy, sz)
-    if(size(Gx,4) == 2) then 
+    if(size(FFx,4) == 2) then 
       ! ... and with a Gaussian with negative sign if needed!
-      folded = folded - fold_one_gaussian(f, &
-      &                                      Gx(:,:,:,2), &
-      &                                      Gy(:,:,:,2), &
-      &                                      Gz(:,:,:,2), & 
+      folded = folded - fold_one_form_factor(f, &
+      &                                      FFx(:,:,:,2), &
+      &                                      FFy(:,:,:,2), &
+      &                                      FFz(:,:,:,2), & 
       &                                      mx, my, mz, sx, sy, sz)
     endif
   endif
 
  end function fold_form_factor_species
 
- function fold_one_gaussian(f,Gx,Gy,Gz, mx, my, mz, sx, sy, sz) result(Folded)
+ function fold_one_form_factor(f,FFx,FFy,FFz, mx, my, mz, sx, sy, sz) result(Folded)
   !-----------------------------------------------------------------------------
+  !(Emilien : up to date)
   ! Returns the folded function 
+  !
   !
   !  Folded(x2,y2,z2) = int dx1 dy1 dz1 f(x1,y1,z1) 
   !                                Gx(|x1-x2|)Gx(|y1-y2|)Gx(|z1-z2|)
@@ -731,7 +799,7 @@ end function galster_kernel_1D
   !
   ! Input:
   !   f     : the function to be folded, defined on a (mx,my,mz) mesh
-  !   Gx/y/z : the folding matrices, defined on a (mx,my,mz) mesh
+  !   FFx/y/z : the folding matrices, defined on a (mx,my,mz) mesh
   !   mx/my/mz : the number of mesh points along the X/Y/Z direction
   !   sx/sy/sz : the symmetry sign for folding along the X/Y/Z direction
   ! 
@@ -739,7 +807,7 @@ end function galster_kernel_1D
   !   Folded : the folded function, defined on a (mx,my,mz) mesh
   !-----------------------------------------------------------------------------   
   real(KIND=dp), intent(in)         :: f(:,:,:)
-  real(KIND=dp), intent(in)         :: Gx(:,:,:), Gy(:,:,:), Gz(:,:,:)
+  real(KIND=dp), intent(in)         :: FFx(:,:,:), FFy(:,:,:), FFz(:,:,:)
   integer, intent(in)               :: mx,my,mz
   integer, intent(in)               :: sx,sy,sz
   real(KIND=dp)                     :: folded(mx,my,mz)
@@ -749,28 +817,28 @@ end function galster_kernel_1D
   index = 1 + (sx + 1)/2 ! index = 1 for sx = -1/0, index = 2 for sx = +1
   do k=1,mz
     do j=1,my
-      folded(:,j,k) = matmul(Gx(:,:,index), f(1:mx,j,k))*dx
+      folded(:,j,k) = matmul(FFx(:,:,index), f(1:mx,j,k))*dx
     enddo
   enddo
   ! Then the Y-direction
   index = 1 + (sy + 1)/2 ! index = 1 for sy = -1/0, index = 2 for sy = +1
   do k=1,mz
     do i=1,mx
-      folded(i,:,k) = matmul(Gy(:,:,index), folded(i,1:my,k))*dx
+      folded(i,:,k) = matmul(FFy(:,:,index), folded(i,1:my,k))*dx
     enddo
   enddo
   ! Then the Z-direction
   index = 1 + (sz + 1)/2 ! index = 1 for sz = -1/0, index = 2 for sz = +1
   do j=1,my
     do i=1,mx
-      folded(i,j,:) = matmul(Gz(:,:,index), folded(i,j,1:mz))*dx
+      folded(i,j,:) = matmul(FFz(:,:,index), folded(i,j,1:mz))*dx
     enddo
   enddo
   !-----------------------------------------------------------------------------
- end function fold_one_gaussian
+ end function fold_one_form_factor
 
  subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, & 
- &                             exact_coulomb_folding, hbm,Gxn,Gyn,Gzn, Gxp, Gyp, Gzp)
+ &                             exact_coulomb_folding, nucleon_form_factor, hbm,FFxn,FFyn,FFzn, FFxp, FFyp, FFzp)
     !---------------------------------------------------------------------------
     ! Construct the matrices for Gaussian folding.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -781,17 +849,19 @@ end function galster_kernel_1D
     !  hbm        : hbar^2/m for use in the harmonic-oscillator correction
     !
     ! Output:
-    !   Gx/y/zn/p : Gaussian factors for folding the density
+    !   FFx/y/zn/p : Form factors for folding the density
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: neutron_size(2), proton_size(2), hbm(2)
     logical, intent(in)        :: hocomform, exact_coulomb_folding
-    real(KIND=dp), allocatable, intent(out) :: Gxn(:,:,:,:), Gyn(:,:,:,:), Gzn(:,:,:,:)
-    real(KIND=dp), allocatable, intent(out) :: Gxp(:,:,:,:), Gyp(:,:,:,:), Gzp(:,:,:,:)
+    real(KIND=dp), allocatable, intent(out) :: FFxn(:,:,:,:), FFyn(:,:,:,:), FFzn(:,:,:,:)
+    real(KIND=dp), allocatable, intent(out) :: FFxp(:,:,:,:), FFyp(:,:,:,:), FFzp(:,:,:,:)
     real(KIND=dp)              :: rplus_n, rplus_p, rmin_n, rmin_p
     real(KIND=dp)              :: hbom, mhb, B
     integer                    :: n_gauss_n, n_gauss_p, sign, index
-
-
+    real(kind=dp), parameter :: beta_dipole = 0.71_dp
+    integer, intent(in) :: nucleon_form_factor
+!For now, I will hard code the parameters of my new parameterization in here, before I can discuss with Wouter the good strategy
+!maybe the most elegant solution would be to use instantiation insted of  cases, so the variables are managed in a better way
 
     ! The determination of folding parameters from the parameterization input 
     ! for neutrons and protons is not the same; see documentation.
@@ -801,13 +871,21 @@ end function galster_kernel_1D
     rplus_p = proton_size(1) * sqrt(2.0d0/3.0d0)
     rmin_p  = proton_size(2) * sqrt(2.0d0/3.0d0)
 
-    ! Memory management 
-    if(allocated(Gxn)) deallocate(Gxn)
-    if(allocated(Gyn)) deallocate(Gyn)
-    if(allocated(Gzn)) deallocate(Gzn)
-    if(allocated(Gxp)) deallocate(Gxp)
-    if(allocated(Gyp)) deallocate(Gyp)
-    if(allocated(Gzp)) deallocate(Gzp)
+
+  
+
+
+
+
+
+    ! Memory management
+  
+    if(allocated(FFxn)) deallocate(FFxn)
+    if(allocated(FFyn)) deallocate(FFyn)
+    if(allocated(FFzn)) deallocate(FFzn)
+    if(allocated(FFxp)) deallocate(FFxp)
+    if(allocated(FFyp)) deallocate(FFyp)
+    if(allocated(FFzp)) deallocate(FFzp)
 
     ! Allocate the folding matrices
     n_gauss_n = 0
@@ -818,17 +896,23 @@ end function galster_kernel_1D
     if(rplus_p .gt. 0.0d0) n_gauss_p = 1
     if(rmin_p .gt. 0.0d0)  n_gauss_p = 2
 
+
+    select case(nucleon_form_factor)
+
+    case(0)
+    ! correspond to the original code, where the form factor is an addition of gaussian    
+
     if(n_gauss_n .ne. 0) then
-      allocate(Gxn(nx,nx,3,n_gauss_n), Gyn(ny,ny,3,n_gauss_n), Gzn(nz,nz,3,n_gauss_n))
-      Gxn = 0.0_dp
-      Gyn = 0.0_dp
-      Gzn = 0.0_dp
+      allocate(FFxn(nx,nx,3,n_gauss_n), FFyn(ny,ny,3,n_gauss_n), FFzn(nz,nz,3,n_gauss_n))
+      FFxn = 0.0_dp
+      FFyn = 0.0_dp
+      FFzn = 0.0_dp
     endif
     if(n_gauss_p .ne. 0) then 
-      allocate(Gxp(nx,nx,3,n_gauss_p), Gyp(ny,ny,3,n_gauss_p), Gzp(nz,nz,3,n_gauss_p))
-      Gxp = 0.0_dp
-      Gyp = 0.0_dp
-      Gzp = 0.0_dp
+      allocate(FFxp(nx,nx,3,n_gauss_p), FFyp(ny,ny,3,n_gauss_p), FFzp(nz,nz,3,n_gauss_p))
+      FFxp = 0.0_dp
+      FFyp = 0.0_dp
+      FFzp = 0.0_dp
     endif
     ! early return if possible
     if(n_gauss_n .eq. 0 .and. n_gauss_p .eq. 0) return
@@ -867,25 +951,25 @@ end function galster_kernel_1D
 
     	  ! Neutrons
     	  if(rplus_n .ne. 0.0_dp) then
-    	    call gamma_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
-    	    call gamma_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
-    	    call gamma_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
+    	    call gamma_1D(FFxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
+    	    call gamma_1D(FFyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
+    	    call gamma_1D(FFzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
     	  endif
     	  if(rmin_n .ne. 0.0_dp) then
-    	    call gamma_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
-    	    call gamma_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
-    	    call gamma_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
+    	    call gamma_1D(FFxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
+    	    call gamma_1D(FFyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
+    	    call gamma_1D(FFzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
     	  endif
     	  ! Protons
     	  if(rplus_p .ne. 0.0_dp) then
-    	    call gamma_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
-    	    call gamma_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
-    	    call gamma_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
+    	    call gamma_1D(FFxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
+    	    call gamma_1D(FFyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
+    	    call gamma_1D(FFzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
     	  endif
     	  if(rmin_p .ne. 0.0_dp) then
-    	    call gamma_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
-    	    call gamma_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
-    	    call gamma_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
+    	    call gamma_1D(FFxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
+    	    call gamma_1D(FFyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
+    	    call gamma_1D(FFzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
     	  endif
     	enddo
     else
@@ -898,29 +982,109 @@ end function galster_kernel_1D
 
     	  ! Neutrons
     	  if(rplus_n .ne. 0.0_dp) then
-    	    call gauss_1D(Gxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
-    	    call gauss_1D(Gyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
-    	    call gauss_1D(Gzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
+    	    call gauss_1D(FFxn(:,:,index,1), meshx, nx, rplus_n, sign * reduX)
+    	    call gauss_1D(FFyn(:,:,index,1), meshy, ny, rplus_n, sign * reduY)
+    	    call gauss_1D(FFzn(:,:,index,1), meshz, nz, rplus_n, sign * reduZ)
     	  endif
     	  if(rmin_n .ne. 0.0_dp) then
-    	    call gauss_1D(Gxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
-    	    call gauss_1D(Gyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
-    	    call gauss_1D(Gzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
+    	    call gauss_1D(FFxn(:,:,index,2), meshx, nx, rmin_n,  sign * reduX)
+    	    call gauss_1D(FFyn(:,:,index,2), meshy, ny, rmin_n,  sign * reduY)
+    	    call gauss_1D(FFzn(:,:,index,2), meshz, nz, rmin_n,  sign * reduZ)
     	  endif
     	  ! Protons
     	  if(rplus_p .ne. 0.0_dp) then
-    	    call gauss_1D(Gxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
-    	    call gauss_1D(Gyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
-    	    call gauss_1D(Gzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
+    	    call gauss_1D(FFxp(:,:,index,1), meshx, nx, rplus_p, sign * reduX)
+    	    call gauss_1D(FFyp(:,:,index,1), meshy, ny, rplus_p, sign * reduY)
+    	    call gauss_1D(FFzp(:,:,index,1), meshz, nz, rplus_p, sign * reduZ)
     	  endif
     	  if(rmin_p .ne. 0.0_dp) then
-    	    call gauss_1D(Gxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
-    	    call gauss_1D(Gyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
-    	    call gauss_1D(Gzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
+    	    call gauss_1D(FFxp(:,:,index,2), meshx, nx, rmin_p,  sign * reduX)
+    	    call gauss_1D(FFyp(:,:,index,2), meshy, ny, rmin_p,  sign * reduY)
+    	    call gauss_1D(FFzp(:,:,index,2), meshz, nz, rmin_p,  sign * reduZ)
     	  endif
     	enddo
     endif
- end subroutine construct_folding_matrices
+
+
+    case(1)
+
+
+
+
+    ! early return if possible
+    !I use the same logic to let the code know if a folding is necessary. Depending on the nucleon sizes
+    !But I just need it to be non zero, probably there is an architectural choice to make here
+    ! because its just a hack based on the previous code and is not relevant to the new form factors
+    if(n_gauss_n .eq. 0 .and. n_gauss_p .eq. 0) return
+
+    !---------------------------------------------------------------------------
+    ! Harmonic-oscillator correction
+    if(hocomform) then
+        ! hbar x omega
+        hbom  = 41.0d0 * (neutrons + protons)**(-1.0d0/3.0d0)
+        ! 2m/hbar^2
+        mhb = 2.0d0/(1.0d0/hbm(1)+1.0d0/hbm(2))
+        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
+        B = sqrt( 1.0d0/( 0.5d0 * hbom/mhb  * (neutrons + protons)))
+
+        if(rplus_n.ne.0.0d0) then
+            rplus_n = sqrt(rplus_n**2 - B**2)
+        endif
+        if(rmin_n.ne.0.0d0) then
+            rmin_n   = sqrt(rmin_n**2 - B**2)
+        endif
+
+        if(rplus_p.ne.0.0d0) then
+            rplus_p = sqrt(rplus_p**2 - B**2)
+        endif
+        if(rmin_p.ne.0.0d0) then
+            rmin_p   = sqrt(rmin_p**2 - B**2)
+        endif
+    endif
+
+
+    !here the last dimension is a relicate of the previous strategy two construct the neutron form factor
+    ! I ll see if I can get rid of it after
+    allocate(FFxn(nx,nx,3,1), FFyn(ny,ny,3,1), FFzn(nz,nz,3,1))
+    FFxn = 0.0_dp
+    FFyn = 0.0_dp
+    FFzn = 0.0_dp
+
+    allocate(FFxp(nx,nx,3,1), FFyp(ny,ny,3,1), FFzp(nz,nz,3,1))
+    FFxp = 0.0_dp
+    FFyp = 0.0_dp
+    FFzp = 0.0_dp
+
+    do sign = -1,+1, 2
+      index = 1 + (sign + 1)/2 ! index = 1 for sign = -1, index = 2 for sign = +1
+
+      ! HACK: the multiplication with reduX/Y/Z ensures that the breaking of 
+      !       a reflection symmetry automatically leads to Gaussian matrices 
+      !       being constructed with no reflection symmetry.
+
+      ! Neutrons
+
+      call galster_1D(FFxn(:,:,index,1), meshx, nx, sign * reduX)
+      call galster_1D(FFyn(:,:,index,1), meshy, ny,  sign * reduY)
+      call galster_1D(FFzn(:,:,index,1), meshz, nz,  sign * reduZ)
+
+      ! Protons
+
+      call dipole_1D(FFxp(:,:,index,1), meshx, nx, beta_dipole, sign * reduX)
+      call dipole_1D(FFyp(:,:,index,1), meshy, ny, beta_dipole, sign * reduY)
+      call dipole_1D(FFzp(:,:,index,1), meshz, nz, beta_dipole, sign * reduZ)
+
+    enddo
+
+   case default
+      error stop "Unknown nucleon form factor selection"
+
+   end select
+
+end subroutine construct_folding_matrices
+
+
+ 
 
 
 end module folding

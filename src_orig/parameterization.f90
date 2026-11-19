@@ -338,7 +338,7 @@ $CHECKPARAMS
         call stp('')
       endif
 
-      if(any(exact_coulomb_folding.ne.0.0d0) .and. any(nucleon_form_factor.ne.0.0d0)) then
+      if (exact_coulomb_folding .and. nucleon_form_factor /= 0) then
                                                                          
         print *, '============================================================='
         print *, ' The current implementation of the folding does              '
