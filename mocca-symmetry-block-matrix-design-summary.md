@@ -723,6 +723,11 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   populates the odd-m signature-partner blocks additionally and NLO-P
   the parity-masked diagonal case. In the parity-broken build only the
   folded axes are reconstructed (the z-axis is stored unfolded).
+  Landed status (2026-11-19): all three builds green - identity at
+  reassociation level (max 5.3e-13 / 1.8e-13 / 6.8e-14 absolute on
+  NLO / NLO-T / NLO-P), the opposite halves vanish to <= 6.1e-16 in
+  every build and every (l, m, half), and the odd-m signature-partner
+  imaginary blocks of the TR-broken build agree to ~1e-14.
 
 ### 13.2 The old routine stays, as oracle
 

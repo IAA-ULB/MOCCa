@@ -266,42 +266,39 @@ perturbations).
      cross-build runscript (7dcc6118, NLO/NLO-T/NLO-P) and its CI job
      (57217a28). Conventions distilled below; usage in the Testing
      section.
-  NEXT UP (amended 2026-11-19): step 4 of design §10 is no longer matvec.
-  A consumer audit found NO place in the tree that applies a one-body
-  operator matrix to a basis vector - every consumer (moments traces,
-  Ksum_Mij ATDHFB sums, FAM's elementwise X = -(F+dH) and strength
-  contractions, Bogoliubov/canonical within-block transforms) contracts
-  matrices with matrices or reads them elementwise; MOCCa acts with
-  fields on the mesh through the density route, never in HF coefficient
-  space. Matvec AND matmat are dropped from the type and the plan
-  (design §6 and §10 amended); partner machinery survives only as
-  dense() and the consistency checks. The amended step 4: the full-box
-  reconstruction oracle for the IMAGINARY half of Qlm_spme_matrix - off-
-  diagonal elements recomputed by extending the spinors across the fold
-  planes with the sx/sy/sz component signs and integrating r^l Im Y_lm
-  over the reconstructed full box, bypassing the chamber-weight table
-  (shares only the trusted raw inputs), in moments_testing, judged
-  against physics (purely imaginary values, Hermitian conjugate partner,
-  ~1e-12 relative against the stored blocks). Step 5 is then the FAM
-  migration of get_qpme_op (design step 9), against the parked
-  fam.NLO.reference.exe.
+  AMENDED STEP 4 LANDED (2026-11-19, 497b1d94): matvec and matmat are
+  dropped from the type and the plan (consumer audit recorded in design
+  §6/§10 and commit 1230f34a); the full-box reconstruction oracle for BOTH
+  halves of Qlm_spme_matrix is in moments_testing (test_Qlm_fullbox:
+  spinors extended across the fold planes with the sx/sy/sz component
+  signs, operator regenerated at every chamber's coordinates, plain mesh
+  quadrature - the chamber-weight table and the oc estimation bypassed;
+  judgments against physics: identity incl. the dense() partner
+  reconstruction, STy-characteristic vanishing of the opposite half,
+  Hermitian conjugate). Gates green on NLO/NLO-T/NLO-P (frozen make.inc):
+  identity reassociation-level (max 5.3e-13 / 1.8e-13 / 6.8e-14 absolute),
+  opposite halves at <= 6.1e-16 everywhere, the odd-m signature-partner
+  imaginary blocks of NLO-T covered at ~1e-14 - the wobbling-relevant
+  content that had no reference path until now.
+  NEXT UP: step 5 - the FAM migration of get_qpme_op off the legacy
+  b-units Qlm_spme (design step 9), against the parked fam.NLO.reference.exe.
   OPEN ITEMS when resuming:
-   * The imaginary half of Qlm_spme_matrix has no reference path yet -
-     it is exercised only as structural zeros by the NLO trace test (by
-     construction - the diagonal of an antisymmetric matrix vanishes).
-     The amended step 4 (full-box oracle, above) is the validation
-     route; its content must be judged against physics, never against
-     zeros.
    * fam.f90's get_qpme_op still consumes the legacy b-units Qlm_spme;
-     its migration is the amended step 5 (FAM-side design step 9); FAM
-     regressions are judged against the parked fam.NLO.reference.exe
-     (no fam golden log is committed). The Qlm_spme deletion gate is
-     redefined accordingly (design §13.2): the oracle validates the
-     imaginary half AND get_qpme_op has migrated.
-   * exec/MOCCa.NLO-TP.exe is a stale debug-profile binary (pre-moments-
-     tests); rebuild frozen before using it as an anchor. The other mf
-     executables (NLO, NLO-T, NLO-P) and fam.NLO are freshly rebuilt
-     with the frozen make.inc.
+     its migration is step 5 (FAM-side design step 9); FAM regressions
+     are judged against the parked fam.NLO.reference.exe (no fam golden
+     log is committed). With the Im half oracle-validated, the Qlm_spme
+     deletion gate (design §13.2) now hangs on this migration alone.
+   * LATENT BUG (pre-existing, found 2026-11-19, NOT a sprint regression):
+     the debug-profile (-fbounds-check) NLO-P binary crashes in
+     coulomb.f90's obtain_folded_potentials (fold_form_factor_reverse,
+     index 26 of dimension 3 vs extent 24) during set_up_mean_field -
+     an out-of-bounds in the parity-broken Coulomb folding path that the
+     -O3 CI artifacts never check. Do not use debug-profile NLO-P
+     builds until it is fixed; the frozen -O3 suite runs green.
+   * exec/MOCCa.NLO-TP.exe is a stale debug-profile binary; the mf
+     executables NLO/NLO-T/NLO-P were rebuilt with the frozen make.inc
+     on 2026-11-19 (including the oracle); MOCCa.NLO-TP.exe and fam.NLO
+     predate the oracle commit.
 - Conventions learned in this sprint (2026-11-19, user-confirmed; full
   reasoning in the commit messages and the design doc):
    * Folded meshes: the conservative/TR builds carry the z-fold in dv,
