@@ -1519,8 +1519,20 @@ with it.
   nothing in this section, since every consumer contracts real
   densities against these elements and the legacy agrees to 3e-15
   exactly as filled.
-- Doubled-basis oracle (proposed 2026-11-19 with the section 2d
-  discussion, user reading: the folded composites are the honest matrix
+- MIGRATION A/B VERDICTS (2026-11-19, row 2 of the 15.5 sequencing):
+  the CompCOMCorrection consumer fed from the linear_momentum
+  generators (dense twin packaging of 15.8) passes every gate against
+  the pre-migration parked binary - the fac/4 and 2x legacy factors
+  survive VERBATIM with bit-similar results: $TR (NLO, HF and BCS,
+  ph and pp sums) - energies bit-identical, only last-digit DE/DR
+  drift at the 1e-16 level; $NTR (cranked Mg24 HFB, honest trio +
+  conjugp sums) - body of the logs BIT-IDENTICAL. This A/B validates
+  the migration's numerics, NOT yet the tau bookkeeping of 15.8's
+  connection note: whether the fac/4 and 2x factors are mechanistically
+  the mechanism-1 T-pair mirroring remains unadjudicated (no
+  dedicated unit-arm test of the factors was built; any later
+  re-derivation is governed by that note).
+- Doubled-basis oracle (proposed 2026-11-19 with the section 2d discussion, user reading: the folded composites are the honest matrix
   elements of O between stored rows and the time reverses of the stored
   columns): materialise the T-images as explicit basis states, hand
   `init` a doubled HFBlocks (+i entries copied to their -i partner

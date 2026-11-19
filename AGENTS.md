@@ -428,15 +428,37 @@ perturbations).
   2-5e-15, tau 4e-15), NLO-P arm on the frozen -O3 build (nz=24
   unfolded z, allowtransform), NLO-TP compile, block_matrix net
   53562 checks 0 failures.
-  NEXT UP (gradient thread): design §15.5 row 2 - the
-  CompCOMCorrection consumer migration ($TR branch = folded twins +
-  honest nabla_z, factors verbatim; $NTR branch = honest trio +
-  conjugp sums; basis 'DEN'), gates vs the row-0 reference logs in
-  /tmp/mocca-linmom/logs/ plus the minimal golden - note
-  exec/MOCCa.NLO.exe must be rebuilt with the frozen make.inc
-  (current binary is a debug build from the row-1 iteration) before
-  any golden or numerical gate. Row 3 is verify_COM_motion; FAM
-  rows stay deferred.
+  COM CORRECTION CONSUMER LANDED (2026-11-19, design §15.5 row 2; FAM
+  machinery still deferred): CompCOMCorrection (functional.f90) feeds
+  from the linear_momentum generators - per build the $TR branch
+  builds the folded twins NablaT_spme_matrix(x/y) + honest nabla_z,
+  the $NTR branch the honest trio, all through Nabla_half_fm('DEN')
+  dense packaging (the §15.8 twin route, one array per component in
+  the legacy half conventions); the legacy automatic
+  NablaMElements(3,2,nwt,nwt) array and its fill-slot semantic
+  overload are gone from the consumer. The fac/4 and 2x TR factors
+  and the conjugp pp sums are kept VERBATIM; the sums' loop shapes
+  unchanged. Gates vs the row-0 scenario set (recreated: the
+  original scratch dirs under testing/integration/work were
+  DESTROYED by golden_diff.sh's teardown - the harness owns that
+  directory; scratch now lives in /tmp/mocca-linmom/): $TR - NLO HF
+  and NLO BCS (ph + pp) vs the parked pre-migration NLO binary:
+  energies bit-identical, DE/DR last-digit drift at 1e-16; $NTR -
+  cranked Mg24 HFB (omegaZ-crank, honest trio + conjugp sums) vs the
+  parked pre-migration NLO-T binary: log body BIT-IDENTICAL (and
+  the reconstructed input reproduces the refB reference log byte
+  for byte); golden minimal NLO 4849/4849 numbers bit-identical
+  (COM2body defaults 0); frozen -O3 mf rebuilds of all four configs
+  and fam compile gates of NLO/NLO-T green. Whether fac/4 and 2x
+  are mechanistically the §15.8 mechanism-1 T-pair mirroring stays
+  unadjudicated (recorded in §15.6) - the factors were only
+  empirically certified as preserved.
+  NEXT UP (gradient thread): design §15.5 row 3 - verify_COM_motion
+  (mf side, dead code) migrated off CompNablaMelements; the source
+  paths compile either way, so the gate is source-level. After row
+  3, the row-4 deletion decision (CompNablaMelements + its MPI
+  machinery, design §15.7) is a user decision; the FAM-side rows
+  stay deferred per user direction.
   NEXT UP: the calcJ2andBelyaev_HFB consumer migration (design §14.4
   row 3), feeding the sym_rotation consumers of §6a. After that, the
   §13.5 deferred items; alternatively, first dispose of the single
