@@ -854,6 +854,10 @@ jobs:
       - name: Run block_matrix_unit_tests
         run: |
           cd testing/unit/
+          # testing/*/logs is gitignored, so the directory does not exist in
+          #  a fresh checkout: tee would fail and pipefail would fail the
+          #  step even though the tests passed.
+          mkdir -p logs
           set -o pipefail
           bash block_matrix_unit_tests.sh 2>&1 | tee logs/block_matrix_unit_tests.out
 
