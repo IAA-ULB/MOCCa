@@ -19,6 +19,7 @@ and the commit messages, not here.
 | F-7 | OPEN | fam_spurious_mode_subtraction scenario |
 | F-8 | OPEN (cosmetic) | FAM output, parity-broken builds |
 | F-9 | KNOWN LIMITATION | cross-build trace comparisons |
+| F-10 | FIXED (cbd45ac6) | namelist input, all modules |
 
 ### F-1 Coulomb folding out-of-bounds in debug-profile NLO-P builds — FIXED (0d883c19)
 
@@ -64,7 +65,11 @@ the legacy agrees to 3e-15 exactly as filled.
 ### F-4 make -j4 races on missing .mod files (NLO-TP) — workaround: build serial
 
 A parallel (-j4) mf build of NLO-TP terminated on missing .mod files
-(2026-11-19, rotations gate). Workaround: build NLO-TP serially.
+(2026-11-19, rotations gate). Workaround: build NLO-TP serially. The same
+missing-.mod-dependency wart bites SERIAL builds too after any module
+interface change (observed 2026-11-19, the find_nml_error signature change):
+consumers keep compiling against a stale .mod. A changed interface in a
+module as widely used as geninfo demands a make clean of the CONFIG.
 
 ### F-5 golden_diff.sh teardown destroys its work/ directory — by design, with teeth
 
@@ -111,3 +116,18 @@ stops at a slightly different point of a near-flat convergence landscape, so
 the comparison is only meaningful on a shared state (maxiter=0) and through
 basis-independent invariants. Handled by convention, see SPRINT.md; entry
 kept as a warning against re-introducing converged cross-build comparisons.
+### F-10 Unguarded namelist reads bypassed find_nml_error — FIXED (cbd45ac6)
+
+Found 2026-11-19 during the F-6 work: only 3 of 17 input-namelist reads
+(nucleus, skf, MomentConstraint) were guarded, so a typo in any other
+namelist aborted inside the compiler runtime (exit 2, raw backtrace, no
+indication of the offending input), and the one guarded call in geninfo
+evaluated int(file_number) on an absent optional. All reads now carry
+iostat+iomsg and route to find_nml_error, which prints the runtime
+message (it names the unknown object) plus the offending line when the
+input is a repositionable file; from STDIN the message stands alone.
+Verified on NLO-P mf and NLO fam: unknown variables in &mesh (stdin and
+file mode), in &skf and a truncated &pairing all report and exit 1, the
+success path is unchanged, fam unit net (SLy4) green. The gennilsson
+standalone tool's bare /nil read is out of the mocca.data path and left
+as is.
