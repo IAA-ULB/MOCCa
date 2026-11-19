@@ -406,6 +406,23 @@ perturbations).
   §13.5 deferred items; alternatively, first dispose of the single
   remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
+   * JxT/JyT TENSION - USER TO RESOLVE (2026-11-19): the measured
+     resolution of the folded-kinds question (design 14.1/14.2/2d)
+     is operational, not principled - both folded kernels measure
+     symmetric kind +1 storage, the production fills are correct,
+     but the CLASS BOOKKEEPING that expresses this inside the type is
+     a convention pinned by measurement: K_x = J_x.T is tagged
+     HERMITIAN x STY_EVEN, while K_y = J_y.T combines symmetric kind
+     +1 with STY_ODD and so carries herm = ANTIHERMITIAN purely as
+     the kind-completing label (herm = kind * sty) - a storage label,
+     NOT the physical adjoint class, since the section-2a kind
+     machinery does not transfer to antilinear composites. Whether
+     this labelling convention is acceptable as the permanent
+     resolution (Wouter to decide), or whether the type should grow
+     an explicit folded-composite constructor path that names the
+     antilinear composites honestly instead of overloading `herm`,
+     is OPEN. Whatever is decided: the arm's kernel-transpose oracle
+     stays the arbiter - never re-derive, re-measure.
    * DEAD angmom KERNELS / THE jz-IS-REAL ERROR (found 2026-11-19 by
      the arm's purity print, recorded PRECISELY in design §14.2b):
      angmom_x_imag, angmom_y_real, angmom_z_imag are referenced

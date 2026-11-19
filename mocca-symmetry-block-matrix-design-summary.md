@@ -1124,6 +1124,12 @@ covered; the word-1 honest objects are structural zeros there too.
   a storage label, not the physical adjoint class. `J_x.T` carries the
   plain HERMITIAN label. The empirical arbiter of every kind sign is
   the kernel-transpose oracle of 14.3.
+  NOTE (open, user to resolve): the labelling convention itself -
+  expressing the measured folded kinds through the overloaded `herm`
+  input - is PROVISIONAL. Whether it stands permanently, or the type
+  grows an honest folded-composite constructor that does not reuse
+  `herm` for a non-adjoint sign, is Wouter's decision; either way the
+  oracle remains the arbiter of every kind sign, never re-derivation.
 - `J_z` needs no folded twin: the `$TR` branch consumes honest
   `angmom_z_real` within the half (J_z preserves the grading).
 
