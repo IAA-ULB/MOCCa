@@ -429,8 +429,10 @@ $REDUZ  coul_offset_z = 0
     &                             F%FoldedCoul, nx, ny, nz, sx, sy, sz)
 
     ! If necessary, also obtain the folding of the exchange potential
+    ! The exchange potential lives on the original mesh: no Coulomb-mesh
+    ! offsets, unlike the padded CoulombPotential above.
     if(coultreatment .eq. 1) then
-      call fold_form_factor_reverse(F%ExchangePotential(ix:ex,iy:ey,iz:ez), &
+      call fold_form_factor_reverse(F%ExchangePotential, &
       &                             F%FoldedExchange,nx, ny, nz, sx, sy, sz)
     elseif(allocated(F%FoldedCoul)) then
       if(.not. allocated(F%FoldedExchange)) then
