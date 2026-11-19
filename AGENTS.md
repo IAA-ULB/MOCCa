@@ -317,18 +317,33 @@ perturbations).
   drho_antisym panel prints NaN exactly as in healthy NLO runs. The
   committed spurious script itself needs its mf input flipped (nz=16)
   before it can run against NLO-P executables.
-  NEXT UP: the §13.5 deferred items; the natural continuation is the
-  CompCOMCorrection migration (see open items) so the Qlm_spme deletion
-  gate can close. The parity-odd FAM NaN is a user decision: debug it
-  or keep the affected scripts out of the nets.
+  CLEANUP LANDED (2026-11-19, 4ca0f181): the last two legacy Qlm_spme
+  call sites migrated to Qlm_spme_fm - functional.f90's
+  verify_COM_motion and fam_testing.f90's test_RP_commutator. Audit
+  corrections recorded in the design doc: the "functional
+  (CompCOMCorrection, Q_10)" consumer label was wrong twice over -
+  CompCOMCorrection never used Qlm_spme, and verify_COM_motion (the
+  actual reference, a pushing-model diagnostic) is DEAD CODE: no call
+  site anywhere in sources, markers or templates. The migration
+  therefore changed no live numerics: golden minimal NLO 4849/4849
+  numbers identical, fam unit tests and the moments unit net green,
+  mf+fam compiles green on NLO/NLO-T/NLO-P (all frozen make.inc).
+  verify_COM_motion additionally gained an explicit
+  `use moments, only: Qlm_spme_fm` - it reached Qlm_spme before only
+  via the transitive use fission_MOI -> use moments chain.
+  NEXT UP: the §13.5 deferred items - first candidate odd-m and
+  Im-operator FAM fields end to end; alternatively, first dispose of
+  the single remaining Qlm_spme reference.
   OPEN ITEMS when resuming:
-   * Qlm_spme deletion gate (design §13.2): the earlier statement that
-     it hung on the get_qpme_op migration alone was imprecise. Three
-     legacy consumers remain after step 5: functional.f90's
-     CompCOMCorrection (Q10, mf side), fam_testing.f90's
-     test_RP_commutator (uncalled test code), and the intentional
-     fission_MOI oracle hook. Deleting the routine needs the first two
-     migrated (or explicitly exempted).
+   * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the
+     routine's only remaining reference is the off-by-default spme
+     oracle hook in fission_MOI.f90. Either Qlm_spme and the oracle go
+     together, or both stay permanently as the production-scale cross-
+     check of Qlm_spme_matrix. The moments unit net covers the
+     generator either way.
+   * verify_COM_motion and test_RP_commutator remain call-less dead
+     code; enabling either (e.g. RP as an NLO-P zcom net) is a user
+     decision, out of the migration's scope.
    * LATENT BUG (pre-existing, found 2026-11-19, NOT a sprint regression):
      the debug-profile (-fbounds-check) NLO-P binary crashes in
      coulomb.f90's obtain_folded_potentials (fold_form_factor_reverse,

@@ -636,8 +636,14 @@ electric multipole operators from `fission_MOI.f90` into `moments.f90`,
 rebuild them on `sym_matrix`, generalise to all multipoles in natural
 units, and keep the old routine in place as a testing oracle. Consumers
 found in the tree: `fission_MOI` (collective inertia tensor), `functional`
-(`CompCOMCorrection`, Q_10), `fam` (`get_qpme_op`: multipole fields, z_com),
-`fam_testing` ([R, P] unit tests).
+(`verify_COM_motion`, Q_10 - a pushing-model diagnostic identified at
+migration time as DEAD CODE, no call site anywhere; the earlier
+"CompCOMCorrection" label was wrong, that routine never used `Qlm_spme`),
+`fam` (`get_qpme_op`: multipole fields, z_com), `fam_testing`
+([R, P] unit tests, uncalled). All migrated to the sym_matrix generator
+by 2026-11-19 (step 5 plus the cleanup commit after it); the only
+remaining `Qlm_spme` reference is the off-by-default oracle hook in
+`fission_MOI`.
 
 ### 13.1 Semantics of the new generator
 
@@ -749,11 +755,13 @@ half AND the FAM consumer `get_qpme_op` has migrated (step 5 / design
 step 9) - the deletion gate was redefined 2026-11-19 with the dropping
 of the mat-vec step. Amendment 2026-11-19, after step 5 landed: two
 further legacy consumers were found in the tree and block deletion -
-`functional.f90`'s CompCOMCorrection (Q10, mf side) and
-`fam_testing.f90`'s test_RP_commutator (uncalled test code). Migrating
-those (or explicitly exempting them) is now the remainder of the gate;
-the `fission_MOI` oracle hook keeps the routine as its reference by
-design. It is the oracle for the agreements below; the
+`functional.f90`'s `verify_COM_motion` (Q10; dead code, no call site
+anywhere) and `fam_testing.f90`'s test_RP_commutator (uncalled test
+code). Both were migrated in the cleanup commit after step 5, so the
+gate is now purely a decision: either `Qlm_spme` and the `fission_MOI`
+spme oracle go together (the oracle is its only remaining reference and
+uses it as its reference matrix), or both stay. The self-checks in the moments unit net cover the
+generator either way. It is the oracle for the agreements below; the
 conversion identity is `old [b^{l/2}] = new [fm^l] * 100^(-l/2)`.
 
 ### 13.3 Sequencing (one commit per row)
