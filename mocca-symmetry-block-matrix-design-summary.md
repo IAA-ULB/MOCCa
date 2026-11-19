@@ -571,6 +571,17 @@ is not built; nothing else requires it.
    validation gap the mat-vec step had been assigned.
 5. FAM-side migration: `get_qpme_op` off the legacy b-units `Qlm_spme`
    (design step 9); regressions against the parked `fam.NLO.reference.exe`.
+   Landed 2026-11-19 (commit 20fca2e5): both call sites ('multipole' l>0
+   and 'zcom') feed from `Qlm_spme_fm` in fm^l. A/B against the parked
+   anchor on a shared O18/SLy4/HFB state: Q20 and Q22 strength
+   famfiles bit-identical, GMRES residuals identical; fam unit tests
+   (SLy4) green; fam builds of NLO/NLO-T/NLO-P compile. The zcom call
+   site has no working runtime gate - every parity-odd FAM response
+   NaNs identically in the parked pre-refactor anchor (l=1 multipole,
+   including the committed fam_spurious_mode_subtraction scenario;
+   operator_type 'zcom') - so it is source-validated (moments full-box
+   oracle covers `Qlm_spme_fm(1,0)` on all builds) with prefactors
+   preserved verbatim. The imaginary half stays deferred (section 13.5).
 6. (dropped 2026-11-19) mat-mat: no consumer, and products of two
    non-commuting classifiable operators are not classifiable (section 2a).
    The remaining small operations (add, scale, trace) land if and when a
@@ -736,7 +747,13 @@ The current `Qlm_spme` moves `verbatim` from `fission_MOI.f90` to
 until the amended step 4 (the full-box oracle) validates the imaginary
 half AND the FAM consumer `get_qpme_op` has migrated (step 5 / design
 step 9) - the deletion gate was redefined 2026-11-19 with the dropping
-of the mat-vec step. It is the oracle for the agreements below; the
+of the mat-vec step. Amendment 2026-11-19, after step 5 landed: two
+further legacy consumers were found in the tree and block deletion -
+`functional.f90`'s CompCOMCorrection (Q10, mf side) and
+`fam_testing.f90`'s test_RP_commutator (uncalled test code). Migrating
+those (or explicitly exempting them) is now the remainder of the gate;
+the `fission_MOI` oracle hook keeps the routine as its reference by
+design. It is the oracle for the agreements below; the
 conversion identity is `old [b^{l/2}] = new [fm^l] * 100^(-l/2)`.
 
 ### 13.3 Sequencing (one commit per row)

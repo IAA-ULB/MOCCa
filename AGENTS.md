@@ -280,14 +280,40 @@ perturbations).
   opposite halves at <= 6.1e-16 everywhere, the odd-m signature-partner
   imaginary blocks of NLO-T covered at ~1e-14 - the wobbling-relevant
   content that had no reference path until now.
-  NEXT UP: step 5 - the FAM migration of get_qpme_op off the legacy
-  b-units Qlm_spme (design step 9), against the parked fam.NLO.reference.exe.
+  STEP 5 LANDED (2026-11-19, 20fca2e5): get_qpme_op's two call sites
+  feed from the sym_matrix generator - 'multipole' (l>0) from
+  Qlm_spme_fm(l,m,.false.), 'zcom' from Qlm_spme_fm(1,0,.false.), in
+  fm^l natural units. The b^(l/2)->fm rescales are gone; the sqrt(2)
+  (m.ne.0) and zcom prefactors survive at the call sites. Gates green
+  (frozen make.inc, serial): fam unit tests SLy4; A/B against the parked
+  fam.NLO.reference.exe on a shared O18/SLy4/HFB state - Q20 and Q22
+  strength famfiles bit-identical, GMRES residuals identical; fam
+  builds of NLO / NLO-T / NLO-P compile. The Im half stays deferred
+  (design §13.5).
+  LATENT FINDING, parity-odd FAM fields (pre-existing, 2026-11-19, NOT
+  a sprint regression): every parity-odd FAM response NaNs identically
+  in the parked pre-refactor anchor and the current tree - the l=1
+  multipole (including the committed fam_spurious_mode_subtraction
+  scenario, which fails with both exe pairs and both pairings: ||b|| is
+  NaN from GMRES iteration 0) and operator_type='zcom'. The
+  spurious-subtraction script is therefore unusable as a step-5 net;
+  test_RP_commutator (fam_testing, covers the zcom/zmomentum chain)
+  exists but is commented out in fam_run.f90. Consequently the zcom
+  call site has no working runtime gate: it is source-validated by the
+  moments full-box oracle (Qlm_spme_fm(1,0), all three builds) plus
+  verbatim prefactor preservation.
+  NEXT UP: the §13.5 deferred items; the natural continuation is the
+  CompCOMCorrection migration (see open items) so the Qlm_spme deletion
+  gate can close. The parity-odd FAM NaN is a user decision: debug it
+  or keep the affected scripts out of the nets.
   OPEN ITEMS when resuming:
-   * fam.f90's get_qpme_op still consumes the legacy b-units Qlm_spme;
-     its migration is step 5 (FAM-side design step 9); FAM regressions
-     are judged against the parked fam.NLO.reference.exe (no fam golden
-     log is committed). With the Im half oracle-validated, the Qlm_spme
-     deletion gate (design §13.2) now hangs on this migration alone.
+   * Qlm_spme deletion gate (design §13.2): the earlier statement that
+     it hung on the get_qpme_op migration alone was imprecise. Three
+     legacy consumers remain after step 5: functional.f90's
+     CompCOMCorrection (Q10, mf side), fam_testing.f90's
+     test_RP_commutator (uncalled test code), and the intentional
+     fission_MOI oracle hook. Deleting the routine needs the first two
+     migrated (or explicitly exempted).
    * LATENT BUG (pre-existing, found 2026-11-19, NOT a sprint regression):
      the debug-profile (-fbounds-check) NLO-P binary crashes in
      coulomb.f90's obtain_folded_potentials (fold_form_factor_reverse,
@@ -348,8 +374,13 @@ perturbations).
 - Local test artifacts for step 3 (gitignored, machine-local):
   `exec/fam.NLO.reference.exe` is the parked FAM anchor;
   exec/MOCCa.NLO.exe, MOCCa.NLO-T.exe, MOCCa.NLO-P.exe and fam.NLO.exe
-  are freshly rebuilt and validated (frozen make.inc, 2026-11-19);
+  are freshly rebuilt and validated (frozen make.inc, 2026-11-19; fam.NLO
+  includes the step-5 migration); fam.NLO-T.exe and fam.NLO-P.exe are
+  compiled (2026-11-19) but have no runtime-validated scenario yet;
   MOCCa.NLO-TP.exe is a stale debug binary (see the open items).
+  fam_unit_tests NLO/SLy4 is the runtime green net for fam.NLO; the
+  multipole A/B scratch scenarios live in /tmp only (O18/SLy4/HFB,
+  Q20 and Q22 @ 25 MeV vs the parked anchor, bit-identical famfiles).
   `testing/integration/logs/fission.BXL.pre-move.out` was the inertia
   baseline produced by the pre-move BXL binary; the fission.sh comparison
   against it has been executed through CI (2026-11-19) - the batching
