@@ -1652,7 +1652,10 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print * , '     via HFblocks    [R,P]  =', commut0B
     print * 
 
-    call stp('end of test')
+    ! A deliberate halt at the end of the diagnostic, not an error path:
+    ! keep the exit status 0 that stp now reserves for failures.
+    print *, 'end of test'
+    stop
 
   end subroutine test_RP_commutator
 

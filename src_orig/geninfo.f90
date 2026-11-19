@@ -535,6 +535,8 @@ contains
     ! A routine for stopping the entire code elegantly. For a single-core run
     ! it is somewhat trivial to type "print *, 'some error' ; stop" but this
     ! does not translate well to MPI runs.
+    ! Both branches exit with code 1, so calling wrappers can detect
+    ! that the code did not run to completion.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     msg    : character, message to display.
@@ -555,7 +557,7 @@ contains
     call MPI_ABORT(MPI_COMM_WORLD, 1, mpi_err) ! force all MPI ranks to stop
     ! with error code 1
 #endif
-    stop
+    stop 1
   end subroutine stp
 
   function transform_memory(N) result(mem)
