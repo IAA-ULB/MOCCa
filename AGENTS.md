@@ -17,6 +17,7 @@ agents who edit and build the code.
  - Do not hesitate to point out inconsistencies / errors in my prompts/conventions/...
    or to ask for further clarification of the user.
  - Do NOT try to rederive conventions or guess the precise meaning of operators. Ask the user.
+
 ## Editable vs generated
 
 | Path | What it is | Edit? |
@@ -133,6 +134,9 @@ Consequences when editing near markers:
     !                  when reading from file)
     ! Output: sx, sy, sz - per-component reflection signs
     !---------------------------------------------------------------------------`
+- Commits: subject line ≤ 60 chars, verb first, imperative mood.
+  Body ≤ 5 lines, only the *why* — never restate the diff or the
+  test output. No environment narration ("verified locally", etc.).
 
 ## Language 
 - Be concise yet precise, in prose and especially in code comments; shorter
@@ -270,9 +274,8 @@ no step-by-step, no per-commit state:
    design sections your step touches. This file is not a source of sprint
    state.
 2. Git is the record of what happened; the docs record why and what is
-   decided. A landed step gets its detailed commit message (design section
-   referenced) plus ONE `SPRINT.md` table row. Never restate the narrative
-   in a second document.
+   decided. A landed step gets a commit plus ONE `SPRINT.md` table row. 
+   Never restate the narrative in a second document.
 3. `SPRINT.md` is rewritten, never appended to as a diary: flip the status
    column when a step lands, move the NEXT UP pointer, and leave the rest
    alone.
