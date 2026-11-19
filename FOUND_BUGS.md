@@ -15,7 +15,7 @@ and the commit messages, not here.
 | F-3 | OPEN (adjudication pending) | linear_momentum arm |
 | F-4 | OPEN (workaround) | Makefile / NLO-TP parallel build |
 | F-5 | OPEN (harness design) | testing/integration/golden_diff.sh |
-| F-6 | OPEN (trap) | testing/unit/fam_unit_tests.sh |
+| F-6 | FIXED (b10916c8) | testing/unit/fam_unit_tests.sh |
 | F-7 | OPEN | fam_spurious_mode_subtraction scenario |
 | F-8 | OPEN (cosmetic) | FAM output, parity-broken builds |
 | F-9 | KNOWN LIMITATION | cross-build trace comparisons |
@@ -74,13 +74,19 @@ that way (2026-11-19) and had to be recreated. Workaround: dev scratch lives
 outside the harness tree (e.g. /tmp). Long-term option: give scratch
 scenarios a committed home under testing/ if they must survive.
 
-### F-6 fam_unit_tests.sh default --parameterisation t0t3 stops silently — a green-looking trap
+### F-6 fam_unit_tests.sh default --parameterisation t0t3 stops silently — FIXED (b10916c8)
 
-Under an NLO fam build the default t0t3 parameterisation stops at the .func
-mismatch with `stp` and exit status 0, without running any FAM test
-(2026-11-19). A wrapper reading only the exit code sees green. Workaround:
-always pass --parameterisation SLy4 for NLO fam builds. Consider making the
-script fail loudly on input mismatch when touched next.
+Found 2026-11-19: under an NLO fam build the default t0t3 parameterisation
+stopped at the .func mismatch with `stp` and exit status 0, without running
+any FAM test, so a wrapper reading only the exit code saw green. Root cause:
+serial `stp` ended in a bare `stop` (exit 0) while the MPI branch already
+aborted with code 1 - `stp` now stops with code 1 on both branches, which
+makes every abort loud to wrappers and CI. The one deliberate stp-as-halt
+(test_RP_commutator's 'end of test', caller-less) keeps exit 0 through a
+plain stop with identical stdout. Verified 2026-11-19: default t0t3 run of
+fam_unit_tests.sh NLO now exits 1 with "ERROR: FAM calculation failed";
+the SLy4 run keeps overall exit 0 with the full fam net green. The wrapper
+workaround (--parameterisation SLy4 for NLO fam builds) stays valid.
 
 ### F-7 fam_spurious_mode_subtraction scenario needs an input flip for NLO-P — OPEN
 
