@@ -1159,7 +1159,7 @@ measurement and A/B:
 The measuring oracle printout in the unit arm is the permanent arbiter:
 any future claim about folded kinds re-runs it, never re-derives.
 
-### 14.2b The angmom_z_imag error (OPEN, unresolved)
+### 14.2b The angmom opposite-half purity prints (RESOLVED 2026-11-19)
 
 The claim in the code, verbatim - the block comment above the
 j-matrix fill of `calcJ2andBelyaev_HFB` (momentsofinertia.f90, two
@@ -1216,17 +1216,79 @@ Two candidate resolutions, deliberately not adjudicated here:
     kernel: the premise then needs re-examination wherever the
     comment feeds consumer algebra.
 
-The deciding test, not yet built: the full-box reconstruction oracle
-of Im <i|J_z|j> per the step-4 (13.1) pattern - spinors extended
-across the fold planes with the sx/sy/sz component signs, J_z
-evaluated fresh at every chamber's coordinates, plain cell volumes.
-A zero result confirms (a) and the comment; an O(1) result convicts
-the kernel. Until then the arm's purity print is a recorded anomaly.
-
 The same-halves reading holds for the opposite-half kernels of the
 honest x/y components (`angmom_x_imag`, `angmom_y_real`): also
 production-unreferenced, also O(1) on the reduced mesh, same two
-candidates, same deciding test. 
+candidates, same deciding test.
+
+RESOLUTION (2026-11-19, audit + deciding test both executed):
+
+A term-by-term rederivation of all three dead kernels against the
+packing conventions pinned by the validated kernels themselves
+(spin_z_real, angmom_z_real, angmom_z_quad's action convention,
+angmom_x_real, and angmom_y_imag - the production-validated imaginary
+half) found:
+
+- `angmom_z_imag`: CORRECT. Every spin and orbital term is exactly
+  Im < wf2 | J_z | wf1 >. No bug.
+- `angmom_y_real`: CORRECT. The honest Re half of the STY_ODD J_y.
+- `angmom_x_imag` (and its clone `spin_x_imag`): the spin part's
+  down-bra/up-ket block was mistranscribed - it carried the sigma_y
+  pairings (wf2(3)wf1(1), wf2(4)wf1(2): the pairing angmom_y_imag
+  correctly uses for y) dressed with x-style antisymmetric signs,
+  instead of the honest
+      Im[ conj(d_down) c_up ] = wf2(3) wf1(2) - wf2(4) wf1(1),
+  thereby also breaking the pointwise mirror-antisymmetry of the
+  imaginary half. FIXED; the up-block, the entire orbital part and
+  angmom_x_real were and are correct. Both kernels are now
+  banner-annotated as caller-less (the arm's purity print is
+  angmom_x_imag's only reference in the tree; spin_x_imag has none).
+
+The deciding test IS BUILT: the check_fullbox / fullbox_angmom_me
+pair in angular_momentum_testing - the 13.1 step-4 full-box
+reconstruction extended to the derivative-and-spin family. Spinors
+are extended across the fold planes with the sx/sy/sz per-component
+signs, gradient fields with the additional chain-rule sign (-1)^flip
+per differentiated axis, the operator's coordinates are the mirrored
+COM-shifted mesh values per chamber, the spin part follows the Pauli
+structure, cell volume dv/2^nch. Per sampled pair of every stored
+block it JUDGES two facts: identity (the main half is
+chamber-uniform: the full-box quadrature equals the kernel evaluation
+on the single stored chamber) and the STy zero (the opposite half
+vanishes over the full box). The oracle's chamber algebra reproduces
+the validated kernels term-by-term on the unflipped chamber, so the
+identity judgment validates the oracle itself - the trap of this
+section cannot be re-set silently.
+
+VERDICT (2026-11-19, O16/SLy4 unit state, maxiter=0, the moments-suite
+scenario; x/y honest are structural zeros in NLO and NLO-P - the
+odd-m precedent - so their pairs live in NLO-T only):
+
+    build  comp  pairs  identity max  opposite-half max
+    NLO    z     260    1.6e-14       2.1e-17
+    NLO-T  x      68    2.3e-14       1.4e-17
+    NLO-T  y      68    1.7e-14       2.1e-17
+    NLO-T  z     136    1.6e-14       1.0e-17
+    NLO-P  z      72    7.3e-15       2.1e-17   (merged-parity blocks)
+
+Candidate (a) CONFIRMED on every measurable case: the full-box
+Im <i|J_z|j> vanishes at the 1e-17 level in every build while the
+same kernel returns O(1) on the single stored chamber - the purity
+prints measured chamber residues all along. The mechanism is
+per-term and explains both halves at once: on the stored +i sign
+patterns every opposite-half term is fold-odd (the spin term
+wf2(1)wf1(2) carries x-character sx(1)sx(2) = -1; the orbital term
+wf2(1) y d_x wf1(1) carries sx(1) x (-sx(1)) = -1 - a derivative
+flips the fold sign) while every main-half term is fold-even - which
+is exactly why the main half is valid on the reduced mesh without a
+weight table and the opposite half is not (the 13.1 chamber-weight
+zero, term by term). The premise "jz_ij is always a real number" is
+JUDGED GREEN, never assumed; the purity print is relabeled as
+residues and the arm fails loudly if either judgment breaks. The
+nabla analogue of section 15.6 remains open - the derivative family
+has no full-box oracle yet, and this machinery is its ready template.
+No production line changed at any point: the fixed kernels remain
+caller-less.
 
 ### 14.3 Module shape, marker policy, validation
 
@@ -1259,6 +1321,13 @@ candidates, same deciding test.
   *) partner-consistency checks: `A(s',s) = kind * A(s,s')^T` per
      stored block, both kinds, all three builds; XOR block-coverage
      against the words of 14.1.
+  *) full-box reconstruction oracle (2026-11-19, the deciding test of
+     14.2b, now part of the arm): check_fullbox judges, per sampled
+     pair of every stored block of the honest trio, the chamber-
+     uniformity identity of the main half and the STy zero of the
+     opposite half; its chamber algebra reproduces the kernels on
+     the unflipped chamber, so the identity judgment self-validates
+     the oracle.
   *) unit arm placement: beside the moments net (moments_testing or
      an angular_momentum_testing module), armed by the `unit_test` flag
      of &mesh/ per the §13 test infrastructure.
@@ -1523,10 +1592,16 @@ purely the deletion decision, pending the FAM phase.
   1e-16 on this very machinery), so the suspicion points at how the
   derivative kernels treat the crossed component pairs - the section
   13.1 chamber-weight territory. The angular-momentum family's
-  angmom_z_imag check is the same finding (same kernels), so this is
-  not introduced by the migration. The unit arm MEASURES and reports
-  both halves; judgment (and any fix) is deferred until the
-  derivative-kernel chamber audit - which is a prerequisite for
+  analogue was the same signature and is now ADJUDICATED (14.2b:
+  reduced-mesh artifact confirmed, one dead-kernel pairing bug
+  fixed); by mechanism the artifact reading is favoured here too -
+  the crossed-component products are the chamber-cancelling ones -
+  but the derivative finding stays deliberately UNJUDGED until the
+  derivative family gets its own full-box reconstruction: the
+  angmom arm's check_fullbox is the ready template. The unit arm
+  MEASURES and reports both halves; judgment (and any fix) is
+  deferred until the derivative-kernel chamber audit - which is a
+  prerequisite for
   nothing in this section, since every consumer contracts real
   densities against these elements and the legacy agrees to 3e-15
   exactly as filled.

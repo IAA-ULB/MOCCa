@@ -389,8 +389,9 @@ perturbations).
   verifies the block structure and stored values, measures
   K(wf_i,wf_j) vs K(wf_j,wf_i) per stored pair with the raw kernels and
   checks agree with the tagged kind, checks partner consistency
-  A(s',s) = kind*A(s,s')^T, and PRINTS (does not judge) the purity of
-  the opposite-half kernels. Arm verdicts on the O16/SLy4 unit state
+  A(s',s) = kind*A(s,s')^T, and prints the single-chamber opposite-half
+  residues - now JUDGED by the check_fullbox full-box reconstruction
+  (see the OPPOSITE-HALF ADJUDICATION paragraph below). Arm verdicts on the O16/SLy4 unit state
   (maxiter=0): NLO - honest J_x/J_y structural zeros (0 blocks, the
   odd-m precedent), J_z/J_x.T/J_y.T symmetric at 2.5e-14/1.6e-14/
   1.1e-14; NLO-T - all five agree (J_y antisymmetric at 2.1e-15, both
@@ -465,6 +466,38 @@ perturbations).
   (the user-deferred FAM phase), the definition in densities.f90, and
   linear_momentum_testing's A/B oracle - row 4 (design §15.5) is now
   purely the deletion decision, to be taken with the FAM phase.
+  OPPOSITE-HALF ADJUDICATION LANDED (2026-11-19, design §14.2b
+  RESOLVED): the audit of the three dead angmom kernels against the
+  validated ones found angmom_z_imag and angmom_y_real term-by-term
+  CORRECT (the O(1) purity prints were never a kernel error) and one
+  genuine transcription bug: the spin down-block of angmom_x_imag and
+  spin_x_imag carried the sigma_y pairings instead of the honest
+  Im[conj(d_down) c_up] = wf2(3)wf1(2) - wf2(4)wf1(1); both FIXED and
+  banner-annotated as caller-less (the arm's purity print is
+  angmom_x_imag's only reference; spin_x_imag has none). The deciding
+  test is built into the arm: check_fullbox / fullbox_angmom_me (the
+  §13.1 full-box pattern plus the chain-rule gradient signs and the
+  Pauli spin structure) judge per sampled pair the chamber-uniformity
+  identity of the main half and the STy zero of the opposite half
+  (identity vs the plain kernel on the stored chamber - the oracle
+  reproduces the kernels term-by-term on the unflipped chamber, so it
+  self-validates). Verdict, all three builds (O16/SLy4 unit state,
+  maxiter=0, moments-suite scenario; NLO/NLO-T debug, NLO-P frozen
+  -O3): identity <= 2.3e-14, opposite halves <= 2.1e-17 - x/y judged
+  on their NLO-T cross-signature pairs, z on within-block (NLO/NLO-T)
+  and merged-parity diagonal (NLO-P) blocks. Candidate (a) of §14.2b
+  CONFIRMED: full-box Im<jz> is zero at 1e-17 while the same kernel
+  returns O(1) on the single stored chamber; the per-term mechanism
+  is that every opposite-half term is fold-odd, every main-half term
+  fold-even - the §13.1 chamber-weight zero, term by term. The
+  momentsofinertia "jz_ij is always a real number" premise is judged
+  green; the purity print is relabeled as residues. No production
+  line changed (the fixed kernels stay caller-less). Executable
+  state after the runs: the frozen MOCCa.NLO-T/NLO-P binaries were
+  restored; exec/MOCCa.NLO.exe is the debug build carrying the
+  amended arm (frozen rebuild before any numerical gate, per the
+  standing rule). The same machinery is the ready template for
+  adjudicating the §15.6 derivative open finding below.
   NEXT UP (gradient thread): design §15.5 row 4 is the deletion
   decision (user); the §15.4 DEN-vs-cantransfo audit and sym_rotation
   consumer remain future steps; FAM rows stay deferred per user
@@ -491,42 +524,23 @@ perturbations).
      antilinear composites honestly instead of overloading `herm`,
      is OPEN. Whatever is decided: the arm's kernel-transpose oracle
      stays the arbiter - never re-derive, re-measure.
-   * DEAD angmom KERNELS / THE jz-IS-REAL ERROR (found 2026-11-19 by
-     the arm's purity print, recorded PRECISELY in design §14.2b):
-     angmom_x_imag, angmom_y_real, angmom_z_imag are referenced
-     nowhere in production (the unit arm is their first caller) and
-     all three measure O(1) on the reduced mesh (same order as the
-     validated halves), in NLO/NLO-T/NLO-P alike. This CONTRADICTS
-     the code's own completeness premise - momentsofinertia.f90:774/
-     :792: "jz_ij is always a real number", the §2a corollary that
-     the stored real half is the complete operator. Two candidates,
-     unadjudicated: (a) reduced-mesh artifact - the purity print
-     integrates one chamber with dv multiplicity and the
-     opposite-half cross-parity products would cancel across the fold
-     planes of the full box (the multipole chamber-weight-0 case of
-     design §13.1), so the true Im<jz> IS ~0 and only the naive
-     single-chamber integral is O(1); (b) a genuine bug or packing
-     mismatch in the dead kernel, which would put the premise in
-     doubt. Deciding test (not built): full-box reconstruction of
-     Im<i|J_z|j> per the §13.1 step-4 pattern. Nothing in production
-     is affected either way; deciding (and then possibly deleting
-     the dead kernels) is a user decision. (The symmetries.*.out
-     logs have been rerun green on the frozen executables after the
-     K_x A/B; the broken-experiment and healthy pre-change evidence
-     of design §14.2 lives only in the doc's recorded numbers now.)
    * OPPOSITE-HALF PURITY OF DERIVATIVE OPERATORS (found 2026-11-19 by
      the gradient arm, recorded in design §15.6, deliberately
      UNADJUDICATED): the honest nabla generators' opposite halves
      (eta-stripped cross-STy blocks) do NOT vanish - O(0.2) against
      O(0.35) element scale, on maxiter=0 AND converged states, on the
      crossed-component pairs - while the multipole full-box oracle
-     proves the basis STy-clean at 1e-16 on the same machinery. Same
-     signature as the angmom arm's angmom_z_imag finding above (same
-     kernels' relatives); suspicion points at the derivative kernels'
-     crossed-component treatment, the design §13.1 chamber-weight
-     territory. Both arms MEASURE and print, neither judges; the
-     deciding full-box reconstruction test (the §13.1 step-4 pattern)
-     is not built. Nothing in production is affected: every consumer
+     proves the basis STy-clean at 1e-16 on the same machinery. The
+     angmom analogue is ADJUDICATED (see the OPPOSITE-HALF
+     ADJUDICATION paragraph above, design §14.2b resolved: artifact,
+     plus one dead-kernel pairing bug fixed); by mechanism the
+     artifact reading is favoured here too - the crossed-component
+     products are the chamber-cancelling ones - but the derivative
+     finding stays deliberately UNADJUDICATED: the linear-momentum
+     arm still measures and prints only, the deciding full-box
+     reconstruction is not built for the derivative family, and the
+     angmom arm's check_fullbox is the ready template. Nothing in
+     production is affected: every consumer
      contracts real densities and the legacy agrees to 3e-15 as
      filled.
    * Qlm_spme deletion gate (design §13.2), now purely a DECISION: the

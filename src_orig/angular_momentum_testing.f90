@@ -54,9 +54,20 @@ module angular_momentum_testing
   !       versus the sym_matrix implementation.
   !   (4) partner symmetry: within-block stored blocks obey
   !       A(c, r) = kind * A(r, c).
-  !   (5) purity of the stored half (honest trio only): the opposite-
-  !       half kernel measures vanishing on the same pairs. No opposite-
-  !       half t-kernels exist, so the folded pair is not measurable.
+  !   (5) purity report of the stored half (honest trio only): the
+  !       opposite-half kernel magnitudes on the same pairs are printed -
+  !       single-chamber residues, not matrix elements, judged by (6).
+  !       No opposite-half t-kernels exist, so the folded pair is not
+  !       measurable.
+  !   (6) full-box reconstruction (honest trio only): the deciding test
+  !       of design section 14.2b. The complex matrix elements are
+  !       recomputed over the chamber-extended spinors - the design 13.1
+  !       step-4 pattern: the main half must equal the kernel evaluation
+  !       on the stored chamber (chamber uniformity), the opposite half
+  !       must vanish (the design 2a STy constraint, a statement about
+  !       the chamber sum that no reduced-mesh evaluation can express).
+  !       Green here adjudicates the O(1) opposite-half purity prints as
+  !       the reduced-mesh residues of 14.2b, never the reverse.
   !
   ! Unlike run_moments_tests, this suite RETURNS on success (it runs
   !  first, so the moments tests still terminate the program afterwards);
@@ -155,7 +166,8 @@ contains
     !  judge in sequence the block structure, sampled stored values
     !  against fresh kernel evaluations, the kernel-transpose oracle
     !  against the derived kind, the within-block partner symmetry and -
-    !  honest trio only - the purity of the stored half. The printed
+    !  honest trio only - the single-chamber purity report plus the
+    !  full-box reconstruction judgment. The printed
     !  detail lines identify the object under test.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -170,7 +182,7 @@ contains
 
     type(sym_matrix) :: M
     character(len=24) :: objlabel
-    integer :: fst, fval, forc, fpar, fpur
+    integer :: fst, fval, forc, fpar, fpur, fful
 
     if (folded) then
       objlabel = 'J_'//axis_label(mu)//'.T folded'
@@ -188,6 +200,7 @@ contains
     forc = 0
     fpar = 0
     fpur = 0
+    fful = 0
     call check_structure(M, fst)
     if (M%nblocks .gt. 0) then
       call check_values(mu, folded, M, fval)
@@ -195,8 +208,9 @@ contains
       call check_partner(M, fpar)
     endif
     call check_purity(mu, folded, M, fpur)
+    if (.not. folded) call check_fullbox(mu, M, fful)
 
-    ifail = max(fst, fval, forc, fpar, fpur)
+    ifail = max(fst, fval, forc, fpar, fpur, fful)
   end subroutine test_object
 !===============================================================================
   subroutine check_structure(M, ifail)
@@ -445,15 +459,16 @@ contains
     !------------------------------------------------------------------------------
     ! Purity report of the stored half (honest trio): the opposite-half
     !  kernel measures the complementary part of the complex matrix
-    !  elements. CAVEAT (measured 2026-11-19): the opposite-half kernels
-    !  angmom_{x,z}_imag / angmom_y_real are production-unreferenced -
-    !  this unit arm is their first caller in the tree - so their
-    !  semantics are unvalidated: the measured magnitudes are PRINTED,
-    !  never judged. (At the O16/SLy4 unit state, angmom_z_imag
-    !  measures O(1) where the j-distribution comments of
-    !  momentsofinertia.f90 assert jz_ij is real - an open finding,
-    !  recorded in AGENTS.md.) No opposite-half t-kernels exist, so the
-    !  folded pair is not measurable at all.
+    !  elements - on the single stored chamber, with the dv multiplicity,
+    !  which is valid only for chamber-uniform products. CAVEAT: the
+    !  opposite-half kernels angmom_{x,z}_imag / angmom_y_real are
+    !  production-unreferenced (this arm is their first caller in the
+    !  tree), and their cross-character products are chamber-CANCELLING:
+    !  the magnitudes printed here are O(1) chamber residues, NOT
+    !  full-box matrix elements. They are measured, never judged by this
+    !  report - the full-box reconstruction of check_fullbox below is
+    !  the arbiter. No opposite-half t-kernels exist, so the folded pair
+    !  is not measurable at all.
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
@@ -490,7 +505,7 @@ contains
     enddo
 
     print *, '  purity: opposite-half max', oppmax, ' stored-half max',       &
-    &         mainmax, ' (unreferenced kernel: measured, not judged)'
+    &         mainmax, ' (single-chamber residues: judged by check_fullbox)'
   end subroutine check_purity
 !===============================================================================
   subroutine measure_purity_pair(mu, srow, scol, r, c, st, oppmax, mainmax)
@@ -524,6 +539,263 @@ contains
       oppmax = max(oppmax, abs(angmom_z_imag(psi_i, psi_j, derpsi_j)))
     end select
   end subroutine measure_purity_pair
+!===============================================================================
+  subroutine check_fullbox(mu, M, ifail)
+    !------------------------------------------------------------------------------
+    ! DECIDING TEST of design section 14.2b: the full-box reconstruction of
+    !  the complex matrix elements
+    !
+    !      < i | J_mu | j >
+    !
+    !  over the chamber-extended spinors, for sampled pairs of every stored
+    !  block - the design 13.1 step-4 pattern applied to the angmom family.
+    !  Two facts are JUDGED per pair, closing what the single-chamber
+    !  purity print of check_purity can only measure:
+    !
+    !   (a) identity: the main half is chamber-uniform - the full-box
+    !       quadrature of fullbox_angmom_me (spinors extended across the
+    !       fold planes with the per-component signs sx/sy/sz, gradients
+    !       with the additional chain-rule sign, operator values fresh at
+    !       every chamber's coordinates, plain cell volume dv/2^nch) must
+    !       equal the plain kernel evaluation on the single stored chamber.
+    !   (b) STy zero: the opposite half is chamber-cancelling - its
+    !       full-box value must vanish: the design 2a characteristic
+    !       constraint, a statement about the chamber sum that no
+    !       reduced-mesh evaluation can express.
+    !
+    ! Green here adjudicates the O(1) opposite-half purity prints as the
+    !  reduced-mesh residues predicted by 14.2b - the premise
+    !  "jz_ij is always a real number" of momentsofinertia.f90 is judged,
+    !  never assumed.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   mu : honest component selector, AX_X / AX_Y / AX_Z
+    !   M  : the honest object's sym_matrix; its stored blocks supply the
+    !        sampled pairs, exactly as in check_purity
+    ! Output:
+    !   ifail : 0 every sampled pair passes both judgments,
+    !           1 at least one failure occurred
+    !------------------------------------------------------------------------------
+    integer, intent(in)          :: mu
+    type(sym_matrix), intent(in) :: M
+    integer, intent(out)         :: ifail
+
+    integer :: b, r, c, mr, nc, rstep, cstep, gi, gj, npair
+    real(KIND=dp) :: fb_re, fb_im, fb_main, fb_opp, kern_main, dev, bar
+    real(KIND=dp) :: maxid, maxop
+
+    ifail = 0
+    if (M%nblocks .eq. 0) then
+      print *, '  fullbox: no pairs (structural zero) - not measurable.'
+      return
+    endif
+
+    maxid = 0.0d0
+    maxop = 0.0d0
+    npair = 0
+    do b = 1, M%nblocks
+      mr = size(M%blocks(b)%A, 1)
+      nc = size(M%blocks(b)%A, 2)
+      rstep = max(1, mr/5)
+      cstep = max(1, nc/5)
+      do c = 1, nc, cstep
+        do r = 1, mr, rstep
+          gi = M%st(M%blocks(b)%srow) + r - 1
+          gj = M%st(M%blocks(b)%scol) + c - 1
+          kern_main = Jm_fresh_element(mu, .false., M%blocks(b)%srow,         &
+          &                          M%blocks(b)%scol, r, c, M%st)
+          call fullbox_angmom_me(mu, gi, gj, fb_re, fb_im)
+          if (mu .eq. AX_Y) then
+            fb_main = fb_im
+            fb_opp = fb_re
+          else
+            fb_main = fb_re
+            fb_opp = fb_im
+          endif
+          npair = npair + 1
+          bar = tol*max(1.0d0, abs(kern_main))
+          dev = abs(fb_main - kern_main)
+          if (dev .gt. bar) ifail = 1
+          maxid = max(maxid, dev)
+          dev = abs(fb_opp)
+          if (dev .gt. bar) ifail = 1
+          maxop = max(maxop, dev)
+        enddo
+      enddo
+    enddo
+
+    print *, '  fullbox: identity max', maxid, ' opposite-half max', maxop,    &
+    &        ' over', npair, 'pairs (judged)'
+    if (ifail .eq. 0) then
+      print *, '  fullbox: PASS - main half chamber-uniform, opposite half'   &
+      &        //' vanishes over the full box.'
+    else
+      print *, '  fullbox: FAIL - a deviation above tolerance occurred.'
+    endif
+  end subroutine check_fullbox
+!===============================================================================
+  subroutine fullbox_angmom_me(mu, gi, gj, me_re, me_im)
+    !------------------------------------------------------------------------------
+    ! One full-box matrix element < psi_i | J_mu | psi_j > by plain mesh
+    !  quadrature over ALL chambers of the folded mesh - the angmom
+    !  counterpart of the full-box oracle of moments_testing (design
+    !  13.1 step 4). It shares only trusted raw inputs with production:
+    !  the stored spinors, their fresh gradients and the sx/sy/sz
+    !  per-component reflection signs.
+    !
+    ! The stored mesh is the fundamental chamber; the full box is 2^nch
+    !  copies with flipped axes (nch = reduX + reduY + reduZ, the dv
+    !  multiplicity). At the full-box points of chamber c every spinor
+    !  component k of a state takes its stored mirror value multiplied by
+    !  the product of sx/sy/sz(k) over the chamber's flipped axes; every
+    !  gradient field of component k acquires the additional chain-rule
+    !  sign (-1)**(flip of its derivative axis); the operator coordinates
+    !  are the mirrored COM-shifted mesh values. The full-box cell volume
+    !  is dv/2^nch, so the chamber sum below is the entire integral.
+    !
+    ! With the real component storage - (2s-1)/(2s) = Re/Im of spin
+    !  projection s - and a = Rei + i Imi, b = Rej + i Imj per spin, the
+    !  per-spin summand of < a | (i V_mu + sigma_mu/2) | b > is
+    !
+    !     V_z = i(y d_x - x d_y)  V_x = i(z d_y - y d_z)
+    !     V_y = i(x d_z - z d_x)
+    !
+    !     orbital Re: -Rei Vim + Imi Ver     orbital Im: Rei Ver + Imi Vim
+    !
+    !  plus the spin terms with the pairings sigma_mu dictates (z: same
+    !  spin, x/y: crossed spins, y: with the (0,-i;i,0) i-factors).
+    !------------------------------------------------------------------------------
+    ! Input:
+    !   mu : component selector, AX_X / AX_Y / AX_Z (honest components only)
+    !   gi, gj : global HF-basis indices of the row/column state
+    ! Output:
+    !   me_re, me_im : Re / Im of < psi_i | J_mu | psi_j > over the full box
+    !------------------------------------------------------------------------------
+    integer, intent(in)  :: mu, gi, gj
+    real(KIND=dp), intent(out) :: me_re, me_im
+
+    real(KIND=dp) :: psi_i(mv, 4), psi_j(mv, 4), derpsi_j(mv, 3, 4)
+    real(KIND=dp) :: Rei(mv), Imi(mv), Rej(mv), Imj(mv)
+    real(KIND=dp) :: vxr(mv), vxi(mv), vyr(mv), vyi(mv), vzr(mv), vzi(mv)
+    real(KIND=dp) :: vor(mv), voi(mv), xc(mv), yc(mv), zc(mv)
+    real(KIND=dp) :: sri(4), srj(4), sgx, sgy, sgz, sgn, dvcell
+    integer :: c, ic, fx, fy, fz, k, s, t, nch
+
+    psi_i = HFPsi(:, :, gi)
+    psi_j = HFPsi(:, :, gj)
+    call Jm_fresh_derive(psi_j, gj, derpsi_j)
+
+    nch = 2**(reduX + reduY + reduZ)
+    dvcell = dv/nch
+    me_re = 0.0d0
+    me_im = 0.0d0
+
+    do c = 1, nch
+      ! Chamber decomposition over the folded axes only: axis bits of
+      !  unfolded builds do not exist in the full box.
+      ic = c - 1
+      fx = 0
+      fy = 0
+      fz = 0
+      if (reduX .eq. 1) then
+        fx = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduY .eq. 1) then
+        fy = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduZ .eq. 1) then
+        fz = mod(ic, 2)
+      endif
+
+      ! Per-component extension signs of both states and the chamber
+      !  coordinates (mirrored COM-shifted mesh values).
+      sri = 1.0d0
+      srj = 1.0d0
+      do k = 1, 4
+        if (fx .eq. 1) then
+          sri(k) = sri(k)*sx(k, gi)
+          srj(k) = srj(k)*sx(k, gj)
+        endif
+        if (fy .eq. 1) then
+          sri(k) = sri(k)*sy(k, gi)
+          srj(k) = srj(k)*sy(k, gj)
+        endif
+        if (fz .eq. 1) then
+          sri(k) = sri(k)*sz(k, gi)
+          srj(k) = srj(k)*sz(k, gj)
+        endif
+      enddo
+      sgx = merge(-1.0d0, 1.0d0, fx .eq. 1)
+      sgy = merge(-1.0d0, 1.0d0, fy .eq. 1)
+      sgz = merge(-1.0d0, 1.0d0, fz .eq. 1)
+      xc = merge(-meshgrid_shifted(:, 1), meshgrid_shifted(:, 1), fx .eq. 1)
+      yc = merge(-meshgrid_shifted(:, 2), meshgrid_shifted(:, 2), fy .eq. 1)
+      zc = merge(-meshgrid_shifted(:, 3), meshgrid_shifted(:, 3), fz .eq. 1)
+
+      do s = 1, 2
+        Rei = sri(2*s-1)*psi_i(:, 2*s-1)
+        Imi = sri(2*s  )*psi_i(:, 2*s  )
+        ! Extended gradient fields of the ket spin s: the stored
+        !  derivatives with the extension and chain-rule signs.
+        vxr = srj(2*s-1)*sgx*derpsi_j(:, 1, 2*s-1)
+        vxi = srj(2*s  )*sgx*derpsi_j(:, 1, 2*s  )
+        vyr = srj(2*s-1)*sgy*derpsi_j(:, 2, 2*s-1)
+        vyi = srj(2*s  )*sgy*derpsi_j(:, 2, 2*s  )
+        vzr = srj(2*s-1)*sgz*derpsi_j(:, 3, 2*s-1)
+        vzi = srj(2*s  )*sgz*derpsi_j(:, 3, 2*s  )
+
+        ! Orbital part: i V_mu on the ket spin s, sandwiched by the bra.
+        select case (mu)
+        case (AX_Z)
+          vor = yc*vxr - xc*vyr
+          voi = yc*vxi - xc*vyi
+        case (AX_X)
+          vor = zc*vyr - yc*vzr
+          voi = zc*vyi - yc*vzi
+        case (AX_Y)
+          vor = xc*vzr - zc*vxr
+          voi = xc*vzi - zc*vxi
+        case default
+          print *, 'fullbox_angmom_me: components are AX_X, AX_Y and AX_Z.'
+          call stp('Invalid component in fullbox_angmom_me.')
+        end select
+        me_re = me_re + dvcell*(dot_product(Imi, vor)                        &
+        &                               - dot_product(Rei, voi))
+        me_im = me_im + dvcell*(dot_product(Rei, vor)                        &
+        &                               + dot_product(Imi, voi))
+
+        ! Spin part: sigma_mu couples the bra spin s with ket spin t -
+        !  the same spin for sigma_z, crossed for sigma_x / sigma_y.
+        if (mu .eq. AX_Z) then
+          t = s
+        else
+          t = 3 - s
+        endif
+        Rej = srj(2*t-1)*psi_j(:, 2*t-1)
+        Imj = srj(2*t  )*psi_j(:, 2*t  )
+        sgn = merge(1.0d0, -1.0d0, s .eq. 1)
+        select case (mu)
+        case (AX_Z)
+          me_re = me_re + dvcell*0.5d0*sgn                                   &
+          &                    *(dot_product(Rei, Rej) + dot_product(Imi, Imj))
+          me_im = me_im + dvcell*0.5d0*sgn                                   &
+          &                    *(dot_product(Rei, Imj) - dot_product(Imi, Rej))
+        case (AX_X)
+          me_re = me_re + dvcell*0.5d0                                       &
+          &                    *(dot_product(Rei, Rej) + dot_product(Imi, Imj))
+          me_im = me_im + dvcell*0.5d0                                       &
+          &                    *(dot_product(Rei, Imj) - dot_product(Imi, Rej))
+        case (AX_Y)
+          me_re = me_re + dvcell*0.5d0*sgn                                   &
+          &                    *(dot_product(Rei, Imj) - dot_product(Imi, Rej))
+          me_im = me_im - dvcell*0.5d0*sgn                                   &
+          &                    *(dot_product(Rei, Rej) + dot_product(Imi, Imj))
+        end select
+      enddo
+    enddo
+  end subroutine fullbox_angmom_me
 !===============================================================================
   function Jm_fresh_element(mu, folded, srow, scol, r, c, st) result(val)
     !------------------------------------------------------------------------------
