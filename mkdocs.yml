@@ -38,6 +38,7 @@ nav:
   - Contributing to MOCCa:
     - Version control: user-guide/version-control.md
     - Fortran style guide: user-guide/codingstyle.md
+    - "The symmetry-block matrix type (sym_matrix)": user-guide/sym-matrix.md
   - Auxiliary tools:
     - mean-field_analysis: user-guide/mfa.md
   - Tests:
