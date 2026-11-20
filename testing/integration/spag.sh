@@ -85,9 +85,9 @@ write_data  40 400 "'inp_cyl.pot'"
 # Run the calculation
 echo "Running $exe"
 ./$exe < mocca.data > $outfile
-echo "Calculations done"
 # .... and immediately check if MOCCa reported back some error codes
 mocca_check1=$?
+echo "Calculations done"
 # Starting the checking
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $outfile)

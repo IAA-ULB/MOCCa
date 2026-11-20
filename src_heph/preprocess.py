@@ -65,7 +65,12 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                          'folding.f90', 'timing.f90', \
                          'fam_run.f90', 'fam_gmres.f90', \
                          'hdf5_auxiliary.f90', \
-                         'IO_aux.f90', 'basis_transform.f90' ]
+                         'IO_aux.f90', 'basis_transform.f90', \
+                         'block_matrix_module.f90', 'moments_testing.f90', \
+                         'angular_momentum.f90', \
+                         'angular_momentum_testing.f90', \
+                         'linear_momentum.f90', \
+                         'linear_momentum_testing.f90' ]
     # List of files that can be processed by a generic preprocessor
     generic_process_files = [ 'mocca.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \
@@ -143,6 +148,42 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
     dic['REDUX'] = str(so.ReduceAxes[0])
     dic['REDUY'] = str(so.ReduceAxes[1])
     dic['REDUZ'] = str(so.ReduceAxes[2])
+
+    # Good quantum numbers of the HF-basis blocks (block-matrix design, 2b):
+    #  bit 0 (1) : q(Rz) good  - iff this build conserves Rz
+    #  bit 1 (2) : parity good - iff this build conserves P
+    #  bit 2 (4) : Tz good     - always, nucleonic bases never merge n and p
+    #  bit 3 (8) : STy good    - iff this build conserves the y-time-simplex
+    #              (its matrix-element consequence lives in block_matrix_module:
+    #              with all spwfs STy invariants, operators of definite STy
+    #              characteristic have purely real/even or imaginary/odd matrix
+    #              elements; init consumes bits 0-2 for the pairing and stores
+    #              the mask verbatim - consumers read bit 3 as the completeness
+    #              criterion of an STy-tagged matrix)
+    #  bit 4 (16): T good     - iff this build conserves time reversal; the
+    #              scenario bit of the T-doubling contracts (D-7, 2026-11-20):
+    #              set = the stored basis is the q(Rz)=+i half of a T-symmetric
+    #              set and the doubled-basis reconstruction is defined; clear =
+    #              the basis is the whole physical basis and the doubling
+    #              layer degenerates. Never a pairing bit.
+    # A quantum number that is not good means the corresponding basis blocks
+    #  are merged into one; the init constructor of block_matrix_module
+    #  intersects operator words with bits 0-2 of this mask. Generator
+    #  identity check, like the PCONSERVED hack further down (avoids e.g.
+    #  the 'P' inside the 'PT' generator when parsing SYMSTRING tokens).
+    from src_heph.heph_symmetries import populatesymmetries
+    symdic    = populatesymmetries()
+    goodqn    = 4
+    for sym in so.generators:
+      if (sym == symdic['Rz']):
+        goodqn = goodqn + 1
+      if (sym == symdic['P']):
+        goodqn = goodqn + 2
+      if (sym == symdic['T']):
+        goodqn = goodqn + 16
+      if (sym == symdic['STy']):
+        goodqn = goodqn + 8
+    dic['GOODQN'] = str(goodqn)
     
     #NS: provides symmetry information to
     #    geninfo to calculate k_sh

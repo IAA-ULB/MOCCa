@@ -36,6 +36,7 @@ module momentsofinertia
   use geninfo
   use densities
   use parameterization
+  use angular_momentum, only: Jmu_spme, AX_X, AX_Y, AX_Z
 
   implicit none
 
@@ -723,9 +724,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
-    integer       :: locali, localj, ranki, rankj, calc_rank, designated_rank(8)
     integer       :: wave, der_index
-    real(KIND=dp) :: ME(3),  fac, psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
+    real(KIND=dp) :: ME(3),  fac
 
     !----------------------------------------------------------------------------
     ! Single-particle matrix elements of Jx, Jy, Jz in the array labelled HFBasis
@@ -749,164 +749,25 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     jx = 0              ; jy = 0              ; jz = 0
     jx2_can = 0.0d0     ; jy2_can = 0.0d0     ; jz2_can = 0.0d0
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    designated_rank = -1 
-    do B=1,8
-      ! First, we designate a rank to do the calculations
-      !    = the first rank storing spwfs in a symmetry block
-      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
-      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
     ! ------------------- START of all things parallel -------------------------
 
     !---------------------------------------------------------------------------
-    ! First, we calculate the full matrix elements of jx, jy and jz and their
-    ! squares in the Hartree-Fock basis.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
-    ! If time-reversal is not conserved the matrices jx/jy/jz are 
-    !
-    !   jx_ij = Re < i | j_x | j >
-    !   jy_ij = Im < i | j_y | j >
-    !   jz_ij = Re < i | j_z | j >
-    !
-    ! jz_ij is a always a real number, and only non-zero if i and j are in the 
-    ! same 'half' of the basis (equal signature in CR8-like symmetries).
-    !   
-    ! jx_ij is always real, jy_ij is always imaginary and both are only 
-    ! non-zero if i and j belong to opposite "halves" of the basis 
-    ! (different signatures in CR8-like symmetry options).
-    !
-    ! All matrix elements if the parity of i does not match the parity of j.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! If time-reversal is conserved the matrices jx/jy/jz are
-    !       
-    !  jx_ij = Re < i | j_x | \bar{j} >
-    !  jy_ij = Im < i | j_y | \bar{j} >
-    !  jz_ij = Re < i | j_z |      j  >
-    !
-    ! where \bar{j} is the partner under time-reversal of j. 
-    !
-    ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    si = 0
-    do B = 1,8,2
-      N = HFBlocks_global(B)   ; if(N.eq.0) cycle   !<--- this is a loop over
-      N2= HFBlocks_global(B+1)                      !     global indices
-      T = N + N2
-      it = 1 ; if(B.gt.4) it=2
-      calc_rank = designated_rank(B) ! this is the rank doing the calculation
-      !-------------------------------------------------------------------------
-      ! If time-reversal is conserved, we can treat all directions equally:
-      ! both the inner and outer summation are over the same symmetry block    
-      ! for all directions.
-      !-------------------------------------------------------------------------
-      do j=1,N
-        jj    = si + j            ! global index of the spwf
-        localj= spwf_inverse(jj)  ! local index of the spwf
-        rankj = rank_map(jj)      ! MPI rank storing the spwf
-
-#if(USE_MPI>0)
-        call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-        call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
-#else
-        call Transfer_psi(psi_j, localj, 'HF')
-        call Transfer_derpsi_complete(der_psi_j,localj,'HF')
-#endif
-        do i=j,N
-          ii    = si + i            ! global index of the spwf
-          locali= spwf_inverse(ii)  ! local index of the spwf
-          ranki = rank_map(ii)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-          call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
-#else
-          call Transfer_psi(psi_i, locali, 'HF')
-#endif
-
-          if(MPI_rank.eq.calc_rank) then
-$TR         ! < k | j_x | -l >
-$TR         jx(ii,jj)= angmom_xt_real(psi_i,psi_j,der_psi_j) 
-$TR         jx(jj,ii)= jx(ii,jj)
-$TR         ! < k | j_y | -l >
-$TR         jy(ii,jj)= angmom_yt_imag(psi_i,psi_j,der_psi_j) 
-$TR         jy(jj,ii)= jy(ii,jj)
-
-            ! < k | j_z |  l >
-            jz(ii  ,jj  ) = angmom_z_real(psi_i,psi_j,der_psi_j) 
-            jz(jj  ,ii  ) = jz(ii,jj)
-          endif
-        enddo
-      enddo
-      ! If time-reversal is not conserved, we have only calculated half of the 
-      ! necessary matrix elements of jz above
-$NTR  calc_rank = designated_rank(B+1) ! this is the rank doing the calculation
-$NTR  do j=1,N2
-$NTR   jj = si + N + j           ! global index of the spwf
-$NTR   localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR   rankj = rank_map(jj)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-$NTR   call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR   call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
-#else
-$NTR   call Transfer_psi(psi_j, localj, 'HF')
-$NTR   call Transfer_derpsi_complete(der_psi_j,localj,'HF')
-#endif
-$NTR   do i=j,N2
-$NTR      ii = si + N + i
-$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
-#else
-$NTR      call Transfer_psi(psi_i, locali, 'HF')
-#endif
-$NTR      if(calc_rank.eq.MPI_RANK) then
-$NTR        jz(ii,jj)= angmom_z_real(psi_i,psi_j,der_psi_j)
-$NTR        jz(jj,ii)= jz(ii,jj)
-$NTR      endif
-$NTR     enddo
-$NTR  enddo
-      !-------------------------------------------------------------------------
-      ! If time-reversal is not conserved, the inner and outer loops for the 
-      ! jx and jy matrix elements are not the same.
-      !-------------------------------------------------------------------------
-$NTR  calc_rank = designated_rank(B) ! this is the rank doing the calculation
-$NTR  do j=1, N2
-$NTR    jj = si + N +  j          ! global index of the spwf
-$NTR    localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR    rankj = rank_map(jj)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-$NTR    call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
-#else
-$NTR    call Transfer_psi(psi_j, localj, 'HF')
-$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF')
-#endif
-$NTR    do i=1,N
-$NTR      ii = si + i               ! global index of the spwf
-$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
-#else
-$NTR      call Transfer_psi(psi_i, locali, 'HF')
-#endif
-$NTR      if(calc_rank.eq.MPI_RANK) then
-$NTR        !|< k | j_x | l >|^2
-$NTR        jx(ii,jj)=angmom_x_real(psi_i, psi_j, der_psi_j)
-$NTR        ! |< k | j_y | l >|^2
-$NTR        jy(ii,jj)=angmom_y_imag(psi_i, psi_j, der_psi_j)
-$NTR        jx(jj,ii) =  jx(ii,jj)
-$NTR        jy(jj,ii) = -jy(ii,jj)  ! attention to the sign(s)!
-$NTR      endif
-$NTR    enddo
-$NTR  enddo
-
-      si = si + N + N2
-    enddo
+    ! First, the pair matrix elements jx/jy/jz in the HF basis, served by
+    !  the angular-momentum generators (design 14.4 row 3): the
+    !  scenario-blind Jmu_spme hands every rank the honest operators
+    !  while T is broken and the TR-folded composites
+    !              jx_ij = Re < i | j_x T | j >
+    !              jy_ij = Im < i | j_y T | j >
+    !  while T is conserved (jz_ij = Re < i | j_z | j > in every build,
+    !  and the three honest operators while T is broken) - the two
+    !  packagings this routine's legacy $TR/$NTR loops built by hand,
+    !  with the generators wrapping the same per-pair kernel arithmetic.
+    !  Serial semantics follow the generators (design 12): valid exactly
+    !  in the single-node model of this sprint.
+    !---------------------------------------------------------------------------
+    jx = Jmu_spme(AX_X)
+    jy = Jmu_spme(AX_Y)
+    jz = Jmu_spme(AX_Z)
 
     !----------------------------------------------------------------------
     ! The calculation of the diagonal matrix elements <J^2> is much easier
@@ -936,15 +797,6 @@ $NTR  enddo
     enddo
 
 #if(USE_MPI>0)
-    ! These MPI ALLREDUCE calls can be improved upon:
-    !   by using BCAST from each calc_rank and restricting to symmetry blocks
-    call MPI_ALLREDUCE(MPI_IN_PLACE, jx, nwt**2, MPI_REAL8, MPI_SUM,    &
-    &                  MPI_COMM_WORLD, MPI_ERR)
-    call MPI_ALLREDUCE(MPI_IN_PLACE, jy, nwt**2, MPI_REAL8, MPI_SUM,    &
-    &                  MPI_COMM_WORLD, MPI_ERR)
-    call MPI_ALLREDUCE(MPI_IN_PLACE, jz, nwt**2, MPI_REAL8, MPI_SUM,    &
-    &                  MPI_COMM_WORLD, MPI_ERR)
-
     call MPI_ALLREDUCE(MPI_IN_PLACE, jx2_can, nwt, MPI_REAL8, MPI_SUM,    &
     &                  MPI_COMM_WORLD, MPI_ERR)
     call MPI_ALLREDUCE(MPI_IN_PLACE, jy2_can, nwt, MPI_REAL8, MPI_SUM,    &

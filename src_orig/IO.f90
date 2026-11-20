@@ -209,6 +209,8 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: ioerr
+    character(len=500)                  :: msg
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
@@ -218,10 +220,11 @@ contains
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
       if(present(file_number)) then
-        read (unit=file_number, nml=IO)
+        read (unit=file_number, nml=IO, iostat=ioerr, iomsg=msg)
       else
-        read (unit=*          , nml=IO)
+        read (unit=*          , nml=IO, iostat=ioerr, iomsg=msg)
       endif
+      if(ioerr.ne.0) call find_nml_error('IO', msg, file_number)
     endif
 
     ! ... and then broadcasts information
@@ -266,9 +269,18 @@ contains
 #endif
   
 #if(USE_MPI == 0) 
+#if(PASTA == 1)
+  ! The default inertia pipeline needs l = 3 (Q30/Q32); pasta builds carry
+  ! multipoles only up to MaxMoment = 2, so there 0 (skip, the default)
+  ! or an explicit list of more than 4 moments are the only settings.
+  if(N_inertia .gt. 0 .and. N_inertia .le. 4) then
+    call stp('N_inertia must be 0 or larger than 4 in pasta calculations.')
+  endif
+#else
   if(N_inertia .lt. 4) then
     call stp('N_inertia must be at least 4.')
   endif
+#endif
 #else 
   if(N_inertia .ne. 0) then
     call stp('N_inertia has to be 0 for MPI calculations.')
@@ -1689,6 +1701,10 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     integer                      :: io
     integer                      :: k,it, l, m
     type(Moment), pointer        :: current 
+    ! Presentation factors restoring the historical b^(l/2) units at this
+    ! output boundary (design summary section 13.3, row 5): the stored
+    ! collective_inertia / M1 / M3 are fm-based internal quantities.
+    real(KIND=dp)                :: sc(N_inertia)
 
     1 format ('#', 18x)
     2 format (' B_{ ', i2, i2, '}     ')
@@ -1737,13 +1753,21 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     write(1, *)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Collective inertia
+    ! sc(k) counts the fm^l numbers of moment Q_(l_k m_k) against its
+    ! b^(l/2) units: the tensor elements scale as 1/(Q_i Q_j) and are
+    ! multiplied by sc(i)*sc(j), the intermediate M matrices scale as
+    ! Q_i Q_j and are divided by the same factor.
+    do k=1, N_inertia
+      sc(k) = 100.0d0**( real(inertia_l(k),dp)/2.0d0 )
+    enddo
     write(1, fmt=1)
     write(1, fmt=9)
     write(1, fmt=6)
     do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)
+        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)*sc(k)          &
+        &                                          *sc(1:N_inertia)
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1764,7 +1788,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,M1(k,1:N_inertia ,it)
+        write(1, fmt=7) l,m,M1(k,1:N_inertia ,it)                              &
+        &                        /(sc(k)*sc(1:N_inertia))
       enddo    
     enddo
 
@@ -1786,7 +1811,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,M3(k,1:N_inertia ,it)
+        write(1, fmt=7) l,m,M3(k,1:N_inertia ,it)                              &
+        &                        /(sc(k)*sc(1:N_inertia))
       enddo    
     enddo
   

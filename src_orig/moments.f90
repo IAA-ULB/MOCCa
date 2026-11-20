@@ -36,6 +36,10 @@ module moments
 ! SECOND_AX : $SECOND_AX
 ! TR        : $TR
 ! NTR       : $NTR
+! PCONSERVED: $PCONSERVED
+! PBROKEN   : $PBROKEN
+!  Parity-conservation markers gating the selection rules of the legacy
+!  Qlm_spme routine (single-particle matrix elements) near the end.
 ! CAN_DO_MAGNETIC : $CAN_DO_MAGNETIC
 !==============================================================================
 ! 
@@ -143,6 +147,8 @@ module moments
   use geninfo
   use sphericalharmonics
   use Densities
+  use wavefunctions
+  use block_matrix_module
 
   implicit none
   
@@ -334,6 +340,33 @@ module moments
   real(KIND=dp) :: neck_length = 1.0d0
   ! Saving the location of the neck for printing purposes 
   real(KIND=dp) :: neck_location = 0.0d0
+
+  !-----------------------------------------------------------------------------
+  ! State handed through the block_filler callback of Qlm_spme_matrix (see
+  !  the banner in front of that routine; design-summary section 13).
+  !-----------------------------------------------------------------------------
+  type :: Qlm_spme_params
+    ! Mesh values of the multipole operator in fm^l with the integration
+    !  volume element folded in, flattened over the stored mesh points.
+    real(KIND=dp), allocatable :: Qdv(:)
+    ! 1-based global sector bounds st(0:8) exactly as constructed by
+    !  block_matrix%init from the global block counts.
+    integer :: st(0:8)
+    ! Which half of the complex matrix elements the callback fills, i.e.
+    !  the stored half selected by the operator's y-time-simplex class:
+    !  .false. -> real     part  Re < i | Q_lm | j >
+    !  .true.  -> imaginary part  Im < i | Q_lm | j >
+    ! (design sections 2a and 13 - see the module-tail banner.)
+    logical :: imag
+    ! Chamber weight of the stored-mesh product of spinor component ki of
+    !  the row state with component ko of the column state, per sector pair
+    !  and component pair - the exact 0-or-1 factors of the module-tail
+    !  banner, precomputed by Qlm_spme_build_weights from the sx/sy/sz
+    !  extension signs and the operator's reflection characters. Pairs
+    !  carrying an empty sector stay at 0: their blocks are never stored,
+    !  so they are never consulted.
+    real(KIND=dp) :: w(0:7, 0:7, 4, 4)
+  end type Qlm_spme_params
 
 contains
   
@@ -1832,14 +1865,15 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
-  
+    integer(dp), intent(in), optional   :: file_number
+
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType, isoswitch
     real(KIND=dp)       :: Constraint, iq1=-1000000d0, iq2=-1000000d0, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
+    character(len=500)  :: msg
     type(Moment),pointer      ::  Current
     real(KIND=dp), allocatable:: LegacyCon(:)
 #if(USE_MPI>0)
@@ -1870,10 +1904,11 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       ! Reading the general parameters of the module, but only with the very
       ! first MPI rank
       if(present(file_number)) then
-        read(unit=file_number,NML=MomentParam )
+        read(unit=file_number,NML=MomentParam, iostat=iostat, iomsg=msg)
       else
-        read(unit=*          ,NML=MomentParam )
+        read(unit=*          ,NML=MomentParam, iostat=iostat, iomsg=msg)
       endif
+      if(iostat.ne.0) call find_nml_error('MomentParam', msg, file_number)
 
       if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
         call stp('Illegal value of quantisation axis!')
@@ -1943,13 +1978,13 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       if(MPI_RANK .eq. 0) then
         ! Only the very first MPI rank reads stuff
         if(present(file_number)) then
-          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
+          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat, iomsg=msg)
         else
-          read(unit=*          , NML=MomentConstraint, IOSTAT=iostat)
+          read(unit=*          , NML=MomentConstraint, IOSTAT=iostat, iomsg=msg)
         endif
 
         if(iostat .ne. 0) then
-          call stp("Input error for moment constraints.")
+          call find_nml_error('MomentConstraint', msg, file_number)
         endif
         
         ! ... and performs some consistency checks          
@@ -3309,4 +3344,675 @@ $NTR endif
   end subroutine ConstrainNonPhysicalMoments
 
 !===============================================================================
-end module 
+! Legacy single-particle matrix elements of a multipole operator
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+! Moved verbatim from fission_MOI.f90 (2026-11-17) to be the testing
+!  oracle for the block_matrix-based replacement of design-summary step 3
+!  (section 13 of mocca-symmetry-block-matrix-design-summary.md).
+!  DEPRECATED: this routine covers only even m and the real part of the
+!  matrix elements, works in units of b^(l/2) and resolves its selection
+!  rules by hand. It stays until step 4 (mat-vec) has landed and survived
+!  a shakeout period; new code must use Qlm_spme_fm / Qlm_spme_matrix.
+!
+!  Guard against a past misreading: the in-loop comment below ("all these
+!  matrix elements are real if ... time simplex is conserved") is about
+!  REAL multipole operators only. The imaginary parts are NOT zero by
+!  symmetry - r^l Im Y_lm is a Hermitian STY_ODD operator whose matrix
+!  elements over the STy-invariant basis are purely imaginary and
+!  generally nonzero; the generalised generator below builds that half.
+!===============================================================================
+  function Qlm_spme(l,m,Imaginary) result(me)
+    !---------------------------------------------------------------------------
+    ! Routine to calculate single-particle matrix elements of a given multipole
+    ! moment in the (a) HARTREE-FOCK basis and (b) in units of b^(ell/2) with
+    ! 1 b = 100 fm^2.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l,m       : integers, 
+    !     Imaginary : to calculate < i | Re Q_lm | j > or < i |Im Q_lm | j >
+    !                 logical
+    ! Output:
+    !     me        : single-particle matrix elements of the multipole moment
+    !                 in the canonical basis, real(nwt,nwt), in units of 
+    !                 b^(ell/2).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Notes:
+    ! *) does not allow for the calculation of matrix elements with odd values 
+    !    of m yet; those connect single-particle states with different 
+    !    signature, for the traditional definition of spherical harmonics at 
+    !    least.
+    ! *) This routine shifts the multipole moments with respect to the center
+    !    of mass of the nucleus, since it uses the meshx/y/z_shifted arrays to
+    !    calculate the numerical values of the spherical harmonics on the mesh.
+    !---------------------------------------------------------------------------
+
+    integer, intent(in)        :: l, m
+    logical, intent(in)        :: Imaginary
+    real(KIND=dp)              :: me(nwt,nwt)
+    
+    real(KIND=dp), allocatable         :: SpherHarmMesh(:,:,:,:,:,:)
+    real(KIND=dp), allocatable, target :: Qlm(:)
+    real(KIND=dp), pointer             :: harm_3D(:,:,:)
+    
+    integer :: i, j, Bi, Bj, Ni, Nj, si, sj, im, k
+
+    if(mod(m,2) .eq. 1) then
+      print *, 'Qlm_spme does not allow for the calculation of multipole matrix elements with odd m YET.'
+      stop
+    endif
+    if(Imaginary) then 
+      print *, 'Qlm_spme does not allow for the calculation of imaginary multipole matrix elements YET.'
+      stop
+    endif
+    if((m .lt. 0) .or. (m .gt. l)) then
+      print *, 'Invalid value of m in Qlm_spe.'      
+      stop
+    endif
+    
+    ! Initialize to zero
+    me = 0.0d0
+
+    ! Generate the necessary spherical harmonic
+    allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qlm(nx*ny*nz))
+    call generate_spherical_harmonics(l,nx,ny,nz, &
+    &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis) 
+
+    if(Imaginary) then
+      im  = 2
+    else
+      im  = 1
+    endif
+    
+    harm_3D(1:nx,1:ny,1:nz) => Qlm
+    harm_3D                 = SpherHarmMesh(:,:,:,l,m,im)
+    deallocate(SpherHarmMesh)
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the neutron single-particle states
+    !---------------------------------------------------------------------------
+    si = 0
+    do Bi = 1, 4
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 1, 4
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+
+        if(bj.eq.1) then
+          sj = 0
+        else
+          sj = sum(HFblocks(1:Bj-1))
+        endif
+
+        ! Parity selection rule: if l = even, then only single-particle states
+        !                        of identical parity (and signature) contribute    
+$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
+        ! Parity selection rule: if l = odd, then only single-particle states
+        !                        of different parity contribute
+$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
+        ! (THIS is only needed if parity conserved of course)
+$PBROKEN if( Bi .ne. Bj ) cycle
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
+          me(si+i,sj+j) = 0
+          do k=1,4
+            me(si+i,sj+j) = me(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          me(si+i,sj+j) = me(si+i,sj+j) * dv 
+          me(sj+j,si+i) = me(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the proton single-particle states
+    !---------------------------------------------------------------------------
+    si = nwn
+    do Bi = 5, 8
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 5, 8
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+        sj = sum(HFblocks(1:Bj-1))
+
+        ! Parity selection rule: if l = even, then only single-particle states
+        !                        of identical parity (and signature) contribute    
+$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
+        ! Parity selection rule: if l = odd, then only single-particle states
+        !                        of different parity contribute
+$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
+        ! (THIS is only needed if parity conserved of course)
+$PBROKEN if( Bi .ne. Bj ) cycle
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
+          me(si+i,sj+j) = 0
+          do k=1,4
+            me(si+i,sj+j) = me(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          me(si+i,sj+j) = me(si+i,sj+j) * dv 
+          me(sj+j,si+i) = me(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+    
+    ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
+    me = me/(100.0d0**(l/2.0d0))
+
+  end function Qlm_spme
+
+!==============================================================================
+! Generalised single-particle matrix elements of electric multipole operators
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Design-summary step 3 (section 13): the multipole matrix elements of the
+!  legacy Qlm_spme above, rebuilt on the symmetry-block matrix type. All of
+!  it is marker-free: the selection rules are resolved at construction
+!  through the block_matrix constructor (one XOR of the physical operator
+!  word with the sector words, intersected with the goodqn mask of
+!  geninfo), giving an identical code path in every build scenario.
+!  Properties:
+!
+!   - all (l, m): the operators are multiplication by the real mesh
+!     functions r^l Re Y_lm (Im = .false.) or r^l Im Y_lm (Im = .true.) in
+!     the convention of the module header, evaluated on the COM-shifted
+!     mesh exactly as the legacy routine;
+!   - both operator halves are Hermitian; their y-time-simplex classes
+!     (design section 2a, agreed 2026-11-19) are STY_EVEN for r^l Re Y_lm
+!     and STY_ODD for r^l Im Y_lm, for every m. The stored half is the
+!     one selected by the class: Re < i | Q_lm | j > in a KIND_SYMMETRIC
+!     matrix (Im = .false.), Im < i | Q_lm | j > in a KIND_ANTISYMMETRIC
+!     matrix (Im = .true.) - init derives the kind as herm*sty. This
+!     supersedes the row-3 revert of the imaginary half (2026-11-17),
+!     which had declared all within-block imaginary matrix elements
+!     chamber artifacts: with the agreed classes, the STY_ODD operator's
+!     imaginary part is its physical content, and the chamber weighting
+!     below computes it correctly on the reduced mesh;
+!   - the stored half is computed as a chamber-weighted sum of dense mesh
+!     products - see the chamber block below;
+!   - natural units fm^l: the legacy b^(l/2) rescaling is gone; the
+!     boundary conversion is the caller's business (old [b^(l/2)] =
+!     new [fm^l] * 100^(-l/2), design section 13.2);
+!   - symmetry-forbidden combinations build empty block lists and return
+!     zero matrices silently - guarding input against forbidden moments
+!     is the business of the input layer, not of this routine;
+!   - loud input checks: 0 <= m <= l and l <= MaxMoment.
+!
+! Storage model is single-node by design (summary sections 1 and 12):
+!  construction takes the GLOBAL block counts HFBlocks_global, so the
+!  whole basis is expected on this rank - true by construction in serial
+!  runs, and the module is free of rank-dependent logic. The matrix
+!  elements are direct mesh integrals of the stored basis functions: no
+!  time-reversal/signature-partner phase conventions appear anywhere.
+!  With the four stored components of HFPsi laid out as
+!       (1, 2) = (Re, Im) of the spin-up   amplitude
+!       (3, 4) = (Re, Im) of the spin-down amplitude
+!  (see transform_spwfs_inplace_complex in wavefunctions.f90), the two
+!  halves are dense products per mesh component (design section 13.1),
+!  with the volume element dv folded into the weight mesh Qdv:
+!       Re  < i |Q| j > = sum_(k=1,4)  w(k,k)   X_k^T (Qdv) X_k
+!       Im  < i |Q| j > = sum_(s=1,2) [ w(2s-1,2s) Re_s^T (Qdv) Im_s
+!                                    - w(2s,2s-1) Im_s^T (Qdv) Re_s ]
+!  with the chamber weights w of the block below.
+!
+! Chambers (design section 13): the stored mesh covers 2^NUMSYM chambers
+!  of the full box, one per folded axis (folded axes run from +dx/2 up),
+!  and dv carries the multiplicity. The stored components of the spwfs
+!  extend across the fold planes with the per-component reflection signs
+!  sx/sy/sz of wavefunctions.f90 - the same convention the derivative
+!  machinery relies on,
+!       psi_k(-x,y,z) = sx(k,i) psi_k(x,y,z)   and cyclic,
+!  and the operator mesh function is of definite reflection character,
+!       O(-x,y,z) = oc(1) O(x,y,z)   and cyclic,   oc = +/- 1,
+!  estimated numerically from the mesh values (Qlm_spme_operator_characters).
+!  Summing the full-box integral chamber by chamber, every stored-point
+!  component-pair product of components (k, k') of the row state i and the
+!  column state j picks up the weight
+!       w(k,k') = prod_(axis folded) ( 1 + s_axis(k,i) s_axis(k',j)
+!                                      * oc_axis ) / 2
+!  an exact 0 or 1. For every block pair allowed by the constructor's XOR
+!  pairing all weights are 1 and the fill reduces to the plain component
+!  products of the legacy routine - bit-identical for the real half, whose
+!  oracle comparison against Qlm_spme therefore remains valid. A weight 0
+!  zeroes a component pair whose chamber contributions cancel through the
+!  reflection characters: the fine-grained, per-amplitude selection rule
+!  that the sector word cannot express. The weights depend on nothing but
+!  the sector pair, the component pair and the operator:
+!  Qlm_spme_build_weights precomputes the entire table into Qlm_spme_params
+!  once per matrix, and the fill callback consumes params only.
+!==============================================================================
+  subroutine Qlm_spme_matrix(l, m, Im, me_half)
+    !---------------------------------------------------------------------------
+    ! Build one stored half of the single-particle matrix elements of the
+    !  electric multipole operator r^l Re Y_lm (Im = .false.) or r^l Im Y_lm
+    !  (Im = .true.) in the HF basis, as one symmetry-block matrix:
+    !       Im = .false. :  me_half = Re < i | Q_lm | j >   (fm^l)
+    !       Im = .true.  :  me_half = Im < i | Q_lm | j >   (fm^l)
+    !  Both operators are Hermitian and differ in their y-time-simplex
+    !  class (design section 2a): STY_EVEN for the r^l Re Y_lm half - purely
+    !  real matrix elements - and STY_ODD for the r^l Im Y_lm half - purely
+    !  imaginary ones. init derives the storage kind from the two classes:
+    !  KIND_SYMMETRIC for the real, KIND_ANTISYMMETRIC for the imaginary
+    !  part. In a build that conserves the time simplex (goodqn bit 3) the
+    !  stored half is the complete operator.
+    !
+    !  The stored numbers are a chamber-weighted sum of dense mesh products
+    !  (see the module-tail banner for the chamber construction).
+    !
+    !  The matrix carries the physical operator symmetry word
+    !       op = mod(m,2) + 2*mod(l,2)
+    !  of design section 13.1 (bit 0 flips q(Rz) for odd m, bit 1 is the
+    !  parity of the operator, bit 2 clear: electric multipoles are
+    !  isoscalar) and is constructed from the global block counts with
+    !  the goodqn mask of geninfo.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l, m : multipole order, 0 <= m <= l <= MaxMoment
+    !     Im   : operator half: .false. = r^l Re Y_lm, .true. = r^l Im Y_lm
+    ! Output:
+    !     me_half : the stored half of the matrix elements, i.e. their
+    !               real or imaginary part per the operator's STy class
+    !               (fm^l)
+    !---------------------------------------------------------------------------
+    integer, intent(in)           :: l, m
+    logical, intent(in)           :: Im
+    type(block_matrix), intent(out) :: me_half
+
+    type(Qlm_spme_params) :: params
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    real(KIND=dp) :: oc(3)
+    integer :: iop, ihalf, sty_class
+
+    ! Loud input checks; forbidden (l, m) for a build are NOT an error
+    !  here - they return zero matrices through empty block lists.
+    if (l .lt. 0 .or. l .gt. maxmoment) then
+      print *, 'Qlm_spme_matrix: 0 <= l <= MaxMoment =', maxmoment,           &
+      &         ' is required, got l =', l
+      call stp('Invalid multipole order l in Qlm_spme_matrix.')
+    endif
+    if (m .lt. 0 .or. m .gt. l) then
+      print *, 'Qlm_spme_matrix: 0 <= m <= l is required, got l =', l,        &
+      &         ' and m =', m
+      call stp('Invalid magnetic quantum number m in Qlm_spme_matrix.')
+    endif
+
+    ! Symmetry word of the electric multipoles
+    !  m = even/odd => z-signature even/odd
+    !  l = even/odd => parity even/odd
+    iop = mod(m, 2) + 2*mod(l, 2)
+
+    ! The two operator halves share the Hermitian class and differ in their
+    !  y-time-simplex class; init derives the storage kind from the two.
+    !  Electric multipoles are coordinate operators: time-even, both halves.
+    if (Im) then
+      ihalf     = 2
+      sty_class = STY_ODD
+    else
+      ihalf     = 1
+      sty_class = STY_EVEN
+    endif
+    call me_half%init(HFBlocks_global, iop, HERMITIAN, sty_class,             &
+    &                 TAU_EVEN, goodqn=goodqn)
+
+    ! Symmetry-forbidden moments (or an empty basis) store zero matrices
+    !  through their empty block lists: nothing left to do.
+    if (me_half%nblocks .eq. 0) return
+
+    ! Mesh values of the operator on the COM-shifted grid in fm^l, with
+    !  the volume element folded in.
+    allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2))
+    call generate_spherical_harmonics(l,nx,ny,nz,                             &
+    &                          meshx_shifted,meshy_shifted,meshz_shifted,     &
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
+    allocate(params%Qdv(mv))
+    params%Qdv = reshape(SpherHarmMesh(:,:,:,l,m,ihalf), (/ mv /)) * dv
+
+    ! The imaginary part of an m = 0 operator vanishes identically (Re and
+    !  Im Y_l0 are the same real function): a zero matrix, no fill needed.
+    if (all(params%Qdv .eq. 0.0d0)) then
+      deallocate(SpherHarmMesh)
+      return
+    endif
+
+    ! Reflection characters of the operator, for the chamber weights.
+    call Qlm_spme_operator_characters(SpherHarmMesh, l, m, ihalf, oc)
+    deallocate(SpherHarmMesh)
+
+    ! Bounds handed to the callback: identical to the matrices' own sector
+    !  starts, so the block contents always land at the global positions
+    !  the block list was built with.
+    params%st    = me_half%st
+    params%imag  = Im
+
+    ! Chamber weights per sector pair and component pair: precomputed once
+    !  here, so the fill callback consumes params only.
+    call Qlm_spme_build_weights(oc, params)
+
+    call me_half%fill_blocks(Qlm_spme_fill_block, params)
+  end subroutine Qlm_spme_matrix
+
+  subroutine Qlm_spme_operator_characters(SpherHarmMesh, l, m, ihalf, oc)
+    !---------------------------------------------------------------------------
+    ! Estimate the reflection characters of the operator mesh function,
+    !     O(-x,y,z) = oc(1) O(x,y,z)   and cyclic for y and z,
+    !  each either +1 or -1. Multipole operators are of definite character
+    !  under all three axis reflections, whatever the quantisation and
+    !  secondary axes of the build.
+    !
+    !  The estimate works from the mesh values themselves, so no
+    !  spherical-harmonic convention is re-derived here: for every folded
+    !  axis, the harmonics are regenerated once with the mirrored mesh
+    !  array, which pairs every mirrored function value O(r_c) elementwise
+    !  with the stored value O(r), and the character follows from the ratio
+    !     oc = sum O(r) O(r_c) / sum O(r)**2
+    !  restricted to the points where the operator is appreciably nonzero.
+    !  A loud check asserts the result is +/- 1 to roundoff.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     SpherHarmMesh : the harmonics as generated by Qlm_spme_matrix on
+    !                     the COM-shifted stored mesh
+    !     l, m, ihalf   : the slice carrying the operator, conventions as
+    !                     in Qlm_spme_matrix
+    ! Output:
+    !     oc            : oc(1:3) = reflection characters of x, y and z.
+    !                     Unfolded axes carry 0 - the chamber weights never
+    !                     consult them.
+    !---------------------------------------------------------------------------
+    ! The harmonics carry l and m as 0-based 4th/5th indices; preserving
+    !  those lower bounds matters for the slicing at fixed (l, m).
+    real(KIND=dp), intent(in)  :: SpherHarmMesh(:,:,:,0:,0:,:)
+    integer, intent(in)        :: l, m, ihalf
+    real(KIND=dp), intent(out) :: oc(3)
+
+    real(KIND=dp), allocatable :: SHm(:,:,:,:,:,:)
+    real(KIND=dp), allocatable :: Qmesh(:,:,:), Qsel(:)
+    real(KIND=dp) :: num, den, ochar, omax2
+    integer :: ax
+
+    oc = 0.0d0
+    if (reduX .eq. 0 .and. reduY .eq. 0 .and. reduZ .eq. 0) return
+
+    ! The operator slice and its size scale, for the masked ratio below.
+    Qmesh = SpherHarmMesh(:,:,:,l,m,ihalf)
+    omax2 = maxval(Qmesh**2)
+    if (omax2 .le. 0.0d0) return   ! vanishing operator: weights irrelevant
+
+    do ax = 1, 3
+      if ( (ax .eq. 1 .and. reduX .eq. 0) .or.                                &
+      &    (ax .eq. 2 .and. reduY .eq. 0) .or.                                &
+      &    (ax .eq. 3 .and. reduZ .eq. 0) ) cycle
+
+      allocate(SHm(nx,ny,nz,0:l,0:l,2))
+      select case (ax)
+      case (1)
+        call generate_spherical_harmonics(l,nx,ny,nz,                         &
+        &      -meshx_shifted,meshy_shifted,meshz_shifted,                    &
+        &      SHm,quantisationaxis,secondaryaxis)
+      case (2)
+        call generate_spherical_harmonics(l,nx,ny,nz,                         &
+        &      meshx_shifted,-meshy_shifted,meshz_shifted,                   &
+        &      SHm,quantisationaxis,secondaryaxis)
+      case (3)
+        call generate_spherical_harmonics(l,nx,ny,nz,                         &
+        &      meshx_shifted,meshy_shifted,-meshz_shifted,                   &
+        &      SHm,quantisationaxis,secondaryaxis)
+      end select
+
+      Qsel = pack(Qmesh, Qmesh**2 .gt. 1.0d-10*omax2)
+      num  = dot_product(Qsel, pack(SHm(:,:,:,l,m,ihalf),                     &
+      &                            Qmesh**2 .gt. 1.0d-10*omax2))
+      den  = dot_product(Qsel, Qsel)
+      deallocate(SHm)
+
+      ochar = num/den
+      if (abs(abs(ochar) - 1.0d0) .gt. 1.0d-6) then
+        print *, 'Qlm_spme_operator_characters: operator without a definite ',&
+        &         'reflection character along axis ', ax, ': oc =', ochar
+        call stp('Multipole operator not of definite reflection character.')
+      endif
+      oc(ax) = anint(ochar)
+    enddo
+  end subroutine Qlm_spme_operator_characters
+
+  function Qlm_spme_fm(l, m, Imaginary) result(me)
+    !---------------------------------------------------------------------------
+    ! Dense legacy shape of the stored half of the multipole matrix"
+    !  elements: the full nwt x nwt matrix in fm^l, a drop-in replacement
+    !  for the legacy Qlm_spme (which works in b^(l/2)) available for every
+    !  (l, m) and both operator halves - symmetric for the real part
+    !  (Imaginary = .false.), antisymmetric for the imaginary part
+    !  (Imaginary = .true.).
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l, m      : multipole order, 0 <= m <= l <= MaxMoment
+    !     Imaginary : operator half: .false. = r^l Re Y_lm, .true. = r^l Im Y_lm
+    ! Output:
+    !     me        : real(nwt,nwt); Re < i | Q_lm | j > (Imaginary = .false.)
+    !                 or Im < i | Q_lm | j > (Imaginary = .true.), in fm^l
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: l, m
+    logical, intent(in) :: Imaginary
+    real(KIND=dp)       :: me(nwt,nwt)
+
+    type(block_matrix) :: me_half
+
+    call Qlm_spme_matrix(l, m, Imaginary, me_half)
+
+    if (me_half%n .ne. nwt) then
+      print *, 'Qlm_spme_fm: HFBlocks_global is inconsistent with nwt.'
+      call stp('HFBlocks_global inconsistent with nwt in Qlm_spme_fm.')
+    endif
+    me = me_half%dense()
+  end function Qlm_spme_fm
+
+  function Qlm_spme_chamber_weight(ki, ko, rowstate, colstate, oc) result(w)
+    !---------------------------------------------------------------------------
+    ! Chamber weight of one spinor-component pair of the fill callback:
+    !  the relative weight of the stored-mesh products of component ki of
+    !  the row state with component ko of the column state in the full-box
+    !  integral, normalized such that the all-chambers-equal case carries 1
+    !  (the multiplicity 2^NUMSYM sits in dv).
+    !
+    !  With the per-component reflection signs sx/sy/sz of the spwfs and
+    !  the operator characters oc (see the module-tail banner):
+    !     w = prod_(axis folded) ( 1 + s_axis(ki,.) s_axis(ko,.) oc ) / 2
+    !  an exact 0 or 1: 1 when the reflection characters of the two spwf
+    !  components and the operator compensate in every folded axis, 0 when
+    !  the chamber contributions of the pair cancel through the characters.
+    !
+    !  The signs are facts of the symmetry blocks, so any state of the
+    !  row/column sector may stand in; Qlm_spme_build_weights checks that
+    !  uniformity once per populated sector and precomputes the per
+    !  sector-pair and component-pair table that the fill callback
+    !  consumes as params%w.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     ki, ko    : the spinor components (1..4) of the row/column product
+    !     rowstate, colstate : representative global spwf indices
+    !     oc        : operator reflection characters (folded axes only)
+    ! Output:
+    !     w         : the weight, exactly 0 or 1
+    !---------------------------------------------------------------------------
+    integer, intent(in)        :: ki, ko, rowstate, colstate
+    real(KIND=dp), intent(in)  :: oc(3)
+    real(KIND=dp)             :: w
+
+    w = 1.0d0
+    if (reduX .eq. 1)                                                         &
+    &  w = w * (1.0d0 + sx(ki,rowstate)*sx(ko,colstate)*oc(1)) * 0.5d0
+    if (reduY .eq. 1)                                                         &
+    &  w = w * (1.0d0 + sy(ki,rowstate)*sy(ko,colstate)*oc(2)) * 0.5d0
+    if (reduZ .eq. 1)                                                         &
+    &  w = w * (1.0d0 + sz(ki,rowstate)*sz(ko,colstate)*oc(3)) * 0.5d0
+  end function Qlm_spme_chamber_weight
+
+  subroutine Qlm_spme_build_weights(oc, params)
+    !---------------------------------------------------------------------------
+    ! Precompute the chamber weights of the fill callback, once per
+    !  populated sector pair and spinor-component pair, into params%w:
+    !     params%w(srow, scol, ki, ko)
+    !       = Qlm_spme_chamber_weight(ki, ko, st(srow), st(scol), oc)
+    !  with the first states of the sectors as representatives.
+    !
+    !  The reflection signs sx/sy/sz are facts of the symmetry blocks:
+    !  every state of a populated sector is checked, once, to carry the
+    !  same signs as its first state, so the representatives are
+    !  unambiguous. Loud on violation. Pairs carrying an empty sector
+    !  stay at weight 0: the constructor never stores their blocks.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     oc     : operator reflection characters (folded axes only)
+    ! Input/Output:
+    !     params : fill state with its sector bounds st set; w is
+    !              overwritten entirely
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)        :: oc(3)
+    type(Qlm_spme_params), intent(inout) :: params
+
+    integer :: counts(0:7)
+    integer :: s, sp, k, kc, i, si
+
+    params%w = 0.0d0
+    counts(0:7) = HFBlocks_global(1:8)
+
+    ! One uniformity check per populated sector: any of its states may
+    !  represent its reflection signs.
+    do s = 0, 7
+      if (counts(s) .eq. 0) cycle
+      si = params%st(s)
+      do i = si+1, si+counts(s)-1
+        do k = 1, 4
+          if (sx(k,i) .ne. sx(k,si) .or. sy(k,i) .ne. sy(k,si)                &
+          &   .or. sz(k,i) .ne. sz(k,si)) then
+            print *, 'Qlm_spme_build_weights: reflection signs vary ',       &
+            &         'within sector ', s, ', at spwf ', i
+            call stp('Reflection signs not uniform within a symmetry block.')
+          endif
+        enddo
+      enddo
+    enddo
+
+    ! The weight table itself, for every pair of populated sectors.
+    do s = 0, 7
+      if (counts(s) .eq. 0) cycle
+      do sp = 0, 7
+        if (counts(sp) .eq. 0) cycle
+        do k = 1, 4
+          do kc = 1, 4
+            params%w(sp, s, k, kc) =                                          &
+            &       Qlm_spme_chamber_weight(k, kc, params%st(sp),            &
+            &                                params%st(s), oc)
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine Qlm_spme_build_weights
+
+  subroutine Qlm_spme_fill_block(srow, scol, A, params)
+    !---------------------------------------------------------------------------
+    ! block_filler callback of Qlm_spme_matrix: overwrite one stored block
+    !  of one half of the complex matrix elements with its mesh integrals.
+    !
+    ! The block spans the global row range st(srow) : st(srow+1)-1 and the
+    !  global column range st(scol) : st(scol+1)-1 of the HF basis. Each
+    !  spinor-component term is one dense product (a dgemm equivalent, see
+    !  the module-tail banner), multiplied by the precomputed chamber
+    !  weight of its component pair:
+    !    real half :  A = sum_(k=1,4)       w(k,k)    X_k^T (Qdv) X_k
+    !    imag half :  A = sum_(s=1,2) [ w(2s-1,2s) Re_s^T (Qdv) Im_s
+    !                                -  w(2s,2s-1) Im_s^T (Qdv) Re_s ]
+    !  Terms with weight 0 contribute nothing and are skipped.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     srow, scol : sector words 0..7 of the block as handed by fill_blocks
+    !     params     : type(Qlm_spme_params): mesh values + sector bounds
+    !                  + half selection + chamber weight table
+    ! Output:
+    !     A          : the block storage, overwritten entirely
+    !---------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol
+    real(KIND=dp), intent(out) :: A(:,:)
+    class(*), intent(in)  :: params
+
+    integer :: si, sj, m, n, s, j
+    real(KIND=dp), allocatable :: tmp(:,:)
+    real(KIND=dp) :: w
+
+    select type (params)
+    type is (Qlm_spme_params)
+
+      ! Global index ranges of the block's sectors, cross-checked against
+      !  the shape of the storage handed over.
+      si = params%st(srow)
+      sj = params%st(scol)
+      m = params%st(srow+1) - si
+      n = params%st(scol+1) - sj
+      if (m .ne. size(A,1) .or. n .ne. size(A,2)) then
+        print *, 'Qlm_spme_fill_block: params%st inconsistent with the block.'
+        call stp('Sector bounds inconsistent in Qlm_spme_fill_block.')
+      endif
+
+      allocate(tmp(mv,n))
+      A = 0.0d0
+
+      if (.not. params%imag) then
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Real half (STY_EVEN): same-component products, exactly the
+        !  integrand of the legacy Qlm_spme per component.
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        do s = 1, 4
+          w = params%w(srow, scol, s, s)
+          if (w .eq. 0.0d0) cycle
+          do j = 1, n
+            tmp(:,j) = HFPsi(:,s,sj+j-1) * params%Qdv
+          enddo
+          A = A + matmul( transpose(HFPsi(:,s,si:si+m-1)), tmp )
+        enddo
+      else
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Imaginary half (STY_ODD): cross the Re/Im amplitudes of each spin
+        !  component, (2s-1) = Re and (2s) = Im.
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        do s = 1, 2
+          ! + Re_i (Qdv) Im_j
+          w = params%w(srow, scol, 2*s-1, 2*s)
+          if (w .ne. 0.0d0) then
+            do j = 1, n
+              tmp(:,j) = HFPsi(:,2*s,sj+j-1) * params%Qdv
+            enddo
+            A = A + matmul( transpose(HFPsi(:,2*s-1,si:si+m-1)), tmp )
+          endif
+          ! - Im_i (Qdv) Re_j
+          w = params%w(srow, scol, 2*s, 2*s-1)
+          if (w .ne. 0.0d0) then
+            do j = 1, n
+              tmp(:,j) = HFPsi(:,2*s-1,sj+j-1) * params%Qdv
+            enddo
+            A = A - matmul( transpose(HFPsi(:,2*s,si:si+m-1)), tmp )
+          endif
+        enddo
+      endif
+
+    class default
+      call stp('Qlm_spme_fill_block: params is not of type Qlm_spme_params.')
+    end select
+  end subroutine Qlm_spme_fill_block
+
+!===============================================================================
+end module

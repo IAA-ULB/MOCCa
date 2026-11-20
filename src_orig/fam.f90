@@ -207,14 +207,13 @@ module fam
   ! 2: printing all function calls. Useful for debugging. 
   ! 3: printing all sp matrices at each iteration. Useful for debugging. 
   !-----------------------------------------------------------------------------
-  ! Run the unit tests on start-up; this will not result in a FAM calculation!
-  logical :: unit_test = .false.
+  ! The unit_test flag that starts run_FAM_tests now lives in the &mesh/
+  ! namelist of the geninfo module, so it is available to every executable.
 
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
     module procedure get_ph_hp_blocks_real
   end interface get_ph_hp_blocks
-
 
 contains
 
@@ -324,10 +323,12 @@ contains
     real(KIND=dp) :: omega=SENTINEL_DP
     integer       :: mixingscheme = 0
     integer       :: maxiter = 100, maxhist = 30
+    integer       :: io
+    character(len=500) :: msg
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
     &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
-    &               eff_charge_n, eff_charge_p, XYtoF, unit_test, operator_type, &
+    &               eff_charge_n, eff_charge_p, XYtoF, operator_type, &
     &               remove_spurious
 
     if(MPI_rank .eq. 0) then
@@ -335,10 +336,11 @@ contains
       ! Reading the information on fam by the first MPI rank
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       if(present(file_number)) then
-        read (unit=file_number, nml=fam)
+        read (unit=file_number, nml=fam, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=fam)
+        read (unit=*, nml=fam, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('fam', msg, file_number)
 
       ! if a single FAM frequency omega is passed, set min and max to omega
       if(omega .ne. SENTINEL_DP) then
@@ -1428,12 +1430,9 @@ contains
           f_spme = Rsq_spme()
         else 
           ! Get single-particle matrix elements of Q_lm in the HF basis
-          !  -> calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
-          !     in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
-          f_spme = Qlm_spme(l, m, .false.)
-          
-          ! Convert f_spme to unit fm^l
-          f_spme = f_spme * (100**(l/2.0d0))
+          !  -> the block_matrix generator in moments.f90, in natural fm^L units:
+          !     it stores the real half Re <i|r^L Re(Y_LK)|j> as it stands
+          f_spme = Qlm_spme_fm(l, m, .false.)
 
           ! Normalise with sqrt(2) if K is not 0
           if(m.ne.0) f_spme = f_spme * sqrt(2.0d0)
@@ -1454,10 +1453,8 @@ contains
         ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
 
         ! Get single-particle matrix elements of Q_10 in the HF basis
-        f_spme = Qlm_spme(1, 0, .false.)
-
-        ! Convert f_spme to unit fm^l
-        f_spme = f_spme * sqrt(100.0d0)
+        !  -> the block_matrix generator in moments.f90, in natural fm units
+        f_spme = Qlm_spme_fm(1, 0, .false.)
 
         ! Cancel prefactor sqrt(3/4pi)
         f_spme = f_spme * sqrt( 4.0d0 * pi / 3.0d0)

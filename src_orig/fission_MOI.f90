@@ -54,6 +54,7 @@ module fission_MOI
   use parameterization
   use moments
   use timing
+  use block_matrix_module
 
   implicit none
 
@@ -70,10 +71,15 @@ module fission_MOI
   !  be more 'functional': i.e. with routines that depend less on global
   !  variables.
   !-----------------------------------------------------------------------------
-#if(USE_MPI == 0)
+#if(USE_MPI == 0 && PASTA == 0)
   integer              :: N_inertia = 4
 #else
-  integer              :: N_inertia = 0 ! No support for parallel calculations of the MOI yet
+  ! 0 in parallel builds (not yet supported) and in pasta builds: the
+  ! hardcoded moment list Q20/Q22/Q30/Q32 reaches l = 3, one past the
+  ! multipoles a pasta build carries (MaxMoment = 2). Pasta input can
+  ! still arm inertia with N_inertia > 4 and an &inertia/ list within
+  ! MaxMoment.
+  integer              :: N_inertia = 0
 #endif
   integer, ALLOCATABLE :: inertia_l(:) 
   integer, ALLOCATABLE :: inertia_m(:) 
@@ -82,6 +88,16 @@ module fission_MOI
   ! moments of inertia always correspond to Q20, Q22, Q30 and Q32
   integer, PARAMETER   :: inertia_l_hardcoded(4) = (/ 2, 2, 3, 3 /)
   integer, PARAMETER   :: inertia_m_hardcoded(4) = (/ 0, 2, 0, 2 /)
+  !-----------------------------------------------------------------------------
+  ! Development oracle switch for the symmetry-block migration of the
+  !  single-particle multipole matrix elements (design summary section
+  !  13.3): when true, calc_collective_inertia computes every requested
+  !  moment both the legacy way (Qlm_spme) and the new way
+  !  (Qlm_spme_matrix) and prints the maximal deviations of the two paths
+  !  plus symmetry self-checks on the dense expansion. OFF BY DEFAULT,
+  !  armed through the &inertia/ namelist; committed test inputs never
+  !  set it.
+  logical :: spme_oracle = .false.
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
@@ -122,6 +138,11 @@ contains
     character(len=120) :: header, sep
     character(len=16) :: tmp
     real(KIND=dp)     :: shiftx, shifty, shiftz
+    ! Presentation factors that restore the historical b^(l/2) units at
+    ! the output boundary (design summary section 13.3, row 5): the
+    ! stored matrices are fm-based internal quantities, and every
+    ! moment number counts 100^(l/2) more in fm^l than in b^(l/2).
+    real(KIND=dp)     :: sc(N_inertia)
     integer :: i
 
     
@@ -132,6 +153,16 @@ contains
     shiftz = -meshz_shifted(1) + meshz(1)      
     print 99, shiftx, shifty, shiftz
     print *
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! b^(l/2) presentation factors: sc(i) counts the fm^l numbers of
+    ! moment Q_(l_i m_i) against its b^(l/2) units. The collective
+    ! inertia scales as 1/(Q_i Q_j), so its elements are multiplied by
+    ! sc(i)*sc(j); the intermediate M matrices scale as Q_i Q_j, so
+    ! their elements are divided by the same factor.
+    do i=1, N_inertia
+      sc(i) = 100.0d0**( real(inertia_l(i),dp)/2.0d0 )
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Constructing the right size separator line
@@ -155,7 +186,8 @@ contains
     print *, '                ', header
     print *,sep
     do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia)
+      print 4, inertia_l(i),inertia_m(i),                                        &
+      &        collective_inertia(i,1:N_inertia)*sc(i)*sc(1:N_inertia)
     enddo
     print *,sep
     print *
@@ -171,14 +203,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,1)
+      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,2)
+      print 41, inertia_l(i),inertia_m(i), M1(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -194,14 +226,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,1)
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,2)
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -217,14 +249,14 @@ contains
     print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
-      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,1)
+      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,1)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
     print *, ' protons         ', header   
     print *,sep
     do i=1, N_inertia
-      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,2)
+      print 42, inertia_l(i),inertia_m(i), M3(i,1:N_inertia,2)/(sc(i)*sc(1:N_inertia))
     enddo
     print *,sep
     print *
@@ -253,13 +285,22 @@ contains
     !
     ! Steps:
     !  (1) Calculate all the single-particle matrix elements of the Qlm
-    !      in the HF-basis with routine Qlm_spme
+    !      in the HF basis with routine Qlm_spme_fm (design section 13,
+    !      the symmetry-block generator), in fm^l units: the whole chain
+    !      below runs in fm-based units
     !  (2) Transform these matrix elements to the qp basis
     !      with routine calc_Q20
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
     !      the quasiparticle energies, using Ksum_Mij
     !  (4) Invert M_1 with Lapack routines
     !  (5) Calculate M_c
+    !
+    ! Presented numbers: the stored collective_inertia and the
+    !  intermediate matrices M1/M2/M3 are fm-based internal quantities.
+    !  The output routines print_collective_inertia (STDOUT block) and
+    !  write_inertias (inertia file) rescale them back to the historical
+    !  b^(l/2) units that downstream users rely on (design summary
+    !  section 13.3, row 5).
     !          
     !---------------------------------------------------------------------------
     ! Explicit declaration of the external linear algebra routines
@@ -291,9 +332,18 @@ contains
       l = inertia_l(i)
       m = inertia_m(i)
 
-      ! Calculate all relevant single-particle matrix elements              
-      Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
-                                         ! at the moment
+      ! Calculate all relevant single-particle matrix elements.
+      ! Design summary section 13.3, row 5: they come from the
+      !  symmetry-block generator (Qlm_spme_fm) in fm^l, and the whole
+      !  inertia chain runs in fm-based units from here. The b^(l/2)
+      !  units of the legacy Qlm_spme are restored only at the output
+      !  boundary (print_collective_inertia / write_inertias).
+      ! Hardcoded to consider only real parts at the moment.
+      Qsp(:,:,i) = Qlm_spme_fm(l,m,.false.)
+      ! Development oracle for the symmetry-block migration of these matrix
+      !  elements (design summary section 13.3): off unless spme_oracle is
+      !  set in the &inertia/ namelist.
+      if(spme_oracle) call Qlm_spme_oracle(l,m)
       if(pairingtype.eq.2) then
         ! Transform to the quasiparticle basis if needed
         Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
@@ -371,6 +421,82 @@ contains
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
+
+  subroutine Qlm_spme_oracle(l, m)
+    !---------------------------------------------------------------------------
+    ! Development oracle for the symmetry-block migration of the multipole
+    !  matrix elements (design summary section 13.3). OFF BY DEFAULT: armed
+    !  from the &inertia/ namelist (spme_oracle = .true.), it computes every
+    !  requested moment BOTH ways and prints numbers for eyeballing:
+    !   (a) the legacy Qlm_spme (real part, b^(l/2) units) against the real
+    !       symmetric half of Qlm_spme_matrix (fm^l), rescaled with the
+    !       conversion identity of design section 13.2,
+    !            old [b^(l/2)] = new [fm^l] * 100^(-l/2)
+    !   (b) a symmetry self-check on the dense expansion: the real half
+    !       must be symmetric
+    !
+    !   The imaginary half of the matrix elements (r^l Im Y_lm, a
+    !  Hermitian STY_ODD operator whose stored numbers are Im
+    !  < i |Q| j >) is NOT checked here: this hook runs on the real
+    !  halves of the inertia moments only, and no reference path
+    !  covers the imaginary half yet. See the generator banner
+    !  in moments.f90 for the chamber-weighted convention it is
+    !  computed with.
+    !
+    !   Reassociation drift between the two paths (dense products in the
+    !   new route, scalar loops in the old) is the expected deviation; the
+    !   golden tolerances of the test harness exist for exactly this.
+    !   The hook prints; the numbers are judged by the developer.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     l, m : the multipole moment to check
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: l, m
+
+    type(block_matrix) :: me_re
+    real(KIND=dp), allocatable :: D_re(:,:)
+    real(KIND=dp), allocatable :: me_legacy(:,:)
+    real(KIND=dp) :: dev, maxdev, lmax, symre, sc
+    integer :: i, j
+
+    ! (a) The two paths for the real symmetric half: the legacy matrix in
+    !      b^(l/2) units against the new real half rescaled to the same.
+    me_legacy = Qlm_spme(l, m, .false.)
+    call Qlm_spme_matrix(l, m, .false., me_re)
+    D_re = me_re%dense()
+    sc = 100.0d0**(-real(l,dp)/2.0d0)
+
+    maxdev = 0.0d0
+    lmax = 0.0d0
+    do j=1,nwt
+      do i=1,nwt
+        dev = abs(me_legacy(i,j) - sc*D_re(i,j))
+        if (dev .gt. maxdev) maxdev = dev
+        if (abs(me_legacy(i,j)) .gt. lmax) lmax = abs(me_legacy(i,j))
+      enddo
+    enddo
+
+    ! (b) Symmetry self-check on the dense expansion.
+    symre = 0.0d0
+    do j=1,nwt
+      do i=1,nwt
+        symre = max(symre, abs(D_re(i,j) - D_re(j,i)))
+      enddo
+    enddo
+
+    print *, ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print *, ' Qlm_spme oracle (development hook, design 13.3): l =', l,     &
+    &        ' m =', m
+    print *, '   max |Qlm_spme - 100^(-l/2) Qlm_spme_matrix| = ', maxdev
+    if (lmax .gt. 0.0d0) then
+      print *, '   max |Qlm_spme| =', lmax, ' relative deviation = ',       &
+      &        maxdev/lmax
+    else
+      print *, '   max |Qlm_spme| = 0: moment forbidden in this build'
+    endif
+    print *, '   symmetry self-check  max |D_re - D_re^T|  = ', symre
+    print *, ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
+  end subroutine Qlm_spme_oracle
   
   function Ksum_Mij_HF(Qa, Qb, la, lb, Ks) result (Ksum)
     !---------------------------------------------------------------------------
@@ -741,163 +867,6 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 
   end function calc_Q20
 
-  function Qlm_spme(l,m,Imaginary) result(me)
-    !---------------------------------------------------------------------------
-    ! Routine to calculate single-particle matrix elements of a given multipole
-    ! moment in the (a) HARTREE-FOCK basis and (b) in units of b^(ell/2) with
-    ! 1 b = 100 fm^2.
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !     l,m       : integers, 
-    !     Imaginary : to calculate < i | Re Q_lm | j > or < i |Im Q_lm | j >
-    !                 logical
-    ! Output:
-    !     me        : single-particle matrix elements of the multipole moment
-    !                 in the canonical basis, real(nwt,nwt), in units of 
-    !                 b^(ell/2).
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Notes:
-    ! *) does not allow for the calculation of matrix elements with odd values 
-    !    of m yet; those connect single-particle states with different 
-    !    signature, for the traditional definition of spherical harmonics at 
-    !    least.
-    ! *) This routine shifts the multipole moments with respect to the center
-    !    of mass of the nucleus, since it uses the meshx/y/z_shifted arrays to
-    !    calculate the numerical values of the spherical harmonics on the mesh.
-    !---------------------------------------------------------------------------
-
-    integer, intent(in)        :: l, m
-    logical, intent(in)        :: Imaginary
-    real(KIND=dp)              :: me(nwt,nwt)
-    
-    real(KIND=dp), allocatable         :: SpherHarmMesh(:,:,:,:,:,:)
-    real(KIND=dp), allocatable, target :: Qlm(:)
-    real(KIND=dp), pointer             :: harm_3D(:,:,:)
-    
-    integer :: i, j, Bi, Bj, Ni, Nj, si, sj, im, k
-
-    if(mod(m,2) .eq. 1) then
-      print *, 'Qlm_spme does not allow for the calculation of multipole matrix elements with odd m YET.'
-      stop
-    endif
-    if(Imaginary) then 
-      print *, 'Qlm_spme does not allow for the calculation of imaginary multipole matrix elements YET.'
-      stop
-    endif
-    if((m .lt. 0) .or. (m .gt. l)) then
-      print *, 'Invalid value of m in Qlm_spe.'      
-      stop
-    endif
-    
-    ! Initialize to zero
-    me = 0.0d0
-
-    ! Generate the necessary spherical harmonic
-    allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qlm(nx*ny*nz))
-    call generate_spherical_harmonics(l,nx,ny,nz, &
-    &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
-    &                          SpherHarmMesh,quantisationaxis,secondaryaxis) 
-
-    if(Imaginary) then
-      im  = 2
-    else
-      im  = 1
-    endif
-    
-    harm_3D(1:nx,1:ny,1:nz) => Qlm
-    harm_3D                 = SpherHarmMesh(:,:,:,l,m,im)
-    deallocate(SpherHarmMesh)
-
-    !--------------------------------------------------------------------------- 
-    ! Loop over the neutron single-particle states
-    !---------------------------------------------------------------------------
-    si = 0
-    do Bi = 1, 4
-      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
-      do Bj = 1, 4
-        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
-
-        if(bj.eq.1) then
-          sj = 0
-        else
-          sj = sum(HFblocks(1:Bj-1))
-        endif
-
-        ! Parity selection rule: if l = even, then only single-particle states
-        !                        of identical parity (and signature) contribute    
-$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
-        ! Parity selection rule: if l = odd, then only single-particle states
-        !                        of different parity contribute
-$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
-        ! (THIS is only needed if parity conserved of course)
-$PBROKEN if( Bi .ne. Bj ) cycle
-
-        do i=1,NI    
-         do j=1,NJ
-          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
-          me(si+i,sj+j) = 0
-          do k=1,4
-            me(si+i,sj+j) = me(si+i,sj+j) & 
-            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
-          enddo
-          ! All these matrix elements are real if 
-          ! (i)  we consider only real multipole moments
-          ! (ii) time simplex is conserved
-          ! 
-          ! which means the matrix we store them in is symmetric
-          me(si+i,sj+j) = me(si+i,sj+j) * dv 
-          me(sj+j,si+i) = me(si+i,sj+j)
-         enddo
-        enddo
-      enddo
-      si = si + NI
-    enddo
-
-    !--------------------------------------------------------------------------- 
-    ! Loop over the proton single-particle states
-    !---------------------------------------------------------------------------
-    si = nwn
-    do Bi = 5, 8
-      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
-      do Bj = 5, 8
-        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
-        sj = sum(HFblocks(1:Bj-1))
-
-        ! Parity selection rule: if l = even, then only single-particle states
-        !                        of identical parity (and signature) contribute    
-$PCONSERVED        if(mod(l,2) .eq. 0 .and.  Bi .ne. Bj)        cycle
-        ! Parity selection rule: if l = odd, then only single-particle states
-        !                        of different parity contribute
-$PCONSERVED        if(mod(l,2) .eq. 1 .and. abs(Bi - Bj).ne.2 ) cycle
-        ! (THIS is only needed if parity conserved of course)
-$PBROKEN if( Bi .ne. Bj ) cycle
-
-        do i=1,NI    
-         do j=1,NJ
-          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
-          me(si+i,sj+j) = 0
-          do k=1,4
-            me(si+i,sj+j) = me(si+i,sj+j) & 
-            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Qlm(:))
-          enddo
-          ! All these matrix elements are real if 
-          ! (i)  we consider only real multipole moments
-          ! (ii) time simplex is conserved
-          ! 
-          ! which means the matrix we store them in is symmetric
-          me(si+i,sj+j) = me(si+i,sj+j) * dv 
-          me(sj+j,si+i) = me(si+i,sj+j)
-         enddo
-        enddo
-      enddo
-      si = si + NI
-    enddo
-    
-    ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
-    me = me/(100.0d0**(l/2.0d0))
-
-  end function Qlm_spme
-
   subroutine read_inertia(file_number)
     !---------------------------------------------------------------------------
     ! Subroutine to read the &inertia/ namelist from the specified file (via the
@@ -912,8 +881,10 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+    integer :: io
+    character(len=500) :: msg
 
-    NameList /inertia/ inertia_l, inertia_m
+    NameList /inertia/ inertia_l, inertia_m, spme_oracle
 
     ! Sanity check
     if(N_inertia .lt. 4) then
@@ -926,10 +897,11 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     ! only the very first MPI rank reads input
     if(MPI_RANK.eq.0) then
       if(present(file_number)) then
-        read (unit=file_number, nml=inertia)
+        read (unit=file_number, nml=inertia, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=inertia)
+        read (unit=*, nml=inertia, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('inertia', msg, file_number)
 
       ! Some sanity checks
       do k=1, N_inertia
@@ -966,6 +938,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 #if(USE_MPI > 0)
     call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(spme_oracle, 1, MPI_LOGICAL,0, MPI_COMM_WORLD, mpi_err)
 #endif
   end subroutine read_inertia
    

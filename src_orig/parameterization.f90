@@ -197,6 +197,7 @@ contains
     character(len=20) :: name, func_file, toopen
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io
+    character(len=500) :: msg
     logical           :: exists
 #if(USE_MPI>0)
     integer                             :: mpi_err
@@ -250,12 +251,12 @@ contains
         call stp("Problem opening the parameterization file!")
       endif
 
-      do 
-        read (unit=12, nml=skf, iostat=io)        ! Read the parameterization info
+      do
+        read (unit=12, nml=skf, iostat=io, iomsg=msg) ! Read the parameterization info
         if(io.ne. 0 .and. io.ne.iostat_end .and.  &
           &    (adjustl(to_upper(name_param)) .eq. adjustl(to_upper(name)))) then
 
-          call find_nml_error('&skf', 12)
+          call find_nml_error('&skf', msg, 12_dp)
 
         elseif(io .ne. 0 .and. io.ne.iostat_end) then
           ! Something went wrong, but the file isn't at its end yet

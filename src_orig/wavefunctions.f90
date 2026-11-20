@@ -346,6 +346,8 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
     &              max_spwf_per_rank, max_drop_ranks, ini_strategy, &
@@ -354,10 +356,11 @@ contains
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
       if(present(file_number)) then
-        read(unit=file_number, nml = wfs)
+        read(unit=file_number, nml = wfs, iostat=io, iomsg=msg)
       else
-        read(unit=*, nml = wfs)
+        read(unit=*, nml = wfs, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('wfs', msg, file_number)
     endif
 
     ini_strategy = to_upper(ini_strategy)
@@ -1935,6 +1938,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
     !                 ( 1  0 )
+    !
+    ! NOTE: this kernel currently has no caller in production code. Its only
+    !  reference in the tree is the opposite-half purity print of the
+    !  angular-momentum testing arm (angular_momentum_testing.f90).
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
@@ -1947,8 +1954,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Spin part
       angmom = angmom     + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
-      &                            + wf2(i,3) * wf1(i,1)                       &
-      &                            - wf2(i,4) * wf1(i,2))                        
+      &                            + wf2(i,3) * wf1(i,2)                       &
+      &                            - wf2(i,4) * wf1(i,1))                        
       ! Orbital part
       angmom = angmom &
       &           + wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,2,1)             &
@@ -1978,6 +1985,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !       s_x = 1/2*( 0  1 )
     !                 ( 1  0 )
+    !
+    ! NOTE: this kernel currently has no caller anywhere in the tree; it is
+    !  kept as the imaginary half of the spin-x matrix elements for
+    !  completeness.
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
@@ -1989,8 +2000,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Spin part
       sx = sx             + 0.5d0*(  wf2(i,1) * wf1(i,4)                       &
       &                            - wf2(i,2) * wf1(i,3)                       & 
-      &                            + wf2(i,3) * wf1(i,1)                       &
-      &                            - wf2(i,4) * wf1(i,2))                        
+      &                            + wf2(i,3) * wf1(i,2)                       &
+      &                            - wf2(i,4) * wf1(i,1))                        
     enddo
     sx = sx * dv
 

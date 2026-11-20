@@ -113,6 +113,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+ use linear_momentum, only : Nabla_half_fm, AX_X, AX_Y, AX_Z
  use vectors, only : DensityVector, PotentialVector
 #if(USE_HDF5>0)
  use HDF5
@@ -248,16 +249,19 @@ contains
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     namelist /func/ name_param
 
     if(MPI_RANK.eq.0) then
       ! Only the very first MPI rank reads stuff
       if(present(file_number)) then
-        read(unit=file_number, nml=func)
+        read(unit=file_number, nml=func, iostat=io, iomsg=msg)
       else
-        read(unit=*, nml=func)
+        read(unit=*, nml=func, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('func', msg, file_number)
     endif
 #if(USE_MPI > 0)
     ! broadcasting the name of the parameterization for consistency
@@ -1154,8 +1158,9 @@ $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:)
     ! Note
     ! (*) that no symmetries have been used yet at this point
     ! (*) I have not explicitly kept track of the vector nature of P.
-    ! (*) The matrix elements of nabla are calculated in compnablamelements
-    !     in the densities module.
+    ! (*) the matrix elements of nabla come from the linear_momentum
+    !     module on block_matrix (design 15); the legacy compnablamelements
+    !     in the densities module stays as its A/B oracle.
     !---------------------------------------------------------------------------
     ! There is also a phenomenological way to include the two-body part as a
     ! rescaling of the one-body part, as documented in
@@ -1180,8 +1185,13 @@ $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:)
 
     integer       :: it, i,j
 $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), fac
+    ! Gradient matrix elements per component (design 15.5 row 2): the
+    ! stored half that matters for the COM sums, dense over the full
+    ! stored basis - x/z carry the Re half, y the Im half.
+    real(KIND=dp), allocatable :: NablaME_x(:,:), NablaME_y(:,:)
+    real(KIND=dp), allocatable :: NablaME_z(:,:)
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
+    real(KIND=dp) :: fac
 
     call start_timer(T_com)
     call start_timer(T_com1)
@@ -1220,7 +1230,19 @@ $NTR    endif
       !-------------------------------------------------------------------------
       call start_timer(T_com2)
 
-      NablaMElements = compNablaMelements()
+      ! The gradient matrix elements from the linear_momentum generators
+      ! on block_matrix (design 15), in the canonical 'DEN' basis of rho_can
+      ! and kappa_can: the honest trio in TR-broken builds, the TR-folded
+      ! twins plus the honest nabla_z in TR-conserving ones - the same
+      ! array contents the legacy compNablaMelements carried (the unit
+      ! arm of linear_momentum_testing is the A/B), one dense array per
+      ! component in the legacy half conventions: x/z the Re half
+      ! [legacy slot (mu,1)], y the Im half [legacy slot (2,2)].
+$NTR   NablaME_x = Nabla_half_fm(AX_X, .false., 'DEN')
+$NTR   NablaME_y = Nabla_half_fm(AX_Y, .false., 'DEN')
+$TR    NablaME_x = Nabla_half_fm(AX_X, .true. , 'DEN')
+$TR    NablaME_y = Nabla_half_fm(AX_Y, .true. , 'DEN')
+      NablaME_z = Nabla_half_fm(AX_Z, .false., 'DEN')
       call start_timer(T_com2_summation)
 
       COMCorrection(2,:) = 0.0
@@ -1235,18 +1257,18 @@ $NTR    endif
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j)
 $TR         fac = fac / 4.0d0 ! rho_can is twice too large if T is conserved
-            COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
-            COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
-            COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
+            COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaME_x(i,j)**2
+            COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaME_y(i,j)**2
+            COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaME_z(i,j)**2
 $TR         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 $TR         ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j}
 $TR         !                                    Nabla_{i j} \Nabla_{ibar jbar}
 $TR         ! uv uv part
 $TR         ! (in the case of conserved time-reversal)
 $TR         fac = kappa_can(i)*kappa_can(j)
-$TR         COM2_pp_debug(1,it) = COM2_pp_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
-$TR         COM2_pp_debug(2,it) = COM2_pp_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
-$TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
+$TR         COM2_pp_debug(1,it) = COM2_pp_debug(1,it) + fac*NablaME_x(i,j)**2
+$TR         COM2_pp_debug(2,it) = COM2_pp_debug(2,it) + fac*NablaME_y(i,j)**2
+$TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaME_z(i,j)**2
          enddo
       enddo
 
@@ -1271,14 +1293,14 @@ $NTR            jj   = si +  j
 $NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
 $NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
 $NTR            COM2_pp_debug(3,it) = COM2_pp_debug(3,it) &
-$NTR            &                   + fac * NablaMElements(3,1,ii,jj)          &
-$NTR            &                         * NablaMElements(3,1,ibar,jbar)
+$NTR            &                   + fac * NablaME_z(ii,jj)          &
+$NTR            &                         * NablaME_z(ibar,jbar)
 $NTR            COM2_pp_debug(1,it) = COM2_pp_debug(1,it) &
-$NTR            &                   + fac * NablaMElements(1,1,ii,jj)          &
-$NTR            &                         * NablaMElements(1,1,ibar,jbar)
+$NTR            &                   + fac * NablaME_x(ii,jj)          &
+$NTR            &                         * NablaME_x(ibar,jbar)
 $NTR            COM2_pp_debug(2,it) = COM2_pp_debug(2,it) &
-$NTR            &                   - fac * NablaMElements(2,2,ii,jj)          &
-$NTR            &                         * NablaMElements(2,2,ibar,jbar)
+$NTR            &                   - fac * NablaME_y(ii,jj)          &
+$NTR            &                         * NablaME_y(ibar,jbar)
 $NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 $NTR          enddo
 $NTR        enddo
@@ -2762,6 +2784,8 @@ $READPOTENTIALS_HDF5
     
     use fission_MOI
     use densities
+    use moments, only: Qlm_spme_fm
+    use linear_momentum, only : Nabla_half_fm, AX_Z
     
     1 format (' Pushing model                 M_0 (MeV/c^2)')
     2 format (25x, 'neutrons        protons          total', / &
@@ -2771,7 +2795,6 @@ $READPOTENTIALS_HDF5
     7 format (1x, 80('-'),/, &
     &         '   Am               | ', 3f16.5, /, 80('-'))
     
-    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
     real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
       
     real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
@@ -2780,9 +2803,11 @@ $READPOTENTIALS_HDF5
     ! Calculate hbar to make its use consistent
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of nabla_z 
-    NablaMElements = compNablaMElements()
-    Psp            =  NablaMElements(3,1,:,:) 
+    ! Calculate single-particle matrix elements of nabla_z in the canonical
+    ! ('DEN') basis from the linear_momentum generator on block_matrix (design
+    ! 15.5 row 3): the honest z-component, Re half - identical content to the
+    ! legacy compNablaMElements slot (3,1).
+    Psp            =  Nabla_half_fm(AX_Z, .false., 'DEN')
     if(pairingtype.eq.2) then
       ! Attention, in a HFB calculation these are the matrix elements in the 
       ! canonical basis, while Bogoliubov refers to the HF basis. So, we 
@@ -2795,9 +2820,9 @@ $READPOTENTIALS_HDF5
         
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate single-particle matrix elements of z-c.o.m. coordinate
-    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
-                    ! Q10 = sqrt(3/4pi) * z 
-                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
+    Qsp            = sqrt(4*pi/3) * Qlm_spme_fm(1,0,.false.)
+                    ! Q10 = sqrt(3/4pi) * z, single-particle matrix
+                    ! elements in fm units from the block_matrix generator
     Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
     Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

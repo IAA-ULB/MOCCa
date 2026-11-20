@@ -57,10 +57,12 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
+    integer(dp), intent(in), optional   :: file_number
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
     &                       kerker_k0, scfscheme
@@ -69,10 +71,11 @@ contains
     ! Only the very first MPI rank reads the input
     if(MPI_RANK.eq.0) then
       if(present(file_number)) then
-        read (unit=file_number, nml=scfiteration)
+        read (unit=file_number, nml=scfiteration, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=scfiteration)
+        read (unit=*, nml=scfiteration, iostat=io, iomsg=msg)
       endif
+      if(io.ne.0) call find_nml_error('scfiteration', msg, file_number)
 
       ! Sanity checks
       if((scfscheme .lt. 0) .or. (scfscheme.gt.2)) then

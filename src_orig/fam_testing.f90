@@ -1408,11 +1408,8 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! get the SPME for R
 
-    ! get Q_10
-    Rz_spme = Qlm_spme(1, 0, .false.)
-
-    ! Convert Rz_spme to unit fm^l
-    Rz_spme = Rz_spme * sqrt(100.0d0)
+    ! get Q_10 in fm units from the block_matrix generator
+    Rz_spme = Qlm_spme_fm(1, 0, .false.)
 
     ! Cancel prefactor sqrt(3/4pi)
     Rz_spme = Rz_spme * sqrt( 4.0d0 * pi / 3.0d0)
@@ -1655,7 +1652,10 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     print * , '     via HFblocks    [R,P]  =', commut0B
     print * 
 
-    call stp('end of test')
+    ! A deliberate halt at the end of the diagnostic, not an error path:
+    ! keep the exit status 0 that stp now reserves for failures.
+    print *, 'end of test'
+    stop
 
   end subroutine test_RP_commutator
 

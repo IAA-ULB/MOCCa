@@ -21,7 +21,7 @@
 # Initialize verbose mode as false by default
 pairing="HFB"  # Default value
 parameterisation="t0t3"  # Default value
-nw=15  # Default value for number of wavefunctions
+nw=16  # Default value for number of wavefunctions
 
 # Temporary array to hold arguments
 args=()
@@ -165,6 +165,7 @@ neutrons=10, protons=8
 /
 &mesh
 nx=8, ny=8, nz=8, dx=0.8
+unit_test=.true.
 /
 &func
 name_param='$parameterisation'
@@ -197,7 +198,6 @@ l=0
 m=0
 maxiter=30
 fam_precision=1e-8
-unit_test=.true.
 /
 EOF
 

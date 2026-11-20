@@ -26,6 +26,8 @@ program run_FAM
   ! TODO: document the module
   !===========================
   use compilation, only : dp
+  ! The unit_test flag moved to the geninfo module (read through &mesh/).
+  use geninfo,   only : unit_test
 
   ! Input/output imports
   use IO,          only : ReadWavefunction, ReadInput, setBelyaevProcedure

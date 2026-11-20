@@ -203,11 +203,13 @@ contains
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
-    integer(dp), intent(in), optional   :: file_number   
+    integer(dp), intent(in), optional   :: file_number
     integer                             :: i
 #if(USE_MPI > 0)
     integer                             :: mpi_err
 #endif
+    integer                             :: io
+    character(len=500)                  :: msg
 
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
@@ -230,10 +232,11 @@ contains
     ! Only the very first MPI rank reads input
     if(MPI_RANK .eq. 0) then
       if(present(file_number)) then
-        read(unit=file_number, NML=Pairing)
+        read(unit=file_number, NML=Pairing, iostat=io, iomsg=msg)
       else
-        read(unit=*, NML=Pairing)
-      endif  
+        read(unit=*, NML=Pairing, iostat=io, iomsg=msg)
+      endif
+      if(io.ne.0) call find_nml_error('Pairing', msg, file_number)
 
       Type        = to_upper(Type)
       if('HF' .eq.adjustl(type)) then
@@ -298,7 +301,8 @@ $FORBIDBCS endif
 
           allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
           allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
-          read(unit=*, nml=Indices)
+          read(unit=*, nml=Indices, iostat=io, iomsg=msg)
+          if(io.ne.0) call find_nml_error('Indices', msg)
 
           ! Sanity checks on the BlockLowest array: 
           ! (a) do not proceed with empty list

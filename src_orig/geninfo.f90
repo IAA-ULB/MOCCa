@@ -38,6 +38,11 @@ module GenInfo
   !   REDUZ    : $REDUZ
   !     Integers indicating the reduction of the Cartesian axes.
   !
+  !   GOODQN   : $GOODQN
+  !     Good quantum numbers of the HF basis blocks (block-matrix design 2b):
+  !     bit 0 = q(Rz), bit 1 = parity, bit 2 = Tz. A bit is set iff this
+  !     build conserves the corresponding symmetry (bit 2 always).
+  !
   !   LINESIZEX : $LINESIZEX
   !   LINESIZEY : $LINESIZEY
   !   LINESIZEZ : $LINESIZEZ
@@ -62,6 +67,31 @@ module GenInfo
   integer, parameter                     :: reduY = $REDUY
   integer, parameter                     :: reduZ = $REDUZ
   !-----------------------------------------------------------------------------
+  ! Good quantum numbers of the HF basis blocks in this build, with the same
+  !  bit assignment as the symmetry-block sector words (design summary of the
+  !  symmetry-block matrix, sections 2a and 2b):
+  !     bit 0 (1) : q(Rz)  good  - signature grades the basis blocks
+  !     bit 1 (2) : parity good  - parity grades the basis blocks
+  !     bit 2 (4) : Tz     good  - always: neutrons and protons never merge
+  !     bit 3 (8) : STy    good  - the y-time-simplex is conserved, all
+  !                 stored spwfs are its invariants, and operators of
+  !                 definite STy characteristic have purely real (even)
+  !                 or purely imaginary (odd) matrix elements
+  ! A quantum number is good iff the corresponding self-consistent symmetry
+  !  is conserved in this build; if it is broken, the states of both
+  !  characters are merged into a single storage block and the bit is clear.
+  !  Bits 0-2 mask the block pairing; bit 3 records the time simplex: the
+  !  init constructor of block_matrix_module takes the operator's physical
+  !  classes - Hermiticity and STy characteristic, derived kind = herm*sty
+  !  - and consumers read bit 3 to know whether an STy-tagged matrix is the
+  !  complete operator (omitted half identically zero) or one half of a
+  !  complex (re, im) pair.
+  ! Injected by Hephaestos ($GOODQN): a property of the build scenario, not
+  !  recoverable from runtime block counts. The init constructor of
+  !  block_matrix_module intersects the physical operator words with bits
+  !  0-2 of this mask and stores it verbatim.
+  integer, parameter                     :: goodqn = $GOODQN
+  !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points
   integer :: nx = 30, ny = 30, nz = 30, mv
   !-----------------------------------------------------------------------------
@@ -75,6 +105,13 @@ module GenInfo
   ! Line element and volume element of the box. dx is in fm, dv in fm^3.
   real(KIND=dp)  :: dx = 0.8_dp
   real(KIND=dp)  :: dv = (0.8_dp**3)*(2**$NUMSYM)
+  !---------------------------------------------------------------------------
+  ! Run the unit tests of the development testing modules on start-up (the
+  ! moments tests in the mean-field executable, the FAM tests in the FAM
+  ! executable): the tests run on the final mean-field state and the code
+  ! stops afterwards - this will not result in a physics calculation.
+  ! Read through the &mesh/ namelist so it is available to every executable.
+  logical        :: unit_test = .false.
   !-----------------------------------------------------------------------------
   ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi = 4.0_dp*atan2(1.0_dp, 1.0_dp)
@@ -234,7 +271,13 @@ contains
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
     &                  block_factor_col, simulate_spherical_bc, angmom_prec
-    Namelist /mesh/ nx, ny, nz, dx
+    Namelist /mesh/ nx, ny, nz, dx, unit_test
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input is checked and echoed on error: iomsg names unknown variables and
+    ! premature ends (see find_nml_error for what is printed when).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    character(len=500) :: msg
 
     if (MPI_rank == 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -242,19 +285,22 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       if (present(file_number)) then
-        read (unit=file_number, nml=nucleus, iostat=io)
+        read (unit=file_number, nml=nucleus, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=nucleus, iostat=io)
+        read (unit=*, nml=nucleus, iostat=io, iomsg=msg)
       end if
       if (io /= 0) then
-        call find_nml_error('nucleus', int(file_number))
+        call find_nml_error('nucleus', msg, file_number)
       end if
 
       ! Reading information on the mesh
       if (present(file_number)) then
-        read (unit=file_number, nml=mesh)
+        read (unit=file_number, nml=mesh, iostat=io, iomsg=msg)
       else
-        read (unit=*, nml=mesh)
+        read (unit=*, nml=mesh, iostat=io, iomsg=msg)
+      end if
+      if (io /= 0) then
+        call find_nml_error('mesh', msg, file_number)
       end if
 
       if (fixfermi .and. (mun == -10d8 .or. mup == -10d8)) then
@@ -463,30 +509,42 @@ contains
 
   end function meshindex
 
-  subroutine find_nml_error(nmlname, iunit)
+  subroutine find_nml_error(nmlname, msg, iunit)
     !---------------------------------------------------------------------------
-    ! Complain about an error in a namelist input, using the backspace command
-    ! to find the offending line in an opened file. Note: this means this cannot
-    ! be used to find errors in STDINPUT.
+    ! Report a failed namelist read and stop the code.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! The runtime message passed up from the read (iomsg) is the primary
+    ! diagnosis: it names variables the code does not know about and says
+    ! whether the input ended before the closing slash. When the namelist
+    ! was read from a file, the offending input line can be echoed by
+    ! repositioning the file; STDIN cannot be repositioned, so there the
+    ! message is everything the user gets.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !     nmlname : namelist name, to tell the user.
-    !     iunit   : unit of the opened file to backspace.
-    !
+    !     nmlname : name of the namelist that failed to read
+    !     msg     : iomsg string returned by the failed read
+    !     iunit   : optional number of the (open) file unit to reposition
     !---------------------------------------------------------------------------
-    character(len=*), intent(in) :: nmlname
-    integer, intent(in)          :: iunit
+    character(len=*), intent(in)        :: nmlname, msg
+    integer(dp), intent(in), optional  :: iunit
+    character(len=1000)                 :: line
 
-    character(len=1000) :: line
-
-    backspace (iunit)
-    read (iunit, fmt='(A)') line
+    line = ' '
+    if (present(iunit)) then
+      backspace (iunit)
+      read (iunit, fmt='(A)') line
+    end if
 
     print *, '--------------------------------------------------------------'
     print *, 'Input problem encountered for namelist ', nmlname
-    print *, 'This is the offending line:'
-    print *, ' > ', trim(line)
-    print *, 'It likely contains a variable the code does not know about.'
+    print *, 'Error message from the compiler runtime:'
+    print *, ' > ', trim(msg)
+    if (present(iunit)) then
+      print *, 'This is the offending line:'
+      print *, ' > ', trim(line)
+    end if
+    print *, 'It likely contains a variable the code does not know about,'
+    print *, 'or the input ended before the closing slash.'
     print *, '--------------------------------------------------------------'
 
     ! Stop the program
@@ -498,6 +556,8 @@ contains
     ! A routine for stopping the entire code elegantly. For a single-core run
     ! it is somewhat trivial to type "print *, 'some error' ; stop" but this
     ! does not translate well to MPI runs.
+    ! Both branches exit with code 1, so calling wrappers can detect
+    ! that the code did not run to completion.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     msg    : character, message to display.
@@ -518,7 +578,7 @@ contains
     call MPI_ABORT(MPI_COMM_WORLD, 1, mpi_err) ! force all MPI ranks to stop
     ! with error code 1
 #endif
-    stop
+    stop 1
   end subroutine stp
 
   function transform_memory(N) result(mem)
