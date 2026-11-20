@@ -20,6 +20,7 @@ and the commit messages, not here.
 | F-8 | OPEN (cosmetic) | FAM output, parity-broken builds |
 | F-9 | KNOWN LIMITATION | cross-build trace comparisons |
 | F-10 | FIXED (cbd45ac6) | namelist input, all modules |
+| F-11 | FIXED (3c1af4b4) | CI pasta tests / fission_MOI defaults |
 
 ### F-1 Coulomb folding out-of-bounds in debug-profile NLO-P builds — FIXED (0d883c19)
 
@@ -134,3 +135,26 @@ file mode), in &skf and a truncated &pairing all report and exit 1, the
 success path is unchanged, fam unit net (SLy4) green. The gennilsson
 standalone tool's bare /nil read is out of the mocca.data path and left
 as is.
+
+### F-11 Pasta serial runs armed the fission inertia pipeline by default — FIXED
+
+Found 2026-11-20 through the red boundary_conditions and spaghetti CI jobs.
+Every serial run defaults N_inertia=4, whose hardcoded moment list
+Q20/Q22/Q30/Q32 reaches l=3 - one past the multipoles a pasta build carries
+(MaxMoment=2, moments.f90). The pre-sprint legacy Qlm_spme built those
+out-of-scope inertia tables silently, so the pasta jobs were green; the
+Qlm_spme_matrix guard (design 13, sprint step 3) aborts on them and, since
+stp exits nonzero (F-6), pasta runs now die after the final printout but
+before writewavefunction - the spaghetti restart then failed on the missing
+tant_cyl.hdf5. Fix: pasta builds mirror the MPI default, N_inertia=0;
+collective inertia is opt-in there (&IO/ with more than 4 moments and an
+&inertia/ list within MaxMoment, validated loudly by read_inertia and by a
+new ReadIOInput check rejecting 1..4). functional.f90's own
+calc_collective_inertia call was already PASTA==0-gated - the end-of-run
+block was the last unguarded consumer. Verified on BXL gfortran serial
+builds: spag.sh (start/restart energies -489.574811/-489.574821),
+boundary_conditions.sh (-130.858108 antiperiodic vs -130.858104 periodic)
+and lattice_energy.sh all exit 0; a pasta input with N_inertia=4 stps at
+input time. The same fix moved spag.sh's mocca_check1 capture off the
+echo - it had masked the start-run abort as green, leaving only the
+restart path to catch the failure.
