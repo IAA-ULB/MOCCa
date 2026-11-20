@@ -51,6 +51,8 @@ module fission_MOI
 
   use geninfo
   use densities
+  use pairing
+  use BCS
   use parameterization
   use moments
   use timing

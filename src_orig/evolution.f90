@@ -60,6 +60,13 @@ module evolution
     use functional
     use preconditioning
     use timing
+    use HFB, only : estimategradparams, gradient_stepsize,             &
+                    gradient_safety, gradient_mu
+    use pairing, only : qpenergies, hfbgaps
+    use BCS, only : BCSgaps
+    use Cranking, only : CrankType, crank_smooth, CrankValues,          &
+                        TotalAngMom, totalangmom_dens, J2_sp,          &
+                        CrankScaleFactor
 
     implicit none
 

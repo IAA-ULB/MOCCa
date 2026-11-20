@@ -202,11 +202,11 @@ endif
 MF_SRC  +=   sphericalharmonics.f90 folding.f90 nil8.f90
 MF_SRC  +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 MF_SRC  +=   pairingcutoffs.f90 parameterization.f90
-MF_SRC  +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
+MF_SRC  +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90 BCS_quantities.f90
 MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
-MF_SRC  +=   pairing.f90 densities.f90 moments.f90
+MF_SRC  +=   pairing.f90 densities.f90 densities_diag.f90 densities_offdiag.f90 densities_perturbed.f90 densities_sphamil.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
-MF_SRC  +=   fission_MOI.f90 functional.f90 evolution.f90 scfiteration.f90
+MF_SRC  +=   fission_MOI.f90 functional.f90 functional_energy.f90 functional_potentials.f90 functional_fields.f90 functional_io.f90 functional_coefs.f90 evolution.f90 scfiteration.f90
 MF_SRC  +=   IO_aux.f90 IO_wf.f90
 MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
 MF_SRC  +=   run_single.f90
@@ -219,11 +219,11 @@ endif
 FAM_SRC +=   sphericalharmonics.f90 folding.f90 nil8.f90
 FAM_SRC +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 FAM_SRC +=   pairingcutoffs.f90 parameterization.f90
-FAM_SRC +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
+FAM_SRC +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90 BCS_quantities.f90
 FAM_SRC +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
-FAM_SRC +=   pairing.f90 densities.f90 moments.f90
+FAM_SRC +=   pairing.f90 densities.f90 densities_diag.f90 densities_offdiag.f90 densities_perturbed.f90 densities_sphamil.f90 moments.f90
 FAM_SRC +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
-FAM_SRC +=   fission_MOI.f90 functional.f90 evolution.f90 scfiteration.f90
+FAM_SRC +=   fission_MOI.f90 functional.f90 functional_energy.f90 functional_potentials.f90 functional_fields.f90 functional_io.f90 functional_coefs.f90 evolution.f90 scfiteration.f90
 FAM_SRC +=   fam_gmres.f90 fam.f90 fam_testing.f90
 FAM_SRC  +=  IO_aux.f90 IO_wf.f90
 FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
@@ -334,19 +334,55 @@ gen_nilsson: $(PRE_MF) cp_nil $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv gen_nilsson exec/gen_nilsson.exe
 
-$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 
+$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 $(INCLUDEFILE)
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 
+$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 $(INCLUDEFILE)
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
 # Override the standard recipes for version information, to ensure that the relevant information
 #  from git and the compiler is included in the source code.
-$(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_mf 
+$(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 $(INCLUDEFILE) getgitinfo getcompilerinfo setversioninfo_mf
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-$(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_fam
+$(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 $(INCLUDEFILE) getgitinfo getcompilerinfo setversioninfo_fam
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Module (.mod) dependencies, regenerated whenever the generated sources
+# change. The generated tables add every object's module-file prerequisites
+# to the rules above, which is what makes parallel builds (-j) safe and
+# recompiles consumers automatically after a module interface change.
+# On a make invocation that needs a table that does not exist (yet), make
+# first regenerates it and then restarts itself with the completed
+# dependency graph (the standard gcc -MMD auto-dependency idiom).
+MF_DEP  := build/$(CONFIG)/moddeps_mf.mk
+FAM_DEP := build/$(CONFIG)/moddeps_fam.mk
+
+$(MF_DEP): $(MF_SRC_ALL)
+	@mkdir -p $(MF_SRC_DIR)
+	python3 scripts/gen_moddeps.py --src-dir $(MF_SRC_DIR) --obj-dir $(MF_OBJ_DIR) --mod-dir $(MF_MOD_DIR) --out $@
+
+$(FAM_DEP): $(FAM_SRC_ALL)
+	@mkdir -p $(FAM_SRC_DIR)
+	python3 scripts/gen_moddeps.py --src-dir $(FAM_SRC_DIR) --obj-dir $(FAM_OBJ_DIR) --mod-dir $(FAM_MOD_DIR) --out $@
+
+# Only include (and thus regenerate) the tables for the trees that today's
+# invocation actually builds: neither an mf build nor a fam build should
+# regenerate the other tree, and a clean or a dry run should not generate
+# anything. With no goals, the default target is mf (see .DEFAULT_GOAL above).
+ifeq (,$(filter clean heph_dry_run_mf heph_dry_run_fam,$(MAKECMDGOALS)))
+  ifneq (,$(filter fam%,$(MAKECMDGOALS)))
+    include $(FAM_DEP)
+  endif
+  ifeq (,$(filter-out fam% heph_dry_run_fam,$(MAKECMDGOALS)))
+    ifeq (,$(filter-out heph_dry_run_mf heph_dry_run_fam,$(MAKECMDGOALS)))
+      include $(MF_DEP)
+    endif
+  else
+    include $(MF_DEP)
+  endif
+endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Generation of source code 
@@ -361,9 +397,9 @@ heph_dry_run_fam:
 #  b) the original source code file changes, or	
 #  c) the configuration file changes, or 
 #  d) Hephaestos changes
-$(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+$(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE) | $(MF_SRC_DIR)/
 	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $< || exit 1
-$(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+$(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE) | $(FAM_SRC_DIR)/
 	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $< || exit 1
 
 setversioninfo_mf:
@@ -413,6 +449,8 @@ cp_nil:
 clean:
 	rm  -f build/*/*/*.o
 	rm  -f build/*/*/*.mod
+	rm  -f build/*/*/*.smod
 	rm  -f build/*/*/*.f90
+	rm  -f build/*/*.mk
 ################################################################################
 
