@@ -465,7 +465,8 @@ contains
     !  selected basis: the stored derivatives when the run keeps them,
     !  otherwise the Derive_X/Y/Z_spwf primitives with the per-component
     !  reflection signs of the spwf - the serial branch of the legacy
-    !  Transfer_derpsi.
+    !  Transfer_derpsi, whose pointer association of the basis arrays
+    !  is made here.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   glob  : global spwf index, 1..nwt
@@ -481,7 +482,19 @@ contains
     real(KIND=dp), pointer :: psis(:, :, :)
 
     nullify (dpsis, psis)
-    call Nabla_basis_pointers(basis, psis, dpsis)
+    select case (basis)
+    case (1)
+      psis  => HFPsi
+      dpsis => HFdpsi
+    case (2)
+      psis  => canpsi
+      dpsis => candpsi
+    case (3)
+      psis  => denpsi
+      dpsis => dendpsi
+    case default
+      call stp('Nabla_basis_derive: invalid basis selector.')
+    end select
 
     if (store_derivatives) then
       derpsi = dpsis(:, mu, :, glob)
@@ -498,36 +511,6 @@ contains
       end select
     endif
   end subroutine Nabla_basis_derive
-  !----------------------------------------------------------------------------
-  subroutine Nabla_basis_pointers(basis, psis, dpsis)
-    !---------------------------------------------------------------------------
-    ! The wavefunction and derivative arrays of the selected basis, the same
-    !  association the legacy Transfer_psi / Transfer_derpsi make.
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !   basis  : 1 = 'HF', 2 = 'CAN', 3 = 'DEN'
-    ! Output:
-    !   psis   : (mv, 4, nwt) wavefunctions of the basis
-    !   dpsis  : (mv, 3, 4, nwt) first derivatives of the basis
-    !---------------------------------------------------------------------------
-    integer, intent(in)           :: basis
-    real(KIND=dp), pointer        :: psis(:, :, :)
-    real(KIND=dp), pointer        :: dpsis(:, :, :, :)
-
-    select case (basis)
-    case (1)
-      psis  => HFPsi
-      dpsis => HFdpsi
-    case (2)
-      psis  => canpsi
-      dpsis => candpsi
-    case (3)
-      psis  => denpsi
-      dpsis => dendpsi
-    case default
-      call stp('Nabla_basis_pointers: invalid basis selector.')
-    end select
-  end subroutine Nabla_basis_pointers
   !----------------------------------------------------------------------------
   function Nabla_half_fm(mu, folded, spwf_basis) result(me)
     !---------------------------------------------------------------------------

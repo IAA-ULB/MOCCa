@@ -49,6 +49,46 @@ Enabling either - e.g. RP as an NLO-P zcom net - is a user decision, out of
 the migration's scope. Both have been migrated to the generators so they are
 build-clean if ever enabled.
 
+### D-6 Sprint-source superfluous complexity — DECIDED (2026-11-20)
+
+Cleanup sweep of the sprint's marker-free modules for over-engineering
+(call audit 2026-11-20, against the design's planned consumers of §14.4
+row 3 and §15.8). Candidates:
+
+- a) `sym_block%transposed`: never set .true. by any code path, ignored
+  by every reader (dense, print_dense) - the "partner access at access
+  time" phase it was drafted for was superseded by the kind formula
+  A(s',s) = kind * A(s,s')^T. DELETE recommended: type component, the
+  init reset, two comment apologies, one unit-net assertion.
+- b) `new_sym_matrix` constructor sugar: zero callers outside its own
+  unit test (every producer uses init + fill_blocks - the §14.3 wording
+  "new_sym_matrix-style constructors" landed as init/fill TBP pairs).
+  DELETE recommended, together with its test_sugar arm; or keep as public
+  convenience.
+- c) `fill_elements` + the `element_filler` interface: the §5
+  per-element fallback, "tests and prototypes only" - but no prototype
+  ever used it; its only caller is its own unit test. DELETE recommended
+  with test_fill_elements, or keep as the frozen-contract test path.
+- d) `Nabla_basis_pointers`: called from exactly one place
+  (Nabla_basis_derive); INLINE recommended, saves one routine.
+
+Kept as load-bearing (audit verdict, do not re-litigate): the §15.8
+retrieval contract of get_nabla_block + its four sector-image helpers
+(serving CompCOMCorrection `$TR` per §15.8, arbitrated by the unit
+arm), the whole §6a rotation machinery (feeds §14.4 row 3), print_dense
+(the only human debug window, used by the moments dense-dump scenario),
+sector_of. Rejected: consolidating the AX_X/Y/Z constants of the two
+generator modules - block_matrix_module stays physics-agnostic and a
+shared home for three ints buys nothing.
+
+Constraint: deletions in block_matrix_module must amend design §5/§6
+in the same commit (protocol rule 7); gates are the block matrix unit
+net plus a frozen-build compile of the touched configs.
+
+Resolution (2026-11-20): all four candidates approved and removed;
+the keep/reject verdicts above stand. a-c in commit 2ccb5f4c,
+d in the follow-up commit of the same date.
+
 ## Open - technical adjudications (deciding test named; no user input needed)
 
 ### D-5 fac/4 and 2x TR factors in CompCOMCorrection (design §15.6) — UNADJUDICATED
