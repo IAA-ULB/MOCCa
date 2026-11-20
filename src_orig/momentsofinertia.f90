@@ -36,7 +36,7 @@ module momentsofinertia
   use geninfo
   use densities
   use parameterization
-  use angular_momentum, only: J_half_fm, AX_X, AX_Y, AX_Z
+  use angular_momentum, only: Jmu_spme, AX_X, AX_Y, AX_Z
 
   implicit none
 
@@ -754,7 +754,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !---------------------------------------------------------------------------
     ! First, the pair matrix elements jx/jy/jz in the HF basis, served by
     !  the angular-momentum generators (design 14.4 row 3): the
-    !  scenario-blind J_half_fm hands every rank the honest operators
+    !  scenario-blind Jmu_spme hands every rank the honest operators
     !  while T is broken and the TR-folded composites
     !              jx_ij = Re < i | j_x T | j >
     !              jy_ij = Im < i | j_y T | j >
@@ -765,9 +765,9 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  Serial semantics follow the generators (design 12): valid exactly
     !  in the single-node model of this sprint.
     !---------------------------------------------------------------------------
-    jx = J_half_fm(AX_X)
-    jy = J_half_fm(AX_Y)
-    jz = J_half_fm(AX_Z)
+    jx = Jmu_spme(AX_X)
+    jy = Jmu_spme(AX_Y)
+    jz = Jmu_spme(AX_Z)
 
     !----------------------------------------------------------------------
     ! The calculation of the diagonal matrix elements <J^2> is much easier

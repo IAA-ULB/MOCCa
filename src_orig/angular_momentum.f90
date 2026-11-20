@@ -121,7 +121,7 @@ module angular_momentum
   public :: AX_X, AX_Y, AX_Z
   public :: TAU_ANGFAM
   public :: Jm_params
-  public :: Jmu_spme_matrix, get_J_block, get_J_complete, J_half_fm
+  public :: Jmu_spme_matrix, get_J_block, get_J_complete, Jmu_spme
 
 contains
 
@@ -147,7 +147,7 @@ contains
     call Jm_build(mu, me)
   end subroutine Jmu_spme_matrix
   !----------------------------------------------------------------------------
-  function J_half_fm(mu) result(me)
+  function Jmu_spme(mu) result(me)
     !---------------------------------------------------------------------------
     ! Dense stored half of "the signature-flip content the basis affords" -
     !  the consumer's one request per component, scenario-blind (D-8 of
@@ -195,7 +195,7 @@ contains
       me(st(s):st(s + 1) - 1, st(s):st(s + 1) - 1) = A
       deallocate (A)
     enddo
-  end function J_half_fm
+  end function Jmu_spme
   !----------------------------------------------------------------------------
   !----------------------------------------------------------------------------
   subroutine Jm_build(mu, me)
