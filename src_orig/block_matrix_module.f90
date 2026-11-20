@@ -33,10 +33,9 @@ module block_matrix_module
   !  covers phases 1 and 2 of the design: sector encoding, the sym_block
   !  and sym_matrix types, construction of the block list from MOCCa's
   !  HFBlocks bookkeeping, and population of the stored blocks through
-  !  dummy-procedure callbacks (the block-wise fill_blocks and the
-  !  per-element fallback fill_elements), plus the new_sym_matrix
-  !  constructor sugar, the good-quantum-number mask in init (design
-  !  section 2b), the mandatory physical operator classes Hermiticity
+  !  the dummy-procedure callback of fill_blocks, plus the
+  !  good-quantum-number mask in init (design section 2b), the mandatory
+  !  physical operator classes Hermiticity
   !  and y-time-simplex characteristic of design section 2a, from which
   !  the storage kind is derived (kind = herm * sty). It also provides
   !  the partner-reconstructing dense
@@ -202,23 +201,20 @@ module block_matrix_module
   !  in this module; gathering of whole-basis vectors is the caller's task.
   !
   ! Population contract (design section 5): blocks are populated
-  !  exclusively through dummy-procedure callbacks with the abstract
-  !  interfaces block_filler (whole blocks) and element_filler (per-element
-  !  fallback); procedure pointers are never stored as components:
+  !  exclusively through the dummy-procedure callback of the abstract
+  !  interface block_filler (whole blocks); procedure pointers are
+  !  never stored as components:
   !   *) callbacks run for stored blocks only. Blocks skipped by the
   !      kind-based partner rule are not the filler's business: partner
   !      values are resolved at access time (a later phase), never by
   !      writing here.
   !   *) callbacks receive the sector words srow/scol of the block so
   !      they can apply MOCCa's phase conventions for matrix elements.
-  !   *) both paths OVERWRITE: fill_blocks hands the block storage out as
-  !      an intent(out) dummy, fill_elements assigns element by element.
+  !   *) the callback OVERWRITES: fill_blocks hands the block storage
+  !      out as an intent(out) dummy.
   !   *) 'params' is unlimited-polymorphic state handed verbatim to the
   !      callback. The signature is frozen: extend params, not the
   !      interface. Callers without state pass any token.
-  !   *) fill_elements costs one callback invocation per element and
-  !      exists for tests and prototypes only; hot paths fill whole
-  !      blocks via fill_blocks.
   !==============================================================================
   implicit none
 
@@ -245,10 +241,10 @@ module block_matrix_module
   ! Storage kind of the stored real numbers: DERIVED in init from the
   !  physical classes,  kind = herm * sty . Partner blocks are related by
   !     A(s', s) = kind * A(s, s')^T
-  !  and only one block per sector pair is stored; the partner is accessed
-  !  with the transposed flag and the sign. A block whose sector is its own
-  !  partner is square and internally symmetric/antisymmetric; it is stored
-  !  dense and the symmetry serves only as a consistency check.
+  !  and only one block per sector pair is stored; consumers reconstruct
+  !  partners through this same relation (dense). A block whose sector is
+  !  its own partner is square and internally symmetric/antisymmetric; it
+  !  is stored dense and the symmetry serves only as a consistency check.
   integer, parameter :: KIND_SYMMETRIC      =  1
   integer, parameter :: KIND_ANTISYMMETRIC  = -1
 
@@ -258,8 +254,6 @@ module block_matrix_module
   type :: sym_block
     integer :: srow, scol      ! sector words 0..7 of the row/column sector
     integer :: is, js          ! 1-based global start of the row/column sector
-    logical :: transposed      ! .true. if this block is reached as the
-                              !  +/- transpose of a stored partner
     real(8), allocatable :: A(:, :)  ! (m, n), contiguous, LDA = m
   end type sym_block
 
@@ -294,7 +288,6 @@ module block_matrix_module
     procedure :: init => init_sym_matrix
     procedure :: sector_of => sector_of_sym_matrix
     procedure :: fill_blocks => fill_blocks_sym_matrix
-    procedure :: fill_elements => fill_elements_sym_matrix
     procedure :: dense => dense_sym_matrix
     procedure :: print_dense => print_dense_sym_matrix
     procedure :: rotate => rotate_sym_matrix
@@ -352,24 +345,6 @@ module block_matrix_module
     real(8), intent(out)  :: A(:, :)
     class(*), intent(in)  :: params
   end subroutine block_filler
-  !----------------------------------------------------------------------------
-  function element_filler(srow, scol, i, j, params) result(val)
-    !---------------------------------------------------------------------------
-    ! Return one matrix element of the block (srow, scol) at the LOCAL
-    !  row/column indices (i, j) of that block, 1-based within the block
-    !  (the global indices are st(srow) + i - 1 and st(scol) + j - 1).
-    ! Invoked by fill_elements for every element of every stored block.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !   srow, scol : sector words 0..7 of the block
-    !   params     : caller state, opaque
-    ! Result:
-    !   val        : the matrix element A(i, j) of the block
-    !---------------------------------------------------------------------------
-    integer, intent(in)   :: srow, scol, i, j
-    class(*), intent(in)  :: params
-    real(8)              :: val
-  end function element_filler
   end interface
 
   private
@@ -378,8 +353,7 @@ module block_matrix_module
   public :: HERMITIAN, ANTIHERMITIAN
   public :: KIND_SYMMETRIC, KIND_ANTISYMMETRIC
   public :: STY_EVEN, STY_ODD
-  public :: block_filler, element_filler
-  public :: new_sym_matrix
+  public :: block_filler
 
 contains
 
@@ -397,9 +371,8 @@ contains
     !  in parity-broken builds) act diagonally. With the default mask 15
     !  this is the pure XOR sp = IEOR(s, symmetry). A dense block is
     !  stored for each populated sector pair; only one block per pair is
-    !  stored (partner access through the transposed flag covers the
-    !  other), and a sector that is its own partner gives a single square
-    !  block.
+    !  stored (dense reconstructs the other through the kind relation),
+    !  and a sector that is its own partner gives a single square block.
     !
     ! All blocks are allocated and zero-filled: the matrix is ready to be
     !  populated by a fill callback (later phase) or element-by-element.
@@ -518,7 +491,6 @@ contains
       this%blocks(b)%scol = 0
       this%blocks(b)%is = 0
       this%blocks(b)%js = 0
-      this%blocks(b)%transposed = .false.
       if (allocated(this%blocks(b)%A)) deallocate(this%blocks(b)%A)
     enddo
 
@@ -537,7 +509,6 @@ contains
       this%blocks(b)%scol = s
       this%blocks(b)%is = this%st(sp)
       this%blocks(b)%js = this%st(s)
-      this%blocks(b)%transposed = .false.
       allocate(this%blocks(b)%A(counts(sp), counts(s)))
       this%blocks(b)%A = 0.0d0
     enddo
@@ -597,79 +568,7 @@ contains
     enddo
   end subroutine fill_blocks_sym_matrix
   !----------------------------------------------------------------------------
-  subroutine fill_elements_sym_matrix(this, fill, params)
-    !---------------------------------------------------------------------------
-    ! Populate all stored blocks through a per-element callback.
-    !
-    ! Element-wise fallback of the design (section 5): for every stored
-    !  block and every local element (i, j) of it, the callback is queried
-    !  for the value A_ij, which is assigned into the block storage,
-    !  overwriting whatever init or an earlier fill left there.
-    !
-    ! This costs one callback invocation per element and exists for tests
-    !  and prototypes only; hot paths fill whole blocks via fill_blocks.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input/output:
-    !   this   : the matrix whose stored blocks are populated
-    !   fill   : callback returning one element (interface element_filler)
-    !   params : state handed to the callback, verbatim
-    !---------------------------------------------------------------------------
-    class(sym_matrix), intent(inout) :: this
-    procedure(element_filler)         :: fill
-    class(*), intent(in)              :: params
-
-    integer :: b, i, j, m, ncol
-
-    do b = 1, this%nblocks
-      m = size(this%blocks(b)%A, 1)
-      ncol = size(this%blocks(b)%A, 2)
-      do i = 1, m
-        do j = 1, ncol
-          this%blocks(b)%A(i, j) = fill(this%blocks(b)%srow,                     &
-          &                          this%blocks(b)%scol, i, j, params)
-        enddo
-      enddo
-    enddo
-  end subroutine fill_elements_sym_matrix
-  !----------------------------------------------------------------------------
-  function new_sym_matrix(HFBlocks, symmetry, herm, sty, fill, params, goodqn)  &
-  & result(M)
-    !---------------------------------------------------------------------------
-    ! Constructor sugar (design section 5): build and fill in one statement.
-    !
-    ! Equivalent to init followed by fill_blocks with the same arguments.
-    !  A named function rather than a generic 'sym_matrix': in Fortran a
-    !  name cannot serve as both a derived-type name and a function name.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !   HFBlocks(1:8) : GLOBAL MOCCa count array, see init
-    !   symmetry      : physical operator symmetry word, 0..7
-    !   herm          : HERMITIAN or ANTIHERMITIAN - the physical class
-    !                   of the operator, handed to init (which derives the
-    !                   storage kind as herm * sty)
-    !   sty           : STY_EVEN or STY_ODD - the y-time-simplex
-    !                   characteristic (design 2a), handed to init
-    !   fill          : callback overwriting each stored block
-    !   params        : state handed to the callback, verbatim
-    !   goodqn        : optional good-quantum-number mask (design 2b),
-    !                   handed to init
-    ! Output:
-    !   M             : the freshly built and filled matrix
-    !---------------------------------------------------------------------------
-    integer, intent(in)     :: HFBlocks(8)
-    integer, intent(in)     :: symmetry
-    integer, intent(in)     :: herm
-    integer, intent(in)     :: sty
-    procedure(block_filler) :: fill
-    class(*), intent(in)    :: params
-    integer, intent(in), optional :: goodqn
-    type(sym_matrix)        :: M
-
-    call M%init(HFBlocks, symmetry, herm, sty, goodqn)
-    call M%fill_blocks(fill, params)
-  end function new_sym_matrix
-  !----------------------------------------------------------------------------
-  pure function dense_sym_matrix(this) result(D)
+  function dense_sym_matrix(this) result(D)
     !---------------------------------------------------------------------------
     ! Partner-reconstructing dense expansion of a sym_matrix: the full
     !  n x n matrix as one contiguous array, with all stored blocks at
@@ -680,9 +579,7 @@ contains
     !
     ! This is the core behind the print_dense dump, the return shape of
     !  dense wrappers such as Qlm_spme_fm in moments.f90, and the dense
-    !  reference of the rotation unit tests (design section 6a). The
-    !  transposed flag is ignored here in the same way as in print_dense:
-    !  init never sets it and no runtime path assigns it.
+    !  reference of the rotation unit tests (design section 6a).
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   this : the matrix whose stored blocks are expanded
@@ -723,8 +620,7 @@ contains
     !  init does not store are reconstructed in the dense helper as
     !      A(s', s) = kind * A(s, s')^T ,
     !  the expansion the dense reference of the design's validation tests
-    !  (summary section 9) is built from. The transposed flag is ignored
-    !  there: init never sets it and no runtime path assigns it.
+    !  (summary section 9) is built from.
     !
     ! Layout: a header decoding the symmetry word, the kind, the stored
     !  block list and the populated sectors, then the matrix itself, with

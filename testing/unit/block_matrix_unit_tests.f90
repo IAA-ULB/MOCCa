@@ -51,13 +51,9 @@ program block_matrix_unit_tests
   !   *) fill_blocks invokes the callback once per stored block, for the
   !      stored sector pairs only, with the block's sector words and the
   !      right storage shape, and overwrites the entire block
-  !   *) fill_elements queries the callback once per element with local
-  !      indices and overwrites the block element by element
-  !   *) both paths hand the unlimited-polymorphic params through
-  !      verbatim (an integer offset through the block callback, a real
-  !      through the element callback)
-  !   *) an empty block list leaves the callbacks uncalled
-  !   *) new_sym_matrix equals init followed by fill_blocks
+  !   *) the callback hands the unlimited-polymorphic params through
+  !      verbatim (an integer offset)
+  !   *) an empty block list leaves the callback uncalled
   !
   ! The good-quantum-number mask (design section 2b) adds:
   !   *) the mask is stored and the omitted mask defaults to 15
@@ -96,7 +92,7 @@ program block_matrix_unit_tests
   !   *) the round trip through the sector-wise transposed rotation
   !      recovers the original numbers
   !   *) the traces of the diagonal blocks are invariant (word 0)
-  !   *) for a partner-consistent operand, filled element-wise as a
+  !   *) for a partner-consistent operand, filled block-wise as a
   !      symmetric or antisymmetric function of the global indices,
   !      the dense expansion of the rotated matrix obeys
   !      D(gj, gi) = kind * D(gi, gj) for both kinds
@@ -108,7 +104,7 @@ program block_matrix_unit_tests
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of eleven routines (plus the check helper that
+  ! The suite consists of eight routines (plus the check helper that
   !  registers every individual condition, and the probed callbacks the
   !  fill and rotation tests use):
   !   test_construction : construction invariants over the full cross
@@ -117,9 +113,6 @@ program block_matrix_unit_tests
   !   test_reinit      : repeated init on the same object
   !   test_sector_of   : global-index-to-sector mapping
   !   test_fill_blocks : block-wise population through the callback
-  !   test_fill_elements : per-element population through the callback
-  !   test_fill_consistency : block-wise and element-wise paths match
-  !   test_sugar       : new_sym_matrix constructor sugar
   !   test_goodqn      : the good-quantum-number mask of design 2b
   !   test_sty         : the physical classes of design 2a
   !   test_dense_expansion : partner-reconstructing dense expansion
@@ -140,7 +133,6 @@ program block_matrix_unit_tests
   !  of the pattern currently under test (the callbacks check the shapes
   !  they receive against it) and the label of the current case.
   integer :: nblockcalls           ! invocations of fill_block_probed
-  integer :: nelemcalls            ! invocations of fill_elem_probed
   integer :: seen(0:7, 0:7)        ! sector pairs the block callback served
   integer :: cur_counts(0:7)      ! current pattern, for shape checks
   character(len=160) :: cur_label  ! current case label
@@ -174,9 +166,6 @@ program block_matrix_unit_tests
   call test_reinit()
   call test_sector_of()
   call test_fill_blocks()
-  call test_fill_elements()
-  call test_fill_consistency()
-  call test_sugar()
   call test_goodqn()
   call test_sty()
   call test_dense_expansion()
@@ -228,8 +217,7 @@ contains
     !      kind is never zero)
     !   *) per stored block: srow = IEOR(scol, word), uniqueness of the
     !      (srow, scol) pair, both sectors populated, A allocated with the
-    !      sector-pair shape, zero-filled, correct offsets is/js and a
-    !      cleared transposed flag
+    !      sector-pair shape, zero-filled, correct offsets is/js
     !   *) completeness: every ordered sector pair that should be stored
     !      is present in the list
     !   *) hygiene: block slots beyond nblocks carry no allocation
@@ -321,7 +309,6 @@ contains
               &          trim(label)//': row offset is')
               call check(Blk%js .eq. M%st(Blk%scol),                             &
               &          trim(label)//': col offset js')
-              call check(.not. Blk%transposed, trim(label)//': not transposed')
             end associate
           enddo
 
@@ -525,231 +512,6 @@ contains
       enddo
     enddo
   end subroutine test_fill_blocks
-  !----------------------------------------------------------------------------
-  subroutine test_fill_elements()
-    !---------------------------------------------------------------------------
-    ! Verify block population through the per-element callback over the
-    !  full cross product of patterns, symmetry words and kinds.
-    !
-    ! The probed callback returns values identifying the sector pair and
-    !  the local element, offset by the real carried in params. Verified
-    !  per case:
-    !   *) the callback runs exactly once per element of the stored blocks
-    !   *) the stored content equals the callback's values everywhere,
-    !      overwriting the pollution written before the call; this pins
-    !      the local index order: rows of the block span the srow sector
-    !      with local index i, columns the scol sector with local index j
-    !   *) an empty block list leaves the callback uncalled
-    !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
-    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, nexp
-    integer :: herms(2), stys(2)
-    real(8) :: offset
-    logical :: match
-    character(len=160) :: label, blabel
-
-    herms = [HERMITIAN, ANTIHERMITIAN]
-    stys = [STY_EVEN, STY_ODD]
-    offset = -3.5d0
-
-    do p = 1, NPAT
-      do word = 0, 7
-        do h = 1, 2
-          do sc = 1, 2
-          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
-          &  ' herm ', herms(h), ' sty ', stys(sc)
-          cur_counts(0:7) = patterns(p, 1:8)
-          cur_label = trim(label)
-
-          call M%init(patterns(p, :), word, herms(h), stys(sc))
-
-          do b = 1, M%nblocks
-            M%blocks(b)%A = -12345.0d0
-          enddo
-
-          nelemcalls = 0
-          call M%fill_elements(fill_elem_probed, offset)
-
-          ! Exactly one query per element of all stored blocks.
-          nexp = 0
-          do b = 1, M%nblocks
-            nexp = nexp + size(M%blocks(b)%A, 1)*size(M%blocks(b)%A, 2)
-          enddo
-          write (blabel, '(a)') trim(label)
-          call check(nelemcalls .eq. nexp,                                     &
-          &          trim(blabel)//': one call per element')
-
-          ! Content: every element must carry the callback's value.
-          do b = 1, M%nblocks
-            mrow = size(M%blocks(b)%A, 1)
-            ncol = size(M%blocks(b)%A, 2)
-            match = .true.
-            do r = 1, mrow
-              do c = 1, ncol
-                match = match                                                &
-                &  .and. (M%blocks(b)%A(r, c) .eq.                            &
-                &          block_val(M%blocks(b)%srow, M%blocks(b)%scol,      &
-                &                      r, c, offset))
-              enddo
-            enddo
-            write (blabel, '(a,i0)') trim(label)//' block ', b
-            call check(match, trim(blabel)//': content overwritten everywhere')
-          enddo
-          enddo
-        enddo
-      enddo
-    enddo
-  end subroutine test_fill_elements
-  !----------------------------------------------------------------------------
-  subroutine test_fill_consistency()
-    !---------------------------------------------------------------------------
-    ! The block-wise and the element-wise population paths must produce
-    !  identical matrices when fed the same value formula: same block
-    !  list, same content, including the way the local element indices
-    !  map onto the block storage. Representative subset of the cross
-    !  product: every pattern, every class combination, words 0, 5
-    !  and 7.
-    !---------------------------------------------------------------------------
-    type(sym_matrix) :: M1, M2
-    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, wordsel
-    integer :: wordlist(3)
-    integer :: herms(2), stys(2)
-    real(8) :: offset
-    logical :: match
-    character(len=160) :: label, blabel
-
-    herms = [HERMITIAN, ANTIHERMITIAN]
-    stys = [STY_EVEN, STY_ODD]
-    wordlist = [0, 5, 7]
-    offset = 3.0d0
-
-    do p = 1, NPAT
-      do wordsel = 1, 3
-        do h = 1, 2
-          do sc = 1, 2
-          word = wordlist(wordsel)
-          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
-          &  ' herm ', herms(h), ' sty ', stys(sc)
-          cur_counts(0:7) = patterns(p, 1:8)
-          cur_label = trim(label)
-
-          nblockcalls = 0
-          nelemcalls = 0
-          call M1%init(patterns(p, :), word, herms(h), stys(sc))
-          call M1%fill_blocks(fill_block_probed, int(offset))
-          call M2%init(patterns(p, :), word, herms(h), stys(sc))
-          call M2%fill_elements(fill_elem_probed, offset)
-
-          call check(nblockcalls + nelemcalls > 0 .or. M1%nblocks .eq. 0,      &
-          &          trim(label)//': matrices exist to compare')
-
-          ! Same storage layout, then the same content block by block.
-          call check(M2%n .eq. M1%n, trim(label)//': same total size')
-          call check(M2%nblocks .eq. M1%nblocks,                               &
-          &          trim(label)//': same nblocks')
-          if (M2%nblocks .ne. M1%nblocks .or. M1%nblocks .eq. 0) cycle
-
-          match = .true.
-          do b = 1, M1%nblocks
-            mrow = size(M1%blocks(b)%A, 1)
-            ncol = size(M1%blocks(b)%A, 2)
-            match = match .and. (mrow .eq. size(M2%blocks(b)%A, 1))           &
-            &                .and. (ncol .eq. size(M2%blocks(b)%A, 2))          &
-            &                .and. (M1%blocks(b)%srow .eq. M2%blocks(b)%srow)   &
-            &                .and. (M1%blocks(b)%scol .eq. M2%blocks(b)%scol)
-            do r = 1, mrow
-              do c = 1, ncol
-                match = match .and. (M1%blocks(b)%A(r, c)                     &
-                &                    .eq. M2%blocks(b)%A(r, c))
-              enddo
-            enddo
-          enddo
-          write (blabel, '(a)') trim(label)
-          call check(match, trim(blabel)//': both fill paths identical')
-          enddo
-        enddo
-      enddo
-    enddo
-  end subroutine test_fill_consistency
-  !----------------------------------------------------------------------------
-  subroutine test_sugar()
-    !---------------------------------------------------------------------------
-    ! new_sym_matrix builds and fills in one statement: its metadata and
-    !  block content must equal those of a matrix built explicitly via
-    !  init plus fill_blocks with the same arguments. Every pattern and
-    !  class combination, words 0, 3 and 7. Hygiene check: the fresh
-    !  result leaves no storage in the unused block slots.
-    !---------------------------------------------------------------------------
-    type(sym_matrix) :: M1, M2
-    integer :: p, word, h, s, sc, b, r, c, mrow, ncol, wordsel
-    integer :: wordlist(3)
-    integer :: herms(2), stys(2)
-    real(8) :: offset
-    logical :: match
-    character(len=160) :: label, blabel
-
-    herms = [HERMITIAN, ANTIHERMITIAN]
-    stys = [STY_EVEN, STY_ODD]
-    wordlist = [0, 3, 7]
-    offset = 3.0d0
-
-    do p = 1, NPAT
-      do wordsel = 1, 3
-        do h = 1, 2
-          do sc = 1, 2
-          word = wordlist(wordsel)
-          write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p, ' word ', word,  &
-          &  ' herm ', herms(h), ' sty ', stys(sc)
-          cur_counts(0:7) = patterns(p, 1:8)
-          cur_label = trim(label)
-
-          call M1%init(patterns(p, :), word, herms(h), stys(sc))
-          call M1%fill_blocks(fill_block_probed, int(offset))
-
-          cur_label = trim(label)
-          M2 = new_sym_matrix(patterns(p, :), word, herms(h), stys(sc),           &
-          &                   fill_block_probed, int(offset))
-
-          ! Metadata of the shortcut equals the explicit construction.
-          call check(M2%n .eq. M1%n, trim(label)//': sugar total size')
-          call check(M2%symmetry .eq. M1%symmetry,                              &
-          &          trim(label)//': sugar symmetry word')
-          call check(M2%kind .eq. M1%kind, trim(label)//': sugar derived kind')
-          call check(M2%sty .eq. M1%sty, trim(label)//': sugar characteristic')
-          call check(M2%goodqn .eq. M1%goodqn,                                    &
-          &          trim(label)//': sugar goodqn mask')
-          call check(M2%nblocks .eq. M1%nblocks,                                  &
-          &          trim(label)//': sugar nblocks')
-          call check(all(M2%st .eq. M1%st),                                       &
-          &          trim(label)//': sugar sector bounds')
-
-          ! Content block by block.
-          do b = 1, M1%nblocks
-            mrow = size(M1%blocks(b)%A, 1)
-            ncol = size(M1%blocks(b)%A, 2)
-            match = (mrow .eq. size(M2%blocks(b)%A, 1))                         &
-            &   .and. (ncol .eq. size(M2%blocks(b)%A, 2))
-            do r = 1, mrow
-              do c = 1, ncol
-                match = match .and. (M1%blocks(b)%A(r, c)                      &
-                &                    .eq. M2%blocks(b)%A(r, c))
-              enddo
-            enddo
-            write (blabel, '(a,i0)') trim(label)//' block ', b
-            call check(match, trim(blabel)//': sugar content')
-          enddo
-
-          ! Hygiene: unused slots of the fresh result carry no storage.
-          do b = M2%nblocks + 1, 8
-            write (blabel, '(a,i0)') trim(label)//' unused slot ', b
-            call check(.not. allocated(M2%blocks(b)%A),                        &
-            &          trim(blabel)//': A not allocated')
-          enddo
-          enddo
-        enddo
-      enddo
-    enddo
-  end subroutine test_sugar
   !----------------------------------------------------------------------------
   subroutine test_goodqn()
     !---------------------------------------------------------------------------
@@ -1054,7 +816,7 @@ contains
     !   *) the traces of the diagonal blocks are invariant (word 0)
     !
     ! A closing judgment per case, on a partner-consistent operand
-    !  filled element-wise as a symmetric (kind +1) or antisymmetric
+    !  filled through a block callback as a symmetric (kind +1) or antisymmetric
     !  (kind -1) function of the global indices: after rotation the
     !  dense expansion obeys D(gj, gi) = kind * D(gi, gj) - the kind
     !  partner relation survives the rotation, for both kinds.
@@ -1215,7 +977,7 @@ contains
 
             ! Partner-consistent operand, both kinds: rotating again, the
             !  dense expansion obeys D(gj, gi) = kind * D(gi, gj).
-            call M%fill_elements(fill_elem_partner, int(0))
+            call M%fill_blocks(fill_block_partner, int(0))
             call M%rotate(Rrand)
             Drot = M%dense()
             dev = 0.0d0
@@ -1267,51 +1029,35 @@ contains
     enddo
   end subroutine fill_block_probed
   !----------------------------------------------------------------------------
-  function fill_elem_probed(srow, scol, i, j, params) result(val)
+  subroutine fill_block_partner(srow, scol, A, params)
     !---------------------------------------------------------------------------
-    ! element_filler-shaped test callback: counts its invocations and
-    !  returns the block_val of the element, offset by the real carried
-    !  in params.
+    ! block_filler-shaped callback for the partner-consistency judgment of
+    !  the rotation test: the block is filled with a symmetric (kind +1)
+    !  or antisymmetric (kind -1, per cur_knd) function of the GLOBAL
+    !  index pair, through the cur_st bounds of the current case. Such a
+    !  matrix satisfies  A(s', s) = kind * A(s, s')^T  globally, over
+    !  stored blocks and unstored partners alike.
     !---------------------------------------------------------------------------
-    integer, intent(in)   :: srow, scol, i, j
+    integer, intent(in)   :: srow, scol
+    real(8), intent(out)  :: A(:, :)
     class(*), intent(in)  :: params
-    real(8)               :: val
 
-    real(8) :: offset
+    integer :: r, c, gi, gj
+    real(8) :: val
 
-    offset = 0.0d0
-    select type (params)
-    type is (real(8))
-      offset = params
-    end select
-
-    nelemcalls = nelemcalls + 1
-    val = block_val(srow, scol, i, j, offset)
-  end function fill_elem_probed
-  !----------------------------------------------------------------------------
-  function fill_elem_partner(srow, scol, i, j, params) result(val)
-    !---------------------------------------------------------------------------
-    ! element_filler-shaped callback for the partner-consistency judgment of
-    !  the rotation test: the value is a symmetric (kind +1) or
-    !  antisymmetric (kind -1, per cur_knd) function of the GLOBAL index
-    !  pair, through the cur_st bounds of the current case. Such a matrix
-    !  satisfies  A(s', s) = kind * A(s, s')^T  globally, over stored
-    !  blocks and unstored partners alike.
-    !---------------------------------------------------------------------------
-    integer, intent(in)   :: srow, scol, i, j
-    class(*), intent(in)  :: params
-    real(8)               :: val
-
-    integer :: gi, gj
-
-    gi = cur_st(srow) + i - 1
-    gj = cur_st(scol) + j - 1
-    if (cur_knd .gt. 0) then
-      val = 1.5d0*gi*gj + 0.5d0*(gi + gj)
-    else
-      val = 1.5d0*(gi - gj)
-    endif
-  end function fill_elem_partner
+    do c = 1, size(A, 2)
+      gj = cur_st(scol) + c - 1
+      do r = 1, size(A, 1)
+        gi = cur_st(srow) + r - 1
+        if (cur_knd .gt. 0) then
+          val = 1.5d0*gi*gj + 0.5d0*(gi + gj)
+        else
+          val = 1.5d0*(gi - gj)
+        endif
+        A(r, c) = val
+      enddo
+    enddo
+  end subroutine fill_block_partner
   !----------------------------------------------------------------------------
   function random_orthogonal(k, seed) result(U)
     !---------------------------------------------------------------------------

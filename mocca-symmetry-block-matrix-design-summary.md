@@ -374,8 +374,6 @@ type :: sym_block
   integer :: srow, scol      ! sector indices 0..7 (bookkeeping for construction)
   integer :: is, js          ! 1-based global start of the row/column sectors
   real(8), allocatable :: A(:, :)   ! (m, n), contiguous, LDA = m
-  logical :: transposed     ! .true. if this block is reached as +/- transpose
-                            ! of a stored partner (Hermitian pairing)
 end type
 
 integer, parameter :: HERMITIAN           =  1   ! physical class under O†
@@ -405,13 +403,16 @@ type :: sym_matrix
   integer :: st(0:8)         ! first 1-based global index of each sector,
                              ! st(8) = n+1 (section 3a, scheme 2)
 contains
-  procedure :: init, sector_of, fill_blocks, fill_elements, dense, print_dense
+  procedure :: init, sector_of, fill_blocks, dense, print_dense
 end type
 ```
 
-(`add_element`, shown in earlier drafts of this snippet, was dropped: the
-element-wise path is the `element_filler` callback through fill_elements, see
-section 5. KIND_GENERAL existed in earlier drafts and was dropped with the
+(`add_element`, shown in earlier drafts of this snippet, was dropped, and
+with it (2026-11-20, DECISIONS.md D-6) the whole element-wise path: the
+call audit found no caller of `fill_elements`/`element_filler` or the
+`new_sym_matrix` sugar outside the block-matrix unit net, and every real
+producer populates whole blocks. partner access is `dense()`'s kind
+algebra alone. KIND_GENERAL existed in earlier drafts and was dropped with the
 classifiability agreement of section 2a: the kind is derived from the two
 mandatory physical classes and can never be zero.)
 
@@ -481,7 +482,8 @@ Properties after init:
 
 - At most 8 blocks; exactly one stored block per surviving sector pair.
 - Blocks come in sector pairs and only one per pair is stored; the partner
-  access flips `transposed` and applies the derived sign.
+  is reconstructed at access time by the derived sign and transposition
+  (dense()).
 - For a totally symmetric operator (`symmetry = 0`), all blocks are diagonal
   in sector space (square, internally symmetric/antisymmetric).
 - A purely real operator can simply leave the imaginary part absent (see
@@ -537,24 +539,15 @@ Guarantees and rules:
   for matrix elements enter).
 - `params` carries state (fields, densities, coupling constants). Keep the
   signature fixed; extend `params`, not the interface.
-- Element-wise fallback, confirmed form (2026-11-17): the per-element
-  callback `element_filler(srow, scol, i, j, params)` returns `A_ij` at the
-  LOCAL row/column indices (i, j) of the block; fill_elements queries it
-  for every element of every stored block and OVERWRITES the storage. It
-  costs one call per element, so it stays useful for tests and prototypes
-  only. An `add_element` addressing global (i, j) was considered and
-  dropped: routing non-stored partner elements would either double-count
-  (caller adds both sides) or offload partner logic to callers, and partner
-  consistency is anyway resolved at access time, never by writing.
-
-Constructor sugar: `new_sym_matrix(HFblocks, symmetry, kind, fill, params)`
-builds and fills in one statement (implemented 2026-11-17). A named
-function, not a generic `sym_matrix(...)`: in Fortran a name cannot serve
-as both a derived-type name and a function name. Equivalent to init
-followed by fill_blocks with the same arguments. The sugar carries the
-mandatory physical classes and the optional mask:
-`new_sym_matrix(HFblocks, symmetry, herm, sty, fill, params[, goodqn])`,
-exactly like `init`.
+- Amendment (2026-11-20, DECISIONS.md D-6): the per-element fallback
+  (`element_filler` through `fill_elements`) and the `new_sym_matrix`
+  constructor sugar are DROPPED - the call audit found no caller outside
+  the block-matrix unit net; every producer fills whole blocks through
+  `block_filler`, so population is the single path above. `add_element`,
+  addressing global (i, j), had already been considered and rejected:
+  routing non-stored partner elements would either double-count or
+  offload partner logic to callers, and partner consistency is anyway
+  resolved at access time, never by writing.
 
 ## 6. Runtime operations
 
@@ -596,7 +589,10 @@ What remains of the runtime surface:
 - traces and elementwise contractions stay at the call sites, as today.
 
 The transposed-partner access machinery that mat-vec would have needed
-is not built; nothing else requires it.
+is not built; nothing else requires it. The `sym_block%transposed`
+component drafted for it was removed with the element-wise path
+(2026-11-20, DECISIONS.md D-6) - it was never set and every reader
+ignored it; `dense()` reconstructs partners through the kind relation.
 
 ### 6a. Basis rotations (agreed 2026-11-19)
 
@@ -726,8 +722,6 @@ whole-matrix `transform_mat` call sites once their callers migrate.
 - Each block is a separate contiguous rank-2 array: good locality, natural
   LDA, no stride games.
 - Parallelize fill over the (at most 8) blocks.
-- The element-wise path (`fill_elements`) is for correctness and tooling;
-  hot paths should fill whole blocks via the callback.
 - At the intended scale (total n around 1000, blocks around 100-500 per
   side) per-block dense storage is the right tradeoff. Triangle packing
   inside blocks is deliberately not done.
@@ -738,7 +732,7 @@ whole-matrix `transform_mat` call sites once their callers migrate.
   matches the XOR pairing of sectors surviving in `HFblocks`.
 - Symmetry checks: for KIND_SYMMETRIC/ANTISYMMETRIC, verify stored blocks
   obey `A(s',s) = kind * A(s,s')^T` (unit-level check; the runtime
-  transposed access path is not built, section 6).
+  partner access path is not built, section 6).
 - Mat-vec/mat-mat checks are dropped with the operations (section 6).
 - Basis rotations (section 6a): identity is an exact no-op; the round trip
   (rotate by R, then by the sector-wise transposed rotation) recovers the
@@ -1308,7 +1302,8 @@ caller-less.
   block_matrix_module free of `$`-markers; takes the angmom kernels
   from wavefunctions; generators built as
   `new_sym_matrix`-style constructors
-  (`init(HFBlocks_global, word, herm, sty, goodqn)` per the 14.1 table)
+  (`init(HFBlocks_global, word, herm, sty, goodqn)` per the 14.1 table;
+  the sugar itself has since been dropped, section 5)
   with block_filler callbacks looping the kernels over the stored
   pairs of each block (the kernels are per-pair pure functions; no
   dgemm restructure is attempted - performance equals the legacy
