@@ -39,6 +39,7 @@ NEXT UP pointer - never appended to as a diary.
 | 17 | D-7 row 2 (design §15.9): interface collapse - the get_J_block accessor in the get_nabla_block shape (F-12 fix: effective-word gate in both accessors), Jt_spme_matrix deleted, NablaT_spme_matrix private behind Nabla_half_fm, arms build their own folded twins and assert the accessor packaging + the production lane | LANDED | 67a0d31d | arms green NLO/NLO-T/NLO-P with moments net + cross-build 0 (fold agreement 0.0 on NLO and NLO-P, tau both-ways 4.4e-16/1.1e-16, halffm lane 0.0); NLO-TP mf compile; NLO mf+fam compile 0 errors; golden minimal NLO 4849/4849 identical; block unit net 50260/0 |
 | 18 | D-7 row 3 (design 15.9): debug windows - get_J_complete/get_nabla_complete, the eager doubled-basis complete-matrix materialisation per family (bit-4-cleared init, honest kernels on materialised T-images); arms assert window/accessor agreement per block, the full_trace contract and the bit-4-clear degeneration; the gradient fullbox_nabla_me + check_fullbox discharges the 15.6 opposite-half adjudication | LANDED | 7179a85c | arms green NLO/NLO-T/NLO-P with moments net + cross-build 0 (window vs accessor 0.0-4.4e-16 with image-image blocks at FULL tau coverage, degeneration exact, trace contract holds; 15.6 verdict: residues, no kernel bug, numbers in design 15.6); NLO-TP mf compile; NLO mf+fam compile; golden minimal NLO 4849/4849 identical; block unit net 50260/0 |
 | 19 | NAME UNIFICATION (user-directed cleanup, not a design step): sym_matrix type + *_sym_matrix procedures -> block_matrix everywhere; docs/user-guide/sym-matrix.md -> block-matrix.md; zero remaining sym_matrix occurrences | LANDED | 963e6d3a | block unit net + refusal scenarios green; moments net + cross-build green NLO/NLO-T/NLO-P; NLO-TP + NLO fam compile; golden minimal NLO 4849/4849 PASS (0.17% tolerance) |
+| 20 | Consumer migration (design 14.4 row 3, D-8): calcJ2andBelyaev_HFB fills jx/jy/jz from the scenario-blind J_half_fm - honest trio in T-broken builds, honest J_z plus the folded pair in T-conserving ones, the choice on goodqn bit 4 inside the producer; j-matrix fill source marker-free, kernel arithmetic and contraction gates unchanged | LANDED | e3501416 | symmetries.sh SLy4 (four builds, cross-build consistency 0) with pre-migration worktree A/B: all four logs bit-identical in physical content, timers and 1e-15 commutator residues excepted; golden minimal NLO 4849/4849 identical; block unit net 50260/0; NLO fam + 4-config frozen mf compile |
 
 Test-infrastructure commits alongside: cd8d9b8e (moments_testing + unit_test
 flag to &mesh/), 7dcc6118 + 57217a28 (cross-build runscript + CI job),
@@ -47,9 +48,11 @@ spurious-mode scenario).
 
 ## NEXT UP
 
-1. calcJ2andBelyaev_HFB consumer migration (design 14.4 row 3) -
-   consumes the D-7 accessor and trace contract; feeds the
-   sym_rotation consumers of §6a.
+1. The sym_rotation consumers of §6a: the cantransfo legs of
+   calcJ2andBelyaev_HFB through sym_rotation (design 6a), with
+   fission.sh as the heavy gate at the end of the chain; also D-8
+   follow-ups (the folded flag of Nabla_half_fm and the remaining
+   `$TR`/`$NTR` contraction gates in the migrated routine are D-5-adjacent).
 2. Then the §13.5 deferred items (odd-m / Im-operator FAM fields end
    to end,
    Im-operator Ksum/calc_Q20 generalisation), or first dispose of the

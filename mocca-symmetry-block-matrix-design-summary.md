@@ -1441,13 +1441,22 @@ The gradient twin survives as the PRIVATE engine of Nabla_half_fm -
 the CompCOMCorrection production lane - asserted equal to the arm's
 own twin construction at 0.0 everywhere it runs.
 
+AMENDED 2026-11-20 (D-8, commit e3501416, the row-3 landing): the scenario-blind dense
+packaging J_half_fm(mu) joins the angmom family's public interface -
+honest word-1 generators while T is broken, the TR-folded composite
+per stored sector while T is conserved, J_z honest always, the choice
+read off goodqn bit 4 INSIDE the producer (the D-8 constraint: no
+Hephaestos marker, no folded flag, no scenario branching at the
+consumer). It is the J analogue of Nabla_half_fm minus the folded
+argument the gradient entry still carries.
+
 ### 14.4 Sequencing (one commit per row)
 
 | # | Commit | Contents | Regression net |
 |---|---|---|---|
 | 1 | ~~K_x fill fix~~ | CANCELLED by the 14.2 audit: the symmetric fill is correct (measured); no source change, no commit |
 | 2 | generators | LANDED 2026-11-19: angular_momentum.f90 (the five generators with the measured 14.1 classes), build wiring (MF_SRC/FAM_SRC, no_process_files), the unit arm `angular_momentum_testing.f90` (kernel-transpose oracle, partner checks, structural-zero and purity prints, legacy A/B check) armed from Run_MOCCa beside run_moments_tests | arm green on NLO / NLO-T / NLO-P on the frozen make.inc (2026-11-19; debug-profile NLO-P is unusable per the known pre-existing coulomb-folding OOB, AGENTS.md open item); golden minimal NLO 4849/4849 bit-identical (the arm runs only when unit_test is armed); block_matrix net untouched; mf+fam of NLO/NLO-T/NLO-P and mf of NLO-TP compile clean |
-| 3 | consumer migration | `calcJ2andBelyaev_HFB` builds its j-matrices from the generators (`$NTR`: honest trio; `$TR`: honest J_z plus the folded pair from `$TR`-marked call sites); the cantransfo rotations go through sym_rotation (section 6a) in a following row | fam unit net unaffected here; inertia smoke + minimal golden; fission.sh as the heavy gate at the end of the rotation chain |
+| 3 | consumer migration | LANDED 2026-11-20: `calcJ2andBelyaev_HFB` builds jx/jy/jz from the scenario-blind J_half_fm - honest trio while T is broken, honest J_z plus the folded pair while T is conserved, chosen by goodqn bit 4 inside the producer (D-8: the fill source is marker-free; the contraction `$TR`/`$NTR` weight gates and the cantransfo path remain, the latter for the §6a row; the serial semantics and the dropped j-matrix MPI reductions follow the generator model, design 12) | fam NLO compile; inertia smoke symmetries.sh SLy4 (four builds, cross-build consistency 0 deviations) with a pre-migration worktree A/B: all four logs bit-identical in physical content (fold, masked-fold and honest paths) - timers and 1e-15 commutator residues only; golden minimal NLO 4849/4849 identical; block unit net 50260/0. fission.sh stays the heavy gate at the end of the rotation chain |
 
 Consumers further downstream (Bogoliubov J20/J11 images, qp machinery)
 belong to the qp-bookkeeping discussion deferred from section 6a and
