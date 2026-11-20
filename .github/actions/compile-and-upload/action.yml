@@ -65,9 +65,9 @@ runs:
       run: |
         cp make_include/make.inc.${{ inputs.compfam }}-${{ env.PARALLEL_SUFFIX }}${{ inputs.hdf5suffix }} make.inc
         if [ "${{ inputs.target }}" = "mf" ]; then
-          make mf CONFIG=${{ inputs.config }} EXENAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
+          make -j4 mf CONFIG=${{ inputs.config }} EXENAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
         else
-          make fam CONFIG=${{ inputs.config }} FAMNAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
+          make -j4 fam CONFIG=${{ inputs.config }} FAMNAME=${{ env.EXENAME }} CALCTYPE=${{ inputs.calctype }}
         fi
       shell: bash
       env:
