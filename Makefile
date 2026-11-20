@@ -349,6 +349,35 @@ $(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Module (.mod) dependencies, regenerated whenever the generated sources
+# change. The generated tables add every object's module-file prerequisites
+# to the rules above, which is what makes parallel builds (-j) safe and
+# recompiles consumers automatically after a module interface change.
+# On a make invocation that needs a table that does not exist (yet), make
+# first regenerates it and then restarts itself with the completed
+# dependency graph (the standard gcc -MMD auto-dependency idiom).
+MF_DEP  := build/$(CONFIG)/moddeps_mf.mk
+FAM_DEP := build/$(CONFIG)/moddeps_fam.mk
+
+$(MF_DEP): $(MF_SRC_ALL)
+	@mkdir -p $(MF_SRC_DIR)
+	python3 scripts/gen_moddeps.py --src-dir $(MF_SRC_DIR) --obj-dir $(MF_OBJ_DIR) --mod-dir $(MF_MOD_DIR) --out $@
+
+$(FAM_DEP): $(FAM_SRC_ALL)
+	@mkdir -p $(FAM_SRC_DIR)
+	python3 scripts/gen_moddeps.py --src-dir $(FAM_SRC_DIR) --obj-dir $(FAM_OBJ_DIR) --mod-dir $(FAM_MOD_DIR) --out $@
+
+# Only include (and thus regenerate) the tables that today's invocation
+# actually needs: mf-only runs should not regenerate the FAM tree, and a
+# clean should not trigger any generation at all.
+ifeq (,$(filter clean,$(MAKECMDGOALS)))
+  ifneq (,$(filter fam%,$(MAKECMDGOALS)))
+    include $(FAM_DEP)
+  endif
+  include $(MF_DEP)
+endif
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Generation of source code 
 # A dry-run of Hephaestos to print STDOUT
 heph_dry_run_mf:
@@ -361,9 +390,9 @@ heph_dry_run_fam:
 #  b) the original source code file changes, or	
 #  c) the configuration file changes, or 
 #  d) Hephaestos changes
-$(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+$(MF_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE) | $(MF_SRC_DIR)/
 	python3 Hephaestos.py $(CONFIG) mf $(DENSUM) $(MF_SRC_DIR) $< || exit 1
-$(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE)
+$(FAM_SRC_DIR)/%.f90 : src_orig/%.f90 $(CONFIG_FILE) $(HEPH_SRC) $(FUNC_FILE) | $(FAM_SRC_DIR)/
 	python3 Hephaestos.py $(CONFIG) fam $(DENSUM) $(FAM_SRC_DIR) $< || exit 1
 
 setversioninfo_mf:
@@ -414,5 +443,6 @@ clean:
 	rm  -f build/*/*/*.o
 	rm  -f build/*/*/*.mod
 	rm  -f build/*/*/*.f90
+	rm  -f build/*/*.mk
 ################################################################################
 
