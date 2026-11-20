@@ -449,6 +449,7 @@ cp_nil:
 clean:
 	rm  -f build/*/*/*.o
 	rm  -f build/*/*/*.mod
+	rm  -f build/*/*/*.smod
 	rm  -f build/*/*/*.f90
 	rm  -f build/*/*.mk
 ################################################################################
