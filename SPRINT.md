@@ -43,9 +43,19 @@ spurious-mode scenario).
 
 ## NEXT UP
 
-1. calcJ2andBelyaev_HFB consumer migration (design §14.4 row 3) - feeds the
+1. D-7 step, one commit per row (design §15.9; DECISIONS.md D-7):
+   (1) type layer - `$GOODQN` bit 4 in Hephaestos, tau/folded components
+   + TAU constants + mandatory tau in init, all producer call sites
+   updated, honest-trace contract; (2) interface collapse -
+   angular-momentum accessor, folded twins demoted behind the
+   accessors; (3) debug windows - per-family complete-matrix window,
+   trace-contract/full-box arm assertions, the gradient window
+   discharging the parked 15.6 adjudication.
+2. calcJ2andBelyaev_HFB consumer migration (design §14.4 row 3) -
+   consumes the D-7 accessor and trace contract; feeds the
    sym_rotation consumers of §6a.
-2. Then the §13.5 deferred items (odd-m / Im-operator FAM fields end to end,
+3. Then the §13.5 deferred items (odd-m / Im-operator FAM fields end
+   to end,
    Im-operator Ksum/calc_Q20 generalisation), or first dispose of the
    remaining Qlm_spme reference (DECISIONS.md D-2).
 

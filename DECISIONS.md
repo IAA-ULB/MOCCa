@@ -26,6 +26,56 @@ Constraint whichever way: the kernel-transpose oracle (and for derivatives
 the mirror-kind oracle) stays the arbiter of every kind sign - never re-derive,
 re-measure.
 
+### D-7 Time-reversal representation of operator matrices — DECIDED (2026-11-20)
+
+Current state is producer-side and per-family: each generator module hands
+out five informative objects (honest trio + the section-2d folded pair;
+the sixth, nabla_z.T, is the structurally-zero corollary), with class tags
+(word, herm, sty, kind, tau) hardcoded as init constants and pinned by
+oracle assertions. tau, honest-vs-folded identity and the `$TR`/`$NTR`
+branch selection live outside the type, so a consumer holding a sym_matrix
+cannot decide e.g. whether its trace equals the numerical trace x 2,
+mirrors its partner, or vanishes by symmetry - the D-5 factor-2/fac-4
+questions are the same deficit at the contraction level.
+
+Proposal (Wouter): revert to storing the composites <a|O T|b> as the
+T-conserving representation - less lean, more transparent to human users.
+
+Options that were on the table: A type-level metadata + central
+contracts; B folded twins as uniform first-class objects; C eager
+full-basis matrices (the rejected prior section-15.8 wording).
+
+Resolution (2026-11-20): shape A, with C as a debug/verification window
+only. NOT a new storage representation - B is rejected, the five-object
+convention and lean half-storage stand. sym_matrix gains two
+producer-supplied descriptive TR components (`tau`, `folded`) and
+centrally implemented, oracle-audited contracts, including the honest
+operator's doubled-basis trace Tr_full = Tr_stored + tau*conj(Tr_stored)
+(section 15.8 mechanism 1); the complete doubled-basis matrix becomes a
+per-family one-call debug window (the check_fullbox of 14.2b
+generalised), for the gradient family discharging the deferred 15.6
+opposite-half adjudication. The fold/mirror contraction contracts stay
+D-5-gated. D-1 stays a separate labelling decision, resolved on its
+own. Design amendments of this date: sections 2d, 3, 15.8.
+Implementation is a new sprint step; the consuming migration
+(calcJ2andBelyaev_HFB, section 14.4 row 3) follows it.
+
+Addendum (2026-11-20, second round): (i) the per-family public
+interface collapses to three honest generators plus one accessor -
+the five-object interface was a landing-order artifact (the twins
+predate the 15.8 implicit contract), the twin entry points demote
+behind the accessor serving fold content packaged as the named twins
+(sections 14.3/15.8 amendments of this date); the angular-momentum
+accessor is the preamble to the row-3 migration. (ii) T-broken
+handling: goodqn grows bit 4, "T good", iff the T generator is in
+SYMSTRING (section 2c amendment; the STy classes stay valid in every
+build since NLO-T conserves STy). Bit 4 set: the doubling layer is
+defined; bit 4 clear: the accessor, debug window and trace contract
+degenerate to stored-basis semantics and the physical trace is the
+numerical trace. Runtime block counts are an unsound proxy for the
+T scenario (a transient NLO-T basis holds only q(Rz) = +i seeds) -
+the injected bit is the one honest source for marker-free code.
+
 ### D-2 Qlm_spme deletion gate — OPEN (design §13.2)
 
 Purely a decision now. The routine's only remaining reference is the

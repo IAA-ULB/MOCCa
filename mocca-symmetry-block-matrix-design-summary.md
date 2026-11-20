@@ -274,6 +274,30 @@ gate; it is the consumer's completeness criterion for the characteristic
 of section 2a, and every SYMSTRING in the tree today declares
 STy, so it is set in all existing configs.
 
+AMENDED 2026-11-20 (DECISIONS.md D-7, second round): the mask grows a
+fifth bit - bit 4 (16), "T good", set iff the build's symmetry
+generators include time reversal itself (the SYMSTRING token 'T'),
+computed by the same generator identity check as bit 3: NLO-style
+builds set it, NLO-T-style clear it. Like bit 3 it never masks the
+pairing; it is the SCENARIO BIT of the section-15.8 T-doubling layer.
+Bit 4 set: the stored basis is the +i half of a T-symmetric set, the
+complete doubled-basis matrix, the fold packaging and the
+doubled-basis trace contract are defined. Bit 4 clear: the doubling
+layer degenerates - the basis is the whole physical basis, word-1
+operators store both signatures explicitly, the physical trace is the
+plain numerical trace - while the section-2a classes stay meaningful
+in every build (STy is conserved even in NLO-T, 'Rz,P,STy'). Marker-free
+code (the 15.8 contracts, the unit arms) thus reads from the object
+what the `$TR`/`$NTR` marker tells marked call sites. The bit is a
+config fact, not a runtime observation, and is safe against both error
+directions: a T-conserving build can never populate the -i blocks
+(2, 4, 6, 8), and a T-broken basis transiently holding only
+q(Rz) = +i Nilsson seeds - exactly the case a block-count heuristic
+would misreport as T-conserved - carries the bit legitimately clear.
+The unit-test default mask stays 15 (doubling off unless a caller
+passes it); production call sites already hand the injected `$GOODQN`
+verbatim.
+
 ### 2d. TR-folded composites (agreed 2026-11-19, design stage)
 
 In a build that stores only the q(Rz) = +i sectors - every
@@ -362,6 +386,22 @@ gradient generators of section 15 (\nabla_x.T, \nabla_y.T). Multipoles
 are deliberately NOT folded: section 13.5 remains the gate for their
 odd-m / imaginary-operator content end to end.
 
+AMENDED 2026-11-20 (DECISIONS.md D-7): the placement rule above is
+relaxed, deliberately, at the METADATA level only - the type DOES
+change, by two producer-supplied descriptive components (section 3):
+`tau`, the operator's time parity, and `folded`, the honest-vs-composite
+identity. What the rule protected stays protected: no TimeReverse kernels
+or fold documentation in the type, no fill logic reads either component
+inside block_matrix_module, the `$TR` call-site gate stays with the
+callers, and every sign remains an oracle-arbitrated assertion. The
+point of the metadata is the opposite of machinery: the TR role of an
+object becomes readable FROM the object (today it survives only in the
+generator entry-point names and, for the sty-odd composites, in the D-1
+`herm` overload - which stays a separate labelling decision), and the
+deductions consumers used to re-argue per family (trace over the
+doubled basis, mirror factors, structural zeros) become centrally
+implemented contracts (section 15.8), asserted once by the unit arms.
+
 ## 3. Type definitions
 
 Per-block storage is a rank-2 allocatable, not an offset into one flat buffer.
@@ -386,8 +426,11 @@ integer, parameter :: KIND_ANTISYMMETRIC = -1   ! A(s',s) = - A(s,s')^T
 type :: sym_matrix
   integer :: symmetry       ! operator symmetry word, 0..7 (physical, §2b)
   integer :: goodqn         ! good-quantum-number mask of the basis (§2c);
-                            ! 0..15, bits 0-2 = sector gradings, bit 3 = STy
-                            ! good (§2a); 15 = every quantum number good
+                            ! 0..31, bits 0-2 = sector gradings, bit 3 = STy
+                            ! good (§2a), bit 4 = T good (§2c, D-7 of
+                            ! 2026-11-20 - the 15.8 doubling-layer scenario);
+                            ! 15 = every grading/characteristic good,
+                            ! doubling layer off (the standalone default)
   integer :: kind            ! storage kind DERIVED in init as kind =
                             ! herm * sty (§2a): KIND_SYMMETRIC or
                             ! KIND_ANTISYMMETRIC, never zero
@@ -397,6 +440,15 @@ type :: sym_matrix
                             ! part of the complex matrix elements the stored
                             ! real numbers are (real part / imaginary part).
                             ! herm is recoverable as kind * sty
+  integer :: tau            ! operator time parity: T O T^-1 = tau*O
+                            ! (physical; composites inherit per 15.8).
+                            ! D-7 metadata (2026-11-20): producer-supplied,
+                            ! per-family asserted and oracle-arbitrated;
+                            ! descriptive - no fill logic reads it here
+  logical :: folded         ! .true. = the TR-folded composite <a|O T|b>
+                            ! (2d), not the honest operator. D-7 metadata
+                            ! (2026-11-20): descriptive identity only,
+                            ! stored verbatim, like goodqn's bit 3
   integer :: n               ! total basis size, sum(HFblocks)
   integer :: nblocks         ! number of stored blocks, <= 8
   type(sym_block) :: blocks(8)
@@ -415,6 +467,19 @@ producer populates whole blocks. partner access is `dense()`'s kind
 algebra alone. KIND_GENERAL existed in earlier drafts and was dropped with the
 classifiability agreement of section 2a: the kind is derived from the two
 mandatory physical classes and can never be zero.)
+
+AMENDED 2026-11-20 (D-7): the two metadata components above join the
+verbatim inputs. `tau` (named constants TAU_EVEN / TAU_ODD = +1 / -1, the
+2a HERMITIAN/STY_EVEN pattern): every operator the type handles has
+definite time parity - composites inherit the parent's,
+T(OT)T^-1 = tau(O)(OT) (15.8) - so it is a MANDATORY init input mirroring
+the 2a class inputs, and every producer call site (both generator
+families, the test arms) passes it at migration. `folded`: a plain
+logical, honest = .false., composites = .true.; it names the section-2d
+identity explicitly so the D-1 herm overload stops being the only trace
+of foldedness - the D-1 labelling decision itself stays separate.
+Neither component derives anything in init: both are stored verbatim,
+like goodqn's bit 3, and both are inputs of the 15.8 contracts.
 
 The (anti-)Hermitian operator relates partner blocks of the stored real
 numbers by `A(s',s) = kind * A(s,s')^T` with `kind = ±1`. A block
@@ -458,8 +523,10 @@ subroutine init(this, HFBlocks, symmetry, herm, sty, goodqn)
   !                STY_EVEN (stored numbers = real part of the matrix
   !                elements) or STY_ODD (= imaginary part).
   ! goodqn:        optional good-quantum-number mask of the basis
-  !                (section 2c); 0..15, bits 0-2 = sector gradings,
-  !                bit 3 = STy good (section 2a), default 15; stored
+  !                (section 2c); 0..31, bits 0-2 = sector gradings,
+  !                bit 3 = STy good (section 2a), bit 4 = T good
+  !                (section 2c amendment, 2026-11-20 - arms the 15.8
+  !                doubling layer), default 15; stored
   !                verbatim - bits 0-2 enter the pairing word, bit 3 is
   !                the consumers' completeness criterion for sty.
   ! 0. kind = herm * sty  <- the derived storage kind; stored in
@@ -1339,6 +1406,21 @@ caller-less.
      an angular_momentum_testing module), armed by the `unit_test` flag
      of &mesh/ per the §13 test infrastructure.
 
+AMENDED 2026-11-20 (D-7, second round): the FAMILY INTERFACE COLLAPSES
+to the section-15.8 shape - three public generators (honest J_x, J_y,
+J_z) plus one accessor of the get_nabla_block shape serving any block
+of the complete doubled-basis matrix; the folded pair demotes behind
+it. The twins were eager sibling entry points of the pre-15.8 landing
+(row 2 predates the implicit contract); under the 15.8 packaging note
+they are materialisations the accessor serves anyway, so Jt_spme_matrix
+retires as a public entry once its callers and the arm migrate.
+Requests reach consumers packaged as the named twins - legacy loop
+shapes and A/B gates unchanged. The angular-momentum accessor is the
+preamble to the row-3 consumer migration, so calcJ2andBelyaev_HFB's
+`$TR` branch consumes fold content through the same route
+CompCOMCorrection does; the gradient family is already there
+(get_nabla_block) and only the demotion remains.
+
 ### 14.4 Sequencing (one commit per row)
 
 | # | Commit | Contents | Regression net |
@@ -1718,7 +1800,12 @@ by their stored partners (the stored-k <-> image-k correspondence) -
 so that the `$TR` consumer code keeps the shape of the legacy loops.
 The five generators of 15.2 are then the EAGER materialisation of
 what the accessor yields lazily (identical numbers, the legacy A/B
-unchanged), and implementors may keep them behind it. Consumers under
+unchanged), and implementors may keep them behind it.
+AMENDED 2026-11-20 (D-7, second round): the "may keep them behind it"
+is decided - the twins stay BEHIND the accessor, not beside it as
+public entry points: three honest generators plus one accessor per
+family is the public interface (the 14.3 amendment of this date), the
+fold requests served packaged as the named twins. Consumers under
 the implicit design:
 
 - zmomentum: stored-stored blocks of `\nabla_z` only - as today;
@@ -1748,3 +1835,83 @@ ones. The tau table makes those factors verifiable by the unit arm
 instead of maintained as magic numbers; whether they are pure
 T-pair mirroring or also carry the fermionic-T pairing phase is an
 open empirical question for the migration's A/B.
+
+AMENDED 2026-11-20 (D-7 resolution): the retrieval contract gains its
+human-facing layer - two additions, both built on the section-3
+metadata components (which supersede mechanism 1's "no sym_matrix
+component" policy above), neither changing a stored number:
+
+1. Central doubled-basis contracts, implemented once instead of
+   re-argued per family. First and immediate: the honest operator's
+   trace over the T-doubled basis,
+
+       Tr_full(O) = Tr_stored + tau * conj(Tr_stored) ,
+
+   with the complex diagonal trace reconstructed from the stored half
+   per sty - 2 Re, 2 i Im, or 0 by (tau, sty). The D-7 motivating
+   statement ("is the physical trace twice the numerical one, or does
+   it vanish by symmetry") becomes a one-call answer off the object;
+   that it coincides with the honest full trace follows from
+   mechanism 1b, and the arms assert it against the window below - a
+   test assertion, never a re-derivation, per the standing rule.
+   Validity gate follows the standing placement policy: the caller's
+   `$TR` certainty (the stored basis IS the time-reversal half;
+   goodqn bit 3 alone does not say the partner sectors are empty,
+   the 2c mask-not-recoverable caveat). AMENDED later 2026-11-20
+   (D-7, second round): the gate is now readable from the object
+   itself - goodqn bit 4, the 2c amendment of this date; the `$TR`
+   marker policy keeps governing production call sites, but the
+   contracts and the unit arms read the scenario off the object and
+   assert the doubling layer only in bit-4-set builds. The contract covers honest
+   objects only (folded = .false.); composite-diagonal statements
+   belong to mechanism-1 territory and stay D-5-GATED: the
+   fold/mirror contraction contracts for double sums are NOT
+   specified here and not before their mechanism is adjudicated.
+2. The complete doubled-basis matrix as a one-call DEBUG WINDOW per
+   family: every block of stored x stored, stored x image and
+   image x image materialised EAGERLY (mechanisms 1-3 applied, the
+   section-2d collapse visible as actual zeros), for human
+   inspection and as the arms' full-box oracle - the angmom
+   check_fullbox of 14.2b generalised from the opposite-half purity
+   prints to the whole doubled basis; for the gradient family it IS
+   the deferred 15.6 opposite-half adjudication, built rather than
+   parked. Production consumers keep the lean accessor and its lazy
+   packaging; the window never gates production, degenerates to the
+   stored blocks in `$NTR` builds (the accessor's own degeneration),
+   and stays `$TR`-gated, the standing marker policy.
+
+The window is the arbiter of the trace contract and of every future
+fold/mirror statement: the arms assert the central contracts against
+the eagerly materialised truth; nothing in this layer is ever
+re-derived by hand.
+
+## 15.9 The D-7 implementation, sequenced (agreed 2026-11-20)
+
+The sections above settle WHAT the doubled-basis layer is; the rows
+below land it. No production consumer moves in these rows:
+CompCOMCorrection keeps Nabla_half_fm, and calcJ2andBelyaev_HFB
+(section 14.4 row 3) migrates only afterwards, consuming the accessor
+and the trace contract. Gates follow the sprint's operational
+workflow (block-matrix unit net, per-build unit arms, frozen `-O3`
+compile, golden minimal).
+
+| # | Commit | Contents | Gates |
+|---|---|---|---|
+| 1 | type layer | Hephaestos: `$GOODQN` bit 4 (preprocess.py, the symdic['T'] identity check, the bit-3 recipe). block_matrix_module: tau/folded components, TAU_EVEN/TAU_ODD constants, tau a mandatory init input (folded optional, default .false.); all in-repo init call sites pass it - multipoles T-even, the angmom honest trio T-odd, the gradient honest trio T-even, composites inherit. The honest-trace contract (doubled-basis trace from the stored half, goodqn bit 4 gated) as a public entry beside dense/print_dense | block-matrix unit net, contracts asserted on synthetic matrices; 4-config frozen mf compile; NLO golden minimal identical |
+| 2 | interface collapse | the angular-momentum accessor in the get_nabla_block shape (14.3 amendment: any J-block of the complete matrix, fold content packaged as the named twin); Jt_spme_matrix and NablaT_spme_matrix demoted behind their accessors; arms assert accessor-packaged twins identical to the retired eager objects | unit arms green in every build; mf+fam compile; golden minimal identical |
+| 3 | debug windows | the per-family complete-matrix window (eager doubled-basis materialisation, bit-4 gated, `$TR`-armed callers); arms assert the trace contract and every window block against the kernels - the angmom check_fullbox (14.2b) generalised to the doubled basis, and for the gradient family the window IS the parked 15.6 opposite-half adjudication (verdict and numbers recorded in 15.6 at landing) | arms green incl. NLO-TP compile; window-vs-kernel agreement at the oracle level; golden minimal identical |
+
+Why the order:
+
+- Bit 4 lands first, before any contract: the contracts and the arms of
+  rows 1-3 read the scenario off the object; without the injected bit
+  they could only guess from block counts - the 2c caveat says they must
+  not. The standalone minimal init of block_matrix_module grows the
+  matching defaults (contracts off unless the object carries bit 4;
+  synthetic tests opt in explicitly).
+- Row 2 demotes but keeps the numbers: the accessor serves the exact
+  twin packaging, so the 14.4 row-3 consumer migration changes request
+  shape, not arithmetic.
+- D-1 and D-5 are untouched by these rows: the labelling overload stays
+  a separate naming decision; D-5 is adjudicated when a contract needs
+  the mirror mechanism, not before.
