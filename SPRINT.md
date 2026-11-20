@@ -32,6 +32,9 @@ NEXT UP pointer - never appended to as a diary.
 | 10 | Gradient generators (honest nabla trio + folded twins, get_nabla_block, tau contract) + arm (§15.5 row 1) | LANDED | de496fd0 | arm green NLO/NLO-T (debug, legacy agreement 2-5e-15), NLO-P (frozen -O3); NLO-TP compile |
 | 11 | CompCOMCorrection fed from linear_momentum generators (§15.5 row 2) | LANDED | 0a36d261 | row-0 scenarios vs parked pre-migration binaries: energies bit-identical ($TR), log body bit-identical ($NTR cranked Mg24); golden minimal identical |
 | 12 | verify_COM_motion migrated to Nabla_half_fm (§15.5 row 3) | LANDED | b68ba67b | source-level; NLO/NLO-T mf compiles |
+| 13 | D-6 dead-surface simplification: transposed flag / new_sym_matrix / fill_elements dropped, Nabla_basis_pointers inlined (design §3/§5/§6 amended) | LANDED | 2ccb5f4c, 7771f3be | block unit net 50254 checks green; 4-config frozen -O3 mf compile; golden minimal 4849/4849 identical |
+| 14 | COMMENT CLEANUP of the sprint's production modules (parked deferral discharged; the testing arms keep their verification-contract banners) | LANDED | f3fbe9f1, 38cb86f6, df48b5c4 | frozen -O3 NLO mf compile per module; block matrix unit net green |
+| 15 | sym_matrix developer reference: docs/user-guide/sym-matrix.md + nav | LANDED | b9483982 | none (documentation; mkdocs build blocked locally by missing pymdownx) |
 
 Test-infrastructure commits alongside: cd8d9b8e (moments_testing + unit_test
 flag to &mesh/), 7dcc6118 + 57217a28 (cross-build runscript + CI job),
@@ -47,18 +50,6 @@ spurious-mode scenario).
    remaining Qlm_spme reference (DECISIONS.md D-2).
 
 Deferred / parked (not lost - do not re-litigate):
-- COMMENT CLEANUP of the sprint's marker-free modules (raised 2026-11-19
-  after the AGENTS.md style rules landed): block_matrix_module.f90,
-  angular_momentum.f90, linear_momentum.f90 and their *_testing.f90
-  arms measure 28-54% comment lines - they inherited the verbose banner
-  scale the old AGENTS.md example taught. Slim them to the new economy
-  (banners only for signs, units, marker keys, quantum-number
-  encodings; no dates, commit hashes, design restatements). Scope:
-  these ~7 files ONLY - no mass rewrite of legacy sources (minimal
-  diff wins there). Pure-comment change, no numerics touched, so the
-  gate is a frozen-build compile per touched config plus the block
-  matrix unit net; do it in one dedicated commit per module, never
-  mixed with a physics change.
 - §15.6 derivative opposite-half adjudication: the linear-momentum family
   still needs its own full-box reconstruction oracle; the angmom arm's
   check_fullbox (step 9) is the ready template. Artifact reading favoured by
