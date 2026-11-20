@@ -45,20 +45,18 @@ module linear_momentum
   !       objects the hidden_TR branches of the legacy CompNablaMelements
   !       compute (design sections 2d and 15): T conserves parity and
   !       isospin and flips the z-signature, so the composites have word
-  !       IEOR(word, 1) = 2 and live within reach of the stored sectors.
-  !       The fold bakes in exactly as the legacy does: TimeReverse
-  !       applied to the transferred derivative of the ket. Their class
-  !       tags are pinned to the empirical arbiter, the mirror oracle
-  !       of the linear_momentum_testing module: it measured both
-  !       composites SYMMETRIC (2026-11-19), i.e.
-  !            \nabla_x.T : HERMITIAN x STY_EVEN  -> kind +1
+  !       IEOR(word, 1) = 2, within reach of the stored sectors. The fold
+  !       bakes in exactly as the legacy does: TimeReverse applied to
+  !       the transferred derivative of the ket. Their class tags are
+  !       pinned to the mirror oracle of the linear_momentum_testing
+  !       module, which measures both composites SYMMETRIC:
+  !            \nabla_x.T : HERMITIAN x STY_EVEN    -> kind +1
   !            \nabla_y.T : ANTIHERMITIAN x STY_ODD -> kind +1
-  !       the same per-component shape the J family landed with for
-  !       K_x/K_y. The legacy's in-loop mirror fill (a - sign in the
-  !       transposed position) contradicts the measured composite for
-  !       the folded x - the same latent wart the s14.2 analysis found
-  !       at momentsofinertia.f90 (its consumer invisibility is the
-  !       same: the COM correction contracts squares).
+  !       the per-component shape the J family landed with for K_x/K_y.
+  !       The legacy's in-loop mirror fill contradicts the measured
+  !       composite for the folded x - the angular-momentum 14.2b wart
+  !       in reverse, consumer-invisible because every consumer
+  !       contracts squares; the record lives in design 15.2.
   !
   ! The generators wrap the legacy per-pair arithmetic VERBATIM - one
   !  dv*sum per stored pair, the exact component contractions of
@@ -98,9 +96,9 @@ module linear_momentum
   !  *) MOCCa's time reversal is FERMIONIC: T**2 = -1 (design 14).
   !  *) tau, the gradient family's time parity (design 15.8): T is
   !     antilinear, so the i of p = -i(\nabla) is what makes the
-  !     momentum time-odd - \nabla itself is time-EVEN, tau = +1,
-  !     user-confirmed 2026-11-19. The composite \nabla_mu.T inherits
-  !     the parent's tau: T(\nabla_mu T)T^-1 = tau (\nabla_mu T).
+  !     momentum time-odd - \nabla itself is time-EVEN, tau = +1. The
+  !     composite \nabla_mu.T inherits the parent's tau:
+  !     T(\nabla_mu T)T^-1 = tau (\nabla_mu T).
   !==============================================================================
   use compilation,       only: dp
   use geninfo
@@ -116,9 +114,9 @@ module linear_momentum
   implicit none
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Time parity of the gradient family (design section 15.8, user-confirmed
-  !  2026-11-19): T (\nabla_mu) T^-1 = +(\nabla_mu). Compile-time constant of
-  !  the accessor - no runtime metadata, no sym_matrix component.
+  ! Time parity of the gradient family (design 15.8):
+  !  T (\nabla_mu) T^-1 = +(\nabla_mu). Compile-time constant of the
+  !  accessor - no runtime metadata, no sym_matrix component.
   integer, parameter :: TAU_NABLAFAM = +1
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -150,31 +148,22 @@ contains
   !----------------------------------------------------------------------------
   subroutine Nabla_spme_matrix(mu, spwf_basis, me)
     !---------------------------------------------------------------------------
-    ! Build the stored half of the single-particle matrix elements of the
-    !  honest gradient operator \nabla_mu, as one symmetry-block matrix:
-    !       mu = AX_X :  me = Re < i | \nabla_x | j >   - STY_EVEN
-    !       mu = AX_Y :  me = Im < i | \nabla_y | j >   - STY_ODD
-    !       mu = AX_Z :  me = Re < i | \nabla_z | j >   - STY_EVEN
-    !  All three operators are ANTIHERMITIAN (advected derivative), so init
-    !  derives the storage kinds as kind = ANTIHERMITIAN * sty = -1/-1/+1 -
-    !  exactly the partner-fill signs of the legacy CompNablaMelements.
-    !
-    !  The symmetry words are physical: \nabla_x/\nabla_y flip the z-signature
-    !  and are parity-odd (word 3), \nabla_z conserves the signature and is
-    !  parity-odd (word 2); isospin bits are clear. The good-quantum-number
-    !  mask of geninfo merges the words with the basis as everywhere in the
-    !  design - in particular the masked init reproduces every $PBROKEN
-    !  branch structure of the legacy routine without any marker here.
-    !
-    !  Symmetry-forbidden combinations are not an error here: they store zero
-    !  matrices through empty block lists (e.g. honest \nabla_x/\nabla_y in a
-    !  TR-conserving build) - guarding user input is the caller's business.
+    ! Stored half of the matrix elements of the honest gradient operator
+    !  \nabla_mu, as one sym_matrix: Re for x/z (STY_EVEN), Im for y
+    !  (STY_ODD); all three are ANTIHERMITIAN, so init derives the kinds
+    !  -1/-1/+1 - exactly the partner-fill signs of the legacy
+    !  CompNablaMelements. Words: 3 for x/y (z-signature flipping,
+    !  parity-odd), 2 for z (signature conserving, parity-odd); isoscalar.
+    !  The goodqn-masked init reproduces every $PBROKEN branch structure
+    !  of the legacy routine without any marker here. Symmetry-forbidden
+    !  objects are not an error: they store zero matrices through empty
+    !  block lists - guarding user input is the caller's business.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu        : component selector, AX_X / AX_Y / AX_Z
-    !   spwf_basis: 'HF' / 'CAN' / 'DEN' - the basis of the stored MEs
-    !               (character, case-insensitive)' the legacy default 'DEN'
-    !               is not assumed here; every caller states its basis.
+    !   spwf_basis: 'HF' / 'CAN' / 'DEN' - the basis of the stored MEs,
+    !               case-insensitive; the legacy default 'DEN' is not
+    !               assumed here, every caller states its basis.
     ! Output:
     !   me        : the stored half of the matrix elements (fm^-1)
     !---------------------------------------------------------------------------
@@ -187,22 +176,13 @@ contains
   !----------------------------------------------------------------------------
   subroutine NablaT_spme_matrix(mu, spwf_basis, me)
     !---------------------------------------------------------------------------
-    ! Build the stored half of the matrix elements of the TR-folded composite
-    !  \nabla_mu.T - the object the hidden_TR branches of the legacy
-    !  CompNablaMelements compute, the honest matrix elements with the
-    !  time-reversal images of the stored states as kets (design 2d):
-    !       mu = AX_X :  me = Re < i | \nabla_x T | j >
-    !       mu = AX_Y :  me = Im < i | \nabla_y T | j >
-    !  (there is no folded \nabla_z: \nabla_z conserves the z-signature, so
-    !  the honest operator serves both TR-conserving and TR-broken builds.)
-    !
-    !  Word IEOR(word, 1) = 2: the composite preserves the signature that the
-    !  honest operator flips, exactly the section 2d convention. Its class
-    !  tags follow the legacy partner fills and are pinned to the mirror
-    !  oracle of the linear_momentum_testing module - the arbiter the tags
-    !  have to agree with. Only $TR-marked consumers have a use for these
-    !  objects (the caller-gates-scenarios rule); the generator exists in
-    !  every build.
+    ! Stored half of the matrix elements of the TR-folded composite
+    !  \nabla_mu.T - the honest matrix elements with the time-reversal
+    !  images of the stored states as kets (design 2d): Re for x, Im for
+    !  y. Word IEOR(word, 1) = 2; there is no folded \nabla_z - the
+    !  honest operator serves both TR scenarios. Class tags follow the
+    !  mirror oracle (module header); only $TR-marked consumers have a
+    !  use for these objects, the generator exists in every build.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu        : component selector, AX_X / AX_Y
@@ -225,11 +205,9 @@ contains
   !----------------------------------------------------------------------------
   subroutine Nabla_build(mu, folded, spwf_basis, me)
     !---------------------------------------------------------------------------
-    ! Shared construction core of the two generators: resolve the physical
-    !  classes of the selected object, init the block list from the global
-    !  HFBlocks bookkeeping and fill every stored block through the
-    !  block_filler callback, which loops the legacy per-pair arithmetic
-    !  over the stored pairs.
+    ! Shared construction core of the two generators: resolve the word
+    !  and classes, init from the global HFBlocks and fill through the
+    !  block_filler callback, which loops the legacy per-pair arithmetic.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu        : component selector, AX_X / AX_Y (/ AX_Z if not folded)
@@ -252,34 +230,18 @@ contains
       call stp('Invalid component in the gradient generators.')
     endif
 
-    ! Physical classes per the 15.2 table, oracle-arbitered. The honest
-    !  operators are all ANTIHERMITIAN - the derived derivative - and the
-    !  STy class selects the stored half - real for \nabla_x/\nabla_z
-    !  (STY_EVEN), imaginary for \nabla_y (STY_ODD) - the legacy storage
-    !  conventions of CompNablaMelements, whose filled slots are exactly
-    !  (1,1), (2,2) and (3,1): the honest objects' derived kinds
-    !  (-1/-1/+1) match the legacy partner fills, verified by the mirror
-    !  oracle of linear_momentum_testing.
-    !
-    !  For the folded composites the initial class tags of this module
-    !  (drafted 2026-11-19 after the legacy partner fills, kind -1 for
-    !  the folded x) were CONTRADICTED by that same oracle at the first
-    !  run: it measures the composite SYMMETRIC in both components
-    !  (max |a_ij - a_ji| ~ 5e-15 against max |a_ij + a_ji| ~ 0.7) -
-    !  the step-3 precedent in reverse, the J family's 14.2b story for
-    !  this family: the legacy's in-loop mirror fill
-    !  (NablaMElements(...,wave2,wave) = -NablaMElements(...,wave,wave2))
-    !  is the sign-buggy transposition, invisible to every consumer
-    !  because they contract squares. The tags follow the oracle
-    !  (the design's arbiter of composite classes):
-    !       \nabla_x.T : HERMITIAN x STY_EVEN   -> kind +1 symmetric
+    ! Class selection per the 15.2 table, oracle-arbitered. The honest
+    !  kinds (-1/-1/+1) match the legacy partner fills (CompNablaMelements
+    !  slots (1,1), (2,2), (3,1)). The folded tags follow the mirror
+    !  oracle of linear_momentum_testing - the design's arbiter of
+    !  composite classes:
+    !       \nabla_x.T : HERMITIAN x STY_EVEN    -> kind +1 symmetric
     !       \nabla_y.T : ANTIHERMITIAN x STY_ODD -> kind +1 symmetric
-    !  the same per-component (herm,sty) shape the angular-momentum
-    !  family landed with for K_x and K_y. Whether the composite
-    !  adjoint algebra reproduces these tags is an open question of
-    !  exactly the kind the J family recorded for JxT/JyT (their
-    !  14.2b note): antilinear composites do not inherit the
-    !  linear-operator argument of design 2a.
+    !  the same per-component (herm, sty) shape the angular-momentum
+    !  family landed with for K_x and K_y; antilinear composites do not
+    !  inherit the linear-operator argument of design 2a (the JxT/JyT
+    !  14.2b note). The oracle contradiction of the first-drafted tags
+    !  is the record of design 15.2.
     word = 3
     if (mu .eq. AX_Z) word = 2
     if (folded) word = ieor(word, 1)
