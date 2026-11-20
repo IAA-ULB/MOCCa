@@ -296,7 +296,10 @@ q(Rz) = +i Nilsson seeds - exactly the case a block-count heuristic
 would misreport as T-conserved - carries the bit legitimately clear.
 The unit-test default mask stays 15 (doubling off unless a caller
 passes it); production call sites already hand the injected `$GOODQN`
-verbatim.
+verbatim. First generation under this rule (15.9 row 1, 2026-11-20):
+NLO 31, NLO-P 29, NLO-T 15, NLO-TP 13 - the T-broken pair carries the
+bit legitimately clear, the parity-broken build conserves T and sets
+it.
 
 ### 2d. TR-folded composites (agreed 2026-11-19, design stage)
 

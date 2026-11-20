@@ -35,6 +35,7 @@ NEXT UP pointer - never appended to as a diary.
 | 13 | D-6 dead-surface simplification: transposed flag / new_sym_matrix / fill_elements dropped, Nabla_basis_pointers inlined (design §3/§5/§6 amended) | LANDED | 2ccb5f4c, 7771f3be | block unit net 50254 checks green; 4-config frozen -O3 mf compile; golden minimal 4849/4849 identical |
 | 14 | COMMENT CLEANUP of the sprint's production modules (parked deferral discharged; the testing arms keep their verification-contract banners) | LANDED | f3fbe9f1, 38cb86f6, df48b5c4 | frozen -O3 NLO mf compile per module; block matrix unit net green |
 | 15 | sym_matrix developer reference: docs/user-guide/sym-matrix.md + nav | LANDED | b9483982 | none (documentation; mkdocs build blocked locally by missing pymdownx) |
+| 16 | D-7 row 1 (design §15.9): type layer - `$GOODQN` bit 4 in Hephaestos, tau/folded components + TAU_EVEN/TAU_ODD, mandatory tau at every init call site, the bit-4-gated honest-trace contract full_trace (+ the folded-composite refusal) | LANDED | ccf485d4 | block unit net 50260 checks 0 failures, refusal scenarios 1-9 all refused; 4-config frozen -O3 mf compile 0 errors, per-config masks as recorded in design §2c; golden minimal NLO 4849/4849 identical |
 
 Test-infrastructure commits alongside: cd8d9b8e (moments_testing + unit_test
 flag to &mesh/), 7dcc6118 + 57217a28 (cross-build runscript + CI job),
@@ -43,12 +44,11 @@ spurious-mode scenario).
 
 ## NEXT UP
 
-1. D-7 step, one commit per row (design §15.9; DECISIONS.md D-7):
-   (1) type layer - `$GOODQN` bit 4 in Hephaestos, tau/folded components
-   + TAU constants + mandatory tau in init, all producer call sites
-   updated, honest-trace contract; (2) interface collapse -
-   angular-momentum accessor, folded twins demoted behind the
-   accessors; (3) debug windows - per-family complete-matrix window,
+1. D-7 rows 2-3 (design §15.9; DECISIONS.md D-7): (2) interface
+   collapse - the angular-momentum accessor in the get_nabla_block
+   shape, Jt_spme_matrix and NablaT_spme_matrix demoted behind the
+   accessors, arms asserting the accessor packaging; (3) debug
+   windows - the per-family complete-matrix window,
    trace-contract/full-box arm assertions, the gradient window
    discharging the parked 15.6 adjudication.
 2. calcJ2andBelyaev_HFB consumer migration (design §14.4 row 3) -

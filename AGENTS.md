@@ -168,8 +168,9 @@ cd testing/integration && bash golden_diff.sh minimal NLO   # run + golden compa
   suffixes derive from the base).
   Also `testing/unit/block_matrix_unit_tests.sh`: the standalone unit
   suite of block_matrix_module itself (compiles the module on the fly,
-  no MOCCa executable needed) including the 8 refusal scenarios of the
-  rotation structure guards; its CI job `block_matrix_unit_tests` needs
+  no MOCCa executable needed) including the refusal scenarios of the
+  rotation structure guards (8) plus the full_trace folded-composite
+  refusal; its CI job `block_matrix_unit_tests` needs
   nothing but lint-and-format, so it gives the fastest feedback of the
   whole workflow.
 - Sprint unit arms (moments suite, the angular-momentum and
