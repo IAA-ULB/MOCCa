@@ -121,7 +121,7 @@ module angular_momentum
   public :: AX_X, AX_Y, AX_Z
   public :: TAU_ANGFAM
   public :: Jm_params
-  public :: Jmu_spme_matrix, get_J_block
+  public :: Jmu_spme_matrix, get_J_block, get_J_complete
 
 contains
 
@@ -525,5 +525,120 @@ contains
     enddo
     if (allocated(A)) deallocate (A)
   end subroutine Jm_copy_block
+  !----------------------------------------------------------------------------
+  subroutine get_J_complete(mu, me)
+    !---------------------------------------------------------------------------!
+    ! The one-call DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3): the
+    !  complete doubled-basis matrix of the honest J_mu materialised
+    !  EAGERLY as one sym_matrix - stored-x-stored, stored-x-image and
+    !  image-x-image blocks alike, every element computed by the honest
+    !  kernels on states materialised through TimeReverse of their stored
+    !  originals (spinor and gradient alike: T is spinor-pointwise and
+    !  commutes with the gradient). The unit arm is the exercised caller.
+    !
+    !  The window's basis is the DOUBLE of the stored one where goodqn
+    !  bit 4 is set (the stored basis is the q(Rz) = +i half of a
+    !  T-symmetric set): every empty sector counts its T-partner's
+    !  states (the stored-k <-> image-k correspondence), and the init
+    !  mask carries every good quantum number EXCEPT bit 4 - the
+    !  window's basis IS the whole physical basis, so its plain trace
+    !  and full_trace ARE one and the same, the adjudication the trace
+    !  contract of this row asserts. With bit 4 clear the accessor's own
+    !  degeneration applies: no image sectors exist, the stored basis is
+    !  already the whole physical basis, and the window degenerates to
+    !  the honest generator's object.
+    !
+    !  The window never gates production and stays $TR-gated at the
+    !  call site (the caller-gates-scenarios rule).
+    !---------------------------------------------------------------------------!
+    ! Input:
+    !   mu : component selector, AX_X / AX_Y / AX_Z
+    ! Output:
+    !   me : the complete matrix over the doubled (or, bit 4 clear,
+    !        stored) basis, honest kernels throughout
+    !---------------------------------------------------------------------------!
+    integer, intent(in)           :: mu
+    type(sym_matrix), intent(out) :: me
+
+    type(Jm_params) :: params
+    integer :: counts(8), s, word, sty_class
+
+    if (iand(goodqn, 16) .eq. 0) then
+      call Jm_build(mu, me)
+      return
+    endif
+
+    ! Doubling: +i entries copied to their -i partner slots (design
+    !  15.6 - pure XOR, no new type machinery).
+    counts(1:8) = HFBlocks_global(1:8)
+    do s = 1, 8
+      if (counts(s) .eq. 0) counts(s) = HFBlocks_global(ieor(s - 1, 1) + 1)
+    enddo
+
+    word = 1
+    if (mu .eq. AX_Z) word = 0
+    sty_class = STY_EVEN
+    if (mu .eq. AX_Y) sty_class = STY_ODD
+    call me%init(counts, word, HERMITIAN, sty_class, TAU_ANGFAM,             &
+    &            goodqn=iand(goodqn, 15))
+
+    if (me%nblocks .eq. 0) return
+    params%st = me%st
+    params%mu = mu
+    call me%fill_blocks(Jm_complete_fill, params)
+  end subroutine get_J_complete
+  !----------------------------------------------------------------------------
+  subroutine Jm_complete_fill(srow, scol, A, params)
+    !---------------------------------------------------------------------------!
+    ! block_filler callback of the debug window: one honest kernel
+    !  invocation per doubled-basis pair, stored states taken from HFPsi,
+    !  image states materialised as TimeReverse of their stored originals
+    !  (gradient reversed slice by slice, T commuting with the gradient).
+    !  Index routing is per (sector, in-sector rank) through the doubled-
+    !  basis bookkeeping, never through the window's own sector bounds.
+    !---------------------------------------------------------------------------!
+    ! Input:
+    !   srow, scol : sector words 0..7 of the doubled-basis block
+    !   params     : type(Jm_params): the window's own (doubled) bounds + mu
+    ! Output:
+    !   A          : the block storage, overwritten entirely
+    !---------------------------------------------------------------------------!
+    integer, intent(in)   :: srow, scol
+    real(KIND=dp), intent(out) :: A(:, :)
+    class(*), intent(in)  :: params
+
+    integer :: m, n, r, c, k, gi, gj
+    real(KIND=dp) :: psi_i(mv, 4)
+    real(KIND=dp) :: psi_j(mv, 4)
+    real(KIND=dp) :: derpsi_j(mv, 3, 4)
+
+    select type (params)
+    type is (Jm_params)
+      m = params%st(srow + 1) - params%st(srow)
+      n = params%st(scol + 1) - params%st(scol)
+      if (m .ne. size(A, 1) .or. n .ne. size(A, 2)) then
+        print *, 'Jm_complete_fill: params%st inconsistent with the block.'
+        call stp('Sector bounds inconsistent in Jm_complete_fill.')
+      endif
+
+      do c = 1, n
+        gj = Jm_image_index(scol, c)
+        psi_j = HFPsi(:, :, gj)
+        call Jm_derive(psi_j, gj, derpsi_j)
+        if (.not. Jm_sector_stored(scol)) then
+          psi_j = TimeReverse(psi_j)
+          do k = 1, 3
+            derpsi_j(:, k, :) = TimeReverse(derpsi_j(:, k, :))
+          enddo
+        endif
+        do r = 1, m
+          gi = Jm_image_index(srow, r)
+          psi_i = HFPsi(:, :, gi)
+          if (.not. Jm_sector_stored(srow)) psi_i = TimeReverse(psi_i)
+          A(r, c) = Jm_element(params%mu, psi_i, psi_j, derpsi_j)
+        enddo
+      enddo
+    end select
+  end subroutine Jm_complete_fill
 
 end module angular_momentum

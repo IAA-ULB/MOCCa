@@ -68,6 +68,13 @@ module angular_momentum_testing
   !       the chamber sum that no reduced-mesh evaluation can express).
   !       Green here adjudicates the O(1) opposite-half purity prints as
   !       the reduced-mesh residues of 14.2b, never the reverse.
+  !   (7) complete window, per component of the honest trio (design
+  !       15.8, D-7 15.9 row 3): the eager doubled-basis materialisation
+  !       of get_J_complete against the lean accessor on every block -
+  !       the image-image content at full tau coverage, not sampled -
+  !       plus the full_trace contract (its only nonzero-content member
+  !       is J_z); degeneration asserted block by block in bit-4-clear
+  !       builds.
   !
   ! Unlike run_moments_tests, this suite RETURNS on success (it runs
   !  first, so the moments tests still terminate the program afterwards);
@@ -92,6 +99,7 @@ module angular_momentum_testing
   use block_matrix_module, only: STY_EVEN, STY_ODD
   use angular_momentum,  only: AX_X, AX_Y, AX_Z
   use angular_momentum,  only: Jmu_spme_matrix, get_J_block
+  use angular_momentum,  only: get_J_complete
   use angular_momentum,  only: TAU_ANGFAM
 
   implicit none
@@ -156,6 +164,10 @@ contains
 
     call test_retrieval(ifail_obj)
     print 101, 'angmom retrieval contract (15.8)   ', ifail_obj
+    isum = max(isum, ifail_obj)
+
+    call test_window(ifail_obj)
+    print 101, 'angmom complete window (15.8)      ', ifail_obj
     isum = max(isum, ifail_obj)
 
     print *
@@ -1114,6 +1126,138 @@ contains
       &         ' max', dev
     endif
   end subroutine test_retrieval
+!===============================================================================
+  subroutine test_window(ifail)
+    !------------------------------------------------------------------------------
+    ! The complete-matrix DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3),
+    !  every component: the eager doubled-basis materialisation against
+    !  the lean accessor contract, plus the full_trace adjudication.
+    !
+    !  a. WINDOW = ACCESSOR: every window block against the block the
+    !     accessor serves for the same pair. Stored-stored and
+    !     stored-x-image blocks are the same kernels in both packagings
+    !     and must agree bit for bit; the image-image blocks of J_z pair
+    !     the window's honest kernels against the accessor's tau sign
+    !     flip - the row-2 both-ways check at full coverage, not
+    !     sampled.
+    !  b. TRACE CONTRACT: full_trace of the lean honest object (the tau
+    !     algebra of mechanism 1b, bit 4 set) against full_trace of the
+    !     window (the plain trace over the doubled basis - its basis IS
+    !     the whole physical basis, its goodqn carries no bit 4). Equal
+    !     complex numbers adjudicate the central D-7 contract - the
+    !     only component with nonzero content here is J_z, the
+    !     signature-conserving one.
+    !
+    !  In bit-4-clear builds the window degenerates to the honest
+    !  object; the degeneration is asserted block by block.
+    !------------------------------------------------------------------------------
+    integer, intent(out) :: ifail
+
+    integer :: mu, fw
+    ifail = 0
+    do mu = AX_X, AX_Z
+      call check_window(mu, fw)
+      ifail = max(ifail, fw)
+    enddo
+  end subroutine test_window
+!===============================================================================
+  subroutine check_window(mu, ifail)
+    !------------------------------------------------------------------------------
+    ! One component's complete-matrix window (design 15.8, 15.9 row 3):
+    !  build the lean honest object and the eager window, then judge
+    !  the window/accessor agreement of every block and the trace
+    !  contract - the two packagings of the complete doubled-basis
+    !  matrix must be one and the same operator.
+    !------------------------------------------------------------------------------
+    integer, intent(in)  :: mu
+    integer, intent(out) :: ifail
+
+    type(sym_matrix) :: M, W
+    real(KIND=dp), allocatable :: A(:, :)
+    complex(8) :: tM, tW
+    integer :: b, r, c, mr, nc
+    real(KIND=dp) :: dev, amax
+
+    ifail = 0
+    call Jmu_spme_matrix(mu, M)
+    call get_J_complete(mu, W)
+
+    if (iand(goodqn, 16) .eq. 0) then
+      ! Bit 4 clear: the window degenerates to the honest object.
+      dev = 0.0d0
+      if (M%nblocks .ne. W%nblocks .or. M%n .ne. W%n) then
+        ifail = 1
+        print *, '  window FAIL: degenerate shape mismatch for', mu
+        return
+      endif
+      do b = 1, M%nblocks
+        if (M%blocks(b)%srow .ne. W%blocks(b)%srow                         &
+        &   .or. M%blocks(b)%scol .ne. W%blocks(b)%scol) then
+          ifail = 1
+          print *, '  window FAIL: degenerate block list mismatch at', b
+          cycle
+        endif
+        dev = max(dev, maxval(abs(M%blocks(b)%A - W%blocks(b)%A)))
+      enddo
+      print *, '  window: bit 4 clear - degenerate to the honest',           &
+      &         ' object, max', dev
+      if (dev .gt. tol) ifail = 1
+      return
+    endif
+
+    ! a. Every window block against the accessor's served block.
+    dev = 0.0d0
+    amax = 0.0d0
+    do b = 1, W%nblocks
+      call get_J_block(mu, W%blocks(b)%srow, W%blocks(b)%scol, A)
+      if (.not. allocated(A)) then
+        ifail = 1
+        print *, '  window FAIL: accessor serves nothing for',               &
+        &         W%blocks(b)%srow, W%blocks(b)%scol
+        cycle
+      endif
+      mr = size(A, 1)
+      nc = size(A, 2)
+      if (mr .ne. size(W%blocks(b)%A, 1)                                     &
+      &   .or. nc .ne. size(W%blocks(b)%A, 2)) then
+        ifail = 1
+        print *, '  window FAIL: served block shape mismatch for',             &
+        &         W%blocks(b)%srow, W%blocks(b)%scol
+        deallocate (A)
+        cycle
+      endif
+      do c = 1, nc
+        do r = 1, mr
+          dev = max(dev, abs(A(r, c) - W%blocks(b)%A(r, c)))
+          amax = max(amax, abs(A(r, c)))
+        enddo
+      enddo
+      deallocate (A)
+    enddo
+    print *, '  window: accessor agreement over', W%nblocks,                 &
+    &        'doubled blocks, max', dev, ' scale', amax
+    if (W%nblocks .eq. 0) then
+      print *, '  window: no doubled blocks - not exercised.'
+    else if (dev .gt. tol*max(1.0d0, amax)) then
+      ifail = 1
+      print *, '  window FAIL: eager window contradicts the accessor.'
+    else
+      print *, '  window: eager materialisation and lazy contract'        &
+      &        //' agree, image-image blocks at full tau coverage.'
+    endif
+
+    ! b. The trace contract: lean tau algebra against the window's
+    !    plain full-basis trace.
+    tM = M%full_trace()
+    tW = W%full_trace()
+    print *, '  window: full_trace lean', tM, ' window', tW
+    if (abs(tM - tW) .gt. tol*max(1.0d0, abs(tM))) then
+      ifail = 1
+      print *, '  window FAIL: trace contract violated for', mu
+    else
+      print *, '  window: trace contract holds.'
+    endif
+  end subroutine check_window
 !===============================================================================
 
 end module angular_momentum_testing

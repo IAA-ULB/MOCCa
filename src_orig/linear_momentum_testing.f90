@@ -52,21 +52,16 @@ module linear_momentum_testing
   !     symmetric) follow the legacy partner fills; the oracle is the
   !     authority they have to match - the J family's 14.2b precedent.
   !  5. partner: within-block triangles obey A(c,r) = kind * A(r,c).
-  !  6. purity: the opposite half of the complex matrix elements,
-  !     measured by the test's own inline arithmetic. OPEN FINDING
-  !     (2026-11-19, first runs of this module): it does NOT vanish -
-  !     O(0.2) against an O(0.35) stored scale, on seed and converged
-  !     O16/SLy4/NLO states alike, for every component of both the
-  !     honest trio and the folded pair. The J family's arm measures
-  !     the same for J_z (angmom_z_imag, their recorded open finding),
-  !     while the multipole full-box oracle proves the BASIS satisfies
-  !     the STy reality constraint to 1e-16 - so the anomaly is a
-  !     property of DERIVATIVE operators: the crossed-component pairs
-  !     of the reduced-chamber integral are the section 13.1 chamber-
-  !     weight territory, the per-amplitude selection the sector word
-  !     cannot express, which the legacy routine equally never
-  !     computes. The opposite halves are therefore MEASURED AND
-  !     REPORTED, never judged, until the chamber question is settled.
+  !  6. purity report of the stored half: the opposite half of the
+  !     complex matrix elements, measured by the test's own inline
+  !     arithmetic - single-chamber residues, judged by check 8. The
+  !     OPEN FINDING of 2026-11-19 (opposite halves of O(0.2) against an
+  !     O(0.35) stored scale, honest trio and folded pair alike) is
+  !     ADJUDICATED green by the full-box reconstruction on every
+  !     build (design 15.6, 2026-11-20): reduced-mesh residues, with
+  !     no dead-kernel bug - the kernels agree with the legacy to
+  !     machine precision exactly as filled, and the full-box
+  !     opposite halves vanish.
   !  7. retrieval (15.8), TR-conserving builds only, where the empty
   !     -i sectors are the T-image slots:
   !     a. the tau both-ways check of \nabla_z's image-image blocks -
@@ -76,6 +71,21 @@ module linear_momentum_testing
   !     b. the retrieval agreement of the fold: get_nabla_block's
   !        stored-x-image blocks against the folded generators' own
   !        elements - the two packagings of the same matrix elements.
+  !  8. full-box reconstruction: the design 15.6 parked adjudication,
+  !     built rather than parked (D-7, 15.9 row 3) - the angmom arm's
+  !     check_fullbox of 14.2b transcribed to the derivative family.
+  !     The chamber-extended quadrature of fullbox_nabla_me over ALL
+  !     chambers of the folded mesh judges BOTH halves of the complex
+  !     matrix elements of every object, honest trio and folded pair
+  !     alike: the main half is chamber-uniform (identity against the
+  !     single-chamber kernel), the opposite half chamber-cancelling
+  !     (the STy zero over the full box). Green here is the 15.6
+  !     verdict.
+  !  9. complete window (15.8, D-7 15.9 row 3): the eager doubled-basis
+  !     materialisation against the lean accessor on every block - the
+  !     image-image content at full tau coverage, not sampled - plus
+  !     the full_trace contract; degeneration asserted block by block
+  !     in bit-4-clear builds.
   !
   !  The whole arm runs in the HF basis, matching the wavefunction array
   !  access patterns of the generators.
@@ -94,6 +104,7 @@ module linear_momentum_testing
   use linear_momentum,   only: AX_X, AX_Y, AX_Z
   use linear_momentum,   only: Nabla_spme_matrix, Nabla_half_fm
   use linear_momentum,   only: get_nabla_block, TAU_NABLAFAM
+  use linear_momentum,   only: get_nabla_complete
 
   implicit none
 
@@ -160,6 +171,10 @@ contains
     print 101, 'nabla retrieval contract (15.8)   ', ifail_ret
     isum = max(isum, ifail_ret)
 
+    call test_window(ifail_ret)
+    print 101, 'nabla complete window (15.8)    ', ifail_ret
+    isum = max(isum, ifail_ret)
+
     print *
     print 110
     print 111
@@ -215,7 +230,7 @@ contains
 
     type(sym_matrix) :: M
     character(len=24) :: objlabel
-    integer :: fst, fval, fleg, forc, fpar, fpur, fhm
+    integer :: fst, fval, fleg, forc, fpar, fpur, fhm, fful
 
     if (folded) then
       objlabel = '\nabla_'//axis_label(mu)//'.T folded'
@@ -235,6 +250,7 @@ contains
     fpar = 0
     fpur = 0
     fhm = 0
+    fful = 0
     call check_structure(M, fst)
     if (M%nblocks .gt. 0) then
       call check_values(mu, folded, M, fval)
@@ -243,9 +259,10 @@ contains
       call check_partner(M, fpar)
     endif
     call check_purity(mu, folded, M, fpur)
+    call check_fullbox(mu, folded, M, fful)
     if (folded) call check_halffm(mu, M, fhm)
 
-    ifail = max(fst, fval, fleg, forc, fpar, fpur, fhm)
+    ifail = max(fst, fval, fleg, forc, fpar, fpur, fful, fhm)
   end subroutine test_object
 !===============================================================================
   subroutine check_structure(M, ifail)
@@ -629,8 +646,8 @@ contains
     if (iand(goodqn, 8) .eq. 0) then
       print *, '  purity: goodqn bit 3 clear - measured, not judged.'
     else
-      print *, '  purity: OPEN FINDING - the opposite half does not',           &
-      &         ' vanish; measured, not judged (see the module banner).'
+      print *, '  purity: opposite half = single-chamber residues,',           &
+      &         ' judged by the full-box reconstruction below.'
     endif
   end subroutine check_purity
 !===============================================================================
@@ -1005,6 +1022,337 @@ contains
       &         ' max', dev
     endif
   end subroutine test_retrieval
+!===============================================================================
+  subroutine test_window(ifail)
+    !------------------------------------------------------------------------------
+    ! The complete-matrix DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3),
+    !  every component: the eager doubled-basis materialisation against
+    !  the lean accessor contract, plus the full_trace adjudication.
+    !
+    !  a. WINDOW = ACCESSOR: every window block against the block the
+    !     accessor serves for the same pair. Stored-stored and
+    !     stored-x-image blocks are the same kernels in both packagings
+    !     and must agree bit for bit; the image-image blocks pair the
+    !     window's honest kernels against the accessor's tau sign flip -
+    !     the row-2 both-ways check at full coverage, not sampled.
+    !  b. TRACE CONTRACT: full_trace of the lean honest object (the tau
+    !     algebra of mechanism 1b, bit 4 set) against full_trace of the
+    !     window (the plain trace over the doubled basis - its basis IS
+    !     the whole physical basis, its goodqn carries no bit 4). Equal
+    !     complex numbers adjudicate the central D-7 contract.
+    !
+    !  In bit-4-clear builds the window degenerates to the honest
+    !  object; the degeneration is asserted block by block.
+    !------------------------------------------------------------------------------
+    integer, intent(out) :: ifail
+
+    integer :: mu, fw
+    ifail = 0
+    do mu = AX_X, AX_Z
+      call check_window(mu, fw)
+      ifail = max(ifail, fw)
+    enddo
+  end subroutine test_window
+!===============================================================================
+  subroutine check_window(mu, ifail)
+    !------------------------------------------------------------------------------
+    ! One component's complete-matrix window (design 15.8, 15.9 row 3):
+    !  build the lean honest object and the eager window, then judge
+    !  the window/accessor agreement of every block and the trace
+    !  contract - the two packagings of the complete doubled-basis
+    !  matrix must be one and the same operator.
+    !------------------------------------------------------------------------------
+    integer, intent(in)  :: mu
+    integer, intent(out) :: ifail
+
+    type(sym_matrix) :: M, W
+    real(KIND=dp), allocatable :: A(:, :)
+    complex(8) :: tM, tW
+    integer :: b, r, c, mr, nc
+    real(KIND=dp) :: dev, amax
+
+    ifail = 0
+    call Nabla_spme_matrix(mu, 'HF', M)
+    call get_nabla_complete(mu, 'HF', W)
+
+    if (iand(goodqn, 16) .eq. 0) then
+      ! Bit 4 clear: the window degenerates to the honest object.
+      dev = 0.0d0
+      if (M%nblocks .ne. W%nblocks .or. M%n .ne. W%n) then
+        ifail = 1
+        print *, '  window FAIL: degenerate shape mismatch for', mu
+        return
+      endif
+      do b = 1, M%nblocks
+        if (M%blocks(b)%srow .ne. W%blocks(b)%srow                         &
+        &   .or. M%blocks(b)%scol .ne. W%blocks(b)%scol) then
+          ifail = 1
+          print *, '  window FAIL: degenerate block list mismatch at', b
+          cycle
+        endif
+        dev = max(dev, maxval(abs(M%blocks(b)%A - W%blocks(b)%A)))
+      enddo
+      print *, '  window: bit 4 clear - degenerate to the honest',           &
+      &         ' object, max', dev
+      if (dev .gt. tol) ifail = 1
+      return
+    endif
+
+    ! a. Every window block against the accessor's served block.
+    dev = 0.0d0
+    amax = 0.0d0
+    do b = 1, W%nblocks
+      call get_nabla_block(mu, W%blocks(b)%srow, W%blocks(b)%scol,          &
+      &                    'HF', A)
+      if (.not. allocated(A)) then
+        ifail = 1
+        print *, '  window FAIL: accessor serves nothing for',               &
+        &         W%blocks(b)%srow, W%blocks(b)%scol
+        cycle
+      endif
+      mr = size(A, 1)
+      nc = size(A, 2)
+      if (mr .ne. size(W%blocks(b)%A, 1)                                     &
+      &   .or. nc .ne. size(W%blocks(b)%A, 2)) then
+        ifail = 1
+        print *, '  window FAIL: served block shape mismatch for',           &
+        &         W%blocks(b)%srow, W%blocks(b)%scol
+        deallocate (A)
+        cycle
+      endif
+      do c = 1, nc
+        do r = 1, mr
+          dev = max(dev, abs(A(r, c) - W%blocks(b)%A(r, c)))
+          amax = max(amax, abs(A(r, c)))
+        enddo
+      enddo
+      deallocate (A)
+    enddo
+    print *, '  window: accessor agreement over', W%nblocks,                 &
+    &        'doubled blocks, max', dev, ' scale', amax
+    if (W%nblocks .eq. 0) then
+      print *, '  window: no doubled blocks - not exercised.'
+    else if (dev .gt. tol*max(1.0d0, amax)) then
+      ifail = 1
+      print *, '  window FAIL: eager window contradicts the accessor.'
+    else
+      print *, '  window: eager materialisation and lazy contract'        &
+      &        //' agree, image-image blocks at full tau coverage.'
+    endif
+
+    ! b. The trace contract: lean tau algebra against the window's
+    !    plain full-basis trace.
+    tM = M%full_trace()
+    tW = W%full_trace()
+    print *, '  window: full_trace lean', tM, ' window', tW
+    if (abs(tM - tW) .gt. tol*max(1.0d0, abs(tM))) then
+      ifail = 1
+      print *, '  window FAIL: trace contract violated for', mu
+    else
+      print *, '  window: trace contract holds.'
+    endif
+  end subroutine check_window
+!===============================================================================
+  subroutine check_fullbox(mu, folded, M, ifail)
+    !------------------------------------------------------------------------------
+    ! Full-box reconstruction for the derivative family (design 15.6,
+    !  D-7 row 3 - the angmom check_fullbox of 14.2b transcribed): the
+    !  complex matrix elements over the chamber-extended basis, sampled
+    !  pairs of every stored block, both halves JUDGED:
+    !
+    !   (a) identity: the main half is chamber-uniform - the full-box
+    !       quadrature of fullbox_nabla_me must equal the plain kernel
+    !       evaluation on the stored chamber.
+    !   (b) STy zero: the opposite half is chamber-cancelling - its
+    !       full-box value must vanish, the design 2a constraint as a
+    !       statement about the chamber sum, which no reduced-mesh
+    !       evaluation can express.
+    !
+    !  Green here adjudicates the OPEN FINDING of the module banner -
+    !  the O(0.2) opposite-half purity prints of the reduced mesh - and
+    !  closes the parked 15.6 verdict for this pair (honest or folded).
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: mu
+    logical, intent(in)   :: folded
+    type(sym_matrix), intent(in) :: M
+    integer, intent(out)  :: ifail
+
+    integer :: b, r, c, mr, nc, rstep, cstep, gi, gj, npair
+    real(KIND=dp) :: fb_re, fb_im, fb_main, fb_opp, kern_main, dev, bar
+    real(KIND=dp) :: maxid, maxop
+
+    ifail = 0
+    if (M%nblocks .eq. 0) then
+      print *, '  fullbox: no pairs (structural zero) - not measurable.'
+      return
+    endif
+
+    maxid = 0.0d0
+    maxop = 0.0d0
+    npair = 0
+    do b = 1, M%nblocks
+      mr = size(M%blocks(b)%A, 1)
+      nc = size(M%blocks(b)%A, 2)
+      rstep = max(1, mr/5)
+      cstep = max(1, nc/5)
+      do c = 1, nc, cstep
+        do r = 1, mr, rstep
+          gi = M%st(M%blocks(b)%srow) + r - 1
+          gj = M%st(M%blocks(b)%scol) + c - 1
+          kern_main = fresh_element(mu, folded, M%blocks(b)%srow,             &
+          &                        M%blocks(b)%scol, r, c, M%st)
+          call fullbox_nabla_me(mu, folded, gi, gj, fb_re, fb_im)
+          if (mu .eq. AX_Y) then
+            fb_main = fb_im
+            fb_opp = fb_re
+          else
+            fb_main = fb_re
+            fb_opp = fb_im
+          endif
+          npair = npair + 1
+          bar = tol*max(1.0d0, abs(kern_main))
+          dev = abs(fb_main - kern_main)
+          if (dev .gt. bar) ifail = 1
+          maxid = max(maxid, dev)
+          dev = abs(fb_opp)
+          if (dev .gt. bar) ifail = 1
+          maxop = max(maxop, dev)
+        enddo
+      enddo
+    enddo
+
+    print *, '  fullbox: identity max', maxid, ' opposite-half max', maxop,    &
+    &        ' over', npair, 'pairs (judged)'
+    if (ifail .eq. 0) then
+      print *, '  fullbox: PASS - main half chamber-uniform, opposite half'   &
+    &        //' vanishes over the full box.'
+    else
+      print *, '  fullbox: FAIL - a deviation above tolerance occurred.'
+    endif
+  end subroutine check_fullbox
+!===============================================================================
+  subroutine fullbox_nabla_me(mu, folded, gi, gj, me_re, me_im)
+    !------------------------------------------------------------------------------
+    ! One full-box matrix element < psi_i | nabla_mu (T) | psi_j > by
+    !  plain mesh quadrature over ALL chambers of the folded mesh - the
+    !  derivative-family transcription of the angmom full-box oracle
+    !  (design 13.1 step 4 / 14.2b). It shares only trusted raw inputs
+    !  with production: the stored spinors, their fresh mu-derivatives,
+    !  the sx/sy/sz per-component reflection signs and the mesh
+    !  folding bookkeeping.
+    !
+    !  The stored mesh is the fundamental chamber; the full box is 2^nch
+    !  copies with flipped axes (nch = reduX + reduY + reduZ, the dv
+    !  multiplicity; full-box cell volume dv/2^nch). At the full-box
+    !  points of chamber c every spinor component k takes its stored
+    !  mirror value multiplied by the product of sx/sy/sz(k) over the
+    !  chamber's flipped axes, and the derivative field acquires the
+    !  additional chain-rule sign (-1)**(flip of its derivative axis).
+    !  The operator carries no coordinates of its own, so no mirrored
+    !  operator values enter - the two complex halves of
+    !  < a | (nabla_mu) | b > per spin s, in the real component storage
+    !  (2s-1)/(2s) = Re/Im of the spin projection, are
+    !      Re:   Rei dxr + Imi dxi        Im:   Rei dxi - Imi dxr
+    !  with (Rei, Imi) the bra components and (dxr + i dxi) the
+    !  chamber-extended derivative of the ket. Folded pairs: the ket is
+    !  the T-image (TimeReverse applied to spinor and derivative alike
+    !  before extension); its extension signs follow the image's own
+    !  quantum numbers through T's constant component mix - see the
+    !  in-loop comment.
+    !------------------------------------------------------------------------------
+    ! Input:
+    !   mu : component selector, AX_X / AX_Y / AX_Z
+    !   folded : .true. for the T-image ket element
+    !   gi, gj : global HF-basis indices of the row/column state
+    ! Output:
+    !   me_re, me_im : Re / Im of the full-box matrix element
+    !------------------------------------------------------------------------------
+    integer, intent(in)  :: mu, gi, gj
+    logical, intent(in)  :: folded
+    real(KIND=dp), intent(out) :: me_re, me_im
+
+    real(KIND=dp) :: psi_i(mv, 4), der_j(mv, 4)
+    real(KIND=dp) :: Rei(mv), Imi(mv), dxr(mv), dxi(mv)
+    real(KIND=dp) :: sri(4), srj(4), srj_t(4), sg, dvcell
+    integer :: c, ic, fx, fy, fz, k, s, nch
+
+    psi_i = HFPsi(:, :, gi)
+    call fresh_derive(HFPsi(:, :, gj), gj, mu, der_j)
+    if (folded) der_j = TimeReverse(der_j)
+
+    nch = 2**(reduX + reduY + reduZ)
+    dvcell = dv/nch
+    me_re = 0.0d0
+    me_im = 0.0d0
+
+    do c = 1, nch
+      ! Chamber decomposition over the folded axes only.
+      ic = c - 1
+      fx = 0
+      fy = 0
+      fz = 0
+      if (reduX .eq. 1) then
+        fx = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduY .eq. 1) then
+        fy = mod(ic, 2)
+        ic = ic/2
+      endif
+      if (reduZ .eq. 1) then
+        fz = mod(ic, 2)
+      endif
+
+      ! Per-component extension signs of both states and the
+      !  chain-rule sign of the derivative axis.
+      sri = 1.0d0
+      srj = 1.0d0
+      do k = 1, 4
+        if (fx .eq. 1) then
+          sri(k) = sri(k)*sx(k, gi)
+          srj(k) = srj(k)*sx(k, gj)
+        endif
+        if (fy .eq. 1) then
+          sri(k) = sri(k)*sy(k, gi)
+          srj(k) = srj(k)*sy(k, gj)
+        endif
+        if (fz .eq. 1) then
+          sri(k) = sri(k)*sz(k, gi)
+          srj(k) = srj(k)*sz(k, gj)
+        endif
+      enddo
+      sg = 1.0d0
+      if (mu .eq. AX_X .and. fx .eq. 1) sg = -1.0d0
+      if (mu .eq. AX_Y .and. fy .eq. 1) sg = -1.0d0
+      if (mu .eq. AX_Z .and. fz .eq. 1) sg = -1.0d0
+
+      ! Ket extension signs: the stored state's own, EXCEPT for the
+      !  folded pair - its ket is the T-image, and TimeReverse swaps
+      !  the spinor spin pairs (1 <-> 3, 2 <-> 4): with the fold
+      !  operations acting per component with real signs, pi T = T pi
+      !  forces the image's component k to extend with the ORIGINAL's
+      !  sign of the T-partner component, not its own slot's.
+      if (folded) then
+        srj_t(1) = srj(3)
+        srj_t(2) = srj(4)
+        srj_t(3) = srj(1)
+        srj_t(4) = srj(2)
+      else
+        srj_t = srj
+      endif
+
+      do s = 1, 2
+        Rei = sri(2*s-1)*psi_i(:, 2*s-1)
+        Imi = sri(2*s  )*psi_i(:, 2*s  )
+        dxr = srj_t(2*s-1)*sg*der_j(:, 2*s-1)
+        dxi = srj_t(2*s  )*sg*der_j(:, 2*s  )
+        me_re = me_re + dvcell*(dot_product(Rei, dxr)                        &
+        &                            + dot_product(Imi, dxi))
+        me_im = me_im + dvcell*(dot_product(Rei, dxi)                        &
+        &                            - dot_product(Imi, dxr))
+      enddo
+    enddo
+  end subroutine fullbox_nabla_me
 !===============================================================================
 
 end module linear_momentum_testing

@@ -149,6 +149,7 @@ module linear_momentum
   public :: Nabla_spme_matrix
   public :: Nabla_half_fm
   public :: get_nabla_block
+  public :: get_nabla_complete
 
 contains
 
@@ -738,5 +739,125 @@ contains
     if (allocated(A)) deallocate (A)
   end subroutine Nabla_copy_block
   !----------------------------------------------------------------------------
+  subroutine get_nabla_complete(mu, spwf_basis, me)
+    !---------------------------------------------------------------------------!
+    ! The one-call DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3): the
+    !  complete doubled-basis matrix of the honest gradient operator
+    !  materialised EAGERLY as one sym_matrix - stored-x-stored,
+    !  stored-x-image and image-x-image blocks alike, every element
+    !  computed by the honest per-pair kernels on states materialised
+    !  through TimeReverse of their stored originals. The unit arm is
+    !  the exercised caller.
+    !
+    !  The window's basis is the DOUBLE of the stored one where goodqn
+    !  bit 4 is set (the stored basis is the q(Rz) = +i half of a
+    !  T-symmetric set): every empty sector counts its T-partner's
+    !  states (the stored-k <-> image-k correspondence), and the init
+    !  mask carries every good quantum number EXCEPT bit 4 - the
+    !  window's basis IS the whole physical basis, so its plain trace
+    !  and full_trace ARE one and the same, the adjudication the trace
+    !  contract of this row asserts. With bit 4 clear the accessor's own
+    !  degeneration applies: no image sectors exist, the stored basis is
+    !  already the whole physical basis, and the window degenerates to
+    !  the honest generator's object.
+    !
+    !  The window never gates production and stays $TR-gated at the
+    !  call site (the caller-gates-scenarios rule).
+    !---------------------------------------------------------------------------!
+    ! Input:
+    !   mu        : component selector, AX_X / AX_Y / AX_Z
+    !   spwf_basis: 'HF' / 'CAN' / 'DEN' - the basis of the matrix elements
+    ! Output:
+    !   me        : the complete matrix over the doubled (or, bit 4 clear,
+    !               stored) basis, honest kernels throughout
+    !---------------------------------------------------------------------------!
+    integer, intent(in)           :: mu
+    character(len=*), intent(in)  :: spwf_basis
+    type(sym_matrix), intent(out) :: me
+
+    type(Nabla_params) :: params
+    integer :: counts(8), s, word, sty_class, ibasis
+
+    if (iand(goodqn, 16) .eq. 0) then
+      call Nabla_build(mu, .false., spwf_basis, me)
+      return
+    endif
+
+    ! Doubling: +i entries copied to their -i partner slots (design
+    !  15.6 - pure XOR, no new type machinery).
+    counts(1:8) = HFBlocks_global(1:8)
+    do s = 1, 8
+      if (counts(s) .eq. 0) counts(s) = HFBlocks_global(ieor(s - 1, 1) + 1)
+    enddo
+
+    word = 3
+    if (mu .eq. AX_Z) word = 2
+    sty_class = STY_EVEN
+    if (mu .eq. AX_Y) sty_class = STY_ODD
+    call me%init(counts, word, ANTIHERMITIAN, sty_class, TAU_NABLAFAM,      &
+    &            goodqn=iand(goodqn, 15))
+
+    if (me%nblocks .eq. 0) return
+    ibasis = Nabla_basis_code(spwf_basis)
+    params%st     = me%st
+    params%mu     = mu
+    params%folded = .false.
+    params%basis  = ibasis
+    call me%fill_blocks(Nabla_complete_fill, params)
+  end subroutine get_nabla_complete
+  !----------------------------------------------------------------------------
+  subroutine Nabla_complete_fill(srow, scol, A, params)
+    !---------------------------------------------------------------------------!
+    ! block_filler callback of the debug window: one honest per-pair
+    !  kernel invocation per doubled-basis pair, stored states taken from
+    !  the selected basis, image states materialised as TimeReverse of
+    !  their stored originals (spinor-pointwise T, commuting with the
+    !  real mesh derivative - the hidden_TR fold and the literal
+    !  derivative of the image are the same field). Index routing is per
+    !  (sector, in-sector rank) through the doubled-basis bookkeeping,
+    !  never through the window's own sector bounds.
+    !---------------------------------------------------------------------------!
+    ! Input:
+    !   srow, scol : sector words 0..7 of the doubled-basis block
+    !   params     : type(Nabla_params): the window's own (doubled)
+    !                bounds + mu + basis
+    ! Output:
+    !   A          : the block storage, overwritten entirely
+    !---------------------------------------------------------------------------!
+    integer, intent(in)   :: srow, scol
+    real(KIND=dp), intent(out) :: A(:, :)
+    class(*), intent(in)  :: params
+
+    integer :: m, n, r, c, gi, gj
+    real(KIND=dp) :: psi_i(mv, 4)
+    real(KIND=dp) :: psi_j(mv, 4)
+    real(KIND=dp) :: der_j(mv, 4)
+
+    select type (params)
+    type is (Nabla_params)
+      m = params%st(srow + 1) - params%st(srow)
+      n = params%st(scol + 1) - params%st(scol)
+      if (m .ne. size(A, 1) .or. n .ne. size(A, 2)) then
+        print *, 'Nabla_complete_fill: params%st inconsistent with the block.'
+        call stp('Sector bounds inconsistent in Nabla_complete_fill.')
+      endif
+
+      do c = 1, n
+        gj = Nabla_image_index(scol, c)
+        call Nabla_basis_spinor(gj, params%basis, psi_j)
+        call Nabla_basis_derive(gj, params%mu, params%basis, der_j)
+        if (.not. Nabla_sector_stored(scol)) then
+          psi_j = TimeReverse(psi_j)
+          der_j = TimeReverse(der_j)
+        endif
+        do r = 1, m
+          gi = Nabla_image_index(srow, r)
+          call Nabla_basis_spinor(gi, params%basis, psi_i)
+          if (.not. Nabla_sector_stored(srow)) psi_i = TimeReverse(psi_i)
+          A(r, c) = Nabla_element(params%mu, psi_i, der_j)
+        enddo
+      enddo
+    end select
+  end subroutine Nabla_complete_fill
 
 end module linear_momentum
