@@ -22,203 +22,106 @@
 !
 !===============================================================================
 module block_matrix_module
-!==============================================================================
+  !==============================================================================
   !
-  ! This module contains the machinery to efficiently represent matrices
-  !  in the configuration space spanned by a finite set of single-particle
-  !  wavefunctions on the MOCCa grid. It implements the design summary
-  !  'mocca-symmetry-block-matrix-design-summary.md', whose sections are
-  !  referenced below: sector encoding, the sym_block / block_matrix types,
-  !  the block-list construction from MOCCa's HFBlocks bookkeeping, block
-  !  population through the fill_blocks callback, the partner-reconstructing
-  !  dense expansion, and the sector-diagonal basis rotations (section 6a)
-  !  - real orthogonal only, one square orthonormal block per populated
-  !  sector, the shape MOCCa's own producers make (HFB's Canonical
-  !  diagonalises rho per MOCCa block, so cantransfo is exactly
-  !  sector-diagonal). The mat-vec / mat-mat products once planned for
-  !  later phases are dropped: no consumer exists (section 6).
+  ! This module contains the machinery to efficiently handle the matrix
+  !  represenation of (generalized) single-particle operators in the
+  !  configuration space spanned by a finite set of spwfs on a MOCCa grid.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Symmetry model
-  ! ---------------
-  ! Operators acting on the HF basis carry three discrete quantum numbers,
-  !  each of which labels the basis states. A symmetry-sector word
-  !  is a 3-bit integer s = 0..7 with the encoding
+  ! Single-particle operators acting on spwfs can be classified with the
+  !  following properties
   !
-  !   bit 0 : z-signature (Rz) : 0 = q(Rz) = +i , 1 = q(Rz) = -i
-  !           (Rz is linear and antihermitian, hence eigenvalues +/- i)
+  !    - z-signature (Rz): even or odd
+  !    - parity (P)      : even or odd
+  !    - isospin (Tz)    : even or odd
+  !    - hermitianness   : hermitian or antihermitian
+  !    - y-time-simplex  : even or odd
+  !    - time-reversal   : even or odd
+  !
+  ! Single-particle quantum numbers
+  ! --------------------------------
+  !
+  ! Only three (Rz,P,Tz) of these correspond to quantum numbers of the
+  !  single-particle states; hence any set of spwfs can be divided into
+  !  sectors, labelled by a single 'symmetry word' or a 3bit integer
+  !  s = 0..7 with the encoding
+  !
+  !   bit 0 : z-signature (Rz) : 0 = q(Rz) = +i, 1 = q(Rz) = -i
   !   bit 1 : parity (P)       : 0 = even      , 1 = odd
   !   bit 2 : isospin (Tz)     : 0 = neutron   , 1 = proton
   !
-  ! An operator carries a symmetry word 'op' with the same encoding: a bit
-  !  is set if the operator changes the corresponding quantum number of the
-  !  state it acts on. Selection rules are then a single XOR: an operator
-  !  with word 'op' couples sector s to sector IEOR(s, op) and to nothing
-  !  else. An operator matrix therefore has at most 8 non-vanishing dense
-  !  blocks, one per surviving sector pair.
+  ! The matrix-representation of a single-particle operator carries
+  !  exactly this encoding: it sets these bits if the operator changes
+  !  the corresponding quantum number. This means that selection rules
+  !  can be implemented as a single XOR operator:
   !
-  ! MOCCa's HFBlocks bookkeeping in the wavefunctions module uses exactly
-  !  the same ordering: HFBlocks(B) counts the spwfs of sector s = B - 1,
+  !      an operator couples sector s <-> section IEOR(s,op)
   !
-  !    B = 1: neutron, even, Rz = +i   =>  s = 0     B = 5: proton, even, +i  => s = 4
-  !    B = 2: neutron, even, Rz = -i   =>  s = 1     B = 6: proton, even, -i  => s = 5
-  !    B = 3: neutron, odd , Rz = +i   =>  s = 2     B = 7: proton, odd , +i  => s = 6
-  !    B = 4: neutron, odd , Rz = -i   =>  s = 3     B = 8: proton, odd , -i  => s = 7
+  !  Because of this property,
+  !   (a) there is essentially no need for any if-statements that depend
+  !       on Hephaestos symmetry-decisions
+  !   (b) the matrix representation of an operator has AT MOST 8
+  !       dense subblocks.
   !
-  !  Typical occupations, all consistent with this single table:
-  !    EV8 symmetries ('Rz,T,P,STy'):   all spwfs in blocks 1,3,5,7 (q(Rz)=+i)
-  !    time-reversal broken           :  blocks 2,4,6,8 additionally populated
-  !    parity broken                  :  spwfs in blocks 1,2,5,6 only, as
-  !                                      parity is not a good quantum number
-  !                                      (the P bit of any operator is then
-  !                                      vacuous)
+  ! The resulting encoding is exactly the one assumed by MOCCa everywhere
+  !  else, as accounted for in HFBlocks - except for a shift by 1:
   !
-  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  !  Good quantum numbers of the stored basis
-  !  -----------------------------------------
-  !  The symmetry word of an operator is physical: it tells which quantum
-  !  number of the state it acts on is flipped. Not every build labels its
-  !  basis states with all three quantum numbers: when a self-consistent
-  !  symmetry is broken, the states of both characters are merged into a
-  !  single storage block and the corresponding quantum number is not
-  !  'good' - its bit is vacuous, and an operator acts diagonally in it.
-  !  The classic case is parity: in parity-broken builds an odd-l operator
-  !  couples states WITHIN blocks 1, 2, 5, 6 rather than pairing them into
-  !  the empty blocks 3, 4, 7, 8 as its physical word suggests.
+  !  B = 1, s = 0;  n, P=+1, Rz = +i   B = 5: p, P=+1, +i  => s = 4
+  !  B = 2, s = 1;  n, P=+1, Rz = -i   B = 6: p, P=+1, -i  => s = 5
+  !  B = 3, s = 2;  n, P=+1, Rz = +i   B = 7: p, P=-1, +i  => s = 6
+  !  B = 4, s = 3;  n, P=+1, Rz = -i   B = 8: p, P=-1, -i  => s = 7
   !
-  !  init therefore takes an optional 5-bit mask 'goodqn' (bits 0-2 as
-  !  the sector words, bit 3 = the y-time-simplex conserved, see the next
-  !  section, bit 4 = time reversal conserved, the scenario bit of the
-  !  doubling section below; default 15 = every sector grading and the
-  !  simplex good, doubling off) marking the
-  !  quantum numbers that actually label the basis, and pairs every
-  !  sector s with IEOR(s, AND(symmetry, goodqn)) - bits 0-2 enter the
-  !  pairing; bit 3 is stored verbatim for consumers of the characteristic.
-  !  The mask is a fact of the build scenario, not recoverable from the
-  !  runtime block counts: in MOCCa it comes from the geninfo constant
-  !  'goodqn', injected by Hephaestos ($GOODQN). With all bits good the
-  !  pairing is the pure XOR above. Standalone callers (unit tests) omit
-  !  the mask.
+  !  Many-body quantum numbers, broken symmetries, hermitianness
+  !  ------------------------------------------------------------
   !
-  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  !  Characteristic under the y-time-simplex
-  !  ----------------------------------------
-  !  The y-time-simplex  STy = P . T . Ry  is a hermitian antilinear
-  !  involution (STy**2 = +1), and the spwfs MOCCa stores are its
-  !  invariants,
-  !       STy psi = psi^*(x,-y,z,sigma) = psi .
-  !  An operator O of definite characteristic,
-  !       STy O STy^{-1} = sigma * O        (sigma = +/- 1),
-  !  therefore has matrix elements over the stored basis that obey
-  !       < i | O | j > = sigma * < i | O | j >*  :
-  !  STY_EVEN operators have purely REAL, STY_ODD operators purely
-  !  IMAGINARY matrix elements.
+  !  The many-body state can carry two additional symmetries:
   !
-  !  STy carries NO block structure: every stored state is an invariant,
-  !  so there is no good quantum number to pair and the characteristic
-  !  never touches the block list. It fixes how matrix elements are
-  !  calculated (the real or the imaginary part of the spinor product)
-  !  and how the stored numbers must be interpreted by consumers.
+  !  - y-time-simplex, S^T_y
+  !  - time-reversal, T
   !
-  !  Every operator handled by this type is classifiable (design summary
-  !  section 2a): it is Hermitian or anti-Hermitian, and it is even or
-  !  odd under the y-time-simplex. init therefore takes both physical
-  !  classes as MANDATORY inputs, 'herm' (HERMITIAN / ANTIHERMITIAN)
-  !  and 'sty' (STY_EVEN / STY_ODD), and DERIVES the storage kind from
-  !  them:
+  !  These do not result in a quantum numbers and have no associated
+  !  selection rule and block structure. Operators however CAN anticommute
+  !  with these, hence why the matrix representation of a one-body
+  !  operator carries the logical "sty" and "tau".
   !
-  !      kind = herm * sty
+  !  Broken symmetries in a MOCCa calculation do NOT change the properties
+  !  of any operator - the mathematical object does not change. What does
+  !  change is the division of spwfs into blocks: the calculation loses
+  !  a quantum number and the associated bit in the operator should have
+  !  no more effect. This is why an operator carries also the set
+  !   goodqns = "good quantum numbers."
   !
-  !  i.e. the stored numbers - the real part (STY_EVEN) or the imaginary
-  !  part (STY_ODD) of the matrix elements - form a symmetric matrix for
-  !  a Hermitian STY_EVEN or an anti-Hermitian STY_ODD operator, and an
-  !  antisymmetric one for a Hermitian STY_ODD or an anti-Hermitian
-  !  STY_EVEN operator.
+  ! Finally, operators can be either hermitian or antihermitian
   !
-  !  In a build that conserves the time simplex (goodqn bit 3, the case
-  !  for every SYMSTRING in the tree) the characteristic means more: the
-  !  omitted half of the complex matrix elements is then identically
-  !  zero and the single stored matrix IS the complete operator. With
-  !  bit 3 clear the same inputs still define a consistent single matrix
-  !  - the selected half of the (re, im) pair model of design section
-  !  12, the other half a separate matrix - but no completeness claim
-  !  can be made; consumers select on the stored goodqn mask themselves.
-  !  init consumes bits 0-2 of the mask for the pairing and stores the
-  !  mask verbatim.
+  !      O^\dagger = \pm O^\dagger
   !
-  !  Producers hand 'sty' to their fill callbacks through params (the
-  !  callback interface is frozen): the callback computes the real or
-  !  the imaginary part of the spinor product accordingly. This presumes
-  !  the +1 invariance convention above; a basis with STy psi = -psi
-  !  states would need per-state signs, which MOCCa's conventions do
-  !  not produce.
+  ! The (anti)Hermitian and S^T_y classification can be combined
+  !  to determine that the matrix can be built with purely
+  !  real or purely imaginary elements and with definite symmetry.
   !
-  !  Typical characteristics: r^l Re Y_lm is
-  !  STY_EVEN and r^l Im Y_lm is STY_ODD for every m, and J_y is
-  !  STY_ODD. Character tables per operator family are producer-side
-  !  knowledge; for operators acting on spin (e.g. spin densities) they
-  !  depend on MOCCa's spin convention for STy and must be taken from
-  !  the symmetry machinery, not re-derived here.
+  !   hermitian, STY-even     -> real and symmetric     -> kind = +1
+  !   hermitian, STY-odd      -> imag and antisymmetric -> kind = -1
+  !   antihermitian, STY-odd  -> real and symmetric     -> kind = +1
+  !   antihermitian, STY-odd  -> imag and antisymmetric -> kind = -1
   !
-  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  !  Time parity and the doubling scenario (D-7, 2026-11-20)
-  !  -----------------------------------------------------
-  !  Two descriptive metadata components carry what the generator
-  !  entry-point names used to be the only trace of:
-  !   *) tau - the operator's time parity T O T^-1 = tau O, a mandatory
-  !      init class like herm and sty (TAU_EVEN / TAU_ODD); the folded
-  !      composite <a|O T|b> inherits its parent's. No fill logic reads
-  !      it - full_trace is the one in-module consumer.
-  !   *) folded - .true. for the TR-folded composite (design 2d): the
-  !      honest-vs-composite identity, stored verbatim.
-  !  goodqn bit 4 ("T good") is the scenario bit: set = the stored basis
-  !  is the q(Rz) = +i half of a T-symmetric set and the doubled-basis
-  !  contracts are defined; clear = the basis is the whole physical
-  !  basis and they degenerate. Marker-free code reads the scenario off
-  !  the object instead of the $TR/$NTR marker.
+  ! This classification is computed and stored in the integer "KIND"
+  ! of each block_matrix object.
   !
-  !  full_trace returns the honest operator's physical trace as one
-  !  complex number: with bit 4 set, over the T-doubled basis,
-  !      Tr_full = Tr_stored + tau * conj(Tr_stored)
-  !  (design 15.8 mechanism 1b: <Tu|O|Tv> = tau * conj(<u|O|v>)) - i.e.
-  !  2 Re, 2 i Im, or 0 by (tau, sty); with bit 4 clear the plain
-  !  numerical trace. Signature-flipping words contribute nothing: no
-  !  diagonal blocks exist, the diagonal vanishes by selection rules.
-  !  FOLDED composites are refused: their diagonals are fold diagonals
-  !  <a|O T|a>, a different statement, kept D-5-gated by design.
+  ! Caveats - things that took me a while to internalize
+  ! -----------------------------------------------------
+  ! - the product of two (anti)hermitian matrices need not be
+  !    either hermitian or antihermitian, it will generally be
+  !    of mixed classification. This is one reason why this
+  !    module does not include a routine to do matrix-matrix
+  !    multiplication.
   !
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Conventions
-  ! ------------
-  !  *) All real work is done in sector space, i.e. all sector-indexed
-  !     arrays are declared with lower bound 0 (st(0:8)) such that IEOR
-  !     applies directly. No +/- 1 adjustments appear in any logic.
-  !  *) MOCCa itself is 1-based. The single conversion from MOCCa's 1-based
-  !     HFBlocks ordering to the 0-based sector words happens in init.
-  !  *) Global-basis slices follow design option 2 (1-based bounds):
-  !     st(s) is the first global index of sector s and st(8) = n + 1,
-  !     i.e. sector s occupies the global indices st(s) ... st(s+1) - 1.
-  !  *) Each block is a separate contiguous rank-2 array with natural
-  !     leading dimension; no flattened storage, no packing.
-  !
-  ! Storage is single-node by design: rank-dependent logic does not belong
-  !  in this module; gathering of whole-basis vectors is the caller's task.
-  !
-  ! Population contract (design section 5): blocks are populated
-  !  exclusively through the dummy-procedure callback of the abstract
-  !  interface block_filler (whole blocks); procedure pointers are
-  !  never stored as components:
-  !   *) callbacks run for stored blocks only. Blocks skipped by the
-  !      kind-based partner rule are not the filler's business: partner
-  !      values are resolved at access time (a later phase), never by
-  !      writing here.
-  !   *) callbacks receive the sector words srow/scol of the block so
-  !      they can apply MOCCa's phase conventions for matrix elements.
-  !   *) the callback OVERWRITES: fill_blocks hands the block storage
-  !      out as an intent(out) dummy.
-  !   *) 'params' is unlimited-polymorphic state handed verbatim to the
-  !      callback. The signature is frozen: extend params, not the
-  !      interface. Callers without state pass any token.
+  ! Additional remarks
+  ! -------------------------------------------------------
+  ! - this module is stand-alone: it can be compiled alone
+  !   and unit-tested easily and possibly reused in other codes.
+  ! - there is no MPI implementation here (for now), all
+  !   storage is rank-local
   !==============================================================================
   implicit none
 
