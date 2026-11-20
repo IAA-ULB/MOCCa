@@ -131,6 +131,18 @@ Consequences when editing near markers:
   banner. Expand a declaration comment past one line only when the
   information is load-bearing: index schemes, initialisation markers,
   bit layouts.
+- Routine banners state the routine's PURPOSE in one to three plain
+  sentences for a human reader ("rotate = transform the operator with a
+  unitary matrix that respects the symmetries"), not the body's mechanism
+  narrative - how partners behave, which invariant guarantees what.
+  The module header carries the physics treatment once; do not repeat
+  it per routine, and do not cite consumer call sites, design sections
+  or decision IDs inside banners (all removed in the 2026-11-20
+  block_matrix pass).
+- Statement comments sit on the line they comment: one short trailing
+  clause naming the fact about that value ("qn = 15 ! Default: all
+  spatial symmetries good, time-reversal broken"). Stacked multi-line
+  comment blocks above assignments are the removed pattern.
 - In-code comments cross-reference places that exist ("the kind table
   in the module header"), never section titles a later edit may delete.
 - Comment the why and the conventions, never the what. No revision

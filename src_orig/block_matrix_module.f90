@@ -301,10 +301,7 @@ contains
       stop 1
     endif
 
-    ! Bits 3 and 4 of the mask are stored verbatim: the consumer's
-    !  completeness criterion (STy) and doubling scenario (T), not
-    !  constructor gates.
-    qn = 15
+    qn = 15 ! Default value is: all spatial symmetries, time-reversal broken
     if (present(goodqn)) qn = goodqn
     if (qn < 0 .or. qn > 31) then
       print *, 'init_block_matrix: goodqn mask must be in 0..31, got', qn
@@ -319,20 +316,17 @@ contains
     this%goodqn = qn
     this%n = sum(counts)
 
-    ! kind fixes the partner sign at access time; the block list built
-    !  below depends only on its being nonzero.
-    this%sty = sty
-    kind = herm*sty
+    ! kind determines whether a matrix representation is symmetric or antisymmetric
+    this%sty  = sty
+    kind      = herm*sty
     this%kind = kind
 
-    ! Descriptive TR metadata (D-7, 2026-11-20), stored verbatim: no
-    !  constructor logic derives from either.
-    this%tau = tau
+    ! whether or not this matrix is time-reversal folded
+    this%tau    = tau
     this%folded = .false.
     if (present(folded)) this%folded = folded
 
-    ! The pairing word: the physical operator word intersected with the
-    !  mask - the one place where the good quantum numbers enter the maths.
+    ! which of the quantum numbers of the operator can be exploited?
     word = iand(symmetry, qn)
 
     ! 1-based bounds: st(s) is the first global index of sector s.
@@ -341,7 +335,7 @@ contains
       this%st(s + 1) = this%st(s) + counts(s)
     enddo
 
-    ! Discard any pre-existing state of the object.
+    ! Discard any pre-existing state of the object for safety.
     do b = 1, 8
       this%blocks(b)%srow = 0
       this%blocks(b)%scol = 0
@@ -377,7 +371,7 @@ contains
     !  is out of range. Exploits that the bounds array is non-decreasing.
     !---------------------------------------------------------------------------
     class(block_matrix), intent(in) :: this
-    integer, intent(in)            :: i
+    integer, intent(in)             :: i
 
     integer :: s
 
@@ -393,11 +387,10 @@ contains
   !----------------------------------------------------------------------------
   subroutine fill_blocks_block_matrix(this, fill, params)
     !---------------------------------------------------------------------------
-    ! Populate all stored blocks through the callback: one call per stored
+    ! Populate all stored blocks through fill_block routine: one call per stored
     !  block, overwriting the storage handed out as an intent(out) dummy.
-    !  Unstored partners are never touched (dense reconstructs them);
-    !  distinct blocks occupy disjoint storage, so the loop is safe to
-    !  parallelise over blocks.
+    !  Unstored partners are never touched and distinct blocks occupy disjoint
+    !  storage, so the loop is safe to parallelise over blocks.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input/output:
     !   this   : the matrix whose stored blocks are populated
@@ -422,8 +415,7 @@ contains
     ! Partner-reconstructing dense expansion: the full n x n matrix with
     !  all stored blocks at their global positions, unstored partners as
     !      A(s', s) = kind * A(s, s')^T ,
-    !  zero elsewhere. The return shape of dense wrappers such as
-    !  Qlm_spme_fm in moments.f90 and of the rotation unit tests.
+    !  zero elsewhere. This is the way MOCCa used to represent such matrices.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   this : the matrix whose stored blocks are expanded
@@ -713,15 +705,9 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   subroutine rotate_block_matrix(this, R)
     !---------------------------------------------------------------------------
-    ! Rotate a block_matrix into the basis defined by the sector-diagonal
-    !  orthonormal blocks of R: every stored block transforms independently
-    !  as  A_b <- U_{srow}^T A_b U_{scol} , the same operator in the rotated
-    !  basis. Unstored partners are never touched - the kind relation
-    !  survives, so dense() reconstructs them as before - and every
-    !  metadata field is kept (goodqn plays no role: rotate acts on storage
-    !  sectors, never on quantum numbers). A similarity transform, not an
-    !  operator product: products of classifiable operators are
-    !  unclassifiable and stay out of the type.
+    ! Rotate a block_matrix = transform the operator with a unitary matrix
+    !  that respects the symmetry properties of the calculation. This changes
+    !  the matrix elements, but nothing about the properties of the operator.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input/output:
     !   this : the matrix whose stored blocks are rotated, in place
@@ -755,11 +741,7 @@ contains
   !----------------------------------------------------------------------------
   subroutine init_sym_rotation(this, HFBlocks)
     !---------------------------------------------------------------------------
-    ! Construct the IDENTITY rotation of the basis described by HFBlocks:
-    !  one k x k identity block per populated sector, nothing for empty
-    !  sectors. Rotating with the result of init is an exact no-op, and
-    !  set_sector/init_from_dense can overwrite any of its blocks later.
-    !  init may be called repeatedly; previous state is discarded cleanly.
+    ! Construct the IDENTITY rotation of the basis described by HFBlocks.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   HFBlocks(1:8) : number of spwfs per MOCCa symmetry block, the
@@ -801,16 +783,13 @@ contains
     !---------------------------------------------------------------------------
     ! Construct a rotation from a FULL n x n rotation array C, in the
     !  basis_transform convention: each COLUMN of C is a new basis vector
-    !  expressed in the old basis (psi' = C^T psi). Only the
-    !  sector-diagonal parts of C are kept, one square block per
-    !  populated sector.
+    !  expressed in the old basis (psi' = C^T psi).
     !
     ! Loud structure checks, both against the tolerance 'tol'
-    !  (default 1e-12 absolute): C must be sector-diagonal - every
-    !  off-sector submatrix vanishes within tol - and every extracted
-    !  block must be orthonormal within tol. A C that mixes sectors is
-    !  REFUSED: the rotated basis would have no definite good quantum
-    !  numbers and no block_matrix could represent operators over it.
+    !  (default 1e-12 absolute):
+    !  - C must be sector-diagonal
+    !  - every extracted block must be orthonormal
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   HFBlocks(1:8) : global MOCCa count array, see init_sym_rotation
