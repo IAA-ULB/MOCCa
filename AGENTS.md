@@ -33,8 +33,14 @@ agents who edit and build the code.
 | `exec/*.exe` | Compiled executables | NO — binary output |
 
 `make clean` removes everything generated under `build/` (`.f90`, `.o`,
-`.mod`) and it is regenerated on the next build. Nothing in `exec/` is
-tracked by git (see `.gitignore`), nor is the local `make.inc`.
+`.mod`) and it is regenerated on the next build. This includes
+`make CONFIG=<X> clean`: it is GLOBAL - it wipes every config's
+`build/` tree, not just X (executables in `exec/` survive) - so never
+run it in a loop over configs. The per-config incremental
+`make CONFIG=<X> mf|fam` is safe after changes to module internals:
+only the touched files and their dependents recompile. Nothing in
+`exec/` is tracked by git (see `.gitignore`), nor is the local
+`make.inc`.
 
 ## Hephaestos and the `$`-markers
 
@@ -203,6 +209,22 @@ Locale warning: on machines with a non-C `LC_NUMERIC` (e.g. `nl_BE.UTF-8`),
 mawk truncates string-to-number conversion at the decimal point. Any awk
 that parses numbers out of MOCCa output must be invoked as `LC_ALL=C awk`.
 `golden_diff.sh` does this; keep doing it in new scripts.
+
+## Agent tooling gotchas (session-proven, 2026-11-20)
+
+- Editing tracked docs with string-replacement tools: old_strings
+  containing the section sign or Fortran backslash sequences
+  (`\nabla`) fail to match on a byte-encoding mismatch, not a bad
+  anchor. Anchor the edit on a nearby line without those characters,
+  or use `sed -i`; keep the same characters out of the sed pattern
+  too by matching surrounding words. After any line-number surgery on
+  the sprint documents, re-read the region: one splice has mangled
+  neighbouring lines before.
+- Long builds and test runs: start them as background processes,
+  single-quoted `bash -lc '...'`, no shell variables (an unquoted `$C`
+  config loop once silently no-op'd), logging to `/tmp` files; the
+  resulting exes and the gate logs outlive the session via
+  `NOTES.local.md`.
 
 ## MPI
 
