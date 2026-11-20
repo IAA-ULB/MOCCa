@@ -1,26 +1,3 @@
-!===============================================================================
-!     __  __  ___   ____ ____
-!    |  \/  |/ _ \ / ___/ ___|__ _
-!    | |\/| | | | | |  | |   / _` |
-!    | |  | | |_| | |__| |__| (_| |
-!    |_|  |_|\___/ \____\____\__,_|
-!
-!    Copyright (C) 2026 W. Ryssens and M. Bender
-!
-!    This program is free software: you can redistribute it and/or modify
-!    it under the terms of the GNU Affero General Public License as published
-!    by the Free Software Foundation, either version 3 of the License, or
-!    (at your option) any later version.
-!
-!    This program is distributed in the hope that it will be useful,
-!    but WITHOUT ANY WARRANTY; without even the implied warranty of
-!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-!    GNU Affero General Public License for more details.
-!
-!    You should have received a copy of the GNU Affero General Public License
-!    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-!
-!===============================================================================
 module functional
  !==============================================================================
  !
@@ -103,19 +80,49 @@ module functional
  !                                                     (n,p)
  !
  !==============================================================================
- use compilation
- use geninfo
- use densities
- use parameterization
- use pairing
- use timing
- use transform
- use vectors
- use Cranking
- use pairing_strengths
- use vectors, only : DensityVector, PotentialVector
+ use compilation, only: dp
+ use geninfo, only: dv, dx, inversetemp, meshgrid, meshindex,          &
+                    mpi_rank, mv, neutrons, nx, ny, nz, pi, protons,   &
+                    reduZ, rps, simulate_spherical_bc,                 &
+                    store_derivatives, stp
+ use densities, only: CompNablaMelements, denddpsi, denpsi,              &
+                     Density, print_maxval,                            &
+                     sx_rho, sx_rho_antisym, sy_rho, sy_rho_antisym,    &
+                     sz_rho, sz_rho_antisym
+ ! The raw EDF couplings (t0, x3, sigma_b, t1n2, ...) are functional-
+ ! dependent: which names exist and are referenced by the generated code
+ ! differs per .func file.  Hephaestos therefore fills in the only:-list
+ ! of the coupling names ($COUPLINGS) and, in the generated
+ ! parameterization, declares the full union of couplings over all .func
+ ! files so that these names exist in every build.
+ use parameterization, only: alpha, Cc, COM1body, COM2body,          &
+                            Estabn, Estabp, hbarclum, hbm,          &
+                            neutronsize, nucleonmass,               &
+                            nucleonsize_selfconsistent,              &
+                            printparameterization, protonsize,     &
+                            readparameterization, RotCorr, RotcorrB, &
+                            rotcorrC, Vibcorr, vibcorrB, vibcorrD,   &
+                            vibcorrL, Vn, Vp, pow, lr_pow,            &
+                            $COUPLINGS
+ use pairing, only: Bogoliubov, CalcEntropy, calcpairingenergy,           &
+                   CanTransfo, entropy, FermiEnergy, kappa_can,         &
+                   PairingType, rho_can, rho_pairing
+ use BCS, only: delta_action_BCS
+ use HFB, only: conjugp, delta_action_HFB
+ use timing, only: start_timer, stop_timer, T_COM, T_COM1, T_COM2,      &
+                   T_COM2_summation, T_energy, T_MOI, T_pot_precon,     &
+                   T_potentials, T_sphamil
+ use transform, only: changeboxsize_function, sym_transfo_needed
+ use vectors, only: DensityVector, PotentialVector, memory
+ use preconditioning, only: PreconditionPotential,                   &
+                          KerkerPreconditionPotential
+ use wavefunctions, only: hfblocks, hfblocks_global, hfddpsi, hfpsi,    &
+                         nwn, nwt, nwt_local, spwf_map
+ use Cranking, only: crank_current_potential, crank_spin_potential,     &
+                     crankenergy_cut
+ use pairing_strengths, only: vmicro, vmicro_stored
 #if(USE_HDF5>0)
- use HDF5
+ use HDF5, only: hid_t
 #endif
 
  implicit none
@@ -232,8 +239,166 @@ $DECLARATION
       module procedure INM_k4_pot_real
       module procedure INM_k4_pot_complex
     end interface 
-contains
+  interface
+    !-------------------------------------------------------------------
+    ! The following procedures are implemented in submodules (files
+    ! src_orig/functional_{energy,potentials,fields,io}.f90).
+    !-------------------------------------------------------------------
+    ! ---- functional_energy
+    module subroutine CalcEnergy(Rin, Fin, calc_expensive)
+    logical, intent(in) :: calc_expensive
+    type(DensityVector), intent(in)   :: Rin
+    type(PotentialVector), intent(in) :: Fin
+  end subroutine CalcEnergy
+    module subroutine CompSkyrme(R, F, S, T_even, T_odd, PE)
+    type(DensityVector), intent(in)   :: R
+    type(PotentialVector), intent(in) :: F
+    real(KIND=dp), intent(out)        :: S, T_even, T_odd, PE(2)
+  end subroutine CompSkyrme
+    module subroutine PrintSkyrme()
+  end subroutine PrintSkyrme
+    module function CompKinetic_spwfs() result(kinetic)
+    real(KIND=dp)    :: kinetic(2)
+  end function CompKinetic_spwfs
+    module function CompKinetic_density(Rin) result(kinetic)
+    real(KIND=dp)                   :: kinetic(2)
+    type(DensityVector), intent(in) :: Rin
+  end function CompKinetic_density
+    module function calculate_epasta(nucE) result(Epasta)
+    real(KIND=dp), intent(in) :: nucE
+    real(KIND=dp)             :: Epasta
+  end function calculate_epasta
+    module function calcspwfenergy() result(spwfenergy)
+    real(KIND=dp) :: spwfenergy
+  end function calcspwfenergy
+    module subroutine CompCOMCorrection(kin, override_2body, Comcorr)
+    real(KIND=dp), intent(out)    :: Comcorr(2,2)
+    logical, intent(in)           :: override_2body
+    real(KIND=dp), intent(in)     :: kin(2)
+  end subroutine CompCOMCorrection
+    module function calc_rotational_correction(rot_option) result(Erot)
+    integer, intent(in)        :: rot_option
+    real(KIND=dp)              :: Erot(3)
+  end function calc_rotational_correction
+    module function calc_vibrational_correction(vib_option) result(Evib)
+    integer, intent(in)        :: vib_option
+    real(KIND=dp)              :: Evib
+  end function calc_vibrational_correction
+    module pure function inv_mat(A) result(Ainv)
+    real(KIND=dp), intent(in) :: A(2,2)
+    real(KIND=dp)             :: Ainv(2,2)
+  end function inv_mat
+    module function classical_MOI(N,Z) result(MOI)
+    real(KIND=dp), intent(in) :: N,Z
+    real(KIND=dp)             :: MOI
+  end function classical_MOI
+    module function CompStabilisingFactor(PairE) result(stab)
+    real(KIND=dp)             :: stab(2)
+    real(KIND=dp), intent(in) :: PairE(2)
+  end function CompStabilisingFactor
+    module subroutine verify_COM_motion()
+  end subroutine verify_COM_motion
+    module subroutine calcElectronEnergy()
+  end subroutine calcElectronEnergy
+    module subroutine update_E_history()
+  end subroutine update_E_history
+    
+    ! ---- functional_potentials
+    module function calcPotentials(R, Fread) result(F)
+    type(DensityVector), intent(in)             :: R
+    type(PotentialVector), intent(in), optional :: Fread
+    type(PotentialVector)                       :: F
+  end function calcPotentials
+    module subroutine calc_perturbed_potentials( R, dRs, dRa, dR_pp_plus,        &
+    &                                     dR_pp_minus, dFs, dFa,         &
+    &                                     dF_pp_plus, dF_pp_minus)
+    type (DensityVector), intent(in) :: R, dRs, dRa, dR_pp_plus, dR_pp_minus
+    type (PotentialVector)           :: dFs, dFa, dF_pp_plus, dF_pp_minus
+  end subroutine calc_perturbed_potentials
+    module function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
+    type (DensityVector), intent(in) :: R, R_pert
+    type (PotentialVector)           :: F
+  end function calc_perturbed_potentials_oneoff
+    module subroutine combine_potentials(F)
+    type(PotentialVector), intent(inout) :: F
+  end subroutine combine_potentials
+    module subroutine add_constraint_potential(F)
+    type(PotentialVector), intent(inout) :: F
+  end subroutine add_constraint_potential
+    module subroutine add_coulomb_potential(F)
+    type(PotentialVector), intent(inout) :: F
+  end subroutine add_coulomb_potential
+    module subroutine add_cranking_potentials(F)
+    type(PotentialVector), intent(inout) :: F
+  end subroutine add_cranking_potentials
+    module function precondition_potentials(F_in, F_out) result(F)
+    type(PotentialVector), intent(in) :: F_in, F_out
+    type(PotentialVector)             :: F
+  end function precondition_potentials
+    module subroutine clean_potentials()
+  end subroutine clean_potentials
+    module subroutine save_potential_history(F_in, F_out)
+    type(PotentialVector), intent(in) :: F_in, F_out
+  end subroutine save_potential_history
+    
+    ! ---- functional_fields
+    module function Add_potentialvector(F1, F2) result(F)
+    type(PotentialVector), intent(in) :: F1, F2
+    type(PotentialVector)             :: F
+  end function Add_potentialvector
+    module function multiply_potentialvector(a, F1) result(F)
+    type(PotentialVector), intent(in) :: F1
+    real(KIND=dp), intent(in)         :: a
+    type(PotentialVector)             :: F
+  end function multiply_potentialvector
+    module function PVectorInproduct(F1, F2) result(x)
+    type(PotentialVector), intent(in) :: F1,F2
+    real(KIND=dp) :: x
+  end function PVectorInproduct
+    
+    ! ---- functional_io
+    module subroutine WritePotentials(chan, F)
+    type(PotentialVector), intent(in) :: F
+    integer, intent(in) :: chan
+  end subroutine WritePotentials
+#if(USE_HDF5>0 && $FAM == 0)
+    module subroutine write_hdf5_potentials(file_id, F)
+    type(PotentialVector), intent(in) :: F
+    integer(hid_t), intent(in)        :: file_id
+  end subroutine write_hdf5_potentials
+#endif
+    module function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) result(F)
+    integer, intent(in)   :: chan, filenx, fileny, filenz
+    logical, intent(in)   :: sym_transfo_needed
+    type(PotentialVector) :: F
+  end function ReadPotentials
+#if(USE_HDF5 > 0)
+    module function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) result(F)
+    integer(hid_t), intent(in)   :: file_id
+    integer, intent(in)          :: filenx, fileny, filenz
+    logical, intent(in)          :: sym_transfo_needed
+    type(PotentialVector)      :: F
+  end function read_potentials_hdf5
+#endif
+    module subroutine hdf5_readpot(id, name, dset, n)
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: n
+    real(kind=dp), intent(inout) :: dset(n)
+  end subroutine hdf5_readpot
+    module function readpotentials_separate(chan, ifn) result(F)
+    type(PotentialVector)        :: F
+    integer, intent(in)          :: chan
+    character(len=*), intent(in) :: ifn
+  end function readpotentials_separate
 
+    ! ---- functional_coefs
+    module subroutine calcedfcoefs()
+  end subroutine calcedfcoefs
+
+  end interface
+
+contains
  subroutine readfunctional(file_number)
     !---------------------------------------------------------------------------
     ! Initializes the functional
@@ -279,37 +444,7 @@ contains
     delta_action_HFB => delta_action
  end subroutine readfunctional
 
- subroutine calcedfcoefs()
-     !--------------------------------------------------------------------------
-     ! Calculate the coupling constants from the expressions passed into
-     ! Hephaestos.
-     !--------------------------------------------------------------------------
-$CALCCOEF
 
-    nucleonmass = 0.5d0*(nucleonmass(1) + nucleonmass(2))
-
- end subroutine calcedfcoefs
-
- subroutine update_E_history()
-    !---------------------------------------------------------------------------
-    ! Update the history of the module with the values of various things
-    ! currently in storage.
-    !---------------------------------------------------------------------------
-    integer :: i
-
-    ! Move old values
-    do i=4,1,-1
-        Ehistory(i+1)    = Ehistory(i)
-        Rhistory(i+1)    = Rhistory(i)
-        Fhistory(i+1)    = Fhistory(i)
-        Spwfhistory(i+1) = Spwfhistory(i)
-    enddo
-    Ehistory(1)    = TotalE
-    Rhistory(1)    = Routhian
-    Fhistory(1)    = FreeEner
-    SpwfHistory(1) = SpwfEnergy
- end subroutine update_E_history
- 
  subroutine printfunctional
     !---------------------------------------------------------------------------
     ! Print all information on the functional.
@@ -318,6 +453,7 @@ $CALCCOEF
     call printedfcoefs
 
  end subroutine printfunctional
+
 
  subroutine printedfcoefs
     !---------------------------------------------------------------------------
@@ -348,6 +484,7 @@ $PRINTCOEF_PH
 $PRINTCOEF_PAIR
      print 2
  end subroutine printedfcoefs
+
 
  subroutine PrintEnergy()
     !---------------------------------------------------------------------------
@@ -510,526 +647,7 @@ $PRINTCOEF_PAIR
 end subroutine PrintEnergy
 
 #if(PASTA==1)
-function calculate_epasta(nucE) result(Epasta)
-  !------------------------------------------------------------------------
-  ! Calculate the energy per particle for a pasta calculation. This is a
-  ! rather simple expression, but it pays to not have it in multiple places.
-  !
-  ! For now, only nucE is input as all other parts are constant throughout
-  ! any given calculation.
-  !
-  ! Input:
-  !  nucE : total energy of the configuration of protons and neutrons as
-  !         calculated.
-  !
-  ! Output:
-  !  Epasta: E/A for the entire configuration that accounts for the
-  !          contributions of the sea of electrons.
-  !------------------------------------------------------------------------
 
-  real(KIND=dp), intent(in) :: nucE
-  real(KIND=dp)             :: Epasta
-
-  Epasta = nucE + ElectronEnergyKin+ElectronEnergyExch-protons*Qnp
-  Epasta = Epasta/dble(protons+neutrons)
-
-end function calculate_epasta
-#endif
-
-subroutine save_potential_history(F_in, F_out)
-    !---------------------------------------------------------------------------
-    ! Update the history of the mean-field densities, before calculating an
-    ! updated version.
-    !---------------------------------------------------------------------------
-    integer :: i
-    type(PotentialVector), intent(in) :: F_in, F_out
-
-    if(memory .eq. 0) return
-  
-    if(.not.allocated(Potential_updates)) allocate(Potential_updates(memory))
-    if(.not.allocated(Potential_iterates)) allocate(Potential_iterates(memory))
-
-    do i=1,memory-1
-      Potential_updates(memory-i+1)  = Potential_updates(memory-i)
-      Potential_iterates(memory-i+1) = Potential_iterates(memory-i)
-    enddo
-    Potential_iterates(1)  = F_in
-    Potential_updates(1)   = F_out + (-1.0d0) * F_in
-!  print *, 'SAVING', maxval(abs(Potential_updates(1)%F_I_I))
-!  print *,  maxval(abs(F_in%F_I_I))
-!  print *,  maxval(abs(F_out%F_I_I))
-end subroutine save_potential_history
-
-function Add_potentialvector(F1, F2) result(F)
-    !---------------------------------------------------------------------------
-    ! Sum two potential-vectors F1 and F2 to get a new potential-vector F, so
-    ! that F_a = F1_a + F2_a for every potential with latin index a.
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !     F1, F2 : potential-vectors
-    ! Output:
-    !     F      : new potential vector
-    !---------------------------------------------------------------------------
-    type(PotentialVector), intent(in) :: F1, F2
-    type(PotentialVector)             :: F
-
-    ! Automatically generated expressions for all Skyrme potentials
-$INIPOTENTIALS
-$ADD_POTENTIALS
-
-    ! Additions for the Coulomb potentials are always executed
-    F%CoulombPotential  = F1%CoulombPotential  + F2%CoulombPotential
-    F%ExchangePotential = F1%ExchangePotential + F2%ExchangePotential
-  
-    if(allocated(F1%Foldedcoul)) then
-        F%Foldedcoul      = F1%Foldedcoul     + F2%Foldedcoul
-        F%Foldedexchange  = F1%Foldedexchange + F2%Foldedexchange
-    endif
-end function Add_potentialvector
-
-function multiply_potentialvector(a, F1) result(F)
-    !---------------------------------------------------------------------------
-    ! Multiply a potential-vector F1 with a scalar a such that 
-    ! F_b = a * F1_b for every potential with latin index b.
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !     a      : scalar 
-    !     F1     : potential-vector
-    ! Output:
-    !     F      : new potential vector
-    !---------------------------------------------------------------------------
-    type(PotentialVector), intent(in) :: F1
-    real(KIND=dp), intent(in)         :: a
-    type(PotentialVector)             :: F
-
-$INIPOTENTIALS
-$MULTIPLY_POTENTIALS
-
-    F%CoulombPotential  = a*F1%CoulombPotential 
-    F%ExchangePotential = a*F1%ExchangePotential
- 
-    if(allocated(F1%Foldedcoul)) then
-      F%Foldedcoul      = a*F1%Foldedcoul     
-      F%Foldedexchange  = a*F1%Foldedexchange 
-    endif
-end function multiply_potentialvector
-
-!  function calcRouth_onthefly(Rin, Fin) result(routh)
-!     !---------------------------------------------------------------------------
-!     ! This routine calculates the total Routhian for a given set of densities.
-!     !
-!     ! Note:
-!     !   (*) It only includes contributions that are included in the calculation
-!     !       in a variational way, i.e. any rotational correction or two-body
-!     !       COM-correction is not included.
-!     !
-!     !   (*) This routine has NO side-effects, i.e. it calculates the total
-!     !       routhian and ONLY the total Routhian. No module-level variables
-!     !       are set.
-!     !
-!     ! ATTENTION: testing routine, results not guaranteed!
-!     !
-!     !
-!     !---------------------------------------------------------------------------
-!     use Coulombmod
-!     use Densities
-!
-!     real(KIND=dp)                     :: routh
-!     type(DensityVector), intent(in)   :: Rin
-!     type(PotentialVector), intent(in) :: Fin
-!
-!     real(KIND=dp) :: K(2), TE, TO, PE(2), S, C, CE, COM(2,2)
-!
-!     routh = 0.0d0
-!
-!     ! Kinetic energy
-!     K = CompKinetic_density(Rin)
-!     ! Note that this estimate of the energy does NOT include the 2-body COM
-!     ! To save CPU cycles, we override its calculation
-! #if(PASTA == 0)
-!     call compComCorrection(K, .true., COM)
-! #else
-!     ! A waste of CPU time for pasta calculations
-!     COM = 0.0d0
-! #endif
-!     ! Skyrme energy
-!     call compSkyrme(Rin, Fin, S, TE, TO, PE)
-!     ! Coulomb energies
-!     C  = CoulombEnergy_Direct(Rin,Fin)
-!     CE = CoulombEnergy_Exchange(Rin)
-!
-!     ! The total energy is comprised of
-!     !      Kinetic part + Skyrme part + corrections + Coulomb energy
-!     routh =sum(S + K) + sum(COM) + C + CE
-!     ! Note again: no 2-body COM or rotational correction in here
-!
-!     ! Addition of the various constraints
-!     ! TODO: correct this!
-!     !routh = routh  + sum(Constraint_I_I * Rin%D_I_I)*dv/2.0_dp
-!     ! Missing = cranking contribution and correct multipole contribution
-!
-!
-!  end function calcRouth_onthefly
- 
- subroutine CalcEnergy(Rin, Fin, calc_expensive)
-    !---------------------------------------------------------------------------
-    ! Calculate (i)   the energy
-    !           (ii)  the Routhian
-    !           (iii) the free energy (when T!= 0)
-    ! for a given set of mean-field densities.
-    !
-    ! Input: 
-    !    Rin           : density-vector
-    !    Fin           : potential-vector
-    !    calc_expensive: controls the calculation of the numerically expensive 
-    !                    parts of the total energy. 
-    !                    Right now these are:
-    !                      (i) the 2-body centre-of-mass correction
-    !                     (ii) the Belyaev moments of inertia and <J^2> for
-    !                          the rotational and (optional) vibration corrections
-    !
-    ! This routine is used to calculate "printable" energies, i.e. it is used
-    ! for complete calculations of the energy in preparation of a print-out. 
-    ! In practice, this means that several module-level quantities are set by 
-    ! this routine, all kinds of possible additions to the energy are 
-    ! calculated, and the history of the evolution of the energy is saved.
-    !
-    ! Thus, this routine has a large amount of side-effects, in contrast to the
-    ! function calcRouth_onthefly, which has no side-effects and returns ONLY
-    ! the value of the Routhian for a given set of mean-field densities. 
-    !---------------------------------------------------------------------------
-    use momentsofinertia, only: calcJ2andBelyaev, calcrigid
-    use fission_MOI, only: calc_collective_inertia
-    use Coulombmod
-    use densities
-
-    logical, intent(in) :: calc_expensive
-    type(DensityVector), intent(in)   :: Rin
-    type(PotentialVector), intent(in) :: Fin
-
-    call start_timer(T_energy)
-
-    !---------------------------------------------------------------------------
-    ! First we calculate all the individual terms/parts
-    ! Kinetic energy
-#if ( $TAUPRESENT == 1 )
-    if(store_derivatives) then
-      Kinetic = CompKinetic_spwfs()
-    else
-      Kinetic = CompKinetic_density(Rin)
-    endif
-#else 
-    Kinetic = CompKinetic_spwfs() 
-#endif
-
-    ! COM correction
-    ! (pass signal if we want to skip the calculation of the two-body part)
-#if(PASTA == 0)
-    call CompCOMCorrection(Kinetic, .not. calc_expensive, COMCorrection)
-#else
-    ! A waste of CPU time for pasta calculations
-    COMCorrection = 0.0d0
-#endif
-
-    ! Skyrme functional
-    call compSkyrme(Rin, Fin, Skyrme, tot_even, tot_odd, pairdenenergy)
-
-    ! Pairing energy: can be used to check the validity of the calculation.
-    ! It is summed by integrating Delta instead of the pairing densities.
-    PairingEnergy = CalcPairingEnergy()
-
-    ! If the stabilisation for the pairing is active, calculate the
-    ! stabilisationfactor and rescale the pairing energies
-    if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
-      ! We use the pairing energy obtained  by integrating the pairing
-      ! densities
-      pairstabfactor = CompStabilisingFactor(PairDenEnergy)
-
-      ! The energy as deduced from the densities
-      PairDenE_stab = PairDenEnergy * ( 1 - pairstabfactor)
-
-      ! The energy as deduced from the pairing gaps is no longer right, when
-      ! stabilisation is active.
-      !-------------------------------------------------------------------------
-      ! Assuming a pairing functional that is linear in (kappa kappa*),
-      ! the non-stabilised gaps and pair energy are related by
-      !   Delta  = d E_pair / d kappa*
-      !    E_pair = sum kappa* Delta
-      ! The stabilised quantities are
-      !   Delta^s  = [ 1 + StabilisingGapFactor ] Delta
-      !   E_pair^s = [ 1 - StabilisingGapFactor ] E_pair
-      !            = [ 1 - StabilisingGapFactor ] sum kappa* Delta
-      ! where StabilisingGapFactor = PairingStabCut^2 / E_pair^2 is a global
-      ! state-independent factor. Therefore
-      !              [ 1 - StabilisingGapFactor ]
-      !   E_pair^s = ---------------------------- sum kappa* Delta^s
-      !              [ 1 + StabilisingGapFactor ]
-      !-------------------------------------------------------------------------
-      PairE_stab    = PairingEnergy  * (1 - pairstabfactor)/(1 + pairstabfactor)
-
-      ! We correct the 'Skyrme' energy here, as the pairing energy was already
-      ! summed in there. Hence, we subtract it and add the stabilised one.
-      Skyrme = Skyrme - sum(PairDenEnergy) + sum(PairdenE_stab)
-    endif
-
-    ! Direct contribution of the Coulomb potential
-    CoulombDirect   = coulomb_energy_direct(Rin, Fin)   
-    ! Exchange contribution
-    CoulombExchange = coulomb_energy_exchange(Rin) 
-
-    call calcrigid(Rin)
-#if(PASTA == 0 && $FAM == 0 )
-    ! Perform the calculation of all relevant inertias
-    if(calc_expensive) then
-      call start_timer(T_MOI)
-      call calcJ2andBelyaev()
-      call stop_timer(T_MOI)
-      call calc_collective_inertia()
-    endif
-    ! ... and only then calculate the contributions to the energy
-    Rotcorrection    = calc_rotational_correction(rotcorr)
-    Vibcorrection    = calc_vibrational_correction(vibcorr)
-#else
-    ! These collective corrections are not relevant to
-    ! (1) not relevant to infinite systems (PASTA == 1)
-    ! (2) expensive to calculate when the number of spwfs is high (FAM == 1)
-    Vibcorrection = 0.0d0
-    Rotcorrection = 0.0d0
-    COMCorrection = 0.0d0
-#endif
-
-    ! Entropy calculation when temperature is finite
-    call calcentropy()
-
-    !NS: Calculate electrons energy
-#if(PASTA==0)
-    ElectronEnergyKin=0.0d0
-    ElectronEnergyExch=0.0d0
-#else
-    call calcElectronEnergy()
-#endif
-    ! The total energy is comprised of 
-    !      Kinetic part + Skyrme part + Coulomb energy
-    TotalE = Skyrme + sum(Kinetic)
-    TotalE = TotalE + CoulombDirect + CoulombExchange
-    ! Plus schematic corrections for the collective energy
-    TotalE = TotalE + sum(Rotcorrection) + Vibcorrection + sum(COMCorrection)
-
-    ! Total energy from single-particle energies
-    SpwfEnergy = calcspwfenergy()
-
-    ! The free energy
-    FreeEner = TotalE
-    if(inversetemp .gt. 0.0d0) FreeEner = FreeEner - sum(entropy)/inversetemp
-
-    ! Calculate the Routhian
-    Routhian = TotalE                                       &
-    !                              cranking contribution
-    !                               -  omega_mu <J_mu>
-    &                         - sum(crankenergy_cut)/2.0_dp &
-    !                              multipole contribution
-    !                               -  lambda_ml < Q_ml > 
-    &                 + sum(Constraint_I_I(:,1:2) * Rin%D_I_I(:,1:2))*dv/2.0_dp
-
-    call stop_timer(T_energy)
-
- end subroutine CalcEnergy
-
- subroutine CompSkyrme(R, F, S, T_even, T_odd, PE)
-    !---------------------------------------------------------------------------
-    ! Integrate the Skyrme energy density for the given set of densities.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !  R : a density-vector, i.e. a set of densities
-    ! Output:
-    !  S     : total Skyrme energy
-    !  T_even: contribution of time-even terms to S
-    !  T_odd : contribution of time-odd terms to S
-    !  PE    : pairing energy, separated by isospin
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! This routine has a ton of side-effects:
-    !  - sets of the values of the individual terms
-    !  - sets the bilinear, trilinear, quadrilinear and density-dependent 
-    !    partial symmations of the energy.
-    !
-    ! TODO: further 'functionalize' these routines, eliminate side-effects.
-    !---------------------------------------------------------------------------
-    real(KIND=dp)                     :: Edensity(mv)
-    type(DensityVector), intent(in)   :: R
-    type(PotentialVector), intent(in) :: F
-    real(KIND=dp), intent(out)        :: S, T_even, T_odd, PE(2)
-    
-$CALCULATION    
-
-    T_even = &
-$TOTAL_EVEN
-
-    T_odd  = &
-$TOTAL_ODD
-
-    bilinear = &
-$TOTAL_BI
-
-    trilinear = &
-$TOTAL_TRI
-
-    quadrilinear = &
-$TOTAL_QUAD
-
-    densitydependent = &
-$TOTAL_DD
-
-    S = T_even + T_odd
-      
-    PE(1) = &
-$TOTALPAIR_NEUTRON
-
-    PE(2) = &
-$TOTALPAIR_PROTON
-
- end subroutine CompSkyrme
-
- subroutine PrintSkyrme()
-    !---------------------------------------------------------------------------
-    ! Print all contributions to the Skyrme energy, automatically generated by
-    ! Hephaestos.
-    !---------------------------------------------------------------------------
-    
-    1 format (91('-'))
-    3 format (' Skyrme Energy',16x, 'Isospin  1 2 3 4', 33x, 'Energy [MeV]')
-    !4 format (17x, 'Total Skyrme:', 3f20.6)
-    5 format (17x, 'Total Skyrme:', 41x, f20.6)    
-
-   51 format (17x, '   time-even:', 41x, f20.6)
-   52 format (17x, '   time-odd :', 41x, f20.6)
-
-   53 format (17x,     '   bilinear :', 41x, f20.6)
-   54 format (17x,     '   trilinear:', 41x, f20.6)
-   55 format (17x,     'quadrilinear:', 41x, f20.6)
-   56 format (12x, 'density-dependent:', 41x, f20.6)
-   
-   97 format ( a38, 2a2, 29x, f20.6)
-   98 format ( a38, 3a2, 27x, f20.6)
-$QUADRI   99 format ( a38, 4a2, 25x, f20.6)
-
-     print 1
-     print 3
-     print 1
-$PRINT
-     print 1
-     print 5,   Skyrme
-     print 1
-     print 51,  tot_even
-     print 52,  tot_odd
-     print 53,  bilinear
-     print 54,  trilinear
-     print 55, quadrilinear
-     print 56, densitydependent
-     print 1
- end subroutine PrintSkyrme
-
- function CompKinetic_spwfs() result(kinetic)
-    !---------------------------------------------------------------------------
-    ! This subroutine computes the total kinetic energy,
-    ! according to the following formula:
-    !    E_k = -\hbar/2m \int d^3x \sum_{k} v_{k} \Psi_k^* \Delta \Psi_k
-    !---------------------------------------------------------------------------
-    ! Note that the 1-body c.o.m. correction is not taken into account here!
-    !---------------------------------------------------------------------------
-    use Constants
-
-    integer          :: wave, it,k,i, wave_global
-    real(KIND=dp)    :: Inproduct
-    real(KIND=dp)    :: Kinetic(2)
-#if(USE_MPI>0)
-    integer          :: mpi_err
-#endif
-#if($FAM==1)
-    integer          :: wave_2, B, N, si
-#endif 
-
-    Kinetic = 0.0_dp
-#if($FAM == 0)
-    ! Kinetic Energy
-    do wave=1,nwt_local              ! local spwf index
-        wave_global = spwf_map(wave) ! global spwf index
-
-        ! Isospin is neutron in the first half of blocks, proton in the rest
-        it = 2
-        if(wave_global.le.nwn) it = 1
-
-        Inproduct = 0.0_dp
-        do k=1,4
-                do i=1,mv
-                       Inproduct = Inproduct + DenPsi(i,k,wave) *  &
-                       &  ( DenddPsi(i,1,k,wave) + &
-                       &    DenddPsi(i,4,k,wave) + &
-                       &    DenddPsi(i,6,k,wave))
-                enddo
-        enddo
-        Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
-    enddo
-#else
-    ! Nondiagonal sum for FAM
-    si = 0
-    do B=1,8
-      N = HFBLocks(B); if(N.eq.0) cycle 
-
-      ! Isospin is neutron in the first half of blocks, proton in the rest
-      it = 1
-      if(B.ge.5) it = 2
-
-      do wave=si+1,si+N 
-        do wave_2=si+1,si+N
-          Inproduct = 0.0_dp
-          do k=1,4
-            do i=1,mv
-              Inproduct = Inproduct + HFPsi(i,k,wave_2) *  &
-              &  ( HFddPsi(i,1,k,wave) + &
-              &    HFddPsi(i,4,k,wave) + &
-              &    HFddPsi(i,6,k,wave))
-            enddo
-          enddo          
-          Kinetic(it)= Kinetic(it) + rho_pairing(wave, wave_2)*Inproduct
-        enddo
-      enddo
-      si = si + N
-    enddo
-$TR  Kinetic = 2 * Kinetic ! Time-reversal factor 2
-#endif
-
-#if(USE_MPI > 0)
-    ! Sum the contributions across all MPI ranks
-    call MPI_ALLREDUCE(MPI_IN_PLACE, Kinetic, 2, MPI_REAL8, MPI_SUM,           &
-    &                                                   MPI_COMM_WORLD, mpi_err)
-#endif
-
-    Kinetic=-Kinetic * hbm * dv
-    return
-  end function CompKinetic_spwfs
-
-#if( $TAUPRESENT == 1 )
-  function CompKinetic_density(Rin) result(kinetic)
-    !---------------------------------------------------------------------------
-    ! This subroutine computes the total kinetic energy from the kinetic density
-    !    E_k = -\hbar/2m \int d^3x tau
-    !---------------------------------------------------------------------------
-    ! Note that the 1-body c.o.m. correction is not taken into account here!
-    !---------------------------------------------------------------------------
-    real(KIND=dp)                   :: Kinetic(2)
-    type(DensityVector), intent(in) :: Rin
-    integer                         :: it
-
-    do it=1,2
-$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
-$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
-$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
-$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
-    enddo
-  end function CompKinetic_density
-#endif
-
-#if ($FAM == 0)
   function effmass_pot(F_in) result(em_pot)
     !---------------------------------------------------------------------------
     ! From a given set of mean-field potentials F_in, determine the F^{(N,N)}
@@ -1061,768 +679,6 @@ $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:)
   end function effmass_pot
 #endif
 
-  subroutine CompCOMCorrection(kin, override_2body, Comcorr)
-    !---------------------------------------------------------------------------
-    ! Calculation of the centre-of-mass correction, both one-body and two-body.
-    ! General reference for the actual calculation of the entire correction
-    !
-    ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    !  Input:
-    ! -------- 
-    !  kin           : real     Kinetic energy for the scaling of the 1-body COM
-    !
-    !  override_2body: logical. If true, skip the 2-body COM calculation, even 
-    !                           if the functional requires it.
-    !  Output:
-    ! --------
-    !  ComCorr : 2x2 array, 1/2-body centre-of-mass correction for p/n 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-    ! REMARK FOR FUTURE GENERALISATIONS
-    ! ----------------------------------
-    ! For all current symmetry options available, the calculation as implemented
-    ! is complete and correct to the best of my (W.R.) knowledge.
-    ! HOWEVER, once time-reversal and parity both are broken, the expectation
-    ! value of the total momentum of the nucleus is no longer restricted by
-    ! symmetry, i.e.
-    !
-    !             < P > != 0
-    !
-    ! although individual components might still be restricted by remaining
-    ! symmetries.
-    !
-    ! If that is the case, the correction calculated here should have an extra
-    ! contribution that still needs to be implemented namely,
-    !
-    !        extra term =  - f < P >^2
-    !
-    ! which will, however, be computationally cheap as it is the square of a
-    ! one-body expectation value.
-    !
-    ! TODO:
-    ! -------
-    !  (a) add <P>^2 term to the 2-body COM calculation for parity and
-    !       time-reversal broken calculations.
-    !  (b) allow computation for Hartree-Fock calculations
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !
-    ! For future reference (all sums over the entire sp. space, unless
-    ! explicitly mentioned)
-    !
-    !  E_cm = - f < P^2 >     ( f^{-1} = 2 m A)
-    !
-    !       = - f (sum_{ijkl} P_ij P_kl < a^dagger_i a_j a^dagger_k a_l >
-    !
-    !  The Wick theorem gives us
-    !
-    !   < a^dagger_i a_j a^dagger_k a_l >
-    !     =    rho_{ji}      rho_{lk}            (a)
-    !       -  kappa^*_{ik}  kappa_{lj}          (b)
-    !       +  rho_{li} ( delta_{jk} - rho_{jk}) (c1) and (c2)
-    !
-    ! In the canonical basis, each of these gives rise to
-    !
-    ! (a) => -f  ( sum_i P_ii rho_ii )^2 = 0  as it is the square of <P>
-    !
-    ! The one-body component is given by (c1)
-    !
-    ! (c1) => -f  sum_ij P_ij P_ji rho_{ii}
-    !       = -f sum_i P^2_ii rho_ii
-    !       = -f (-i hbar)^2 sum_i Delta_ii rho_ii
-    !       = +f hbar^2 sum_i Delta_ii rho_ii
-    !
-    ! The ph-part of the two-body component is given by (c2)
-    !
-    ! (c2) => +f sum_ij rho_ii rho_jj P_ij P_ji
-    !       = +f (-i hbar)^2 sum_ij rho_ii rho_jj Nabla_ij Nabla_ji
-    !       = -f hbar^2 sum_ij rho_ii rho_jj Nabla_ij Nabla_ji
-    !
-    !   (noting that Nabla_ji = - Nabla_ij^*)
-    !       = +f hbar^2 sum_ij rho_ii rho_jj |Nabla_ij|^2
-    !
-    ! The pp-part of the two-body component is given by (b)
-    !
-    ! (b) => +f sum_ij P_ij P_{ibar jbar}  kappa^*_{i ibar} kappa_{jbar j}
-    !      = +f (-i hbar)^2 sum_ij kappa^*_{i ibar} kappa_{jbar j}
-    !                                       Nabla_{i j} \Nabla_{ibar jbar}
-    !      = -f hbar^2 sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j}
-    !                                       Nabla_{i j} \Nabla_{ibar jbar}
-    !
-    !     where ibar and jbar are the canonical partners of i and j.
-    !
-    ! Note
-    ! (*) that no symmetries have been used yet at this point
-    ! (*) I have not explicitly kept track of the vector nature of P.
-    ! (*) The matrix elements of nabla are calculated in compnablamelements
-    !     in the densities module.
-    !---------------------------------------------------------------------------
-    ! There is also a phenomenological way to include the two-body part as a
-    ! rescaling of the one-body part, as documented in
-    !
-    !  M. Butler, D. Sprung and J. Martorell
-    !  A improved approximate treatment of c.m. motion in DDHF calculations.
-    !  Nucl. Phys. A422 157-166 (1984).
-    !
-    ! The one-body part is obtained as
-    !
-    !   hbar^2/2m => hbar^2/(2*m) * (1 - f(A)/A)
-    !
-    ! with
-    !
-    !   f(A) = 2/(t + 1/(3t)) with t = (1.5 * A)**(1/3).
-    !
-    ! It is activated by putting COM1Body = 3, COM2BODY = 0.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(out)    :: comcorr(2,2)
-    logical, intent(in)           :: override_2body
-    real(KIND=dp), intent(in)     :: kin(2)
-
-    integer       :: it, i,j
-$NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), fac
-    real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
-
-    call start_timer(T_com)
-    call start_timer(T_com1)
-
-    !Only reset the one-body part
-    COMCorr(1,:) = 0.0_dp
-
-    select case(COM1Body)
-    case(0)
-      ! No contribution
-    case(1,2)
-      ! Deduce 1-body COM correction from the Kinetic Energy
-      COMCorr(1,:) = - Kin(:) * nucleonmass/ &
-      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
-    case(3)
-      ! Deduce 1-body COM correction from the Kinetic Energy with Butlers
-      ! formula.
-
-      Butler_t = (1.5d0 * (neutrons + protons))**(1.d0/3.d0)
-      Butler_f = 2.d0/(Butler_t + 1.d0/(3*Butler_t))
-
-      COMCorr(1,:) = - Kin(:) * nucleonmass * Butler_f/ &
-      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
-    end select
-
-    call stop_timer(T_com1)
-
-    ! The calculations is not yet implemented for Hartree-Fock calculations
-$NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock calculations with time-reversal breaking.')
-$NTR    endif
-    
-    if((COM2body .eq. 1) .and. (.not. override_2body)) then
-      !-------------------------------------------------------------------------
-      ! The 2-body COM correction, calculated as discussed above
-      !-------------------------------------------------------------------------
-      call start_timer(T_com2)
-
-      NablaMElements = compNablaMelements()
-      call start_timer(T_com2_summation)
-
-      COMCorrection(2,:) = 0.0
-      COM2pp = 0.0 ; COM2ph = 0.0 ; COM2_pp_debug = 0.0 ; COM2_ph_debug=0.0
-      do i=1,nwt
-         ! We sum over all possible (i,j) pairs, the matrix elements are
-         ! correctly calculated either way.
-         it = 1
-         if(i.gt.nwn) it = 2
-         do j=1,nwt
-            ! + sum_ij rho_ii rho_jj |Nabla_ij|^2
-            ! v^2 v^2 part
-            fac = rho_can(i)*rho_can(j)
-$TR         fac = fac / 4.0d0 ! rho_can is twice too large if T is conserved
-            COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
-            COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
-            COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
-$TR         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$TR         ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j}
-$TR         !                                    Nabla_{i j} \Nabla_{ibar jbar}
-$TR         ! uv uv part
-$TR         ! (in the case of conserved time-reversal)
-$TR         fac = kappa_can(i)*kappa_can(j)
-$TR         COM2_pp_debug(1,it) = COM2_pp_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
-$TR         COM2_pp_debug(2,it) = COM2_pp_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
-$TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
-         enddo
-      enddo
-
-$NTR      si = 0
-$NTR      do B=1,8,4 ! This is essentially an isospin loop now
-$NTR        N  = HFblocks_global(B) ; if(N.eq.0) cycle
-$NTR        N2 = HFblocks_global(B+1)
-$NTR        N3 = HFblocks_global(B+2)
-$NTR        N4 = HFblocks_global(B+3)
-$NTR        it = 1  ; if(B .eq.5) it = 2
-$NTR        ! We simply loop over all possible combinations of spwfs
-$NTR        ! as the NablaMElements array is zero in the right places
-$NTR        do i=1, N+N2+N3+N4
-$NTR          ii   = si + i
-$NTR          ibar = conjugp(ii) ; if(ibar .eq.0) cycle
-$NTR          do j=1,  N+N2+N3+N4
-$NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$NTR            ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j}
-$NTR            !                                Nabla_{i j} \Nabla_{ibar jbar}
-$NTR            ! (in the case of broken time-reversal)
-$NTR            jj   = si +  j
-$NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
-$NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
-$NTR            COM2_pp_debug(3,it) = COM2_pp_debug(3,it) &
-$NTR            &                   + fac * NablaMElements(3,1,ii,jj)          &
-$NTR            &                         * NablaMElements(3,1,ibar,jbar)
-$NTR            COM2_pp_debug(1,it) = COM2_pp_debug(1,it) &
-$NTR            &                   + fac * NablaMElements(1,1,ii,jj)          &
-$NTR            &                         * NablaMElements(1,1,ibar,jbar)
-$NTR            COM2_pp_debug(2,it) = COM2_pp_debug(2,it) &
-$NTR            &                   - fac * NablaMElements(2,2,ii,jj)          &
-$NTR            &                         * NablaMElements(2,2,ibar,jbar)
-$NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$NTR          enddo
-$NTR        enddo
-$NTR        si = si + N + N2 + N3 + N4
-$NTR      enddo
-      call stop_timer(T_com2_summation)
-
-      ! The prefactor f
-      prefac=hbm*nucleonmass/(neutrons*nucleonmass(1) + protons*nucleonmass(2))
-      do it=1,2
-        COM2_ph_debug(:,it) = prefac(it) * COM2_ph_debug(:,it)
-        COM2_pp_debug(:,it) = prefac(it) * COM2_pp_debug(:,it)
-      enddo
-      ! In the case of Time-reversal conservation, we summed over only half
-      ! the states
-$TR   COM2_ph_debug = 2*COM2_ph_debug
-$TR   COM2_pp_debug = 2*COM2_pp_debug
-
-      ! Summing the three directions
-      do it=1,2
-        COM2ph(it) = sum(COM2_ph_debug(:,it))
-        COM2pp(it) = sum(COM2_pp_debug(:,it))
-      enddo
-
-      ! The final relevant energy is the sum of ph and pp contributions
-      do it=1,2
-        COMCorrection(2,it) = COM2ph(it) + COM2pp(it)
-      enddo
-      call stop_timer(T_com2)
-     endif
-     call stop_timer(T_com)
-
-  end subroutine CompCOMCorrection
-
-  function calc_rotational_correction(rot_option) result(Erot)
-    !---------------------------------------------------------------------
-    !
-    ! Input:
-    !   rot_option
-    ! Output:
-    !   Erot:
-    !---------------------------------------------------------------------
-    use momentsofinertia, only: select_J2_and_MOI
-
-    integer, intent(in)        :: rot_option
-    real(KIND=dp)              :: Erot(3)
-
-    real(KIND=dp)              :: B(3),f_rot(3)
-    real(KIND=dp)              :: J2(3), MOI(3), MOI_c
-
-    Erot = 0.0d0
-    select case(rot_option)
-    case(0)
-      !----------------------------------------------------------------------
-      ! No rotational correction
-      return
-    case(1)
-      !----------------------------------------------------------------------
-      ! Calculate a phenomenological collective correction based on the
-      ! perturbative Belyaev moment of inertia.
-      !
-      !    Erot = - \sum_{\mu} f^rot_mu <J_mu^2>/(2 * I_{\mu})
-      !
-      ! where
-      !      * the sum is over all three Cartesian directions
-      !      *  < J^2_{mu} > is the expectation value of the angular momentum
-      !                      squared in a given direction
-      !      *  I_mu is the Belyaev moment of inertia along a given direction
-      !      * f^rot_mu is a cutoff function for the rotational correction
-      !
-      ! We take
-      !
-      !      f^rot_mu = b tanh( c B_mu )
-      !
-      ! where B_mu = I_mu / I_c is the ratio between the calculated Belyaev
-      ! moment of inertia and (one third of) the classical moment of inertia,
-      ! and the parameters b and c are encoded as rotcorrb and rotcorrc.
-      call select_J2_and_MOI(J2,MOI)
-      MOI_c = classical_MOI(neutrons,protons)
-      B = MOI/MOI_c * 3.0d0
-      f_rot         = rotcorrb * tanh(rotcorrc * B)
-      Erot          = - f_rot * J2/(2*MOI)
-    case DEFAULT
-      call stp('Unknown value for rot_opion in calc_rotational_correction')
-    end select
-
-  end function calc_rotational_correction
-
-  function calc_vibrational_correction(vib_option) result(Evib)
-    !---------------------------------------------------------------------------
-    ! Calculate the energy correction for spurious vibrational motion.
-    !
-    ! Input:
-    !  vib_option: type of vibrational correction to calculate
-    !          (0) : no correction
-    !          (1) : simple formula based on the rotational one
-    !          (2) : correction inspired by the ZPE of a collective Hamiltonian
-    ! Output:
-    !   Evib: the total vibrational correction
-    !---------------------------------------------------------------------------
-    use momentsofinertia, only :  select_J2_and_MOI
-    use fission_MOI, only      :  M2, M3
-
-    integer, intent(in)        :: vib_option
-    real(KIND=dp)              :: Evib
-
-    real(KIND=dp)              :: MOI_c, fvib(3), MOI(3), J2(3), B(3)
-    real(KIND=dp)              :: M3_temp(2,2), M3_inv(2,2), temp(2,2)
-
-    select case(vib_option)
-    case (0)
-      ! No vibrational correction include
-      Evib = 0
-      return
-    case (1)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Simple vibrational correction based on the rotational moment of inertia
-      !
-      ! Evib = - \sum_{\mu}  f^vib_mu  <J_mu^2>/(2 * I_{\mu}
-      !
-      ! where
-      !      * the sum is over all three Cartesian directions
-      !      *  < J^2_{mu} > is the expectation value of the angular momentum
-      !                      squared in a given direction
-      !      *  I_mu is the Belyaev moment of inertia along a given direction
-      !      *  f^vib_mu = d B_mu exp ( -l  (B - b_vib)**2  )
-      !
-      ! The quantity  B_mu = I_mu / I_c is the ratio between the calculated
-      ! Belyaev moment of inertia and one third of the classical moment of
-      ! inertia, 1.0/3.0 * I_c as calculated in the function classical_MOI.
-      !
-      ! The free parameters are d, l and b_vib; these are specified by a
-      !  parameterization and are called vibcorrd, vibcorrl and vibcorrb in
-      !  parameterization.f90.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      MOI_c = classical_MOI(neutrons, protons)
-      call select_J2_and_MOI(J2, MOI)
-      B     = MOI/MOI_c * 3.0d0
-
-      fvib  = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
-      Evib  = - sum(fvib * J2/(2*MOI))
-    case (2)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Vibrational correction from the zero-point energy of a collective Hamiltonian
-      !
-      !  Evib = - 1/4 * d * Trace M_3^{-1} M_2
-      !
-      ! where
-      !  - M_{n} are the QRPA-like response matrices for the Q20 and Q22
-      !     collective degrees of freedom; see the fission_moi.f90 file.
-      !  - d is a free parameter that is encoded as vibcorrd in the .param files
-      !
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Original reference: M. Girod and B. Grammaticos, NPA 330 (1979).
-      ! More practical:     T. Niksic et al. PRC 79, 034303 (2009)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! ATTENTION: hardcoded assumption that the (1:2,1:2) submatrices of
-      !            M_3 and M2 as calculated in fission_MOI represent Q20 and Q22!
-      M3_temp = M3(1:2,1:2,3)
-      M3_inv  = inv_mat(M3_temp)
-
-      temp = matmul(M3_inv, M2(1:2,1:2,3))
-      Evib = - 0.25d0 * vibcorrd *  (temp(1,1) + temp(2,2))
-    end select
-  end function calc_vibrational_correction
-
-  pure function inv_mat(A) result(Ainv)
-    !
-    ! Analytical inverse of a 2x2 matrix
-    !
-
-    real(KIND=dp), intent(in) :: A(2,2)
-    real(KIND=dp)             :: Ainv(2,2)
-    real(KIND=dp)             :: det
-
-    ! Calculate the inverse (!) of the determinant
-    det = 1/(A(1,1)*A(2,2) - A(1,2)*A(2,1))
-
-    ! Calculate the inverse of the matrix
-    Ainv(1,1) = +det * A(2,2)
-    Ainv(2,1) = -det * A(2,1)
-    Ainv(1,2) = -det * A(1,2)
-    Ainv(2,2) = +det * A(1,1)
-
-  end function inv_mat
-
-  function classical_MOI(N,Z) result(MOI)
-      !------------------------------------------------------------------------
-      ! Calculate the classical rotational moment of inertia.
-      !
-      !  I_c = 2/5 * m_n * A * R**2/(hbar c**2)
-      !   with R = (1.2 * A)**3
-      !------------------------------------------------------------------------
-      real(KIND=dp), intent(in) :: N,Z
-      real(KIND=dp)             :: MOI
-      real(KIND=dp)             :: A, R
-
-      A   = N + Z
-      R   = 1.2d0 * (A)**(1.d0/3.d0)
-      MOI = 2.0d0/5.0d0 * sum(nucleonmass)/2 * (A)*R**2
-      MOI = MOI/(hbarclum**2)
-  end function classical_MOI
-
-  function calcPotentials(R, Fread) result(F)
-    !---------------------------------------------------------------------------
-    ! Calculate all of the Skyrme potentials and the Coulomb potential
-    ! corresponding to the input densityvector R.
-    !
-    ! Input: 
-    !    R        : density-vector for the calculation of the fields
-    !    Fread    : optional Potentialvector.
-    !               If present, this potentialvector is used to initialize 
-    !               the calculated potentialvector; only the fields that 
-    !               are detected to be completely zero are then recalculated
-    ! Output: 
-    !    F        : a fresh potentialvector 
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 
-    ! Notes
-    ! (1)  this function does not do any preconditioning, mixing or anything 
-    !      else to the calculated fields. They are calculated "as is" from
-    !      the density vector passed in.
-    !
-    ! (2)  The Coulomb potential is part of the field-vector, and hence 
-    !      gets calculated here as well. 
-    !---------------------------------------------------------------------------
-    use Coulombmod, only : solve_coulomb
-    use Coulombmod, only : Coulomb_read_from_file
-    use pairing_strengths, only : vmicro, vmicro_stored
-    use moments
-
-    type(DensityVector), intent(in)             :: R
-    type(PotentialVector), intent(in), optional :: Fread
-    type(PotentialVector)                       :: F
-    real(KIND=dp)                               :: radius
-    integer                                     :: i
-
-    call start_timer(T_potentials)
-
-    ! Copy all the relevant information if this information was presented
-    if(present(Fread)) F = Fread
-
-    ! Signal that microscopic pairing strengths have to be recalculated
-    vmicro_stored = .false.
-
-    !---------------------------------------------------------------------------
-    ! Calculate all contributions to the potentials due to the Skyrme EDF
-$CALCPOTENTIALS
-
-    !---------------------------------------------------------------------------
-    ! Calculate the Coulomb potentials
-    !---------------------------------------------------------------------------
-    if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
-        call solve_coulomb(R,F,sx_rho, sy_rho, sz_rho)
-    endif
-    !---------------------------------------------------------------------------
-    ! Simulation of spherical boundary conditions
-    if(simulate_spherical_bc) then 
-      if(reduZ .eq. 1) then
-        if(nx.ne.nz) then
-          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
-        endif
-      else
-        if(2*nx.ne.nz) then
-          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
-        endif
-      endif
-      if(nx.ne.ny) then
-          call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
-      endif
-
-      do i=1,mv 
-        radius = sqrt(sum(meshgrid(i,:)**2))
-        if(radius .gt. (nx + 0.5d0) * dx) then 
-          F%F_I_I(i,1) = F%F_I_I(i,1) + 1000.0d0
-          F%F_I_I(i,2) = F%F_I_I(i,2) + 1000.0d0
-          F%F_I_I(i,3) = F%F_I_I(i,1) + F%F_I_I(i,2)
-          F%F_I_I(i,4) = F%F_I_I(i,1) - F%F_I_I(i,2)
-        endif
-      enddo
-    endif
-
-    call stop_timer(T_potentials)
-
-  end function calcPotentials
-
-#if($FAM == 1)
-  subroutine calc_perturbed_potentials(  R, dRs, dRa, dR_pp_plus, dR_pp_minus, &
-  &                                         dFs, dFa, dF_pp_plus, dF_pp_minus)
-    !---------------------------------------------------------------------------
-    ! Calculate the linearised response of the potentials (dFs, dFa) around
-    ! a set of mean-field densities (R) that are affected by perturbations
-    ! (dRs, dRa).
-    !
-    ! There is a clear separation between so-called symmetric and antisymmetric
-    ! quantities, both for the densities and potentials. The TOTAL perturbation
-    ! is in both cases the sum of the symmetric and antisymmetric parts, but
-    ! these parts have different symmetry properties such that we cannot simply
-    ! sum them everywhere.
-    !
-    ! For the potentials, the expressions for the symmetric and antisymmetric
-    ! part are identical; this routine is thus not much more than a wrapper
-    ! around two function calls to calc_perturbed_potentials.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !   R   : density-vector containing the mean-field densities
-    !   dRs : density-vector containing the symmetric perturbing particle-hole densities
-    !   dRa : density-vector containing the antisymmetric perturbing particle-hole densities
-    !   dR_pp_plus : density-vector containing the perturbing particle-particle densities deduced from kappa
-    !   dR_pp_minus: density-vector containing the perturbing particle-particle densities deduced from kappa^*
-    !
-    ! Output:
-    !   dFs : potential-vector containing the symmetric part of the linearised
-    !         response of the mean-field potentials
-    !   dFa : potential-vector containing the antisymmetric part of the linearised
-    !         response of the mean-field potentials
-    !   dF_pp_plus : potential-vector containing the linearised response of the pp potentials with kappa
-    !   dF_pp_minus: potential-vector containing the linearised response of the pp potentials with kappa^*
-    ! 
-    !---------------------------------------------------------------------------
-    use CoulombMod, only : solve_coulomb_linear_response
-
-    type (DensityVector), intent(in) :: R, dRs, dRa, dR_pp_plus, dR_pp_minus
-    type (PotentialVector)           :: dFs, dFa, dF_pp_plus, dF_pp_minus
-    
-    dFs  = calc_perturbed_potentials_oneoff(R,dRs)  ! perturbation of symmetric ph potentials
-    dFa  = calc_perturbed_potentials_oneoff(R,dRa)  ! perturbation of antisymmetric ph potentials
-
-    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)          ! Coulomb response to symmetric ph densities
-    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)  ! Coulomb response to antisymmetric ph densities
-
-    dF_pp_plus  = calc_perturbed_potentials_oneoff(R,dR_pp_plus) ! perturbation of pp potentials with kappa
-    dF_pp_minus = calc_perturbed_potentials_oneoff(R,dR_pp_minus)! perturbation of pp potentials with kappa^*
-
-    !call print_maxval('F_I_I', dFs%F_I_I, dFa%F_I_I)
-    !call print_maxval('F_Nm_Nm', dFs%F_Nm_Nm, dFa%F_Nm_Nm)
-
-    !call print_maxval('F_I_Sx', dFs%F_I_S(:,1,:), dFa%F_I_S(:,1,:))
-    !call print_maxval('F_I_Sy', dFs%F_I_S(:,2,:), dFa%F_I_S(:,2,:))
-    !call print_maxval('F_I_Sz', dFs%F_I_S(:,3,:), dFa%F_I_S(:,3,:))
-
-    !call print_maxval('G_I_Nx', dFs%G_I_N(:,1,:), dFa%G_I_N(:,1,:))
-    !call print_maxval('G_I_Ny', dFs%G_I_N(:,2,:), dFa%G_I_N(:,2,:))
-    !call print_maxval('G_I_Nz', dFs%G_I_N(:,3,:), dFa%G_I_N(:,3,:))
-
-    !call print_maxval('G_I_NS', dFs%G_I_NS, dFa%G_I_NS)
-    
-    !print *, 'MAXVAL dRs Re', maxval(ABS(DBLE(dRs%chargedensity)))
-    !print *, 'MAXVAL dRs Im', maxval(ABS(AIMAG(dRs%chargedensity)))
-    !print *, 'MAXVAL dRa Re', maxval(ABS(DBLE(dRa%chargedensity)))
-    !print *, 'MAXVAL dRa Im', maxval(ABS(AIMAG(dRa%chargedensity)))
-    
-    !print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fc Im', maxval(ABS(AIMAG(dFs%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fa Im', maxval(ABS(AIMAG(dFa%CoulombPotential(:,:,:))))
-
-  end subroutine calc_perturbed_potentials
-
-  function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
-    !---------------------------------------------------------------------------
-    ! Calculate the perturbed potential vector (F) around a set of mean-field
-    ! densities (R) affected by a perturbation (R_pert).
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !   R    : density-vector containing the mean-field densities
-    !   R_pert: density-vector containig the perturbation to the densities
-    ! Output:
-    !   F: potential-vector containing the linearised response of the mean-field
-    !      potentials/
-    !---------------------------------------------------------------------------
-    use Coulombmod       , only : solve_coulomb
-    use pairing_strengths, only : vmicro, vmicro_stored
-
-    type (DensityVector), intent(in) :: R, R_pert
-    type (PotentialVector)           :: F
-
-    vmicro_stored = .false.
-
-$CALCPOTENTIALS_PERTURBED
-    
-  end function calc_perturbed_potentials_oneoff
-#endif 
-  subroutine combine_potentials(F)
-    !----------------------------------------------------------------------------
-    ! This routine makes sure that the potential vector F is ready to be used
-    ! in the single-particle hamiltonian by summing various contributions that
-    ! get calculated separately.
-    !
-    ! 1. add Coulomb potentials to F_I_I
-    ! 2. add contribution from constraints to F_I_I (and possibly others)
-    ! 3. add cranking contribution to F_I_S and G_I_N
-    !
-    ! Input:
-    !   F : potentialvector, fresh from the calculation routines after possibly
-    !       passing through preconditioning and mixing
-    ! Output:
-    !   F : potentialvector, ready to be used in the action of the single-particle
-    !       hamiltonian
-    !----------------------------------------------------------------------------
-    type(PotentialVector), intent(inout) :: F
-
-    ! Add the coulomb potential to F_I_I
-    call add_coulomb_potential(F)
-    ! Add the contribution of the multipole constraints
-    call add_constraint_potential(F)
-    ! cranking constraints add stuff to the spin and current potentials
-    call add_cranking_potentials(F)
-
-  end subroutine combine_potentials
-
-  subroutine add_constraint_potential(F)
-    !----------------------------------------------------------------------------
-    ! Add the contribution of constraints on the mass electric multipole moments
-    ! to a potentialvector.
-    !
-    ! Input:
-    !   F :  potentialvector with F_I_I
-    ! Output:
-    !   F : where the new F_I_I = old F_I_I + constraint contribution
-    !-----------------------------------------------------------------------------
-    use moments
-
-    type(PotentialVector), intent(inout) :: F
-
-    ! Add the contribution from the constraints on the multipole moments
-    ! This line also sets Constraint_I_I globally!
-    Constraint_I_I = constraints_sph_elmult(.false.)
-    F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
-
-    ! We added stuff to the proton and neutron potentials, we should be
-    ! consistent with the isospin 0 and 1 potentials
-    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-
-  end subroutine add_constraint_potential
-
-  subroutine add_coulomb_potential(F)
-    !----------------------------------------------------------------------------
-    ! Add the Coulomb contribution to the potential F_I_I.
-    ! The index juggling is ugly, but necessary, because the Coulomb potential is
-    ! defined on a larger mesh than F_I_I.
-    !
-    ! Input:
-    !   F :  potentialvector with F_I_I (= associated with the Skyrme EDF)
-    !        and calculated Coulomb potentials
-    ! Output:
-    !   F : where the new F_I_I = old F_I_I + coulomb potentials
-    !-----------------------------------------------------------------------------
-    type(PotentialVector), intent(inout) :: F
-
-    F%F_I_I = F%F_I_I + transfer_coulomb_mesh(F, .true.) &
-    &                 + transfer_coulomb_mesh(F, .false.)
-  
-  end subroutine add_coulomb_potential
-
-  subroutine add_cranking_potentials(F)
-    !-----------------------------------------------------------------------------
-    ! Add the cranking contributions to the
-    !   F_I_S (spin potential)
-    !   G_I_N (current potential)
-    !
-    ! Input:
-    !    F : potentialvector
-    ! Output:
-    !    F : potentialvector, with modified F_I_S and G_I_N.
-    !-----------------------------------------------------------------------------
-    type(PotentialVector), intent(inout) :: F
-$TR real(KIND=dp)                        :: trash
-$TR trash = F%F_I_I(1,1) ! to stop compiler complaints when time-reversal is conserved
-!
-$TAUSCALAR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
-$TAUSCALAR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
-
-$TAUTENSOR $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
-$TAUTENSOR $NTR F%G_I_N = F%G_I_N + crank_current_potential()
-
-  end subroutine add_cranking_potentials
-
-#if( $FAM == 0 )
-  function precondition_potentials(F_in, F_out) result(F)
-    !---------------------------------------------------------------------------
-    ! Precondition the change in potentials from one iteration to the next. 
-    ! All code generated by Hephaestos. 
-    !
-    ! Input:
-    !   F_in : input potentials for an SCF iteration
-    !   F_out: output potentials for an SCF iteration
-    !
-    ! Output:
-    !   F    : set of preconditioned potentials. For every 
-    !            F_a = F_in,a + P_a [F_out,a - F_in,a]
-    !          where P_a is the preconditioning operator for µ
-    !          mean-field potential a.
-    !------------------------------------------ ---------------------------------
-    
-    type(PotentialVector), intent(in) :: F_in, F_out
-    type(PotentialVector)             :: F
-    real(KIND=dp), allocatable        :: update(:,:)
-    real(KIND=dp)                     :: coul_in(mv,4), coul_out(mv,4)
-
-    call start_timer(T_potentials)
-    call start_timer(T_pot_precon)
-
-    !---------------------------------------------------------------------------
-    ! Everything which is not specifically preconditioned below just gets 
-    ! explicitly copied from the new values.
-    F = F_out
-    !---------------------------------------------------------------------------
-    ! Preconditioning for the Skyrme potentials: we safeguard against 
-    ! short wavelength modes with a high-pass filter.
-$POTENTIALPRECON
-
-    !---------------------------------------------------------------------------
-    ! Preconditioning for the Coulomb potential
-    ! TODO: also apply the preconditioners to the exchange potential!
-    !---------------------------------------------------------------------------
-    ! 1. get coulomb potentials on a typical mesh
-    coul_out = transfer_coulomb_mesh(F_out,.false.) 
-    coul_in  = transfer_coulomb_mesh(F_in,.false.)
-    ! 2. calculate the difference
-    update = coul_out - coul_in
-
-    if(kerker_k0 .gt. 0.0d0) then    
-      ! 3a. precondition with Kerker preconditioner 
-      update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
-    endif
-
-    ! 3b. precondition with the same preconditioner as F_I_I 
-    ! OPTIONAL CHANGE FOR later
-    ! update = PreconditionPotential(update,-preconfactor,1.0_dp, sx_rho,sy_rho,sz_rho)
-
-    ! 4. save the result
-    update = coul_in + update
-    call set_coul(update(:,1:2), F)
-    !---------------------------------------------------------------------------
-
-    call stop_timer(T_pot_precon)
-    call stop_timer(T_potentials)
- 
-  end function precondition_potentials
-#endif
 
   function transfer_coulomb_mesh(F, exchange) result(pot)
     !---------------------------------------------------------------------------
@@ -1898,6 +754,7 @@ $POTENTIALPRECON
     
   end function transfer_coulomb_mesh
   
+
   subroutine set_coul(coul, F)
     !---------------------------------------------------------------------------
     ! Set the Coulombpotential of potentialvector F to the input function coul, 
@@ -1953,6 +810,7 @@ $POTENTIALPRECON
   
   end subroutine set_coul
 
+
   function INM_k2_pot_real(rho) result(pot)
     !-----------------------------------------------------------------
     ! Imagine homogeneous and unpolarised infinite nuclear matter:
@@ -1995,6 +853,7 @@ $K2POT
     pot(:,2) = pot(:,3) - pot(:,4)
   end function INM_k2_pot_real
 
+
   function INM_k2_pot_complex(rho) result (pot)
     ! Same as above, but for complex densities.
     complex(KIND=dp), intent(in) :: rho(mv,4)
@@ -2017,6 +876,7 @@ $K2POT
     pot(:,1) = pot(:,3) + pot(:,4)
     pot(:,2) = pot(:,3) - pot(:,4)
   end function INM_k2_pot_complex
+
 
   function INM_k4_pot_real(rho) result(pot)
     !-----------------------------------------------------------------
@@ -2060,6 +920,7 @@ $K4POT
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot_real
 
+
 function INM_k4_pot_complex(rho) result(pot)
   ! 
   complex(KIND=dp), intent(in) :: rho(mv,4)
@@ -2082,6 +943,7 @@ $K4POT
     pot(:,1) = pot(:,3) + pot(:,4)
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot_complex
+
 
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
@@ -2235,6 +1097,7 @@ $SKYRMEACTION
 
   end function apply_sphamil
 
+
   function delta_action(        psi,   &
 $N1DELTA                   &   dpsi,   &
 $N2DELTA                   &  ddpsi,   &
@@ -2303,83 +1166,6 @@ $PAIRINGACTION
 
   end function delta_action
 
-  function calcspwfenergy() result(spwfenergy)
-    !---------------------------------------------------------------------------
-    ! Calculates the total energy from the single-particle energies.
-    ! TODO: define inputs!
-    !---------------------------------------------------------------------------
-
-    use wavefunctions
-    use moments
-
-    integer       :: wave, wave2
-    real(KIND=dp) :: spwfenergy, e_rear
-
-    ! Start by summing the single-particle energies
-    spwfenergy = 0
-    if(pairingtype.lt.2) then
-      do wave=1,nwt
-        spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
-      enddo
-    elseif(allocated(canenergies)) then
-      do wave=1,nwt
-        spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
-      enddo
-    else 
-      ! Safeguard case
-      do wave=1,nwt 
-        do wave2=1,nwt 
-          spwfenergy = spwfenergy + rho_pairing(wave,wave2) * sphamil(wave2,wave)
-        enddo
-      enddo
-$TR   spwfenergy = 2 * spwfenergy      
-    endif
-    !
-    spwfenergy = 0.5d0 * spwfenergy
-
-    ! Calculation of rearrangement energy (without Coulomb Exchange)
-    e_rear = 0
-    e_rear = e_rear - 0.5d0*  trilinear
-    e_rear = e_rear -         quadrilinear
-$EREAR
-
-
-    spwfenergy = spwfenergy + e_rear
-    ! Add kinetic and CoulombExchange contributions
-    spwfenergy = spwfenergy + 0.5d0 * sum(kinetic) + CoulombExchange/3.d0
-
-    ! Add the 1-body COMcorrection. 
-    if(COM1body.eq.1) then
-        ! Perturbative use: add it completely
-        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))
-    else if(COM1body.eq.2) then
-        ! self-consistent use; add only half
-        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
-    endif
-
-    if(COM2body.gt.0) then
-        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(2,:))
-    endif
-
-    ! Subtract contribution by multipole constraints
-    Constraint_I_I = constraints_sph_elmult(.false.)
-    SpwfEnergy = SpwfEnergy - &
-    &          sum(Constraint_I_I(:,1:2) * DBLE(Density%D_I_I(:,1:2)))*dv/2.0_dp
-
-    ! Subtract contribution by cranking constraints
-    SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp
-
-    ! Add the pairing energy (with the stabilisation)
-    if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
-      SpwfEnergy = SpwfEnergy + sum(PairdenE_stab)
-    else
-      SpwfEnergy = SpwfEnergy + sum(PairdenEnergy)
-    endif
-    ! Add the rotational correction
-    Spwfenergy = Spwfenergy + sum(Rotcorrection)
-    ! And the vibrational correction
-    Spwfenergy = Spwfenergy + vibcorrection
-  end function calcspwfenergy
 
   subroutine output_Edensity(Edensity, N)
     !---------------------------------------------------------------------------
@@ -2406,622 +1192,5 @@ $EREAR
     close(12)
   end subroutine output_Edensity
 
-  subroutine clean_potentials()
-    !---------------------------------------------------------------------------
-    ! Clean up the allocated potentials for multiple runs.
-    !---------------------------------------------------------------------------
-
-  end subroutine clean_potentials
-  
-  subroutine calcElectronEnergy()
-      !NS: calculate kinetic energy of relativistic electron gas including exchange
-      !(but latter in ultrarelativistic limit)
-      
-      real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
-      real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
-      real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
-      real(KIND=dp),parameter :: hh=4.135667696d-21/(2.d0*pi) !codata h dirac MeV*s
-      real(KIND=dp),parameter :: alphaem=7.2973525693d-3 !Codata fine structure
-
-      if(protons .eq. 0.0d0) then
-         ElectronEnergyKin   = 0.0d0
-         ElectronChempotKin  = 0.0d0
-         ElectronEnergyExch  = 0.0d0
-         ElectronChempotExch = 0.0d0
-      else
-         ne=protons/(mv*dv)
-         !Relativistic electrons
-         lamce=hh*cc/me
-         pfermi=(3.d0*(hh*2.d0*pi)**3.d0/(8.d0*pi)*ne)**(1.d0/3.d0)
-         xx=pfermi*cc/me
-         xx2=xx*xx
-         hi_x=1.d0/(8.d0*pi*pi)*(xx*sqrt(1.d0+xx2)*(1.d0+2.d0*xx2)-log(xx+sqrt(1.d0+xx2)))
-         E_rel= me/(lamce**3.d0)*hi_x
-         
-         !Ultrarelativistic electrons
-         E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
-         
-         ElectronEnergyKin=E_rel*mv*dv
-         ElectronChempotKin=me*sqrt(1+xx2)
-
-         !Electron exchange energy and chempot
-         ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
-         ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
-      endif
-
-  end subroutine calcElectronEnergy
-
-  subroutine WritePotentials(chan, F)
-    !---------------------------------------------------------------------------
-    !  Subroutine writing the different potentials to file.
-    !---------------------------------------------------------------------------
-    type(PotentialVector), intent(in) :: F
-    integer, intent(in) :: chan
-    integer             :: io
-
-    ! Signalling how many potentials have been stored.
-    write(chan, iostat=io) $POTENTIALNUMBER
-
-    ! Then, for every potential write the
-    ! * Name
-    ! * Value
-    ! Note that the name is written as a length-30 string, padded with spaces.
-    ! If not, the unformatted in/out cannot correctly determine the end of a
-    ! string and comparisons can not be made.
-$WRITEPOTENTIALS
-  end subroutine WritePotentials
- 
-#if(USE_HDF5>0 && $FAM == 0)
-  ! No need to write potentials to file when dealing with FAM
-  subroutine write_hdf5_potentials(file_id, F)
-    !---------------------------------------------------------------------------
-    !  Subroutine writing the different potentials to the hdf5 file.
-    !
-    !  Note that all potentials will get stored as a completely flat array 
-    !  because they can all have different ranks.
-    !
-    ! Input:
-    !   file_id : integer(hid_t), identifier of the hdf5 file
-    !   F       : potentialvector to write
-    !---------------------------------------------------------------------------
-    use HDF5
-    use HDF5_auxiliary, only : hdf5_write_dataset_1d
-
-    type(PotentialVector), intent(in) :: F
-    integer(hid_t), intent(in)        :: file_id
-    real(KIND=dp)                        :: pot(mv,4)
-
-    ! Hephaestos fills in a call to hdf5_write_dataset_1d for every Skyrme potential
-$WRITEPOTENTIALS_HDF5
-
-    ! a little bit of extra work since the Coulomb potential is potentially
-    ! defined on a bigger mesh
-    pot = transfer_coulomb_mesh(F, .false.) 
-    call hdf5_write_dataset_1d(file_id, 'coulomb_potential', pot, &
-    &                     size(pot), groupname='fields/potentials')
-
-  end subroutine write_hdf5_potentials
-#endif
-
-  function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) &
-  & result(F)
-    !---------------------------------------------------------------------------
-    ! Subroutine that reads the different mean-field potentials from a 
-    ! wavefunction file created by a previous run of the code.
-    ! Notes:
-    !  1. this function does not rely on MPI I/O and simply reads everything 
-    !     with rank 0 and then does a bunch of MPI_BCASTS.
-    !  2. this function should not be confused with the readpotentials_separate
-    !     routine below
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !   chan                  : integer, channel number for input
-    !   filenx, fileny,filenz : integers, number of mesh points in every
-    !                           direction for the quantities on file
-    !   sym_transfo_needed    : logical, if a symmetry transformation is
-    !                           needed (.true.) or not (.false.)
-    !                  .false.: use the potentials as read from
-    !                           file, transforming only the number of mesh
-    !                           points if needed.
-    !                  .true. : use the potentials from file for further
-    !                           calculations. This means just reading them here
-    !                           and trusting the rest of the program to do the
-    !                           the rest.
-    ! Output:
-    !   F                      : a potential-vector, read from file
-    !---------------------------------------------------------------------------
-    integer, intent(in)   :: chan, filenx, fileny, filenz
-    logical, intent(in)   :: sym_transfo_needed
-    type(PotentialVector) :: F, F_temp
-    integer               :: io, potnumber, potcount, it, filemv
-    character(len=30)     :: potname
-
-#if(USE_MPI > 0)
-    integer             :: mpi_err
-#endif
-
-    filemv = filenx * fileny * filenz
-
-    ! Checking how many potentials have been stored on file
-    if(MPI_RANK .eq. 0) read(chan, iostat=io) potnumber
-#if(USE_MPI > 0)
-    call MPI_BCAST(potnumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-#endif
-
-    do potcount = 1,potnumber
-        ! Read the name of the potential stored
-        if(MPI_RANK .eq. 0) read(chan, iostat=io) potname
-#if(USE_MPI > 0)
-        call MPI_BCAST(potname,30, MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
-#endif
-        ! Then select which potential we are going to be reading
-#if( $FAM == 0)        
-        select case(trim(potname))
-$READPOTENTIALS
-        CASE DEFAULT
-          ! The potential is not in this program, forget about it
-          if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
-        end select
-#else        
-        ! Do NOT read potentials from file for FAM; these are real on file and complex in FAM!
-        if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
-#endif 
-    enddo
-
-  end function ReadPotentials
-
-#if(USE_HDF5 > 0)
-  function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) &
-   & result(F)
-    !---------------------------------------------------------------------------
-    ! Subroutine that reads the different mean-field potentials from a 
-    ! wavefunction file created by a previous run of the code.
-    ! Notes:
-    !  1. now only sequental reading
-    !  2. this function should not be confused with the readpotentials_separate
-    !     routine below
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !   chan                  : id of the group potentials
-    !   filenx, fileny,filenz : integers, number of mesh points in every 
-    !                           direction for the quantities on file
-    !   sym_transfo_needed    : logical, if a symmetry transformation is 
-    !                           needed (.true.) or not (.false.)
-    !                  .false.: use the potentials as read from 
-    !                           file, transforming only the number of mesh 
-    !                           points if needed. 
-    !                  .true. : use the potentials from file for further 
-    !                           calculations. This means just reading them here
-    !                           and trusting the rest of the program to do the
-    !                           the rest.
-    ! Output:
-    !   F                      : a potential-vector, read from file
-    !---------------------------------------------------------------------------
-    use HDF5
-    use HDF5_auxiliary
-
-    integer(hid_t), intent(in)   :: file_id
-    integer, intent(in)          :: filenx, fileny, filenz
-    logical, intent(in)          :: sym_transfo_needed
-    character(len=21), parameter :: groupname='/fields/potentials'
-
-    integer(hid_t)             :: group_id
-    type(PotentialVector)      :: F, F_temp
-    real(kind=dp), allocatable :: Ftmp(:) 
-    integer                    :: filemv, it, h5ferr
-#if(USE_MPI > 0)
-    integer                    :: mpi_err
-#endif
-
-    filemv = filenx * fileny * filenz
-    
-    if(MPI_RANK .eq. 0) then
-      call h5gopen_f(file_id,groupname,group_id,h5ferr)
-      if(h5ferr.ne.0) then
-        write(*,*) 'Error opening group ',trim(groupname)
-        call stp('ERROR: reading potentials in hdf5 format')
-      endif
-    endif
-
-$READPOTENTIALS_HDF5
-
-    if(MPI_RANK.eq.0) then
-      !close the potentials group
-      call h5gclose_f(group_id, h5ferr)
-    endif
-
-  end function read_potentials_hdf5
-
-  subroutine hdf5_readpot(id, name, dset, n)
-    !-----------------------------------------------------------------
-    ! Subroutine that reads a double precision potential of length n
-    ! with some name in the hdf5 file.
-    ! 
-    ! Input:
-    !   id    : integer(hid_t), identifier of the hdf5 file or group
-    !   name  : character(len=*), name of the dataset to read
-    !   n     : integer, length of the dataset to read
-    !
-    ! Output:
-    !   dset  : real(kind=dp), intent(inout), array of length n to
-    !           store the read dataset
-    !-----------------------------------------------------------------
-    use HDF5
-
-    character(len=*), intent(in) :: name
-    integer(hid_t), intent(in)   :: id
-    integer, intent(in)          :: n
-    real(kind=dp), intent(inout) :: dset(n)
-    integer(hid_t)               :: dset_id !identifiers
-    integer                      :: error
-    integer(hsize_t), dimension(1) :: dims, data_dims
-
-    dims=(/n/)
-    data_dims(1)=n
-    ! open dataset, "dset_id" is returned
-    call h5dopen_f(id, name, dset_id, error)
-    ! read dataset 
-    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    ! Close access to dataset 
-    call h5dclose_f(dset_id, error)
-
-    if (error.ne.0) then
-      call stp('ERROR: reading potentials in hdf5 format')
-    endif
-
-  end subroutine hdf5_readpot
-#endif
-
-  function CompStabilisingFactor(PairE) result(stab)
-    !---------------------------------------------------------------------------
-    ! Calculate StabilisingGapFactor =  E_cut^2/E_pair^2 when needed, i.e.
-    ! when PairingStabCut != 0. Otherwise set StabilisingGapFactor to zero.
-    ! Taken (with minor modifications from MOCCav1, routine by M. Bender)
-    !---------------------------------------------------------------------------
-    integer                   :: it
-    real(KIND=dp)             :: stab(2), cut(2)
-    ! PE is the user's choice of pairing energy
-    real(KIND=dp), intent(in) :: PairE(2)
-
-    cut(1) = Estabn
-    cut(2) = Estabp
-    stab   = 0.0
-    if (pairingtype.eq.0) return
-
-    do it=1,2
-      !-------------------------------------------------------------------------
-      ! No stabilisation for this isospin. Set factor to zero.
-      !-------------------------------------------------------------------------
-      if ( abs(cut(it)) .lt. 1.d-10 ) cycle
-
-      !-------------------------------------------------------------------------
-      ! If pairing energy is non-zero, so just calculate the factor.
-      ! If pairing energy is zero (meaning this is either the initial call or
-      ! a failure), fall back on predefined value (0.1 MeV).
-      !-------------------------------------------------------------------------
-      if ( abs(PairE(it)) .gt. 1.d-8 ) then
-        stab(it) = cut(it)**2/(PairE(it)**2)
-      else
-        if ( stab(it) .eq. 0.0_dp ) then
-          stab(it) = 0.1_dp
-           print '(" StabilisingFactor initialised to ",f12.6,  &
-            &   " for it = ",i1, es15.5)', stab(it),it, PairE(it)
-        endif
-      endif
-      if ( stab(it) .gt. 10.0 ) then
-        print '(" WARNING: StabilisingFactor: for it = ",i1, &
-        & " StabilisingGapFactor = ",1d16.8," for an energy of ",1d16.8)', &
-        & it,stab(it),PairE(it)
-      endif
-    enddo
-
-  end function CompStabilisingFactor
-
-  subroutine verify_COM_motion()
-    !---------------------------------------------------------------------------
-    !  This routine performs calculations of the collective moments of inertia
-    !  for the motion of the z-coordinate of the center of mass.
-    !
-    !  The collective coordinate for species q is thus
-    !    Q_q = z_q / A
-    !  to which corresponds a collective momentum  (in our convention)     
-    !    P_q = - i \nabla_z (*)
-    !  
-    !  One can show that, analytically, the collective inertia associated with 
-    !  movement of the centre-of-mass should be the TOTAL mass of the nucleus
-    ! 
-    !   M'_{0} = A m
-    !
-    !  This is what is always presented in the literature. Note however the 
-    !  little accent M', indicating that this IS NOT the collective inertia
-    !  associated with P_q. Rather, it is the collective mass associated with 
-    !     P'_q = hbar P_q
-    !  i.e. the 'physical' convention for the momentum. 
-    !
-    ! We calculate the collective inertia related to COM motion here in multiple
-    ! ways:
-    !
-    !   (a) Analytically, printed as 'A m'
-    !   (b) By using the Belyaev formula for the momentum in our convention (*)
-    !       (and multiplying by hbar^2 afterward)
-    !   (c) By using the perturbative cranking formula starting from Q_q
-    !       (and converting convention again afterward)
-    !
-    ! The results of (b) and (c) are not necessarily close to (a) however: 
-    ! for typical Skyrme interactions the effective mass m^*/m is not equal
-    ! to one, spoiling the correspondence of the perturbative formulation. 
-    ! The origin lies in the absence of Galileian invariance of the interaction 
-    ! in the perturbative treatment, see 
-    !
-    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
-    ! 
-    ! for a discussion. Ideally, we would calculate an "average" effective mass
-    ! as these authors do and use it to correct our results.
-    !
-    !---------------------------------------------------------------------------
-    
-    use fission_MOI
-    use densities
-    
-    1 format (' Pushing model                 M_0 (MeV/c^2)')
-    2 format (25x, 'neutrons        protons          total', / &
-    &         1x, 80('-'))
-    3 format ('   Belyaev M_0      | ', 3f16.5)
-    4 format ('   Pert. cranking   | ', 32x,f16.5)
-    7 format (1x, 80('-'),/, &
-    &         '   Am               | ', 3f16.5, /, 80('-'))
-    
-    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
-      
-    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
-    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt)
-    
-    ! Calculate hbar to make its use consistent
-    hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of nabla_z 
-    NablaMElements = compNablaMElements()
-    Psp            =  NablaMElements(3,1,:,:) 
-    if(pairingtype.eq.2) then
-      ! Attention, in a HFB calculation these are the matrix elements in the 
-      ! canonical basis, while Bogoliubov refers to the HF basis. So, we 
-      ! transfer back to the HFbasis
-      Psp = matmul(matmul(cantransfo, Psp), transpose(cantransfo))
-    endif
-    
-    Psp(1:nwn,1:nwn)         =  Psp(1:nwn,1:nwn)         * hbar
-    Psp(nwn+1:nwt,nwn+1:nwt) =  Psp(nwn+1:nwt,nwn+1:nwt) * hbar
-        
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate single-particle matrix elements of z-c.o.m. coordinate
-    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
-                    ! Q10 = sqrt(3/4pi) * z 
-                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
-    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
-    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: Calculate the average effective mass for the pushing model.
-    !       This used to work, but now fails thanks to the changes of the 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Calculate average effective mass 
-    !
-    !   m^*/m_q  = 2m/N_q * int d^3r   rho_q(r) hbar^2/2m^*_q(r)
-    ! 
-    ! with hbar^2/2m^*_q =  hbar^2/2m_q(r) + F_Nm_Nm(r)
-    ! 
-    ! which is the logical generalization from Eq. (30) in 
-    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
-    ! and an explicit factor of hbar^2.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !     avg_effmass = sum(F%F_Nm_Nm(:,:) * R%D_I_I(:,:) , 1) * dv
-    !     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
-    !     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
-    !     avg_effmass    = avg_effmass + 1
-    !     avg_effmass    = 1/avg_effmass
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-    print 1
-    print 2
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! perform the summations
-    select case(pairingtype)
-    case(0) ! HF
-      Pmat                     =  Ksum_Mij_HF(Psp, Psp, 1, 1,(/1,3/))
-      mat                      =  Ksum_Mij_HF(Qsp, Qsp, 1, 1,(/1,3/))
-    case(1) ! BCS
-      Pmat                     =  Ksum_Mij_BCS(Psp, Psp, 1, 1,(/1,3/))
-      mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
-    case(2) !HFB
-      P20 = calc_Q20(Psp, bogoliubov, 1)        
-      Pmat                     =  Ksum_Mij(P20, P20, 1, 1,(/1,3/))
-      Q20 = calc_Q20(Qsp, bogoliubov, 1)        
-      mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
-    end select
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculating the inertia parameters
-    totalmass   = 1.0d0/(sum(mat(1,:))) * sum(mat(2,:)) * 1.0d0/(sum(mat(1,:)))
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Printing 
-    print 3,  Pmat(1,:), sum(Pmat(1,:))
-    print 4,  totalmass * hbar**2
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Analytical result
-    print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
-    &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
-
-    print *
-
-  end subroutine verify_COM_motion
-
-#if( $FAM == 0)
-  function PVectorInproduct(F1, F2) result(x)
-    !---------------------------------------------------------------------------
-    ! Define a basic inproduct on the space of the potential vectors.
-    ! 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input: 
-    !   F1, F2 : potentialvectors to calculate the inproduct of. 
-    !       
-    ! Output: 
-    !      x: inproduct value, i.e. < F_1 | F_2 >
-    !---------------------------------------------------------------------------
-    type(PotentialVector), intent(in) :: F1,F2
-    real(KIND=dp) :: x
-
-    x = 0.0d0
-$PVECTORINPRODUCT
-    
- end function PVectorInproduct
-#endif
-
-  function readpotentials_separate(chan, ifn) result(F)
-    !---------------------------------------------------------------------------
-    ! Read mean-field potentials from a separate user-provided file that is 
-    ! NOT a wavefunction file. This routine should not be confused with the 
-    ! readpotentials subroutine from the functional module.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input: 
-    !  * chan : integer, channel number to read the file
-    !  * ifn  : input filename (will be checked for existence)
-    !
-    ! Output:
-    !      F  : a set of mean-field potentials
-    !
-    ! Caution: this routine is currently foreseen for a specific application, 
-    !          limited to maximally symmetric calculations and .func files
-    !          for which F_Nm_Nm and G_I_NS potentials are defined.
-    ! 
-    !---------------------------------------------------------------------------
-    use Coulombmod ! module explicitly 'used' in order to be able to place the 
-                   ! values of the direct and exchange Coulomb potentials 
-                   ! correctly on the mesh
-  
-    type(PotentialVector)        :: F
-    integer, intent(in)          :: chan
-    character(len=*), intent(in) :: ifn
-
-    logical :: exists
-    integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
-    real(KIND=dp), allocatable :: Vc(:), Ec(:)
-    real(KIND=dp)              :: x,y,z
-    character(len=200)         :: temp
-
-    inquire(file=ifn, exist=exists)
-    if(.not.exists) then
-      print *, 'Input file specified does not exist!'
-      stop
-    endif
-    
-    open (chan,file=ifn)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! We need to skip any header lines (indicated by #).
-    ! For a MOCCa-created file, there are 14 of them by default but other
-    ! people might write a different amount
-    io = 0; headercount = -1
-    do while(io.eq.0) 
-      headercount = headercount + 1
-      read(chan, iostat=io, fmt='(a200)') temp
-      if(temp(1:1) .ne. '#') io = 1
-    enddo  
-    ! We've found an error; we have counted the number of header lines!
-    rewind(chan)
-    ! ... and now we skip this number of lines    
-    do i=1,headercount
-        read(chan, fmt=('()'))
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Allocate the relevant potentials    
-    allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
-    allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
-$TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
-$TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
-$N1    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
-    allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
-    allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
-
-    ! We assume the points on the file are correctly ordered in 
-    ! FORTRAN fashion, such that we do not have to worry about looping 
-    ! separately over x/y/z and can just loop once over all mesh points.
-    ! This also means the coordinate information is not used.
-    do i=1,nx*ny*nz
-      read(chan, fmt='(7es25.12)', iostat=io, advance='no')        & 
-      &                            x,y,z,                          & !unused
-      &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
-      &                            Vc(i),  Ec(i)                     ! Coulomb
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! It is easy to read the kinetic potential from ETFSI calculations if 
-      ! D_Nm_Nm is defined as a contracted density
-$TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-$TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
-!      ! If not, then we have to do some reorganisation
-$TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-$TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
-$TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
-$TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
-$TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Pairing field
-      read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
-      &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! All components of the spin-orbit field
-      do mu=1,3
-        do nu=1,3
-$N1          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-$N1          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
-        enddo
-      enddo
-      
-      read(chan, *) ! Advance to new line
-      
-      if(io.ne.0) then
-        print *, 'Problem encountered reading potential file ', ifn
-        print *, 'IOSTAT = ', io
-        stop
-      endif
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Make sure the Coulomb module is configured with the right array dimensions
-    call setup_coulomb(F)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The index juggling is ugly, but necessary, because the Coulomb 
-    ! potential has a different size than the Lagrange mesh.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-      
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-          F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
-        enddo
-      enddo
-    enddo
-    ! Ensure that the folded potentials are allocated if needed
-    call Obtain_folded_potentials(F, sx_rho, sy_rho, sz_rho)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Make sure isospin combinations are made correctly for all potentials
-    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-
-$TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
-$TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
-$TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
-$TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
-
-$N1    do mu=1,3
-$N1      do nu=1,3
-$N1        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
-$N1        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
-$N1      enddo
-$N1    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Close channel after succesfull IO operations.
-    close(chan)
-  end function readpotentials_separate
 
 end module functional

@@ -45,7 +45,9 @@ module IO_wf
   use compilation
   use GenInfo,       only: nx, ny, nz, dp, NPROCS, MPI_RANK, stp
   use wavefunctions, only: HFBLOCKS
-  use functional,    only: ini_name_param, pairingtype, BCSGaps, HFBGaps, FermiEnergy
+  use functional,    only: ini_name_param
+  use pairing,      only: pairingtype, HFBGaps, FermiEnergy
+  use BCS,          only: BCSGaps
   use transform,     only: sym_transfo_needed
 
   implicit none

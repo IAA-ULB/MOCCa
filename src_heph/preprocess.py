@@ -93,7 +93,17 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         if(fname=='parameterization.f90'):
             ProcessParameterization(fname, src, target, dry_run)                    
         if(fname=='functional.f90'):
-            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
+            # The parent file and its F2008 implementation submodules
+            # (functional_{energy,potentials,fields,io}.f90) all carry the
+            # same $-markers: substitute the same keyword dictionary into
+            # each of them.
+            functional_files = ['functional.f90',
+                                'functional_energy.f90',
+                                'functional_potentials.f90',
+                                'functional_fields.f90',
+                                'functional_io.f90',
+                                'functional_coefs.f90']
+            vectors_potentials = ProcessFunctional(functional_files, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
         if(fname=='vectors.f90'):
             # Temporary workaround : run both processings in dry_run mode to get the strings
             #  TODO: fix this mess!
