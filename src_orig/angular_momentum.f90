@@ -121,7 +121,7 @@ module angular_momentum
   public :: AX_X, AX_Y, AX_Z
   public :: TAU_ANGFAM
   public :: Jm_params
-  public :: Jmu_spme_matrix, get_J_block, get_J_complete
+  public :: Jmu_spme_matrix, get_J_block, get_J_complete, J_half_fm
 
 contains
 
@@ -146,6 +146,56 @@ contains
 
     call Jm_build(mu, me)
   end subroutine Jmu_spme_matrix
+  !----------------------------------------------------------------------------
+  function J_half_fm(mu) result(me)
+    !---------------------------------------------------------------------------
+    ! Dense stored half of "the signature-flip content the basis affords" -
+    !  the consumer's one request per component, scenario-blind (D-8 of
+    !  2026-11-20, design 14.3 amendment). J_z is the honest generator's
+    !  dense expansion in every build. J_x/J_y are the honest word-1
+    !  generators while T is broken (goodqn bit 4 clear); while T is
+    !  conserved (bit 4 set) the partner sectors are empty and the honest
+    !  objects are structurally zero, so the same request serves the
+    !  TR-folded composite < i | J_mu T | j > instead: the stored-row /
+    !  image-column block (s, IEOR(s,1)) of the complete doubled-basis
+    !  matrix per stored sector s, packaged by the stored-k <->
+    !  image-k correspondence - columns in the stored order of sector s.
+    !  The scenario stays with the object's bits, never a Hephaestos
+    !  marker at the call site.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   mu : component selector, AX_X / AX_Y / AX_Z
+    ! Output:
+    !   me : the dense stored half, real(nwt, nwt)
+    !---------------------------------------------------------------------------
+    integer, intent(in)            :: mu
+    real(KIND=dp), allocatable      :: me(:, :)
+
+    type(block_matrix)             :: M
+    real(KIND=dp), allocatable     :: A(:, :)
+    integer                        :: s, st(0:8)
+
+    if (mu .eq. AX_Z .or. .not. btest(goodqn, 4)) then
+      call Jmu_spme_matrix(mu, M)
+      me = M%dense()
+      return
+    endif
+
+    ! T conserved and mu flips the signature: the folded composite.
+    st(0) = 1
+    do s = 0, 7
+      st(s + 1) = st(s) + HFBlocks_global(s + 1)
+    enddo
+    allocate (me(nwt, nwt))
+    me = 0.0d0
+    do s = 0, 7
+      if (st(s + 1) .le. st(s)) cycle
+      call get_J_block(mu, s, ieor(s, 1), A)
+      if (.not. allocated(A)) cycle
+      me(st(s):st(s + 1) - 1, st(s):st(s + 1) - 1) = A
+      deallocate (A)
+    enddo
+  end function J_half_fm
   !----------------------------------------------------------------------------
   !----------------------------------------------------------------------------
   subroutine Jm_build(mu, me)
