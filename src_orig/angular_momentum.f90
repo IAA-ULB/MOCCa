@@ -29,29 +29,27 @@ module angular_momentum
   !
   ! Five objects, two families:
   !
-  !   (a) the honest trio  J_x, J_y, J_z  - the one-body operators over the
-  !       stored basis. J_x/J_y flip the z-signature (word 1), J_z conserves
-  !       it (word 0); all three are Hermitian, parity-even and isoscalar;
-  !       J_y is the STY_ODD member of the triad (design section 2a). In
-  !       TR-conserving builds the word-1 partners of the stored sectors are
-  !       empty, so honest J_x/J_y come out as structural zeros there - the
-  !       odd-m multipole precedent, no special case.
+  !   (a) the honest trio  J_x, J_y, J_z  - the one-body operators over
+  !       the stored basis. J_x/J_y flip the z-signature (word 1), J_z
+  !       conserves it (word 0); all three are Hermitian, parity-even and
+  !       isoscalar; J_y is the STY_ODD member of the triad. In
+  !       TR-conserving builds the word-1 partners of the stored sectors
+  !       are empty, so honest J_x/J_y come out as structural zeros there
+  !       - the odd-m multipole precedent, no special case.
   !
-  !   (b) the TR-folded pair  J_x.T, J_y.T  - the antilinear composites the
-  !       t-kernels of wavefunctions.f90 implement, with MOCCa's FERMIONIC
-  !       time reversal T**2 = -1. Both preserve the z-signature (T flips
-  !       it, J_mu flips it back): word 0, within the stored sectors. The
-  !       honest word-1 operators being structurally empty in TR-conserving
-  !       builds is exactly why those builds' consumers need the folded
-  !       objects. The composites are Hermitian as operators,
-  !            (J.T)^dagger = T^-1 J = -(T**2) (J.T) = +(J.T)  for T**2 = -1 ,
-  !       an assertion recorded with the user 2026-11-19 - NOT a corollary
-  !       of the linear-operator algebra of design section 2a. Their class
-  !       tags below are therefore pinned to the empirical arbiter of
-  !       design section 14.3: the kernel-transpose oracle of the
-  !       angular_momentum_testing module measures the mirror character of
-  !       the stored numbers directly, and its printout is the authority
-  !       the tags have to agree with.
+  !   (b) the TR-folded pair  J_x.T, J_y.T  - the antilinear composites
+  !       the t-kernels of wavefunctions.f90 implement, with MOCCa's
+  !       FERMIONIC time reversal T**2 = -1. Both preserve the
+  !       z-signature (T flips it, J_mu flips it back): word 0, within
+  !       the stored sectors - which is why TR-conserving builds'
+  !       consumers need the folded objects. The composites are Hermitian
+  !       as operators,   (J.T)^dagger = T^-1 J = +(J.T)   for T**2 = -1,
+  !       NOT a corollary of the linear-operator algebra of design 2a.
+  !       Their class tags are pinned to the kernel-transpose oracle of
+  !       the angular_momentum_testing module (design 14.3): the oracle's
+  !       mirror measurement is the authority the tags have to agree
+  !       with, re-verified by the unit arm at every run - never
+  !       re-derive the kind signs.
   !
   ! The generators wrap the angmom kernels of wavefunctions.f90 VERBATIM -
   !  one kernel invocation per stored pair, exactly the arithmetic of the
@@ -117,29 +115,18 @@ contains
   !----------------------------------------------------------------------------
   subroutine Jmu_spme_matrix(mu, me)
     !---------------------------------------------------------------------------
-    ! Build the stored half of the single-particle matrix elements of the
-    !  honest angular-momentum operator J_mu in the HF basis, as one
-    !  symmetry-block matrix:
-    !       mu = AX_X :  me = Re < i | J_x | j >   - STY_EVEN, kind symmetric
-    !       mu = AX_Y :  me = Im < i | J_y | j >   - STY_ODD, kind antisymm.
-    !       mu = AX_Z :  me = Re < i | J_z | j >   - STY_EVEN, kind symmetric
-    !  All three operators are Hermitian (design section 14.1); init derives
-    !  the storage kinds from the classes. In a build that conserves the time
-    !  simplex the stored half is the complete operator.
-    !
-    !  The symmetry words are physical: J_x/J_y flip the z-signature (word 1),
-    !  J_z conserves it (word 0); parity and isospin bits are clear. The
-    !  good-quantum-number mask of geninfo merges the words with the basis as
-    !  everywhere in the design.
-    !
-    !  Symmetry-forbidden combinations are not an error here: they store zero
-    !  matrices through empty block lists (e.g. honest J_x/J_y in a
-    !  TR-conserving build) - guarding user input is the caller's business.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Stored half of the matrix elements of the honest J_mu, as one
+    !  symmetry-block matrix: Re for x/z (STY_EVEN, kind symmetric), Im
+    !  for y (STY_ODD, kind antisymmetric), all Hermitian. Words: 1 for
+    !  x/y (z-signature flipping), 0 for z; parity- and isospin-even.
+    !  Symmetry-forbidden objects are not an error: they store zero
+    !  matrices through empty block lists - guarding user input is the
+    !  caller's business.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu : component selector, AX_X / AX_Y / AX_Z
     ! Output:
-    !   me : the stored half of the matrix elements (fm**0 - dimensionless)
+    !   me : the stored half of the matrix elements (dimensionless)
     !---------------------------------------------------------------------------
     integer, intent(in)           :: mu
     type(sym_matrix), intent(out) :: me
@@ -149,24 +136,13 @@ contains
   !----------------------------------------------------------------------------
   subroutine Jt_spme_matrix(mu, me)
     !---------------------------------------------------------------------------
-    ! Build the stored half of the single-particle matrix elements of the
-    !  TR-folded composite J_mu.T in the HF basis, as one symmetry-block
-    !  matrix - the object the t-kernels of wavefunctions.f90 implement:
-    !       mu = AX_X :  me = Re < i | J_x T | j >
-    !       mu = AX_Y :  me = Im < i | J_y T | j >
-    !  (there is no folded J_z: J_z preserves the z-signature, so the honest
-    !  operator serves both TR-conserving and TR-broken builds.)
-    !
-    !  The composites are Hermitian as operators (design section 14.1, the
-    !  fermionic T**2 = -1 chain); their storage kinds are pinned to the
-    !  kernel-transpose oracle of the angular_momentum_testing module - the
-    !  class tags here are the oracle's measured facts, re-verified by the
-    !  unit arm at every run.
-    !
-    !  Word 0, within the stored sectors: only $TR-marked consumers have a
-    !  use for these objects (design section 14.3's caller-gates-scenarios
-    !  rule) - the generators themselves exist in every build.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Stored half of the matrix elements of the TR-folded composite
+    !  J_mu.T (Re for x, Im for y): word 0, within the stored sectors,
+    !  the object the t-kernels of wavefunctions.f90 implement. There is
+    !  no folded J_z - the honest operator serves both TR scenarios.
+    !  Class tags pinned to the kernel-transpose oracle (module header).
+    !  Only $TR-marked consumers have a use for these objects.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu : component selector, AX_X / AX_Y
     ! Output:
@@ -185,11 +161,16 @@ contains
   !----------------------------------------------------------------------------
   subroutine Jm_build(mu, folded, me)
     !---------------------------------------------------------------------------
-    ! Shared construction core of the two generators: resolve the physical
-    !  classes of the selected object, init the block list from the global
-    !  HFBlocks bookkeeping and fill every stored block through the
-    !  block_filler callback, which loops the angmom kernels over the
-    !  stored pairs.
+    ! Shared construction core of the two generators: resolve the classes,
+    !  init from the global HFBlocks and fill through the block_filler
+    !  callback.
+    !
+    !  For the folded composites the (herm, sty) pair does not carry its
+    !  linear-operator meaning (design 14): sty is the STORAGE selector -
+    !  which half the t-kernel computes - and herm the kind-completing sign
+    !  herm = kind * sty, with the mirror character the kernel-transpose
+    !  oracle MEASURES: symmetric, +1, for BOTH folded objects. The honest
+    !  trio uses its physical classes directly.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu     : component selector, AX_X / AX_Y (/ AX_Z if not folded)
@@ -210,19 +191,8 @@ contains
       call stp('Invalid component in the angular-momentum generators.')
     endif
 
-    ! Physical classes per the 14.1 table. The honest operators are
-    !  Hermitian, their STy classes matching the stored halves the
-    !  production kernels compute (J_x/J_z real, J_y imaginary - the
-    !  legacy storage conventions of calcJ2andBelyaev_HFB). For the
-    !  folded composites the (herm, sty) pair does not carry its
-    !  linear-operator meaning (design sections 2a and 14): sty is the
-    !  STORAGE selector - which half the t-kernel computes, real for
-    !  J_x.T, imaginary for J_y.T - and herm is the kind-completing
-    !  sign, herm = kind * sty, with kind the mirror character the
-    !  kernel-transpose oracle MEASURES: symmetric, +1, for BOTH folded
-    !  objects (angular_momentum_testing, 2026-11-19: max |a_ij - a_ji|
-    !  ~ 1e-14 for both components at the O16/SLy4 unit state). This
-    !  matches the production fills of calcJ2andBelyaev_HFB exactly.
+    ! Class selection per the banner: the folded tags follow the oracle
+    !  (banner above), the honest trio its physical classes.
     if (folded) then
       word = 0
       if (mu .eq. AX_Y) then
