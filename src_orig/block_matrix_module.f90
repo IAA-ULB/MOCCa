@@ -26,49 +26,23 @@ module block_matrix_module
   !
   ! This module contains the machinery to efficiently represent matrices
   !  in the configuration space spanned by a finite set of single-particle
-  !  wavefunctions on the MOCCa grid.
-  !
-  ! Implementation of the design summary
-  !  'mocca-symmetry-block-matrix-design-summary.md'. The current version
-  !  covers phases 1 and 2 of the design: sector encoding, the sym_block
-  !  and sym_matrix types, construction of the block list from MOCCa's
-  !  HFBlocks bookkeeping, and population of the stored blocks through
-  !  the dummy-procedure callback of fill_blocks, plus the
-  !  good-quantum-number mask in init (design section 2b), the mandatory
-  !  physical operator classes Hermiticity
-  !  and y-time-simplex characteristic of design section 2a, from which
-  !  the storage kind is derived (kind = herm * sty). It also provides
-  !  the partner-reconstructing dense
-  !  expansion 'dense' (design sections 9 and 13): the core of the
-  !  print_dense dump, the return shape behind dense wrappers such as
-  !  the new Qlm_spme_fm in moments.f90, and the dense reference of the
-  !  rotation unit tests below. The mat-vec/mat-mat products once
-  !  planned for later phases are dropped (design section 6).
-  !
-  !  Basis rotations (design section 6a): the module also carries the
-  !  change of basis of a stored operator by a real orthogonal,
-  !  sector-diagonal rotation - one square orthonormal block per
-  !  populated sector, the shape MOCCa's own producers make (HFB's
-  !  Canonical diagonalises rho per MOCCa block, so cantransfo is
-  !  exactly sector-diagonal). The sym_rotation type holds the
-  !  per-sector blocks, built as the identity, extracted from a full
-  !  n x n rotation array in the basis_transform convention (each
-  !  column is a new basis vector expressed in the old basis), or
-  !  handed per sector - with loud structure checks in every case. The
-  !  in-place rotate of a sym_matrix transforms every stored block
-  !  independently as  A <- U_{srow}^T A U_{scol} : the SAME operator in
-  !  the rotated basis, with every metadata field preserved. A
-  !  similarity transform is not an operator product - products of
-  !  classifiable operators are unclassifiable and stay out of the type
-  !  (design sections 2a and 6). Complex unitaries (which would break
-  !  the STy-invariance of the stored basis) and rotations mixing
-  !  sector partners are out of scope by design.
+  !  wavefunctions on the MOCCa grid. It implements the design summary
+  !  'mocca-symmetry-block-matrix-design-summary.md', whose sections are
+  !  referenced below: sector encoding, the sym_block / sym_matrix types,
+  !  the block-list construction from MOCCa's HFBlocks bookkeeping, block
+  !  population through the fill_blocks callback, the partner-reconstructing
+  !  dense expansion, and the sector-diagonal basis rotations (section 6a)
+  !  - real orthogonal only, one square orthonormal block per populated
+  !  sector, the shape MOCCa's own producers make (HFB's Canonical
+  !  diagonalises rho per MOCCa block, so cantransfo is exactly
+  !  sector-diagonal). The mat-vec / mat-mat products once planned for
+  !  later phases are dropped: no consumer exists (section 6).
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Symmetry model
   ! ---------------
   ! Operators acting on the HF basis carry three discrete quantum numbers,
-  !  each of which acts as a Z2 grading on the basis. A symmetry-sector word
+  !  each of which labels the basis states. A symmetry-sector word
   !  is a 3-bit integer s = 0..7 with the encoding
   !
   !   bit 0 : z-signature (Rz) : 0 = q(Rz) = +i , 1 = q(Rz) = -i
@@ -94,9 +68,10 @@ module block_matrix_module
   !  Typical occupations, all consistent with this single table:
   !    EV8 symmetries ('Rz,T,P,STy'):   all spwfs in blocks 1,3,5,7 (q(Rz)=+i)
   !    time-reversal broken           :  blocks 2,4,6,8 additionally populated
-  !    parity broken                  :  spwfs in blocks 1,2,5,6 only, as the
-  !                                      parity grading is absent (the P bit
-  !                                      of any operator is then vacuous)
+  !    parity broken                  :  spwfs in blocks 1,2,5,6 only, as
+  !                                      parity is not a good quantum number
+  !                                      (the P bit of any operator is then
+  !                                      vacuous)
   !
   !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   !  Good quantum numbers of the stored basis
@@ -138,10 +113,10 @@ module block_matrix_module
   !  IMAGINARY matrix elements.
   !
   !  STy carries NO block structure: every stored state is an invariant,
-  !  so there is no grading to pair and the characteristic never touches
-  !  the block list. It fixes how matrix elements are calculated (the
-  !  real or the imaginary part of the spinor product) and how the
-  !  stored numbers must be interpreted by consumers.
+  !  so there is no good quantum number to pair and the characteristic
+  !  never touches the block list. It fixes how matrix elements are
+  !  calculated (the real or the imaginary part of the spinor product)
+  !  and how the stored numbers must be interpreted by consumers.
   !
   !  Every operator handled by this type is classifiable (design summary
   !  section 2a): it is Hermitian or anti-Hermitian, and it is even or
@@ -176,7 +151,7 @@ module block_matrix_module
   !  states would need per-state signs, which MOCCa's conventions do
   !  not produce.
   !
-  !  Typical characteristics (agreed 2026-11-17): r^l Re Y_lm is
+  !  Typical characteristics: r^l Re Y_lm is
   !  STY_EVEN and r^l Im Y_lm is STY_ODD for every m, and J_y is
   !  STY_ODD. Character tables per operator family are producer-side
   !  knowledge; for operators acting on spin (e.g. spin densities) they
@@ -360,58 +335,24 @@ contains
   !----------------------------------------------------------------------------
   subroutine init_sym_matrix(this, HFBlocks, symmetry, herm, sty, goodqn)
     !---------------------------------------------------------------------------
-    ! Construct the block list of a symmetry-adapted matrix from the
-    !  operator's physical classes.
-    !
-    ! For every populated sector s, the operator couples it to sector
-    !  sp = IEOR(s, AND(symmetry, goodqn)) and to nothing else - the
-    !  physical word is intersected with the grading bits of the
-    !  good-quantum-number mask of design section 2b, so bits of quantum
-    !  numbers that do not label the basis (broken gradings, e.g. parity
-    !  in parity-broken builds) act diagonally. With the default mask 15
-    !  this is the pure XOR sp = IEOR(s, symmetry). A dense block is
-    !  stored for each populated sector pair; only one block per pair is
-    !  stored (dense reconstructs the other through the kind relation),
-    !  and a sector that is its own partner gives a single square block.
-    !
-    ! All blocks are allocated and zero-filled: the matrix is ready to be
-    !  populated by a fill callback (later phase) or element-by-element.
-    ! init may be called repeatedly on the same object; previous state is
-    !  discarded cleanly.
-    !
-    ! The storage kind is DERIVED from the physical classes,
-    !      kind = herm * sty ,
-    !  the stored numbers being the real part (STY_EVEN) or the imaginary
-    !  part (STY_ODD) of the complex matrix elements: Hermiticity makes
-    !  the real part symmetric and the imaginary part antisymmetric, and
-    !  an anti-Hermitian operator flips both. In a build conserving the
-    !  time simplex (goodqn bit 3 set, the case for every SYMSTRING in
-    !  the tree) the omitted half is identically zero and this matrix is
-    !  the complete operator; with bit 3 clear it is the selected half
-    !  of the (re, im) pair model of design section 12. The mask is
-    !  stored verbatim either way: it is the consumer's completeness
-    !  criterion, not a constructor gate.
+    ! Construct the block list of a symmetry-adapted matrix: every populated
+    !  sector s is paired with sp = IEOR(s, AND(symmetry, goodqn)) - quantum
+    !  numbers that do not label the basis act diagonally - and each
+    !  surviving pair gets one zero-filled dense block, with only one side
+    !  per pair stored (dense reconstructs the partner); a sector that is
+    !  its own partner gives a single square block. The storage kind is
+    !  derived as kind = herm * sty (header 'Characteristic' section).
+    !  init may be called repeatedly; previous state is discarded.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !   HFBlocks(1:8) : number of spwfs per MOCCa symmetry block. This is
-    !                   the GLOBAL count array (HFBlocks_global in the
-    !                   wavefunctions module); the rank-local twin must not
-    !                   be passed, as this type is single-node by design.
-    !   symmetry      : physical operator symmetry word, 0..7
-    !   herm          : HERMITIAN or ANTIHERMITIAN - the physical class
-    !                   of the operator under dagger conjugation
-    !   sty           : STY_EVEN or STY_ODD - the characteristic under
-    !                   the y-time-simplex (design section 2a). Selected
-    !                   part: the stored numbers are the real (even) or
-    !                   the imaginary (odd) part of the complex matrix
-    !                   elements. Never touches the block list.
-    !   goodqn        : optional 4-bit mask of the good quantum numbers
-    !                   of this build's basis (design section 2b); bits
-    !                   0-2 with the same assignment as the sector
-    !                   words, bit 3 = the time simplex conserved
-    !                   (section 2a); default 15 = every quantum number
-    !                   good. In MOCCa, pass the geninfo constant
-    !                   'goodqn'.
+    !   HFBlocks(1:8) : GLOBAL spwf counts per MOCCa block (header table);
+    !                   the rank-local twin must not be passed.
+    !   symmetry      : operator symmetry word, 0..7
+    !   herm          : HERMITIAN or ANTIHERMITIAN
+    !   sty           : STY_EVEN or STY_ODD - selects the stored half
+    !   goodqn        : optional good-quantum-number mask of the basis,
+    !                   default 15 = every quantum number good; in MOCCa
+    !                   pass the geninfo constant 'goodqn' ($GOODQN).
     !---------------------------------------------------------------------------
     class(sym_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
@@ -443,12 +384,8 @@ contains
       stop 1
     endif
 
-    ! Good-quantum-number mask (design section 2b): default 15 = every
-    !  quantum number good. Bits 0-2 are applied exactly once, in the
-    !  pairing word below (quantum numbers that do not label the basis
-    !  act diagonally); bit 3 is stored verbatim - consumers of the
-    !  characteristic read it to know whether the stored half is the
-    !  complete operator.
+    ! Bit 3 of the mask is stored verbatim: the consumer's completeness
+    !  criterion, not a constructor gate.
     qn = 15
     if (present(goodqn)) qn = goodqn
     if (qn < 0 .or. qn > 15) then
@@ -464,13 +401,8 @@ contains
     this%goodqn = qn
     this%n = sum(counts)
 
-    ! The physical classes as the single source of the storage structure:
-    !  the characteristic selects which part of the complex matrix
-    !  elements the stored numbers are (real for STY_EVEN, imaginary for
-    !  STY_ODD), Hermiticity makes that part symmetric or antisymmetric,
-    !  and an anti-Hermitian operator flips both cases. The derived kind
-    !  fixes the partner sign at access time; the block list built below
-    !  depends only on its being nonzero.
+    ! kind fixes the partner sign at access time; the block list built
+    !  below depends only on its being nonzero.
     this%sty = sty
     kind = herm*sty
     this%kind = kind
@@ -537,18 +469,11 @@ contains
   !----------------------------------------------------------------------------
   subroutine fill_blocks_sym_matrix(this, fill, params)
     !---------------------------------------------------------------------------
-    ! Populate all stored blocks through a block-wise callback.
-    !
-    ! For every stored block the callback 'fill' is invoked once, receiving
-    !  the block's sector words and a direct rank-2 view of the block
-    !  storage as an intent(out) dummy: the callback OVERWRITES the entire
-    !  block, typically via whole-array assignments or dense kernels.
-    !
-    ! The callback runs for stored blocks only; partners skipped by the
-    !  kind-based rule are untouched, as their values are resolved at
-    !  access time (a later phase) and never stored here. Distinct blocks
-    !  occupy disjoint storage, so the loop is safe to parallelise over
-    !  blocks; the OpenMP treatment is deferred to the design's step 7.
+    ! Populate all stored blocks through the callback: one call per stored
+    !  block, overwriting the storage handed out as an intent(out) dummy.
+    !  Unstored partners are never touched (dense reconstructs them);
+    !  distinct blocks occupy disjoint storage, so the loop is safe to
+    !  parallelise over blocks.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input/output:
     !   this   : the matrix whose stored blocks are populated
@@ -570,16 +495,11 @@ contains
   !----------------------------------------------------------------------------
   function dense_sym_matrix(this) result(D)
     !---------------------------------------------------------------------------
-    ! Partner-reconstructing dense expansion of a sym_matrix: the full
-    !  n x n matrix as one contiguous array, with all stored blocks at
-    !  their global positions and the unstored partners of (anti-)symmetric
-    !  matrices reconstructed as
-    !      A(s', s) = kind * A(s, s')^T .
-    ! Elements not covered by a stored block or its partner are zero.
-    !
-    ! This is the core behind the print_dense dump, the return shape of
-    !  dense wrappers such as Qlm_spme_fm in moments.f90, and the dense
-    !  reference of the rotation unit tests (design section 6a).
+    ! Partner-reconstructing dense expansion: the full n x n matrix with
+    !  all stored blocks at their global positions, unstored partners as
+    !      A(s', s) = kind * A(s, s')^T ,
+    !  zero elsewhere. The return shape of dense wrappers such as
+    !  Qlm_spme_fm in moments.f90 and of the rotation unit tests.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   this : the matrix whose stored blocks are expanded
@@ -610,17 +530,9 @@ contains
   !----------------------------------------------------------------------------
   subroutine print_dense_sym_matrix(this, lun, title)
     !---------------------------------------------------------------------------
-    ! Human-friendly dump of a sym_matrix as one dense n x n matrix.
-    !
-    ! Debug and test helper for SMALL matrices ONLY: the full dense matrix
-    !  is materialised, so memory and output scale as n**2 and this routine
-    !  does not transfer to realistic basis sizes.
-    !
-    ! (Anti-)symmetric matrices are printed complete: partner blocks that
-    !  init does not store are reconstructed in the dense helper as
-    !      A(s', s) = kind * A(s, s')^T ,
-    !  the expansion the dense reference of the design's validation tests
-    !  (summary section 9) is built from.
+    ! Human-friendly dump of a sym_matrix as one dense n x n matrix,
+    !  partners reconstructed by the dense expansion. Debug/test helper
+    !  for SMALL matrices ONLY - memory and output scale as n**2.
     !
     ! Layout: a header decoding the symmetry word, the kind, the stored
     !  block list and the populated sectors, then the matrix itself, with
@@ -806,19 +718,14 @@ contains
   subroutine rotate_sym_matrix(this, R)
     !---------------------------------------------------------------------------
     ! Rotate a sym_matrix into the basis defined by the sector-diagonal
-    !  orthonormal blocks of R: the matrix of the SAME operator in the
-    !  rotated basis (design section 6a). Every stored block transforms
-    !  independently, with two dense products per block,
-    !      A_b <- U_{srow}^T A_b U_{scol} ,
-    !  and unstored partner blocks are never touched: the kind-based
-    !  partner relation survives the rotation, so the partners of the
-    !  rotated matrix remain reconstructible in dense().
-    !
-    ! A rotation preserves every metadata field - herm, sty, kind, the
-    !  symmetry word, goodqn, the block list and st - and goodqn plays no
-    !  role at all: rotate acts on storage sectors, never on quantum
-    !  numbers. This is a similarity transform, not an operator product
-    !  (products of classifiable operators stay out of the type).
+    !  orthonormal blocks of R: every stored block transforms independently
+    !  as  A_b <- U_{srow}^T A_b U_{scol} , the same operator in the rotated
+    !  basis. Unstored partners are never touched - the kind relation
+    !  survives, so dense() reconstructs them as before - and every
+    !  metadata field is kept (goodqn plays no role: rotate acts on storage
+    !  sectors, never on quantum numbers). A similarity transform, not an
+    !  operator product: products of classifiable operators are
+    !  unclassifiable and stay out of the type.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input/output:
     !   this : the matrix whose stored blocks are rotated, in place

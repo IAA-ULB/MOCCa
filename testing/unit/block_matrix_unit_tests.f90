@@ -24,99 +24,31 @@
 program block_matrix_unit_tests
 !==============================================================================
   !
-  ! Unit tests for phases 1 and 2 of the symmetry-block matrix module:
-  !  construction of the block list from MOCCa's HFBlocks bookkeeping
-  !  and population of the stored blocks through callbacks.
+  ! Unit tests for the symmetry-block matrix module: construction of the
+  !  block list from MOCCa's HFBlocks bookkeeping, sector_of mapping,
+  !  population through the fill callback, the good-quantum-number mask,
+  !  the physical classes, the partner-reconstructing dense expansion and
+  !  the basis rotations. Every operator handled by the type is
+  !  classifiable (design 2a) - init takes herm and sty as mandatory
+  !  inputs and derives the storage kind as kind = herm * sty - so every
+  !  test loops over the four (herm, sty) combinations, over all HFBlocks
+  !  patterns below (EV8-like, time-reversal-broken, sparse, degenerate,
+  !  parity-broken, empty) and, where it matters, over all symmetry
+  !  words and masks.
   !
-  ! Every operator handled by the type is classifiable (design 2a): it is
-  !  Hermitian or anti-Hermitian, and it is STY_EVEN or STY_ODD under the
-  !  y-time-simplex. init takes both classes as mandatory inputs and
-  !  derives the storage kind as kind = herm * sty, so all construction
-  !  and population tests loop over the four (herm, sty) combinations.
-  !
-  ! For a suite of HFBlocks patterns (EV8-like, time-reversal-broken, sparse,
-  !  degenerate), every operator symmetry word 0..7 and every physical
-  !  class combination, the stored block list is verified against the
-  !  design invariants:
-  !
-  !   *) selection rules: each stored block couples sectors (srow, scol)
-  !      with srow = IEOR(scol, symmetry) and nothing else is stored
-  !   *) partner skipping: at most one block per sector pair is stored,
-  !      the skipped one satisfies scol > srow
-  !   *) block shapes, offsets and zero-initialisation
-  !   *) sector bounds array st(0:8) and the global size n
-  !   *) sector_of mapping, including empty sectors and out-of-range indices
-  !
-  ! Phase 2 adds the population machinery (design section 5):
-  !   *) fill_blocks invokes the callback once per stored block, for the
-  !      stored sector pairs only, with the block's sector words and the
-  !      right storage shape, and overwrites the entire block
-  !   *) the callback hands the unlimited-polymorphic params through
-  !      verbatim (an integer offset)
-  !   *) an empty block list leaves the callback uncalled
-  !
-  ! The good-quantum-number mask (design section 2b) adds:
-  !   *) the mask is stored and the omitted mask defaults to 15
-  !   *) masked pairing: blocks obey srow = IEOR(scol, AND(word, mask))
-  !   *) equivalence: a masked construction stores exactly the block list
-  !      of the unmasked construction with the effective word
-  !   *) the parity-broken pattern with an odd-parity operator: mask 5
-  !      merges to diagonal blocks, mask 7 pairs into empty sectors and
-  !      stores nothing
-  !
-  ! The physical classes (design section 2a) add:
-  !   *) the characteristic is stored verbatim and the storage kind is
-  !      derived as kind = herm * sty
-  !   *) no block structure: bounds, block count, sector pairs and
-  !      shapes are identical for all four class combinations
-  !   *) the mask is stored verbatim too - bit 3 is the consumer's
-  !      completeness criterion, not a constructor gate
-  !
-  ! The partner-reconstructing dense expansion (dense) adds:
-  !   *) shape (n, n) of the expansion, including the empty basis
-  !   *) every stored block sits at its global position with the exact
-  !      callback value; partners are reconstructed with the derived
-  !      kind sign at the transposed position; everything else
-  !      is exactly zero - verified against a hand-scattered reference
-  !      over the full cross product of patterns, symmetry words, class
-  !      combinations and good-quantum-number masks
-  !
-  ! The basis rotations (design section 6a) add:
-  !   *) the identity rotation is an exact no-op, built both by init
-  !      and extracted from a full identity array by init_from_dense
-  !   *) a rotated matrix keeps every metadata field (symmetry word,
-  !      kind, characteristic, goodqn, n, st) and its block list
-  !      still satisfies the construction invariants
-  !   *) the rotated storage agrees with the dense reference
-  !      C^T dense(M) C within reassociation tolerance
-  !   *) the round trip through the sector-wise transposed rotation
-  !      recovers the original numbers
-  !   *) the traces of the diagonal blocks are invariant (word 0)
-  !   *) for a partner-consistent operand, filled block-wise as a
-  !      symmetric or antisymmetric function of the global indices,
-  !      the dense expansion of the rotated matrix obeys
-  !      D(gj, gi) = kind * D(gi, gj) for both kinds
-  ! The structure guards of the rotation constructors are exercised by
-  !  the companion program block_matrix_refusal_tests.f90, driven by
-  !  the run script - they stop the process and cannot be caught
-  !  inside this suite.
+  ! The structure guards of the rotation constructors stop the process
+  !  and are exercised by the companion program
+  !  block_matrix_refusal_tests.f90, driven by the run script.
   !
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of eight routines (plus the check helper that
-  !  registers every individual condition, and the probed callbacks the
-  !  fill and rotation tests use):
-  !   test_construction : construction invariants over the full cross
-  !                      product of patterns, symmetry words and class
-  !                      combinations
-  !   test_reinit      : repeated init on the same object
-  !   test_sector_of   : global-index-to-sector mapping
-  !   test_fill_blocks : block-wise population through the callback
-  !   test_goodqn      : the good-quantum-number mask of design 2b
-  !   test_sty         : the physical classes of design 2a
-  !   test_dense_expansion : partner-reconstructing dense expansion
-  !   test_rotation   : basis rotations of design section 6a
+  ! The suite consists of eight routines, one per paragraph above (test_
+  ! construction, test_reinit, test_sector_of, test_fill_blocks,
+  ! test_goodqn, test_sty, test_dense_expansion, test_rotation), plus the
+  ! check helper that registers every individual condition and the probed
+  ! callbacks the fill and rotation tests use. The judgments of each test
+  ! are documented in its own banner.
   !==============================================================================
   use block_matrix_module
 
