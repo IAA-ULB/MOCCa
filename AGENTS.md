@@ -120,6 +120,19 @@ Consequences when editing near markers:
   keys, operator classes. Everything else gets one to three `!` lines of
   purpose, plus Input/Output lines only where the argument names do not
   carry the meaning.
+- Two-tier documentation structure (settled in block_matrix_module,
+  2026-11-20): MODULE HEADERS carry the full physics treatment - the
+  classification of the objects handled, encodings as bit tables,
+  selection rules, conventions the rest of the code assumes, and a
+  "caveats" section for non-obvious traps. Type and constant
+  DECLARATIONS get one-line comments only; a field's status
+  (mandatory init input / derived / descriptive metadata) and its
+  consumers belong in the relevant routine banner, not in a per-field
+  banner. Expand a declaration comment past one line only when the
+  information is load-bearing: index schemes, initialisation markers,
+  bit layouts.
+- In-code comments cross-reference places that exist ("the kind table
+  in the module header"), never section titles a later edit may delete.
 - Comment the why and the conventions, never the what. No revision
   dates, commit hashes, or design-summary restatements inside code
   comments - the commit message and the design summary are those

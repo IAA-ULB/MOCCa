@@ -25,7 +25,7 @@ module block_matrix_module
   !==============================================================================
   !
   ! This module contains the machinery to efficiently handle the matrix
-  !  represenation of (generalized) single-particle operators in the
+  !  representation of (generalized) single-particle operators in the
   !  configuration space spanned by a finite set of spwfs on a MOCCa grid.
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -56,7 +56,7 @@ module block_matrix_module
   !  the corresponding quantum number. This means that selection rules
   !  can be implemented as a single XOR operator:
   !
-  !      an operator couples sector s <-> section IEOR(s,op)
+  !      an operator couples sector s <-> sector IEOR(s,op)
   !
   !  Because of this property,
   !   (a) there is essentially no need for any if-statements that depend
@@ -80,7 +80,7 @@ module block_matrix_module
   !  - y-time-simplex, S^T_y
   !  - time-reversal, T
   !
-  !  These do not result in a quantum numbers and have no associated
+  !  These do not result in quantum numbers and have no associated
   !  selection rule and block structure. Operators however CAN anticommute
   !  with these, hence why the matrix representation of a one-body
   !  operator carries the logical "sty" and "tau".
@@ -94,7 +94,7 @@ module block_matrix_module
   !
   ! Finally, operators can be either hermitian or antihermitian
   !
-  !      O^\dagger = \pm O^\dagger
+  !      O^\dagger = \pm O
   !
   ! The (anti)Hermitian and S^T_y classification can be combined
   !  to determine that the matrix can be built with purely
@@ -103,7 +103,7 @@ module block_matrix_module
   !   hermitian, STY-even     -> real and symmetric     -> kind = +1
   !   hermitian, STY-odd      -> imag and antisymmetric -> kind = -1
   !   antihermitian, STY-odd  -> real and symmetric     -> kind = +1
-  !   antihermitian, STY-odd  -> imag and antisymmetric -> kind = -1
+  !   antihermitian, STY-even -> imag and antisymmetric -> kind = -1
   !
   ! This classification is computed and stored in the integer "KIND"
   ! of each block_matrix object.
@@ -125,158 +125,118 @@ module block_matrix_module
   !==============================================================================
   implicit none
 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Physical classes of an operator (design summary section 2a). Every
-  !  operator handled by this type is classifiable: it is Hermitian or
-  !  anti-Hermitian under dagger conjugation, and it is even or odd
-  !  under the y-time-simplex. Both classes are MANDATORY init inputs;
-  !  the storage kind below is derived from them as kind = herm * sty.
+  !------------------------------------------------------------------------------
+  ! The classification possibilities for an operator
+  !  We store these as parameters: writing e.g. HERMITIAN is less error-prone
+  !   and more easy to debug than a bunch of '+1' and '-1's.
+  ! Anti-hermitianness
   integer, parameter :: HERMITIAN       =  1
   integer, parameter :: ANTIHERMITIAN   = -1
-
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Characteristic of an operator under the y-time-simplex STy = P.T.Ry
-  !  (design summary section 2a, and the module header above for the full
-  !  treatment): STY_EVEN operators have purely real, STY_ODD operators
-  !  purely imaginary matrix elements over the stored basis (MOCCa's
-  !  spwfs are STy invariants). Mandatory init input selecting which
-  !  part of the complex matrix elements the stored numbers are.
+  ! Characteristic under S^T_y
   integer, parameter :: STY_EVEN =  1
   integer, parameter :: STY_ODD  = -1
-
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Storage kind of the stored real numbers: DERIVED in init from the
-  !  physical classes,  kind = herm * sty . Partner blocks are related by
+  ! Storage kind of the stored real numbers
   !     A(s', s) = kind * A(s, s')^T
-  !  and only one block per sector pair is stored; consumers reconstruct
-  !  partners through this same relation (dense). A block whose sector is
-  !  its own partner is square and internally symmetric/antisymmetric; it
-  !  is stored dense and the symmetry serves only as a consistency check.
   integer, parameter :: KIND_SYMMETRIC      =  1
   integer, parameter :: KIND_ANTISYMMETRIC  = -1
-
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Time parity of an operator (D-7, 2026-11-20; header section above for
-  !  the doubling semantics): T O T^-1 = tau * O, a physical class like
-  !  herm and sty; the folded composite OT inherits its parent's.
-  !  Mandatory init input, descriptive metadata: init stores it verbatim
-  !  and full_trace is the one in-module reader.
+  ! Time-reversal character
   integer, parameter :: TAU_EVEN =  1
   integer, parameter :: TAU_ODD  = -1
 
   !------------------------------------------------------------------------------
-  ! One dense block: rows span global indices is : is+m-1 of sector srow,
-  !  columns span js : js+n-1 of sector scol, with m = size(A,1), n = size(A,2).
+  ! Type for a single symmetry block in a block_matrix
+  !  - rows    span global indices ( is : is+m-1 ) of sector srow,
+  !  - columns span global indices ( js : js+n-1 ) of sector scol,
+  ! with m = size(A,1), n = size(A,2), the sizes of the sectors.
   type :: sym_block
-    integer :: srow, scol      ! sector words 0..7 of the row/column sector
+    integer :: srow, scol      ! sectors to which this submatrix corresponds
+                               ! i.e. quantum numbers of the spwfs associated
+                               ! with rows and columns.
     integer :: is, js          ! 1-based global start of the row/column sector
-    real(8), allocatable :: A(:, :)  ! (m, n), contiguous, LDA = m
+    real(8), allocatable :: A(:, :)  ! actual storage of real numbers
   end type sym_block
 
   !------------------------------------------------------------------------------
-  ! The full symmetry-adapted matrix: at most 8 blocks in a flat list.
-  !  After init, all runtime code loops over blocks(1:nblocks) only;
-  !  quantum numbers XOR selection rules never appear at runtime again.
+  ! The block_matrix: a flat list of at most 8 sym_blocks.
   type :: block_matrix
-    integer :: symmetry       ! operator symmetry word, 0..7 (physical)
-    integer :: goodqn         ! good-quantum-number mask of the basis,
-                              ! 0..31 (design 2b; bits 0-2 as the sector
-                              ! words, bit 3 = STy conserved, design 2a,
-                              ! bit 4 = T conserved, the scenario bit of
-                              ! the header's doubling section);
-                              ! 15 = every grading/simplex good,
-                              ! doubling off (the standalone default)
-    integer :: kind           ! storage kind of the stored numbers,
-                              ! DERIVED in init from the physical classes:
-                              ! KIND_SYMMETRIC / KIND_ANTISYMMETRIC,
-                              ! kind = herm * sty
-    integer :: sty            ! characteristic under the y-time-simplex
-                              ! (design 2a): STY_EVEN / STY_ODD as handed
-                              ! to init. Carries no block structure: tells
-                              ! producers and consumers which part of the
-                              ! complex matrix elements the stored real
-                              ! numbers are - the real part (even) or the
-                              ! imaginary part (odd). This matrix is the
-                              ! complete operator iff goodqn bit 3 is set.
-    integer :: tau            ! time parity of the operator (D-7, 2026-11-
-                              ! 20): TAU_EVEN / TAU_ODD as handed to init;
-                              ! composites inherit the parent's. Descriptive
-                              ! metadata: no fill logic reads it; full_trace
-                              ! is the one in-module consumer
-    logical :: folded         ! .true. = the TR-folded composite <a|O T|b>
-                              ! (design 2d), not the honest operator: the
-                              ! identity metadata of D-7, stored verbatim;
-                              ! the doubling contracts refuse such objects
-    integer :: n              ! total basis size, sum(HFBlocks)
-    integer :: nblocks        ! number of stored blocks, <= 8
-    type(sym_block) :: blocks(8)
-    integer :: st(0:8)        ! first global (1-based) index of each sector;
-                              !  st(8) = n + 1; sector s spans st(s) .. st(s+1)-1
+    integer :: symmetry          ! operator symmetry word, 0..7
+    integer :: goodqn            ! good-quantum-number mask of the basis,
+                                 ! 0..31; bits 0-2 as the sector words,
+                                 ! bit 3 = STy conserved, bit 4 = T conserved
+    integer :: kind              ! real-symmetric or imaginary-antisymmetric
+    integer :: sty               ! characteristic under the y-time-simplex
+    integer :: tau               ! time parity of the operator
+    logical :: folded            ! .true. = the TR-folded composite <a|O T|b>
+    integer :: n                 ! total basis size, sum(HFBlocks)
+    integer :: nblocks           ! number of stored blocks, <= 8
+    type(sym_block) :: blocks(8) ! actual storage of sym_blocks
+    integer :: st(0:8)           ! first global index of each sector;
+                                 ! st(8) = n + 1
   contains
-    procedure :: init => init_block_matrix
-    procedure :: sector_of => sector_of_block_matrix
-    procedure :: fill_blocks => fill_blocks_block_matrix
-    procedure :: dense => dense_block_matrix
-    procedure :: print_dense => print_dense_block_matrix
-    procedure :: full_trace => full_trace_block_matrix
-    procedure :: rotate => rotate_block_matrix
+    procedure :: init           => init_block_matrix
+    procedure :: sector_of      => sector_of_block_matrix
+    procedure :: fill_blocks    => fill_blocks_block_matrix
+    procedure :: dense          => dense_block_matrix
+    procedure :: print_dense    => print_dense_block_matrix
+    procedure :: full_trace     => full_trace_block_matrix
+    procedure :: rotate         => rotate_block_matrix
   end type block_matrix
 
   !----------------------------------------------------------------------------
-  ! One square orthonormal rotation block belonging to a single sector
-  !  (design section 6a). Left unallocated for empty sectors and for
-  !  objects that have not been through init yet.
+  ! A single block of a matrix representing a unitary transformation
   type :: sector_rotation
     real(8), allocatable :: U(:, :)   ! (k, k), orthogonal: U^T U = I
   end type sector_rotation
 
   !----------------------------------------------------------------------------
-  ! A basis rotation: one real orthonormal block per populated sector,
-  !  i.e. the sector-diagonal change of basis  psi' = C^T psi  whose
-  !  columns are the new basis vectors expressed in the old basis (the
-  !  basis_transform convention). Applied to a block_matrix through rotate,
-  !  it expresses the SAME operator in the rotated basis and preserves
-  !  every metadata field (design section 6a).
+  ! A basis rotation represented as a unitary transformation.
+  ! I.e. a change of spwfs specified as
+  !
+  !                  psi' = C^T psi
+  !
+  ! where C is a unitary matrix that respects all symmetries; i.e. it
+  ! only has real entries and is sector-diagonal.
+  !
+  ! Note: this transpose convention is exactly that of basis_transform.f90
   type :: sym_rotation
     integer :: n = 0                  ! total basis size, sum(HFBlocks)
-    integer :: st(0:8) = 0            ! 1-based sector bounds, scheme 2:
-                                      !  sector s spans st(s) .. st(s+1)-1;
-                                      !  st(0) = 1 marks an initialised
-                                      !  object, the default 0 does not
+    integer :: st(0:8) = 0            ! sector bounds; st(0) = 1 marks an
+                                      !  initialised object, default 0 not
     type(sector_rotation) :: U(0:7)   ! populated sectors only
   contains
-    procedure :: init => init_sym_rotation
+    procedure :: init            => init_sym_rotation
     procedure :: init_from_dense => init_from_dense_sym_rotation
-    procedure :: set_sector => set_sector_sym_rotation
+    procedure :: set_sector      => set_sector_sym_rotation
   end type sym_rotation
 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Population callbacks (design section 5): dummy procedures with an
-  !  abstract interface, never stored as components.
   abstract interface
-  !----------------------------------------------------------------------------
-  subroutine block_filler(srow, scol, A, params)
-    !---------------------------------------------------------------------------
-    ! Overwrite one whole block. Invoked by fill_blocks once per stored
-    !  block, with the sector words srow/scol of the block and a rank-2
-    !  view of the block storage itself.
-    !
-    ! A is an intent(out) dummy: the callback must overwrite the entire
-    !  block. 'params' is caller state handed through verbatim.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !   srow, scol : sector words 0..7 of the block
-    !   params     : caller state, opaque
-    ! Output:
-    !   A          : the block storage, to be overwritten entirely
-    !---------------------------------------------------------------------------
-    integer, intent(in)   :: srow, scol
-    real(8), intent(out)  :: A(:, :)
-    class(*), intent(in)  :: params
-  end subroutine block_filler
+      subroutine block_filler(srow, scol, A, params)
+      !---------------------------------------------------------------------------
+      ! Overwrite one whole block of a block matrix.
+      !
+      ! This routine is the abstract interface for operator-specific routines
+      !  that implement the matrix element calculation. Such routines should
+      !  depend on
+      !   (a) the sector words (= quantum numbers) srow/scol of the block.
+      !   (b) any other parameters that can be passed in through a type "params"
+      !
+      ! Note that A is an intent(out) dummy: the routine must overwrite the
+      !  entire block and cannot write individual variables.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Input:
+      !   srow, scol : sector words 0..7 of the block
+      !   params     : additional parameters
+      ! Output:
+      !   A          : the block storage, to be overwritten entirely
+      !---------------------------------------------------------------------------
+      integer, intent(in)   :: srow, scol
+      real(8), intent(out)  :: A(:, :)
+      class(*), intent(in)  :: params
+    end subroutine block_filler
   end interface
 
   private
+
   public :: sym_block, block_matrix
   public :: sector_rotation, sym_rotation
   public :: HERMITIAN, ANTIHERMITIAN
@@ -287,34 +247,23 @@ module block_matrix_module
 
 contains
 
-  !----------------------------------------------------------------------------
   subroutine init_block_matrix(this, HFBlocks, symmetry, herm, sty, tau,          &
   &                           folded, goodqn)
     !---------------------------------------------------------------------------
-    ! Construct the block list of a symmetry-adapted matrix: every populated
-    !  sector s is paired with sp = IEOR(s, AND(symmetry, goodqn)) - quantum
-    !  numbers that do not label the basis act diagonally - and each
-    !  surviving pair gets one zero-filled dense block, with only one side
-    !  per pair stored (dense reconstructs the partner); a sector that is
-    !  its own partner gives a single square block. The storage kind is
-    !  derived as kind = herm * sty (header 'Characteristic' section).
-    !  init may be called repeatedly; previous state is discarded.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct a block_matrix based on the classification of the operator.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   HFBlocks(1:8) : GLOBAL spwf counts per MOCCa block (header table);
     !                   the rank-local twin must not be passed.
     !   symmetry      : operator symmetry word, 0..7
-    !   herm          : HERMITIAN or ANTIHERMITIAN
-    !   sty           : STY_EVEN or STY_ODD - selects the stored half
-    !   tau           : TAU_EVEN or TAU_ODD - the operator's time parity,
-    !                   descriptive metadata (header 'Time parity' section)
+    !   herm          : HERMITIAN or ANTIHERMITIAN, i.e. +1/-1
+    !   sty           : STY_EVEN or STY_ODD       , i.e. +1/-1
+    !   tau           : TAU_EVEN or TAU_ODD       , i.e. +1/-1
     !   folded        : optional, default .false. - .true. marks the object
     !                   as the TR-folded composite <a|O T|b> of design 2d;
     !                   identity metadata, no fill logic reads it
-    !   goodqn        : optional good-quantum-number mask of the basis,
-    !                   default 15 = every grading/simplex good, doubling
-    !                   off; in MOCCa pass the geninfo constant 'goodqn'
-    !                   ($GOODQN).
+    !   goodqn        : optional good-quantum-number mask of the basis
     !---------------------------------------------------------------------------
     class(block_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
@@ -705,7 +654,7 @@ contains
   function full_trace_block_matrix(this) result(t)
     !---------------------------------------------------------------------------
     ! The honest operator's physical trace as one complex number (D-7,
-    !  2026-11-20; header 'Time parity' section for the conventions).
+    !  2026-11-20; module header for the conventions).
     !  With goodqn bit 4 set - the stored basis is the q(Rz) = +i half of
     !  a T-symmetric set - the trace over the T-doubled basis (stored
     !  states plus their time-reversal images) is
