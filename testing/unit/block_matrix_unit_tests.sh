@@ -5,7 +5,8 @@
 #  block list from MOCCa's HFBlocks bookkeeping, population of the stored
 #  blocks through the fill callbacks, the partner-reconstructing dense
 #  expansion of the design's section 13, and the unitary (sector-diagonal
-#  real orthogonal) transformations of stored matrices.
+#  real orthogonal) transformations of stored matrices - plus the
+#  honest-trace contract of D-7 (design 15.8 amendment, 2026-11-20).
 #
 # The tests are standalone programs that are compiled on the fly together
 #  with the module itself (which has no $-markers and no dependencies on
@@ -48,7 +49,7 @@ gfortran -O2 -J "${work}" -o "${work}/block_matrix_refusal_tests.exe" \
 #  status 1 = refused as expected, anything else is a failure.
 refusal_failed=0
 scenario=1
-while [ "${scenario}" -le 8 ]; do
+while [ "${scenario}" -le 9 ]; do
   rc=0
   "${work}/block_matrix_refusal_tests.exe" "${scenario}" || rc=$?
   if [ "${rc}" -ne 1 ]; then

@@ -86,9 +86,11 @@ module block_matrix_module
   !  couples states WITHIN blocks 1, 2, 5, 6 rather than pairing them into
   !  the empty blocks 3, 4, 7, 8 as its physical word suggests.
   !
-  !  init therefore takes an optional 4-bit mask 'goodqn' (bits 0-2 as
+  !  init therefore takes an optional 5-bit mask 'goodqn' (bits 0-2 as
   !  the sector words, bit 3 = the y-time-simplex conserved, see the next
-  !  section; default 15 = every quantum number good) marking the
+  !  section, bit 4 = time reversal conserved, the scenario bit of the
+  !  doubling section below; default 15 = every sector grading and the
+  !  simplex good, doubling off) marking the
   !  quantum numbers that actually label the basis, and pairs every
   !  sector s with IEOR(s, AND(symmetry, goodqn)) - bits 0-2 enter the
   !  pairing; bit 3 is stored verbatim for consumers of the characteristic.
@@ -158,6 +160,33 @@ module block_matrix_module
   !  depend on MOCCa's spin convention for STy and must be taken from
   !  the symmetry machinery, not re-derived here.
   !
+  !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !  Time parity and the doubling scenario (D-7, 2026-11-20)
+  !  -----------------------------------------------------
+  !  Two descriptive metadata components carry what the generator
+  !  entry-point names used to be the only trace of:
+  !   *) tau - the operator's time parity T O T^-1 = tau O, a mandatory
+  !      init class like herm and sty (TAU_EVEN / TAU_ODD); the folded
+  !      composite <a|O T|b> inherits its parent's. No fill logic reads
+  !      it - full_trace is the one in-module consumer.
+  !   *) folded - .true. for the TR-folded composite (design 2d): the
+  !      honest-vs-composite identity, stored verbatim.
+  !  goodqn bit 4 ("T good") is the scenario bit: set = the stored basis
+  !  is the q(Rz) = +i half of a T-symmetric set and the doubled-basis
+  !  contracts are defined; clear = the basis is the whole physical
+  !  basis and they degenerate. Marker-free code reads the scenario off
+  !  the object instead of the $TR/$NTR marker.
+  !
+  !  full_trace returns the honest operator's physical trace as one
+  !  complex number: with bit 4 set, over the T-doubled basis,
+  !      Tr_full = Tr_stored + tau * conj(Tr_stored)
+  !  (design 15.8 mechanism 1b: <Tu|O|Tv> = tau * conj(<u|O|v>)) - i.e.
+  !  2 Re, 2 i Im, or 0 by (tau, sty); with bit 4 clear the plain
+  !  numerical trace. Signature-flipping words contribute nothing: no
+  !  diagonal blocks exist, the diagonal vanishes by selection rules.
+  !  FOLDED composites are refused: their diagonals are fold diagonals
+  !  <a|O T|a>, a different statement, kept D-5-gated by design.
+  !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Conventions
   ! ------------
@@ -223,6 +252,15 @@ module block_matrix_module
   integer, parameter :: KIND_SYMMETRIC      =  1
   integer, parameter :: KIND_ANTISYMMETRIC  = -1
 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Time parity of an operator (D-7, 2026-11-20; header section above for
+  !  the doubling semantics): T O T^-1 = tau * O, a physical class like
+  !  herm and sty; the folded composite OT inherits its parent's.
+  !  Mandatory init input, descriptive metadata: init stores it verbatim
+  !  and full_trace is the one in-module reader.
+  integer, parameter :: TAU_EVEN =  1
+  integer, parameter :: TAU_ODD  = -1
+
   !------------------------------------------------------------------------------
   ! One dense block: rows span global indices is : is+m-1 of sector srow,
   !  columns span js : js+n-1 of sector scol, with m = size(A,1), n = size(A,2).
@@ -239,9 +277,12 @@ module block_matrix_module
   type :: sym_matrix
     integer :: symmetry       ! operator symmetry word, 0..7 (physical)
     integer :: goodqn         ! good-quantum-number mask of the basis,
-                              ! 0..15 (design 2b; bits 0-2 as the sector
-                              ! words, bit 3 = STy conserved, design 2a);
-                              ! 15 = every quantum number good
+                              ! 0..31 (design 2b; bits 0-2 as the sector
+                              ! words, bit 3 = STy conserved, design 2a,
+                              ! bit 4 = T conserved, the scenario bit of
+                              ! the header's doubling section);
+                              ! 15 = every grading/simplex good,
+                              ! doubling off (the standalone default)
     integer :: kind           ! storage kind of the stored numbers,
                               ! DERIVED in init from the physical classes:
                               ! KIND_SYMMETRIC / KIND_ANTISYMMETRIC,
@@ -254,6 +295,15 @@ module block_matrix_module
                               ! numbers are - the real part (even) or the
                               ! imaginary part (odd). This matrix is the
                               ! complete operator iff goodqn bit 3 is set.
+    integer :: tau            ! time parity of the operator (D-7, 2026-11-
+                              ! 20): TAU_EVEN / TAU_ODD as handed to init;
+                              ! composites inherit the parent's. Descriptive
+                              ! metadata: no fill logic reads it; full_trace
+                              ! is the one in-module consumer
+    logical :: folded         ! .true. = the TR-folded composite <a|O T|b>
+                              ! (design 2d), not the honest operator: the
+                              ! identity metadata of D-7, stored verbatim;
+                              ! the doubling contracts refuse such objects
     integer :: n              ! total basis size, sum(HFBlocks)
     integer :: nblocks        ! number of stored blocks, <= 8
     type(sym_block) :: blocks(8)
@@ -265,6 +315,7 @@ module block_matrix_module
     procedure :: fill_blocks => fill_blocks_sym_matrix
     procedure :: dense => dense_sym_matrix
     procedure :: print_dense => print_dense_sym_matrix
+    procedure :: full_trace => full_trace_sym_matrix
     procedure :: rotate => rotate_sym_matrix
   end type sym_matrix
 
@@ -328,12 +379,14 @@ module block_matrix_module
   public :: HERMITIAN, ANTIHERMITIAN
   public :: KIND_SYMMETRIC, KIND_ANTISYMMETRIC
   public :: STY_EVEN, STY_ODD
+  public :: TAU_EVEN, TAU_ODD
   public :: block_filler
 
 contains
 
   !----------------------------------------------------------------------------
-  subroutine init_sym_matrix(this, HFBlocks, symmetry, herm, sty, goodqn)
+  subroutine init_sym_matrix(this, HFBlocks, symmetry, herm, sty, tau,          &
+  &                           folded, goodqn)
     !---------------------------------------------------------------------------
     ! Construct the block list of a symmetry-adapted matrix: every populated
     !  sector s is paired with sp = IEOR(s, AND(symmetry, goodqn)) - quantum
@@ -343,22 +396,30 @@ contains
     !  its own partner gives a single square block. The storage kind is
     !  derived as kind = herm * sty (header 'Characteristic' section).
     !  init may be called repeatedly; previous state is discarded.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   HFBlocks(1:8) : GLOBAL spwf counts per MOCCa block (header table);
     !                   the rank-local twin must not be passed.
     !   symmetry      : operator symmetry word, 0..7
     !   herm          : HERMITIAN or ANTIHERMITIAN
     !   sty           : STY_EVEN or STY_ODD - selects the stored half
+    !   tau           : TAU_EVEN or TAU_ODD - the operator's time parity,
+    !                   descriptive metadata (header 'Time parity' section)
+    !   folded        : optional, default .false. - .true. marks the object
+    !                   as the TR-folded composite <a|O T|b> of design 2d;
+    !                   identity metadata, no fill logic reads it
     !   goodqn        : optional good-quantum-number mask of the basis,
-    !                   default 15 = every quantum number good; in MOCCa
-    !                   pass the geninfo constant 'goodqn' ($GOODQN).
+    !                   default 15 = every grading/simplex good, doubling
+    !                   off; in MOCCa pass the geninfo constant 'goodqn'
+    !                   ($GOODQN).
     !---------------------------------------------------------------------------
     class(sym_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
     integer, intent(in)               :: symmetry
     integer, intent(in)               :: herm
     integer, intent(in)               :: sty
+    integer, intent(in)               :: tau
+    logical, intent(in), optional     :: folded
     integer, intent(in), optional      :: goodqn
 
     integer :: s, sp, b, qn, word, kind
@@ -379,17 +440,22 @@ contains
       print *, 'init_sym_matrix: sty must be STY_EVEN or STY_ODD, got', sty
       stop 1
     endif
+    if (tau .ne. TAU_EVEN .and. tau .ne. TAU_ODD) then
+      print *, 'init_sym_matrix: tau must be TAU_EVEN or TAU_ODD, got', tau
+      stop 1
+    endif
     if (any(HFBlocks < 0)) then
       print *, 'init_sym_matrix: HFBlocks entries must be >= 0'
       stop 1
     endif
 
-    ! Bit 3 of the mask is stored verbatim: the consumer's completeness
-    !  criterion, not a constructor gate.
+    ! Bits 3 and 4 of the mask are stored verbatim: the consumer's
+    !  completeness criterion (STy) and doubling scenario (T), not
+    !  constructor gates.
     qn = 15
     if (present(goodqn)) qn = goodqn
-    if (qn < 0 .or. qn > 15) then
-      print *, 'init_sym_matrix: goodqn mask must be in 0..15, got', qn
+    if (qn < 0 .or. qn > 31) then
+      print *, 'init_sym_matrix: goodqn mask must be in 0..31, got', qn
       stop 1
     endif
 
@@ -406,6 +472,12 @@ contains
     this%sty = sty
     kind = herm*sty
     this%kind = kind
+
+    ! Descriptive TR metadata (D-7, 2026-11-20), stored verbatim: no
+    !  constructor logic derives from either.
+    this%tau = tau
+    this%folded = .false.
+    if (present(folded)) this%folded = folded
 
     ! The pairing word: the physical operator word intersected with the
     !  mask - the one place where the good quantum numbers enter the maths.
@@ -599,6 +671,22 @@ contains
       write(u, '(A)')                                                        &
       & '  STy not conserved in this build: one half of a complex operator'
     endif
+    if (this%folded) then
+      write(u, '(A)')                                                        &
+      & '  TR-folded composite <a|O T|b>: full_trace refuses this object'
+    endif
+    if (this%tau .eq. TAU_EVEN) then
+      line = 'time-even'
+    else
+      line = 'time-odd'
+    endif
+    if (btest(this%goodqn, 4)) then
+      write(u, '(A,A,A)') '  operator ', trim(line),                         &
+      &   ': full trace over the T-doubled basis (goodqn bit 4 set)'
+    else
+      write(u, '(A,A,A)') '  operator ', trim(line),                          &
+      &   ': full trace is the plain numerical trace (goodqn bit 4 clear)'
+    endif
 
     select case (this%kind)
     case (KIND_SYMMETRIC)
@@ -711,6 +799,62 @@ contains
     write(u, '(A)') ''
   end subroutine print_dense_sym_matrix
   !----------------------------------------------------------------------------
+  function full_trace_sym_matrix(this) result(t)
+    !---------------------------------------------------------------------------
+    ! The honest operator's physical trace as one complex number (D-7,
+    !  2026-11-20; header 'Time parity' section for the conventions).
+    !  With goodqn bit 4 set - the stored basis is the q(Rz) = +i half of
+    !  a T-symmetric set - the trace over the T-doubled basis (stored
+    !  states plus their time-reversal images) is
+    !      Tr_full = Tr_stored + tau * conj(Tr_stored)
+    !  by mechanism 1b of design 15.8, <Tu|O|Tv> = tau * conj(<u|O|v>):
+    !  2 Re, 2 i Im, or 0, by (tau, sty). With bit 4 clear the stored
+    !  basis is the whole physical basis and the plain numerical trace
+    !  is the physical one. Signature-flipping words contribute nothing
+    !  either way: no diagonal blocks exist, the diagonal vanishes by
+    !  the XOR selection rules.
+    !  Refuses folded composites: their diagonal entries are fold
+    !  diagonals <a|O T|a>, a different physical statement that the
+    !  design keeps D-5-gated (DECISIONS.md).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   this : the honest (folded = .false.) matrix whose trace is asked
+    ! Output:
+    !   t    : the physical trace, complex
+    !---------------------------------------------------------------------------
+    class(sym_matrix), intent(in) :: this
+    complex(8) :: t, ts
+
+    integer :: b, i, m
+    real(8) :: sdiag
+
+    if (this%folded) then
+      print *, 'full_trace: refusal - the object is the TR-folded composite',  &
+      &         ' <a|O T|b>: its diagonals are fold diagonals, not the trace'
+      stop 1
+    endif
+
+    ! The complex trace of the stored half: the stored numbers are the
+    !  real (STY_EVEN) or imaginary (STY_ODD) part of each element, so the
+    !  diagonal sum acquires the factor 1 or i once, not per element.
+    sdiag = 0.0d0
+    do b = 1, this%nblocks
+      if (this%blocks(b)%srow .ne. this%blocks(b)%scol) cycle
+      if (.not. allocated(this%blocks(b)%A)) cycle
+      m = size(this%blocks(b)%A, 1)
+      do i = 1, m
+        sdiag = sdiag + this%blocks(b)%A(i, i)
+      enddo
+    enddo
+    ts = cmplx(sdiag, 0.0d0, 8)
+    if (this%sty .eq. STY_ODD) ts = (0.0d0, 1.0d0)*ts
+
+    if (btest(this%goodqn, 4)) then
+      t = ts + this%tau*conjg(ts)
+    else
+      t = ts
+    endif
+  end function full_trace_sym_matrix
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! BASIS ROTATIONS (design section 6a)

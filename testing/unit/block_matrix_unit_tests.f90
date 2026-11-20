@@ -43,9 +43,10 @@ program block_matrix_unit_tests
   ! The tests are self-contained: no other MOCCa module is used. Compile
   !  together with src_orig/block_matrix_module.f90 and run.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! The suite consists of eight routines, one per paragraph above (test_
+  ! The suite consists of nine routines, one per paragraph above (test_
   ! construction, test_reinit, test_sector_of, test_fill_blocks,
-  ! test_goodqn, test_sty, test_dense_expansion, test_rotation), plus the
+  ! test_goodqn, test_sty, test_dense_expansion, test_rotation,
+  ! test_full_trace), plus the
   ! check helper that registers every individual condition and the probed
   ! callbacks the fill and rotation tests use. The judgments of each test
   ! are documented in its own banner.
@@ -102,6 +103,7 @@ program block_matrix_unit_tests
   call test_sty()
   call test_dense_expansion()
   call test_rotation()
+  call test_full_trace()
 
   print '(''block_matrix unit tests: '', i0, '' checks, '', i0, '' failures'')', &
   &     ntest, nfail
@@ -172,7 +174,7 @@ contains
             knd = herms(h)*stys(sc)
             write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,                &
             &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc)
-            call M%init(patterns(p, :), word, herms(h), stys(sc))
+            call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN)
 
             call check(M%symmetry .eq. word, trim(label)//': symmetry word')
             call check(M%kind .eq. knd, trim(label)//': derived kind')
@@ -294,11 +296,11 @@ contains
     integer   :: b, nexp
     character(len=120) :: label
 
-    call M%init(patterns(2, :), 0, HERMITIAN, STY_EVEN)
+    call M%init(patterns(2, :), 0, HERMITIAN, STY_EVEN, TAU_EVEN)
     nexp = count(patterns(2, :) > 0)
     call check(M%nblocks .eq. nexp, 'reinit: symmetric word-0 block count')
 
-    call M%init(patterns(1, :), 7, HERMITIAN, STY_ODD)
+    call M%init(patterns(1, :), 7, HERMITIAN, STY_ODD, TAU_EVEN)
     call check(M%n .eq. sum(patterns(1, :)), 'reinit: n updated')
     call check(M%nblocks .ge. 0, 'reinit: nblocks after shrink')
     ! Word 7 couples every populated sector to a different partner; with the
@@ -313,7 +315,7 @@ contains
     call check(M%nblocks .eq. 0, trim(label)//': no surviving pairs')
 
     ! And back to the full pattern, checking the list is rebuilt.
-    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_EVEN)
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_EVEN, TAU_EVEN)
     call check(M%nblocks .gt. 0, 'reinit: blocks rebuilt')
     call check(M%symmetry .eq. 5, 'reinit: word updated')
     call check(M%kind .eq. KIND_ANTISYMMETRIC, 'reinit: derived kind updated')
@@ -335,7 +337,7 @@ contains
     logical :: inrange
 
     ! TR-broken pattern with interior empty sectors.
-    call M%init(patterns(3, :), 0, HERMITIAN, STY_EVEN)
+    call M%init(patterns(3, :), 0, HERMITIAN, STY_EVEN, TAU_EVEN)
 
     do b = 1, M%nblocks
       s = M%blocks(b)%scol
@@ -399,7 +401,7 @@ contains
           cur_counts(0:7) = patterns(p, 1:8)
           cur_label = trim(label)
 
-          call M%init(patterns(p, :), word, herms(h), stys(sc))
+          call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN)
 
           ! Pollution: every fill must overwrite regardless of prior content.
           do b = 1, M%nblocks
@@ -481,7 +483,7 @@ contains
             write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,         &
             &  ' word ', word, ' mask ', masks(q), ' herm ', herms(h),          &
             &  ' sty ', stys(sc)
-            call M%init(patterns(p, :), word, herms(h), stys(sc),                &
+            call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN,          &
             &          goodqn=masks(q))
 
             call check(M%goodqn .eq. masks(q), trim(label)//': mask stored')
@@ -508,7 +510,7 @@ contains
             ! Equivalence: the block list equals that of the unmasked
             !  matrix built with the effective word.
             call Meff%init(patterns(p, :), iand(word, masks(q)), herms(h),      &
-            &               stys(sc))
+            &               stys(sc), TAU_EVEN)
             call check(Meff%nblocks .eq. M%nblocks,                             &
             &          trim(label)//': effective-word nblocks')
             do b = 1, min(M%nblocks, Meff%nblocks)
@@ -528,15 +530,15 @@ contains
 
     ! Default: the omitted mask is 15 (all good, incl. the time-simplex
     !  bit of design 2a), and it equals an explicit 15.
-    call M%init(patterns(2, :), 5, HERMITIAN, STY_EVEN)
+    call M%init(patterns(2, :), 5, HERMITIAN, STY_EVEN, TAU_EVEN)
     call check(M%goodqn .eq. 15, 'goodqn: default mask is 15')
-    call Meff%init(patterns(2, :), 5, HERMITIAN, STY_EVEN, goodqn=15)
+    call Meff%init(patterns(2, :), 5, HERMITIAN, STY_EVEN, TAU_EVEN, goodqn=15)
     call check(Meff%nblocks .eq. M%nblocks, 'goodqn: default nblocks equal')
 
     ! Core scenario of design section 2b: the parity-broken pattern with
     !  an odd-parity operator (word 2). Parity not good (mask 5): diagonal
     !  blocks inside the merged sectors 0, 1, 4, 5.
-    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, goodqn=5)
+    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, TAU_EVEN, goodqn=5)
     call check(M%nblocks .eq. 4, 'goodqn: merged diagonal blocks')
     do b = 1, M%nblocks
       call check(M%blocks(b)%srow .eq. M%blocks(b)%scol,                        &
@@ -549,7 +551,7 @@ contains
     !  populated sector into the empty odd-parity sectors and nothing is
     !  stored - empty, which is where a missing mask would silently go
     !  wrong.
-    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, goodqn=7)
+    call M%init(patterns(7, :), 2, HERMITIAN, STY_EVEN, TAU_EVEN, goodqn=7)
     call check(M%nblocks .eq. 0, 'goodqn: unmasked word gives empty list')
   end subroutine test_goodqn
   !----------------------------------------------------------------------------
@@ -589,14 +591,14 @@ contains
             write (label, '(a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,              &
             &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc)
             call Mref%init(patterns(p, :), word, HERMITIAN, STY_EVEN,           &
-            &              goodqn=15)
-            call M%init(patterns(p, :), word, herms(h), stys(sc),               &
+            &              TAU_EVEN, goodqn=15)
+            call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN,          &
             &          goodqn=15)
 
             ! The characteristic is stored verbatim, the kind derived.
-            call check(M%sty .eq. stys(sc),                                      &
+            call check(M%sty .eq. stys(sc),          &
             &          trim(label)//': characteristic stored')
-            call check(M%kind .eq. herms(h)*stys(sc),                            &
+            call check(M%kind .eq. herms(h)*stys(sc),          &
             &          trim(label)//': kind = herm * sty')
 
             ! No block structure: the classes never touch the block
@@ -624,12 +626,12 @@ contains
     !  not gated by it (a classifiable operator keeps its classes in
     !  every build; bit 3 only tells consumers whether the stored half
     !  is the complete operator).
-    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, goodqn=7)
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, TAU_EVEN, goodqn=7)
     call check(M%sty .eq. STY_ODD, 'sty: bit 3 clear keeps characteristic')
     call check(M%kind .eq. KIND_SYMMETRIC,                                      &
     &          'sty: bit 3 clear keeps derived kind')
     call check(M%goodqn .eq. 7, 'sty: bit 3 stored clear (mask 7)')
-    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, goodqn=13)
+    call M%init(patterns(2, :), 5, ANTIHERMITIAN, STY_ODD, TAU_EVEN, goodqn=13)
     call check(M%goodqn .eq. 13, 'sty: bit 3 stored set (mask 13)')
   end subroutine test_sty
   !----------------------------------------------------------------------------
@@ -677,7 +679,7 @@ contains
             cur_counts(0:7) = patterns(p, 1:8)
             cur_label = trim(label)
 
-            call M%init(patterns(p, :), word, herms(h), stys(sc),               &
+            call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN,          &
             &          goodqn=masks(q))
             call M%fill_blocks(fill_block_probed, int(offset))
 
@@ -775,12 +777,12 @@ contains
           do q = 1, 4
             knd = herms(h)*stys(sc)
             write (label, '(a,i0,a,i0,a,i0,a,i0,a,i0)') 'pattern ', p,        &
-            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),          &
+            &  ' word ', word, ' herm ', herms(h), ' sty ', stys(sc),           &
             &  ' mask ', masks(q)
             cur_counts(0:7) = patterns(p, 1:8)
             cur_label = trim(label)
 
-            call M%init(patterns(p, :), word, herms(h), stys(sc),              &
+            call M%init(patterns(p, :), word, herms(h), stys(sc), TAU_EVEN,          &
             &          goodqn=masks(q))
             cur_st = M%st
             cur_knd = knd
@@ -840,7 +842,7 @@ contains
             &          trim(label)//': symmetry word kept')
             call check(M%kind .eq. knd,                                         &
             &          trim(label)//': derived kind kept')
-            call check(M%sty .eq. stys(sc),                                     &
+            call check(M%sty .eq. stys(sc),          &
             &          trim(label)//': characteristic kept')
             call check(M%goodqn .eq. masks(q),                                  &
             &          trim(label)//': goodqn mask kept')
@@ -1080,5 +1082,101 @@ contains
     val = offset + 8.0d0*srow + 64.0d0*scol + i + 512.0d0*j
   end function block_val
   !----------------------------------------------------------------------------
+  subroutine test_full_trace()
+    !---------------------------------------------------------------------------
+    ! The honest-trace contract of D-7 (design 15.8 amendment of
+    !  2026-11-20): full_trace returns the physical trace of the honest
+    !  operator - over the T-doubled basis when goodqn bit 4 is set,
+    !      Tr_full = Tr_stored + tau * conj(Tr_stored),
+    !  the plain complex diagonal sum otherwise - and refuses folded
+    !  composites (refusal scenario 9 drives the guard).
+    !
+    ! Judgments, on word-0 matrices with the diagonal blocks filled to
+    !  known values (the trace rests entirely in srow = scol blocks):
+    !  *) bit 4 set, TAU_EVEN + STY_EVEN: twice the stored diagonal sum;
+    !  *) bit 4 set, TAU_ODD + STY_EVEN: 0 - vanishes by time-oddness;
+    !  *) bit 4 set, TAU_ODD + STY_ODD: 2 i times the stored sum (ts = i s
+    !     conjugates to -i s, tau = -1 mirrors it back);
+    !  *) bit 4 clear: the plain complex sum, tau immaterial;
+    !  *) a signature-flipping word on the fully populated pattern stores
+    !     no diagonal blocks at all: the trace is 0 by selection rules,
+    !     whichever way the scenario bit reads.
+    !---------------------------------------------------------------------------
+    type(sym_matrix) :: M
+    integer :: b, i, mrows
+    real(8) :: sdiag
+    complex(8) :: tr, texp
+
+    ! A diagonal-filled word-0 matrix over the EV8-like pattern, with the
+    !  scenario bit set (mask 31).
+    call M%init(patterns(1, :), 0, HERMITIAN, STY_EVEN, TAU_EVEN,             &
+    &           goodqn=31)
+    sdiag = 0.0d0
+    do b = 1, M%nblocks
+      mrows = size(M%blocks(b)%A, 1)
+      do i = 1, mrows
+        M%blocks(b)%A(i, i) = 2.0d0*i
+        sdiag = sdiag + M%blocks(b)%A(i, i)
+      enddo
+    enddo
+
+    tr = M%full_trace()
+    texp = 2.0d0*cmplx(sdiag, 0.0d0, 8)
+    call check(abs(tr - texp) .le. 1.0d-13,                                     &
+    &          'full_trace: bit 4 set, TAU_EVEN doubles the real sum')
+    call check(M%tau .eq. TAU_EVEN .and. .not. M%folded,                        &
+    &          'full_trace: tau and folded metadata stored verbatim')
+
+    ! Same matrix, TAU_ODD: the doubled trace mirrors itself away.
+    call M%init(patterns(1, :), 0, HERMITIAN, STY_EVEN, TAU_ODD,              &
+    &           goodqn=31)
+    do b = 1, M%nblocks
+      mrows = size(M%blocks(b)%A, 1)
+      do i = 1, mrows
+        M%blocks(b)%A(i, i) = 2.0d0*i
+      enddo
+    enddo
+    tr = M%full_trace()
+    call check(abs(tr) .le. 1.0d-13,                                            &
+    &          'full_trace: bit 4 set, TAU_ODD vanishes on the real half')
+
+    ! STY_ODD storage with TAU_ODD: the complex diagonal is i x the stored
+    !  numbers and the mirror doubles it.
+    call M%init(patterns(1, :), 0, HERMITIAN, STY_ODD, TAU_ODD,                &
+    &           goodqn=31)
+    sdiag = 0.0d0
+    do b = 1, M%nblocks
+      mrows = size(M%blocks(b)%A, 1)
+      do i = 1, mrows
+        M%blocks(b)%A(i, i) = 2.0d0*i
+        sdiag = sdiag + M%blocks(b)%A(i, i)
+      enddo
+    enddo
+    tr = M%full_trace()
+    texp = (0.0d0, 2.0d0)*cmplx(sdiag, 0.0d0, 8)
+    call check(abs(tr - texp) .le. 1.0d-13,                                     &
+    &          'full_trace: bit 4 set, TAU_ODD + STY_ODD doubles 2 i')
+
+    ! Bit 4 clear (default mask 15): no doubling, tau immaterial.
+    call M%init(patterns(1, :), 0, HERMITIAN, STY_ODD, TAU_ODD)
+    do b = 1, M%nblocks
+      mrows = size(M%blocks(b)%A, 1)
+      do i = 1, mrows
+        M%blocks(b)%A(i, i) = 2.0d0*i
+      enddo
+    enddo
+    tr = M%full_trace()
+    texp = (0.0d0, 1.0d0)*cmplx(sdiag, 0.0d0, 8)
+    call check(abs(tr - texp) .le. 1.0d-13,                                      &
+    &          'full_trace: bit 4 clear returns the plain trace')
+
+    ! A signature-flipping word on the fully populated pattern: cross blocks
+    !  only, no srow = scol block exists, the contract finds zero.
+    call M%init(patterns(2, :), 1, HERMITIAN, STY_EVEN, TAU_ODD,               &
+    &           goodqn=31)
+    tr = M%full_trace()
+    call check(abs(tr) .le. 1.0d-13,                                            &
+    &          'full_trace: word-1 signature flip gives no diagonal blocks')
+  end subroutine test_full_trace
 
 end program block_matrix_unit_tests

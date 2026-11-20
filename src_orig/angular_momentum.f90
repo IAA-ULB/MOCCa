@@ -87,6 +87,7 @@ module angular_momentum
   use block_matrix_module, only: sym_matrix, block_filler
   use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
   use block_matrix_module, only: STY_EVEN, STY_ODD
+  use block_matrix_module, only: TAU_ODD
 
   implicit none
 
@@ -198,11 +199,11 @@ contains
       if (mu .eq. AX_Y) then
         sty_class = STY_ODD
         call me%init(HFBlocks_global, word, ANTIHERMITIAN, sty_class,          &
-        &            goodqn=goodqn)
+        &            TAU_ODD, folded=folded, goodqn=goodqn)
       else
         sty_class = STY_EVEN
         call me%init(HFBlocks_global, word, HERMITIAN, sty_class,              &
-        &            goodqn=goodqn)
+        &            TAU_ODD, folded=folded, goodqn=goodqn)
       endif
     else
       word      = 1
@@ -210,7 +211,7 @@ contains
       if (mu .eq. AX_Y) sty_class = STY_ODD
       if (mu .eq. AX_Z) word = 0
       call me%init(HFBlocks_global, word, HERMITIAN, sty_class,                &
-      &            goodqn=goodqn)
+      &            TAU_ODD, folded=folded, goodqn=goodqn)
     endif
 
     ! Symmetry-forbidden objects (or an empty basis) store zero matrices

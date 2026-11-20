@@ -116,7 +116,8 @@ module linear_momentum
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Time parity of the gradient family (design 15.8):
   !  T (\nabla_mu) T^-1 = +(\nabla_mu). Compile-time constant of the
-  !  accessor - no runtime metadata, no sym_matrix component.
+  !  accessor. Feeds the objects' tau metadata (D-7, 2026-11-20); the
+  !  folded composite inherits it (T(O.T)T^-1 = tau(O) (O.T)).
   integer, parameter :: TAU_NABLAFAM = +1
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -250,10 +251,10 @@ contains
 
     if (folded .and. mu .eq. AX_X) then
       call me%init(HFBlocks_global, word, HERMITIAN, sty_class,                &
-      &            goodqn=goodqn)
+      &            TAU_NABLAFAM, folded=folded, goodqn=goodqn)
     else
       call me%init(HFBlocks_global, word, ANTIHERMITIAN, sty_class,            &
-      &            goodqn=goodqn)
+      &            TAU_NABLAFAM, folded=folded, goodqn=goodqn)
     endif
 
     ! Symmetry-forbidden objects (or an empty basis) store zero matrices

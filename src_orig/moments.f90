@@ -3659,6 +3659,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 
     ! The two operator halves share the Hermitian class and differ in their
     !  y-time-simplex class; init derives the storage kind from the two.
+    !  Electric multipoles are coordinate operators: time-even, both halves.
     if (Im) then
       ihalf     = 2
       sty_class = STY_ODD
@@ -3667,7 +3668,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
       sty_class = STY_EVEN
     endif
     call me_half%init(HFBlocks_global, iop, HERMITIAN, sty_class,             &
-    &                 goodqn=goodqn)
+    &                 TAU_EVEN, goodqn=goodqn)
 
     ! Symmetry-forbidden moments (or an empty basis) store zero matrices
     !  through their empty block lists: nothing left to do.

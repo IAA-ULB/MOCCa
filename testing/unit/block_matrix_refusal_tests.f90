@@ -45,6 +45,7 @@ program block_matrix_refusal_tests
   !   6: set_sector refuses a block for an empty sector
   !   7: set_sector refuses to act on an uninitialised rotation
   !   8: rotate refuses a rotation built from different HFBlocks
+  !   9: full_trace refuses the TR-folded composite (D-7, 2026-11-20)
   !==============================================================================
   use block_matrix_module
 
@@ -54,6 +55,7 @@ program block_matrix_refusal_tests
   character(len=32) :: arg
   integer :: hf(8), pp(8), i
   real(8), allocatable :: C(:, :), Ublk(:, :)
+  complex(8) :: tr
   type(sym_rotation) :: R
   type(sym_matrix) :: M
 
@@ -135,10 +137,14 @@ program block_matrix_refusal_tests
   case (8)
     print *, 'expect refusal: rotate with mismatched HFBlocks'
     call R%init(hf)
-    call M%init(pp, 0, HERMITIAN, STY_EVEN)
+    call M%init(pp, 0, HERMITIAN, STY_EVEN, TAU_EVEN)
     call M%rotate(R)
+  case (9)
+    print *, 'expect refusal: full_trace on the TR-folded composite'
+    call M%init(hf, 0, HERMITIAN, STY_EVEN, TAU_EVEN, folded=.true.)
+    tr = M%full_trace()
   case default
-    print *, 'usage: block_matrix_refusal_tests <scenario 1..8>'
+    print *, 'usage: block_matrix_refusal_tests <scenario 1..9>'
     stop 2
   end select
 

@@ -160,6 +160,12 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
     #              elements; init consumes bits 0-2 for the pairing and stores
     #              the mask verbatim - consumers read bit 3 as the completeness
     #              criterion of an STy-tagged matrix)
+    #  bit 4 (16): T good     - iff this build conserves time reversal; the
+    #              scenario bit of the T-doubling contracts (D-7, 2026-11-20):
+    #              set = the stored basis is the q(Rz)=+i half of a T-symmetric
+    #              set and the doubled-basis reconstruction is defined; clear =
+    #              the basis is the whole physical basis and the doubling
+    #              layer degenerates. Never a pairing bit.
     # A quantum number that is not good means the corresponding basis blocks
     #  are merged into one; the init constructor of block_matrix_module
     #  intersects operator words with bits 0-2 of this mask. Generator
@@ -173,6 +179,8 @@ def ProcessGeninfo(fname, src, target, so, dry_run=False):
         goodqn = goodqn + 1
       if (sym == symdic['P']):
         goodqn = goodqn + 2
+      if (sym == symdic['T']):
+        goodqn = goodqn + 16
       if (sym == symdic['STy']):
         goodqn = goodqn + 8
     dic['GOODQN'] = str(goodqn)
