@@ -269,9 +269,18 @@ contains
 #endif
   
 #if(USE_MPI == 0) 
+#if(PASTA == 1)
+  ! The default inertia pipeline needs l = 3 (Q30/Q32); pasta builds carry
+  ! multipoles only up to MaxMoment = 2, so there 0 (skip, the default)
+  ! or an explicit list of more than 4 moments are the only settings.
+  if(N_inertia .gt. 0 .and. N_inertia .le. 4) then
+    call stp('N_inertia must be 0 or larger than 4 in pasta calculations.')
+  endif
+#else
   if(N_inertia .lt. 4) then
     call stp('N_inertia must be at least 4.')
   endif
+#endif
 #else 
   if(N_inertia .ne. 0) then
     call stp('N_inertia has to be 0 for MPI calculations.')

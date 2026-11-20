@@ -71,10 +71,15 @@ module fission_MOI
   !  be more 'functional': i.e. with routines that depend less on global
   !  variables.
   !-----------------------------------------------------------------------------
-#if(USE_MPI == 0)
+#if(USE_MPI == 0 && PASTA == 0)
   integer              :: N_inertia = 4
 #else
-  integer              :: N_inertia = 0 ! No support for parallel calculations of the MOI yet
+  ! 0 in parallel builds (not yet supported) and in pasta builds: the
+  ! hardcoded moment list Q20/Q22/Q30/Q32 reaches l = 3, one past the
+  ! multipoles a pasta build carries (MaxMoment = 2). Pasta input can
+  ! still arm inertia with N_inertia > 4 and an &inertia/ list within
+  ! MaxMoment.
+  integer              :: N_inertia = 0
 #endif
   integer, ALLOCATABLE :: inertia_l(:) 
   integer, ALLOCATABLE :: inertia_m(:) 
