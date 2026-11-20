@@ -21,7 +21,7 @@
 # Initialize verbose mode as false by default
 pairing="HFB"  # Default value
 parameterisation="t0t3"  # Default value
-nw=15  # Default value for number of wavefunctions
+nw=16  # Default value for number of wavefunctions
 
 # Temporary array to hold arguments
 args=()
