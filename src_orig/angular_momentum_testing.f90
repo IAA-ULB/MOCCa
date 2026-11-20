@@ -85,10 +85,14 @@ module angular_momentum_testing
   use wavefunctions,     only: angmom_xt_real
   use wavefunctions,     only: angmom_yt_imag
   use wavefunctions,     only: HFBlocks_global
+  use wavefunctions,     only: TimeReverse
   use block_matrix_module, only: sym_matrix, KIND_SYMMETRIC,                  &
   &                              KIND_ANTISYMMETRIC
+  use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
+  use block_matrix_module, only: STY_EVEN, STY_ODD
   use angular_momentum,  only: AX_X, AX_Y, AX_Z
-  use angular_momentum,  only: Jmu_spme_matrix, Jt_spme_matrix
+  use angular_momentum,  only: Jmu_spme_matrix, get_J_block
+  use angular_momentum,  only: TAU_ANGFAM
 
   implicit none
 
@@ -100,13 +104,30 @@ module angular_momentum_testing
   !  the same arithmetic order agree bit for bit - tight bar by design.
   real(KIND=dp), parameter :: tol = 1.0d-10
 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Arm-owned twin machinery (D-7, design 15.9 row 2): since the eager
+  !  twin entry point retired behind the accessor, this test owns the
+  !  folded reference arithmetic - the t-kernels through Jm_fresh_element
+  !  - and builds the folded objects itself. The class labels below are
+  !  the folded table of design 14.1: what the kernel-transpose oracle
+  !  measured, never re-derived. Structure, value, mirror, partner and
+  !  purity checks on these objects are unchanged; the accessor
+  !  packaging is asserted against them in test_retrieval.
+  type :: ang_twin_params
+    integer :: st(0:8)     ! sector bounds of the twin under construction
+    integer :: mu          ! component: AX_X / AX_Y
+  end type ang_twin_params
+
 contains
 
   subroutine run_angular_momentum_tests()
     !------------------------------------------------------------------------------
-    ! Run the unit tests of the angular-momentum generators: the five
-    !  objects of the 14.1 table, each judged by the structure, value,
-    !  mirror-oracle, partner-symmetry and purity checks.
+    ! Run the unit tests of the angular-momentum family: the honest trio
+    !  through the module generator, the folded twins through the arm's
+    !  own construction (D-7, 15.9 row 2 - the retired eager entry's
+    !  arithmetic, the class labels the oracle asserted), each judged by
+    !  the structure, value, mirror-oracle, partner-symmetry and purity
+    !  checks, plus the retrieval checks of design 15.8.
     !
     ! Returns when everything passes; prints the report and exits with
     !  status 1 on any failure.
@@ -132,6 +153,10 @@ contains
       print 101, 'angmom folded: component '//axis_label(mu)      , ifail_obj
       isum = max(isum, ifail_obj)
     enddo
+
+    call test_retrieval(ifail_obj)
+    print 101, 'angmom retrieval contract (15.8)   ', ifail_obj
+    isum = max(isum, ifail_obj)
 
     print *
     print 110
@@ -186,7 +211,7 @@ contains
 
     if (folded) then
       objlabel = 'J_'//axis_label(mu)//'.T folded'
-      call Jt_spme_matrix(mu, M)
+      call arm_build_twin(mu, M)
     else
       objlabel = 'J_'//axis_label(mu)//' honest  '
       call Jmu_spme_matrix(mu, M)
@@ -880,6 +905,215 @@ contains
       call Derive_Z_spwf(psi, sz(:, glob), derpsi(:, 3, :))
     endif
   end subroutine Jm_fresh_derive
+!===============================================================================
+  subroutine ang_twin_fill(srow, scol, A, params)
+    !------------------------------------------------------------------------------
+    ! block_filler callback of the arm-owned twin construction: the
+    !  t-kernel fold through the test's own fresh transcription, one
+    !  element per stored pair.
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol
+    real(KIND=dp), intent(out)  :: A(:, :)
+    class(*), intent(in)  :: params
+
+    integer :: r, c, m, n
+
+    select type (params)
+    type is (ang_twin_params)
+      m = params%st(srow + 1) - params%st(srow)
+      n = params%st(scol + 1) - params%st(scol)
+      if (m .ne. size(A, 1) .or. n .ne. size(A, 2)) then
+        print *, 'ang_twin_fill: params%st inconsistent with the block.'
+        call stp('Sector bounds inconsistent in ang_twin_fill.')
+      endif
+      do c = 1, n
+        do r = 1, m
+          A(r, c) = Jm_fresh_element(params%mu, .true., srow, scol, r, c,        &
+          &                      params%st)
+        enddo
+      enddo
+    end select
+  end subroutine ang_twin_fill
+!===============================================================================
+  subroutine arm_build_twin(mu, M)
+    !------------------------------------------------------------------------------
+    ! Construct the folded twin through the PUBLIC block machinery
+    !  (init + fill_blocks + the arm's own t-kernel arithmetic): the
+    !  retired eager entry point's object reconstruction. Class labels:
+    !  the folded table of design 14.1 - both twins word 0; K_x
+    !  HERMITIAN x STY_EVEN, K_y ANTIHERMITIAN x STY_ODD (herm the
+    !  kind-completing label, D-1); kinds symmetric as the
+    !  kernel-transpose oracle measures; the composite inherits the
+    !  family tau.
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: mu
+    type(sym_matrix), intent(out) :: M
+
+    type(ang_twin_params) :: params
+    integer :: herm_class, sty_class
+
+    herm_class = HERMITIAN
+    sty_class = STY_EVEN
+    if (mu .eq. AX_Y) then
+      herm_class = ANTIHERMITIAN
+      sty_class = STY_ODD
+    endif
+    call M%init(HFBlocks_global, 0, herm_class, sty_class, TAU_ANGFAM,          &
+    &           folded=.true., goodqn=goodqn)
+    if (M%nblocks .eq. 0) return
+
+    params%st = M%st
+    params%mu = mu
+    call M%fill_blocks(ang_twin_fill, params)
+  end subroutine arm_build_twin
+!===============================================================================
+  function tr_conserving_basis() result(istr)
+    !------------------------------------------------------------------------------
+    ! .true. when the stored basis carries no -i signature states (even
+    !  MOCCa block slots all empty): every TR-conserving build, including
+    !  parity-broken ones (merged parity blocks, all q(Rz) = +i). Only
+    !  such bases have T-image sectors for the retrieval contract.
+    !------------------------------------------------------------------------------
+    logical :: istr
+
+    istr = (sum(HFBlocks_global((/2, 4, 6, 8/))) .eq. 0)
+  end function tr_conserving_basis
+!===============================================================================
+  subroutine test_retrieval(ifail)
+    !------------------------------------------------------------------------------
+    ! The 15.8 retrieval checks in the J shape (design 14.3 amendment
+    !  of 2026-11-20, 15.9 row 2), exercised in the builds that have
+    !  T-image sectors - every TR-conserving build. Two judgements:
+    !
+    !  a. THE TAU BOTH-WAYS CHECK (mechanism 2): the J_z image-image
+    !     blocks served by the accessor's sign flip against the direct
+    !     honest computation on materialised T-images (TimeReverse on
+    !     spinor and gradient - reversed slice by slice, since T is
+    !     spinor-pointwise and commutes with the gradient). This check
+    !     ARMS the algebra path for the family.
+    !  b. Retrieval agreement of the fold (mechanism 3): the
+    !     stored-x-image blocks of J_x/J_y served by the accessor
+    !     against the arm-owned twin's diagonal blocks at the matching
+    !     indices - the two packagings of the same matrix elements.
+    !
+    !  In TR-broken builds no sector is an image sector: nothing to
+    !  exercise, pass with a report line.
+    !------------------------------------------------------------------------------
+    integer, intent(out) :: ifail
+
+    integer :: s, sp, i, r, c, n1, n2, k, gi, gj, b, m1, m2
+    real(KIND=dp) :: dev, ref, amax
+    real(KIND=dp) :: psi_i(mv, 4), psi_j(mv, 4)
+    real(KIND=dp) :: derpsi_j(mv, 3, 4)
+    real(KIND=dp), allocatable :: A(:, :)
+    logical :: checked
+    type(sym_matrix) :: M
+
+    ifail = 0
+    if (.not. tr_conserving_basis()) then
+      print *, '  retrieval: no image sectors in this build - not exercised.'
+      return
+    endif
+
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! a. tau both-ways for J_z: for every stored sector s, the
+    !    image-image counterpart block (IEOR(s,1), IEOR(s,1)) is served
+    !    by the accessor and recomputed directly on the materialised
+    !    images.
+    dev = 0.0d0
+    amax = 0.0d0
+    checked = .false.
+    do s = 0, 7
+      if (HFBlocks_global(s + 1) .eq. 0) cycle
+      sp = ieor(s, 1)
+      checked = .true.
+      call get_J_block(AX_Z, sp, sp, A)
+      if (.not. allocated(A)) then
+        ifail = 1
+        print *, '  retrieval FAIL: no image-image block served for', sp
+        cycle
+      endif
+      n1 = size(A, 1)
+      n2 = size(A, 2)
+      do c = 1, n2, max(1, n2/5)
+        gj = sum(HFBlocks_global(1:s)) + c
+        call Jm_fresh_derive(HFPsi(:, :, gj), gj, derpsi_j)
+        psi_j = TimeReverse(HFPsi(:, :, gj))
+        do k = 1, 3
+          derpsi_j(:, k, :) = TimeReverse(derpsi_j(:, k, :))
+        enddo
+        do r = 1, n1, max(1, n1/5)
+          gi = sum(HFBlocks_global(1:s)) + r
+          psi_i = TimeReverse(HFPsi(:, :, gi))
+          ref = Jm_oracle_kernel(AX_Z, .false., psi_i, psi_j, derpsi_j)
+          dev = max(dev, abs(A(r, c) - ref))
+          amax = max(amax, abs(ref))
+        enddo
+      enddo
+      deallocate (A)
+    enddo
+    if (.not. checked) then
+      print *, '  retrieval: tau both-ways: no stored sectors - skip.'
+    else if (dev .gt. tol*max(1.0d0, amax)) then
+      ifail = 1
+      print *, '  retrieval FAIL: tau sign flip contradicts the direct',       &
+      &         ' computation, max', dev
+    else
+      print *, '  retrieval: tau sign flip agrees with the honest kernels.',  &
+      &         ' max', dev
+    endif
+
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! b. Fold agreement for J_x/J_y: for every diagonal twin block (s, s),
+    !    the accessor's stored-x-image block (s, IEOR(s,1)) - the image
+    !    columns relabelled by their stored partners - must agree with
+    !    the twin's own storage.
+    dev = 0.0d0
+    amax = 0.0d0
+    checked = .false.
+    do i = AX_X, AX_Y
+      call arm_build_twin(i, M)
+      do b = 1, M%nblocks
+        s = M%blocks(b)%srow
+        sp = ieor(s, 1)
+        if (HFBlocks_global(s + 1) .eq. 0) cycle
+        checked = .true.
+        call get_J_block(i, s, sp, A)
+        if (.not. allocated(A)) then
+          ifail = 1
+          print *, '  retrieval FAIL: no stored-x-image block served for',     &
+          &         s, sp
+          cycle
+        endif
+        m1 = size(A, 1)
+        m2 = size(A, 2)
+        if (m1 .ne. size(M%blocks(b)%A, 1) .or.                                 &
+        &   m2 .ne. size(M%blocks(b)%A, 2)) then
+          ifail = 1
+          print *, '  retrieval FAIL: fold block shape mismatch for', s
+          cycle
+        endif
+        do c = 1, m2, max(1, m2/5)
+          do r = 1, m1, max(1, m1/5)
+            ref = M%blocks(b)%A(r, c)
+            dev = max(dev, abs(A(r, c) - ref))
+            amax = max(amax, abs(ref))
+          enddo
+        enddo
+        deallocate (A)
+      enddo
+    enddo
+    if (.not. checked) then
+      print *, '  retrieval: fold agreement: no twin blocks - skip.'
+    else if (dev .gt. tol*max(1.0d0, amax)) then
+      ifail = 1
+      print *, '  retrieval FAIL: accessor block differs from the twin',      &
+      &         ' construction, max', dev
+    else
+      print *, '  retrieval: accessor agrees with the twin construction.',    &
+      &         ' max', dev
+    endif
+  end subroutine test_retrieval
 !===============================================================================
 
 end module angular_momentum_testing

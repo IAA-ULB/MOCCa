@@ -88,9 +88,11 @@ module linear_momentum_testing
   use wavefunctions,     only: HFBlocks_global
   use densities,         only: CompNablaMelements
   use block_matrix_module, only: sym_matrix
+  use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
+  use block_matrix_module, only: STY_EVEN, STY_ODD
   use block_matrix_module, only: KIND_SYMMETRIC
   use linear_momentum,   only: AX_X, AX_Y, AX_Z
-  use linear_momentum,   only: Nabla_spme_matrix, NablaT_spme_matrix
+  use linear_momentum,   only: Nabla_spme_matrix, Nabla_half_fm
   use linear_momentum,   only: get_nabla_block, TAU_NABLAFAM
 
   implicit none
@@ -103,12 +105,31 @@ module linear_momentum_testing
   !  machine precision - tight bar by design.
   real(KIND=dp), parameter :: tol = 1.0d-10
 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Arm-owned twin machinery (D-7, design 15.9 row 2): since the eager
+  !  twin entry point retired behind the accessor, this test owns the
+  !  folded reference arithmetic - the legacy hidden_TR fold (TimeReverse
+  !  on the transferred derivative) through fresh_element - and builds
+  !  the folded objects itself. The class labels below are the folded
+  !  table of design 15.2 (amended): what the mirror oracle asserted,
+  !  never re-derived. Structure, value, mirror, partner and purity
+  !  checks on these objects are unchanged; the accessor packaging is
+  !  asserted against them in test_retrieval, the production engine in
+  !  check_halffm.
+  type :: lin_twin_params
+    integer :: st(0:8)     ! sector bounds of the twin under construction
+    integer :: mu          ! component: AX_X / AX_Y
+  end type lin_twin_params
+
 contains
 
   subroutine run_linear_momentum_tests()
     !------------------------------------------------------------------------------
-    ! Run the unit tests of the gradient generators: the five objects of
-    !  the 15.2 table, plus the retrieval checks of 15.8.
+    ! Run the unit tests of the gradient family: the honest trio
+    !  through the module generator, the folded twins through the arm's
+    !  own construction (D-7, 15.9 row 2 - the retired eager entry's
+    !  arithmetic, the class labels the mirror oracle asserted), plus
+    !  the retrieval checks of 15.8.
     !
     ! Returns when everything passes; prints the report and exits with
     ! status 1 on any failure.
@@ -194,11 +215,11 @@ contains
 
     type(sym_matrix) :: M
     character(len=24) :: objlabel
-    integer :: fst, fval, fleg, forc, fpar, fpur
+    integer :: fst, fval, fleg, forc, fpar, fpur, fhm
 
     if (folded) then
       objlabel = '\nabla_'//axis_label(mu)//'.T folded'
-      call NablaT_spme_matrix(mu, 'HF', M)
+      call build_local_twin(mu, M)
     else
       objlabel = '\nabla_'//axis_label(mu)//' honest  '
       call Nabla_spme_matrix(mu, 'HF', M)
@@ -213,6 +234,7 @@ contains
     forc = 0
     fpar = 0
     fpur = 0
+    fhm = 0
     call check_structure(M, fst)
     if (M%nblocks .gt. 0) then
       call check_values(mu, folded, M, fval)
@@ -221,8 +243,9 @@ contains
       call check_partner(M, fpar)
     endif
     call check_purity(mu, folded, M, fpur)
+    if (folded) call check_halffm(mu, M, fhm)
 
-    ifail = max(fst, fval, fleg, forc, fpar, fpur)
+    ifail = max(fst, fval, fleg, forc, fpar, fpur, fhm)
   end subroutine test_object
 !===============================================================================
   subroutine check_structure(M, ifail)
@@ -717,6 +740,104 @@ contains
     val = dv * val
   end function opposite_arithmetic
 !===============================================================================
+  subroutine lin_twin_fill(srow, scol, A, params)
+    !------------------------------------------------------------------------------
+    ! block_filler callback of the arm-owned twin construction: the legacy
+    !  hidden_TR fold through the test's own fresh transcription, one
+    !  element per stored pair.
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: srow, scol
+    real(KIND=dp), intent(out)  :: A(:, :)
+    class(*), intent(in)  :: params
+
+    integer :: r, c, m, n
+
+    select type (params)
+    type is (lin_twin_params)
+      m = params%st(srow + 1) - params%st(srow)
+      n = params%st(scol + 1) - params%st(scol)
+      if (m .ne. size(A, 1) .or. n .ne. size(A, 2)) then
+        print *, 'lin_twin_fill: params%st inconsistent with the block.'
+        call stp('Sector bounds inconsistent in lin_twin_fill.')
+      endif
+      do c = 1, n
+        do r = 1, m
+          A(r, c) = fresh_element(params%mu, .true., srow, scol, r, c,         &
+          &                      params%st)
+        enddo
+      enddo
+    end select
+  end subroutine lin_twin_fill
+!===============================================================================
+  subroutine build_local_twin(mu, M)
+    !------------------------------------------------------------------------------
+    ! Construct the folded twin through the PUBLIC block machinery
+    !  (init + fill_blocks + the arm's own fold arithmetic): the retired
+    !  eager entry point's object reconstruction. Class labels: the
+    !  folded table of design 15.2 (amended) - both twins word 2;
+    !  folded x HERMITIAN x STY_EVEN, folded y ANTIHERMITIAN x STY_ODD,
+    !  kinds symmetric as the mirror oracle measures; the composite
+    !  inherits the family tau.
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: mu
+    type(sym_matrix), intent(out) :: M
+
+    type(lin_twin_params) :: params
+    integer :: herm_class, sty_class
+
+    if (mu .eq. AX_Z) then
+      print *, 'build_local_twin: no folded twin exists for the z component.'
+      call stp('Use the honest object for AX_Z.')
+    endif
+
+    herm_class = HERMITIAN
+    sty_class = STY_EVEN
+    if (mu .eq. AX_Y) then
+      herm_class = ANTIHERMITIAN
+      sty_class = STY_ODD
+    endif
+    call M%init(HFBlocks_global, 2, herm_class, sty_class, TAU_NABLAFAM,       &
+    &           folded=.true., goodqn=goodqn)
+    if (M%nblocks .eq. 0) return
+
+    params%st = M%st
+    params%mu = mu
+    call M%fill_blocks(lin_twin_fill, params)
+  end subroutine build_local_twin
+!===============================================================================
+  subroutine check_halffm(mu, M, ifail)
+    !------------------------------------------------------------------------------
+    ! Production-lane check (D-7, 15.9 row 2): the demoted twin machinery
+    !  serves production only through Nabla_half_fm's folded branch - the
+    !  CompCOMCorrection lane. Its dense output must agree with this
+    !  arm's own twin construction, so the private engine stays covered
+    !  through its public face.
+    !------------------------------------------------------------------------------
+    integer, intent(in)   :: mu
+    type(sym_matrix), intent(in) :: M
+    integer, intent(out)  :: ifail
+
+    real(KIND=dp), allocatable :: D(:, :), Dloc(:, :)
+    real(KIND=dp) :: dev, amax
+
+    ifail = 0
+    dev = 0.0d0
+    amax = 0.0d0
+    D = Nabla_half_fm(mu, .true., 'HF')
+    Dloc = M%dense()
+    dev = maxval(abs(D - Dloc))
+    if (dev .gt. 0.0d0) amax = max(maxval(abs(D)), maxval(abs(Dloc)))
+    if (dev .gt. tol*max(1.0d0, amax)) then
+      ifail = 1
+      print *, '  halffm FAIL: production lane differs from the twin, max',   &
+      &         dev
+    else
+      print *, '  halffm: production lane agrees with the twin. max', dev
+    endif
+    deallocate (D)
+    deallocate (Dloc)
+  end subroutine check_halffm
+!===============================================================================
   subroutine fresh_derive(psi, glob, mu, derpsi)
     ! !------------------------------------------------------------------------------
     ! The mu-derivative of a stored HF spinor: the stored derivatives when
@@ -843,7 +964,7 @@ contains
     amax = 0.0d0
     checked = .false.
     do i = AX_X, AX_Y
-      call NablaT_spme_matrix(i, 'HF', Mf)
+      call build_local_twin(i, Mf)
       D = Mf%dense()
       do s = 0, 7
         sp = ieor(s, 3)
@@ -880,7 +1001,7 @@ contains
       print *, '  retrieval FAIL: accessor block differs from the folded',    &
       &         ' generator, max', dev
     else
-      print *, '  retrieval: accessor agrees with the folded generators.',     &
+      print *, '  retrieval: accessor agrees with the twin construction.',    &
       &         ' max', dev
     endif
   end subroutine test_retrieval

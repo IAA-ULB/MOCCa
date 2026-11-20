@@ -58,6 +58,12 @@ module linear_momentum
   !       in reverse, consumer-invisible because every consumer
   !       contracts squares; the record lives in design 15.2.
   !
+  ! D-7 / design 15.9 row 2 (2026-11-20): the five-object public
+  !  interface collapses. The public face is the honest generator, the
+  !  Nabla_half_fm packaging (its folded branch is the private twin
+  !  engine, the CompCOMCorrection production lane) and the accessor;
+  !  the eager twin sibling entry is private since this row.
+  !
   ! The generators wrap the legacy per-pair arithmetic VERBATIM - one
   !  dv*sum per stored pair, the exact component contractions of
   !  CompNablaMelements - so that routine remains the A/B oracle of the
@@ -140,7 +146,7 @@ module linear_momentum
   public :: AX_X, AX_Y, AX_Z
   public :: TAU_NABLAFAM
   public :: Nabla_params
-  public :: Nabla_spme_matrix, NablaT_spme_matrix
+  public :: Nabla_spme_matrix
   public :: Nabla_half_fm
   public :: get_nabla_block
 
@@ -182,8 +188,12 @@ contains
     !  images of the stored states as kets (design 2d): Re for x, Im for
     !  y. Word IEOR(word, 1) = 2; there is no folded \nabla_z - the
     !  honest operator serves both TR scenarios. Class tags follow the
-    !  mirror oracle (module header); only $TR-marked consumers have a
-    !  use for these objects, the generator exists in every build.
+    !  mirror oracle (module header). PRIVATE since D-7 / design 15.9
+    !  row 2 (2026-11-20): demoted from the public interface behind
+    !  get_nabla_block, surviving as the engine of Nabla_half_fm's
+    !  folded branch (the CompCOMCorrection production lane). Consumers
+    !  request fold content through the accessor; the unit arm owns the
+    !  eager-reference arithmetic.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu        : component selector, AX_X / AX_Y
@@ -579,13 +589,16 @@ contains
     row_img = (.not. Nabla_sector_stored(srow))
     col_img = (.not. Nabla_sector_stored(scol))
 
-    ! The physical pairing word of the honest operator, unmasked: the
-    !  doubled basis carries definite signature everywhere (stored states
-    !  and images alike), and every T-conserving build conserves Rz. In
-    !  $NTR builds no sector is an image (T is not conserved) and only
-    !  mechanism 1 is reachable.
+    ! The effective pairing word of the honest operator - init's iand
+    !  rule (design 2c): parity grading bits the build has merged act
+    !  diagonally also here, and the served blocks match the generator's
+    !  own masked init. Rz is good in every build, so the doubled basis
+    !  carries definite signature everywhere (stored states and images
+    !  alike). In `$NTR` builds no sector is an image (T is not
+    !  conserved) and only mechanism 1 is reachable.
     word = 3
     if (mu .eq. AX_Z) word = 2
+    word = iand(word, iand(goodqn, 7))
     if (ieor(srow, scol) .ne. word) then
       allocate (A(nrow, ncol))
       A = 0.0d0
