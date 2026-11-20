@@ -76,6 +76,18 @@ numerical trace. Runtime block counts are an unsound proxy for the
 T scenario (a transient NLO-T basis holds only q(Rz) = +i seeds) -
 the injected bit is the one honest source for marker-free code.
 
+### D-8 ME-consumer marker-freedom — DECIDED (user directive, 2026-11-20)
+
+Wouter values the ME/expect-value consumer code being free of Hephaestos
+gates ($TR/$NTR branches, build-dependent slots) enormously - stated as a
+standing design constraint, not a one-off: the honest-vs-folded scenario
+is to be handled at the producer/generator layer and through injected data
+(goodqn bit 4, the D-7 addendum's one honest source), never by branching
+at the consumer. Consequence for the upcoming rows (§14.4 row 3
+calcJ2andBelyaev_HFB and any later ME consumer): land them marker-free
+and scenario-blind from the start, not as a later cleanup. Accessor/api
+designs must be judged against this constraint.
+
 ### D-2 Qlm_spme deletion gate — OPEN (design §13.2)
 
 Purely a decision now. The routine's only remaining reference is the
