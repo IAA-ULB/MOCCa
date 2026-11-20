@@ -367,14 +367,21 @@ $(FAM_DEP): $(FAM_SRC_ALL)
 	@mkdir -p $(FAM_SRC_DIR)
 	python3 scripts/gen_moddeps.py --src-dir $(FAM_SRC_DIR) --obj-dir $(FAM_OBJ_DIR) --mod-dir $(FAM_MOD_DIR) --out $@
 
-# Only include (and thus regenerate) the tables that today's invocation
-# actually needs: mf-only runs should not regenerate the FAM tree, and a
-# clean should not trigger any generation at all.
-ifeq (,$(filter clean,$(MAKECMDGOALS)))
+# Only include (and thus regenerate) the tables for the trees that today's
+# invocation actually builds: neither an mf build nor a fam build should
+# regenerate the other tree, and a clean or a dry run should not generate
+# anything. With no goals, the default target is mf (see .DEFAULT_GOAL above).
+ifeq (,$(filter clean heph_dry_run_mf heph_dry_run_fam,$(MAKECMDGOALS)))
   ifneq (,$(filter fam%,$(MAKECMDGOALS)))
     include $(FAM_DEP)
   endif
-  include $(MF_DEP)
+  ifeq (,$(filter-out fam% heph_dry_run_fam,$(MAKECMDGOALS)))
+    ifeq (,$(filter-out heph_dry_run_mf heph_dry_run_fam,$(MAKECMDGOALS)))
+      include $(MF_DEP)
+    endif
+  else
+    include $(MF_DEP)
+  endif
 endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
