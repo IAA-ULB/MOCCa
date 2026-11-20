@@ -97,7 +97,7 @@ module linear_momentum_testing
   use wavefunctions,     only: TimeReverse
   use wavefunctions,     only: HFBlocks_global
   use densities,         only: CompNablaMelements
-  use block_matrix_module, only: sym_matrix
+  use block_matrix_module, only: block_matrix
   use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
   use block_matrix_module, only: STY_EVEN, STY_ODD
   use block_matrix_module, only: KIND_SYMMETRIC
@@ -228,7 +228,7 @@ contains
     logical, intent(in)  :: folded
     integer, intent(out) :: ifail
 
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     character(len=24) :: objlabel
     integer :: fst, fval, fleg, forc, fpar, fpur, fhm, fful
 
@@ -273,7 +273,7 @@ contains
     !  with partner skipping. Symmetry-forbidden objects come out with an
     !  empty block list - the structural zero - which is correct here.
     !------------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out) :: ifail
 
     integer :: s, b, sp, expected
@@ -342,7 +342,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     integer :: b, r, c, mr, nc, rstep, cstep
@@ -385,7 +385,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp), allocatable :: D(:, :)
@@ -472,7 +472,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp) :: symdev, asymdev, amax, dev
@@ -564,7 +564,7 @@ contains
     !  partner-consistency check of design section 8, applied to the
     !  generator's own storage wherever both triangles live in one block.
     !------------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out) :: ifail
 
     integer :: b, r, c, mr, ndiag
@@ -612,7 +612,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp) :: oppmax, mainmax
@@ -797,7 +797,7 @@ contains
     !  inherits the family tau.
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
-    type(sym_matrix), intent(out) :: M
+    type(block_matrix), intent(out) :: M
 
     type(lin_twin_params) :: params
     integer :: herm_class, sty_class
@@ -831,7 +831,7 @@ contains
     !  through its public face.
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp), allocatable :: D(:, :), Dloc(:, :)
@@ -906,7 +906,7 @@ contains
     real(KIND=dp) :: bra(mv, 4), der(mv, 4)
     real(KIND=dp), allocatable :: A(:, :)
     real(KIND=dp), allocatable :: D(:, :)
-    type(sym_matrix) :: Mf
+    type(block_matrix) :: Mf
     logical :: checked
 
     ifail = 0
@@ -1065,7 +1065,7 @@ contains
     integer, intent(in)  :: mu
     integer, intent(out) :: ifail
 
-    type(sym_matrix) :: M, W
+    type(block_matrix) :: M, W
     real(KIND=dp), allocatable :: A(:, :)
     complex(8) :: tM, tW
     integer :: b, r, c, mr, nc
@@ -1174,7 +1174,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     integer :: b, r, c, mr, nc, rstep, cstep, gi, gj, npair

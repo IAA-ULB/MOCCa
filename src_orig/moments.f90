@@ -350,7 +350,7 @@ module moments
     !  volume element folded in, flattened over the stored mesh points.
     real(KIND=dp), allocatable :: Qdv(:)
     ! 1-based global sector bounds st(0:8) exactly as constructed by
-    !  sym_matrix%init from the global block counts.
+    !  block_matrix%init from the global block counts.
     integer :: st(0:8)
     ! Which half of the complex matrix elements the callback fills, i.e.
     !  the stored half selected by the operator's y-time-simplex class:
@@ -3347,7 +3347,7 @@ $NTR endif
 ! Legacy single-particle matrix elements of a multipole operator
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 ! Moved verbatim from fission_MOI.f90 (2026-11-17) to be the testing
-!  oracle for the sym_matrix-based replacement of design-summary step 3
+!  oracle for the block_matrix-based replacement of design-summary step 3
 !  (section 13 of mocca-symmetry-block-matrix-design-summary.md).
 !  DEPRECATED: this routine covers only even m and the real part of the
 !  matrix elements, works in units of b^(l/2) and resolves its selection
@@ -3524,7 +3524,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 ! Design-summary step 3 (section 13): the multipole matrix elements of the
 !  legacy Qlm_spme above, rebuilt on the symmetry-block matrix type. All of
 !  it is marker-free: the selection rules are resolved at construction
-!  through the sym_matrix constructor (one XOR of the physical operator
+!  through the block_matrix constructor (one XOR of the physical operator
 !  word with the sector words, intersected with the goodqn mask of
 !  geninfo), giving an identical code path in every build scenario.
 !  Properties:
@@ -3632,7 +3632,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     !---------------------------------------------------------------------------
     integer, intent(in)           :: l, m
     logical, intent(in)           :: Im
-    type(sym_matrix), intent(out) :: me_half
+    type(block_matrix), intent(out) :: me_half
 
     type(Qlm_spme_params) :: params
     real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
@@ -3810,7 +3810,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     logical, intent(in) :: Imaginary
     real(KIND=dp)       :: me(nwt,nwt)
 
-    type(sym_matrix) :: me_half
+    type(block_matrix) :: me_half
 
     call Qlm_spme_matrix(l, m, Imaginary, me_half)
 

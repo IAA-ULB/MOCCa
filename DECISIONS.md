@@ -33,7 +33,7 @@ out five informative objects (honest trio + the section-2d folded pair;
 the sixth, nabla_z.T, is the structurally-zero corollary), with class tags
 (word, herm, sty, kind, tau) hardcoded as init constants and pinned by
 oracle assertions. tau, honest-vs-folded identity and the `$TR`/`$NTR`
-branch selection live outside the type, so a consumer holding a sym_matrix
+branch selection live outside the type, so a consumer holding a block_matrix
 cannot decide e.g. whether its trace equals the numerical trace x 2,
 mirrors its partner, or vanishes by symmetry - the D-5 factor-2/fac-4
 questions are the same deficit at the contraction level.
@@ -47,7 +47,7 @@ full-basis matrices (the rejected prior section-15.8 wording).
 
 Resolution (2026-11-20): shape A, with C as a debug/verification window
 only. NOT a new storage representation - B is rejected, the five-object
-convention and lean half-storage stand. sym_matrix gains two
+convention and lean half-storage stand. block_matrix gains two
 producer-supplied descriptive TR components (`tau`, `folded`) and
 centrally implemented, oracle-audited contracts, including the honest
 operator's doubled-basis trace Tr_full = Tr_stored + tau*conj(Tr_stored)
@@ -110,9 +110,9 @@ row 3 and §15.8). Candidates:
   time" phase it was drafted for was superseded by the kind formula
   A(s',s) = kind * A(s,s')^T. DELETE recommended: type component, the
   init reset, two comment apologies, one unit-net assertion.
-- b) `new_sym_matrix` constructor sugar: zero callers outside its own
+- b) `new_block_matrix` constructor sugar: zero callers outside its own
   unit test (every producer uses init + fill_blocks - the §14.3 wording
-  "new_sym_matrix-style constructors" landed as init/fill TBP pairs).
+  "new_block_matrix-style constructors" landed as init/fill TBP pairs).
   DELETE recommended, together with its test_sugar arm; or keep as public
   convenience.
 - c) `fill_elements` + the `element_filler` interface: the §5
@@ -150,7 +150,7 @@ future consumer, not before.
 
 ## Decided / resolved (record)
 
-- 2026-11-19: matvec and matmat are DROPPED from sym_matrix and the plan -
+- 2026-11-19: matvec and matmat are DROPPED from block_matrix and the plan -
   the consumer audit found no caller (design §6/§10, commit 1230f34a).
 - 2026-11-19: basis rotations are sector-diagonal real orthogonal ONLY
   (complex unitaries fall out of the STy-invariant model; signature-mixing

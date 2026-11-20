@@ -1159,7 +1159,7 @@ $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:)
     ! (*) that no symmetries have been used yet at this point
     ! (*) I have not explicitly kept track of the vector nature of P.
     ! (*) the matrix elements of nabla come from the linear_momentum
-    !     module on sym_matrix (design 15); the legacy compnablamelements
+    !     module on block_matrix (design 15); the legacy compnablamelements
     !     in the densities module stays as its A/B oracle.
     !---------------------------------------------------------------------------
     ! There is also a phenomenological way to include the two-body part as a
@@ -1231,7 +1231,7 @@ $NTR    endif
       call start_timer(T_com2)
 
       ! The gradient matrix elements from the linear_momentum generators
-      ! on sym_matrix (design 15), in the canonical 'DEN' basis of rho_can
+      ! on block_matrix (design 15), in the canonical 'DEN' basis of rho_can
       ! and kappa_can: the honest trio in TR-broken builds, the TR-folded
       ! twins plus the honest nabla_z in TR-conserving ones - the same
       ! array contents the legacy compNablaMelements carried (the unit
@@ -2804,7 +2804,7 @@ $READPOTENTIALS_HDF5
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate single-particle matrix elements of nabla_z in the canonical
-    ! ('DEN') basis from the linear_momentum generator on sym_matrix (design
+    ! ('DEN') basis from the linear_momentum generator on block_matrix (design
     ! 15.5 row 3): the honest z-component, Re half - identical content to the
     ! legacy compNablaMElements slot (3,1).
     Psp            =  Nabla_half_fm(AX_Z, .false., 'DEN')
@@ -2822,7 +2822,7 @@ $READPOTENTIALS_HDF5
     ! Calculate single-particle matrix elements of z-c.o.m. coordinate
     Qsp            = sqrt(4*pi/3) * Qlm_spme_fm(1,0,.false.)
                     ! Q10 = sqrt(3/4pi) * z, single-particle matrix
-                    ! elements in fm units from the sym_matrix generator
+                    ! elements in fm units from the block_matrix generator
     Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
     Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

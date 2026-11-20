@@ -1430,7 +1430,7 @@ contains
           f_spme = Rsq_spme()
         else 
           ! Get single-particle matrix elements of Q_lm in the HF basis
-          !  -> the sym_matrix generator in moments.f90, in natural fm^L units:
+          !  -> the block_matrix generator in moments.f90, in natural fm^L units:
           !     it stores the real half Re <i|r^L Re(Y_LK)|j> as it stands
           f_spme = Qlm_spme_fm(l, m, .false.)
 
@@ -1453,7 +1453,7 @@ contains
         ! Z_com = 1/A sum_i z_i is trivially related to Q_10 = sum_i sqrt(3/4pi) z_i
 
         ! Get single-particle matrix elements of Q_10 in the HF basis
-        !  -> the sym_matrix generator in moments.f90, in natural fm units
+        !  -> the block_matrix generator in moments.f90, in natural fm units
         f_spme = Qlm_spme_fm(1, 0, .false.)
 
         ! Cancel prefactor sqrt(3/4pi)

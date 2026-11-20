@@ -1408,7 +1408,7 @@ $TR   print '(a50, 2es15.4)', '    H02_ab = +H02_ba   : satisfied up to',  ME_ch
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! get the SPME for R
 
-    ! get Q_10 in fm units from the sym_matrix generator
+    ! get Q_10 in fm units from the block_matrix generator
     Rz_spme = Qlm_spme_fm(1, 0, .false.)
 
     ! Cancel prefactor sqrt(3/4pi)

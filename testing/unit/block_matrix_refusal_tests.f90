@@ -27,7 +27,7 @@ program block_matrix_refusal_tests
   ! Refusal tests for the structure guards of the symmetry-block matrix
   !  module's rotation machinery (design section 6a). Every scenario hands
   !  the module an input it must REFUSE loudly (print + stop 1) - the same
-  !  loud convention as the guards of init_sym_matrix, which cannot be
+  !  loud convention as the guards of init_block_matrix, which cannot be
   !  caught inside a running process either.
   !
   ! The program executes exactly ONE scenario, selected by the
@@ -57,7 +57,7 @@ program block_matrix_refusal_tests
   real(8), allocatable :: C(:, :), Ublk(:, :)
   complex(8) :: tr
   type(sym_rotation) :: R
-  type(sym_matrix) :: M
+  type(block_matrix) :: M
 
   scenario = 0
   if (command_argument_count() > 0) then

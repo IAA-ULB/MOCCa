@@ -65,7 +65,7 @@ module moments_testing
   use moments,            only: QuantisationAxis, SecondaryAxis
   use pairing,            only: rho_can, PairingType
   use wavefunctions,      only: nwn, nwt, HFPsi, sx, sy, sz
-  use block_matrix_module, only: sym_matrix, sym_block
+  use block_matrix_module, only: block_matrix, sym_block
 
   implicit none
 
@@ -157,7 +157,7 @@ contains
     integer, intent(in)  :: lmax
     integer, intent(out) :: ifail
 
-    type(sym_matrix)      :: me
+    type(block_matrix)      :: me
     character(len=80)     :: title
     logical               :: Im
     integer               :: l, m, ihalf
@@ -226,7 +226,7 @@ contains
     integer, intent(in)  :: lmax
     integer, intent(out) :: ifail
 
-    type(sym_matrix)       :: me
+    type(block_matrix)       :: me
     type(Moment), pointer  :: pcur
     real(KIND=dp), allocatable :: D(:, :)
     real(KIND=dp)          :: tr(2), val(2), dev, tol, maxdev
@@ -354,7 +354,7 @@ contains
     integer, intent(in)  :: lmax
     integer, intent(out) :: ifail
 
-    type(sym_matrix)          :: me
+    type(block_matrix)          :: me
     real(KIND=dp), allocatable :: D(:, :)
     real(KIND=dp), allocatable :: Qc(:, :)
     integer, allocatable       :: flips(:, :)

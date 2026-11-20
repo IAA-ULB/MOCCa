@@ -426,7 +426,7 @@ integer, parameter :: STY_ODD            = -1  ! <i|O|j> purely imaginary (§2a)
 integer, parameter :: KIND_SYMMETRIC    =  1    ! A(s',s) =   A(s,s')^T
 integer, parameter :: KIND_ANTISYMMETRIC = -1   ! A(s',s) = - A(s,s')^T
 
-type :: sym_matrix
+type :: block_matrix
   integer :: symmetry       ! operator symmetry word, 0..7 (physical, §2b)
   integer :: goodqn         ! good-quantum-number mask of the basis (§2c);
                             ! 0..31, bits 0-2 = sector gradings, bit 3 = STy
@@ -465,7 +465,7 @@ end type
 (`add_element`, shown in earlier drafts of this snippet, was dropped, and
 with it (2026-11-20, DECISIONS.md D-6) the whole element-wise path: the
 call audit found no caller of `fill_elements`/`element_filler` or the
-`new_sym_matrix` sugar outside the block-matrix unit net, and every real
+`new_block_matrix` sugar outside the block-matrix unit net, and every real
 producer populates whole blocks. partner access is `dense()`'s kind
 algebra alone. KIND_GENERAL existed in earlier drafts and was dropped with the
 classifiability agreement of section 2a: the kind is derived from the two
@@ -610,7 +610,7 @@ Guarantees and rules:
 - `params` carries state (fields, densities, coupling constants). Keep the
   signature fixed; extend `params`, not the interface.
 - Amendment (2026-11-20, DECISIONS.md D-6): the per-element fallback
-  (`element_filler` through `fill_elements`) and the `new_sym_matrix`
+  (`element_filler` through `fill_elements`) and the `new_block_matrix`
   constructor sugar are DROPPED - the call audit found no caller outside
   the block-matrix unit net; every producer fills whole blocks through
   `block_filler`, so population is the single path above. `add_element`,
@@ -683,7 +683,7 @@ the type's invariants. Out of scope, deliberately (agreed 2026-11-19):
   them the whole stored-half model - would lose their meaning; there is
   no caller today.
 - rotations mixing sector partners, e.g. the q(Rz) = +i/-i pairs: the
-  rotated basis has no definite signature, so no sym_matrix can represent
+  rotated basis has no definite signature, so no block_matrix can represent
   an operator over it unless the signature bit stops being a good
   quantum number (the goodqn-mask machinery of section 2c would cover
   that case if ever needed); no config in the tree breaks Rz and no
@@ -738,7 +738,7 @@ contains
 end type
 ```
 
-and one addition to sym_matrix's `contains` list:
+and one addition to block_matrix's `contains` list:
 
 ```fortran
 procedure :: rotate  ! in place: A_b <- U_{srow}^T A_b U_{scol} for every
@@ -780,7 +780,7 @@ net). The production candidates, in the natural order: the `U^T O U`
 factor of the FAM qp-space operator in `get_qpme_op` (the full
 Bogoliubov image `U^T O U - V^T O^T V +/- ...` is NOT a rotation - the
 V terms carry transposes - and stays consumer-side unless its output is
-ever made a sym_matrix over a qp bookkeeping), the canonical-basis
+ever made a block_matrix over a qp bookkeeping), the canonical-basis
 operator chains of the momentsofinertia / Ksum families, and the
 whole-matrix `transform_mat` call sites once their callers migrate.
 
@@ -844,20 +844,25 @@ whole-matrix `transform_mat` call sites once their callers migrate.
   in `src_heph/preprocess.py` (and in `FORTRANFILES` in `Hephaestos.py` for
   the dry-run report) so Hephaestos copies it verbatim into the build tree;
   an unlisted file is silently skipped by the Makefile-per-file invocation.
+  Amendment (2026-11-20, name-unification commit): the type
+  `sym_matrix` and its `*_sym_matrix` procedures are renamed to
+  `block_matrix` / `*_block_matrix` throughout - one name for the
+  concept; `sym_matrix` read as "symmetric matrix" was a standing
+  misreading hazard. The block component type stays `sym_block`.
 
 ## 10. Suggested implementation order
 
 Live status of the steps below, with commit hashes and executed gates:
 the step table in `SPRINT.md` (repo root) - not this section.
 
-1. Core module: sector encoding, `sym_block`, `sym_matrix`, `init` from
+1. Core module: sector encoding, `sym_block`, `block_matrix`, `init` from
    `HFblocks`, block-list construction with XOR pairing and kind-based
    partner skipping.
 2. `fill_blocks` with the abstract interface, plus the element-wise
    fallback.
 3. Generalised multipole matrix elements (detailed plan in section 13):
    the first production consumer. Move the `Qlm_spme`-based machinery from
-   `fission_MOI.f90` to `moments.f90` and rebuild it on `sym_matrix` for
+   `fission_MOI.f90` to `moments.f90` and rebuild it on `block_matrix` for
    all (l, m, Re/Im) electric multipoles in natural units `fm^l`, using the
    good-quantum-number mask of section 2b. The legacy routine stays in
    place as the testing oracle. Also lands the mask in `init`/`geninfo`
@@ -887,7 +892,7 @@ the step table in `SPRINT.md` (repo root) - not this section.
    consumer needs them.
 7. (agreed 2026-11-19, intermediate infrastructure step - precedes the
    deferred section 13.5 items) basis rotations: the `sym_rotation` type
-   and the `rotate` method of sym_matrix (section 6a), plus the
+   and the `rotate` method of block_matrix (section 6a), plus the
    extension of the block_matrix unit net (section 8). No consumer
    migrates with this step; the first production caller is decided
    later (candidates listed in section 6a).
@@ -962,14 +967,14 @@ the step table in `SPRINT.md` (repo root) - not this section.
 
 Target (agreed 2026-11-17): move the single-particle matrix elements of the
 electric multipole operators from `fission_MOI.f90` into `moments.f90`,
-rebuild them on `sym_matrix`, generalise to all multipoles in natural
+rebuild them on `block_matrix`, generalise to all multipoles in natural
 units, and keep the old routine in place as a testing oracle. Consumers
 found in the tree: `fission_MOI` (collective inertia tensor), `functional`
 (`verify_COM_motion`, Q_10 - a pushing-model diagnostic identified at
 migration time as DEAD CODE, no call site anywhere; the earlier
 "CompCOMCorrection" label was wrong, that routine never used `Qlm_spme`),
 `fam` (`get_qpme_op`: multipole fields, z_com), `fam_testing`
-([R, P] unit tests, uncalled). All migrated to the sym_matrix generator
+([R, P] unit tests, uncalled). All migrated to the block_matrix generator
 by 2026-11-19 (step 5 plus the cleanup commit after it); the only
 remaining `Qlm_spme` reference is the off-by-default oracle hook in
 `fission_MOI`.
@@ -985,7 +990,7 @@ user input against forbidden moments is the business of Hephaestos' moment
 list at the input layer (e.g. `read_inertia`), not of this routine.
 
 Output: the stored half of the ME matrix in the HF basis, per the
-operator's STy class, as one `sym_matrix`:
+operator's STy class, as one `block_matrix`:
 
 ```fortran
 ! Im = .false.: r^l Re Y_lm, Hermitian, STY_EVEN - stored numbers are
@@ -1043,7 +1048,7 @@ function Qlm_spme_fm(l, m, Imaginary) result(me)
   `A = sum_s [Re_s^T (Q dv) Im_s - Im_s^T (Q dv) Re_s]`), with `dv`
   folded into the weight mesh.
 - helper in `block_matrix_module`: the partner-reconstructing dense
-  expansion of a `sym_matrix` (refactored out of the `print_dense`
+  expansion of a `block_matrix` (refactored out of the `print_dense`
   core). It is the return shape behind `Qlm_spme_fm` and the reference
   shape for the elementwise oracle checks of the amended step 4
   (section 10).
@@ -1145,7 +1150,7 @@ deliberately untouched in this step beyond the source of `Qsp`.
 
 Target (agreed 2026-11-19): a new module `src_orig/angular_momentum.f90`
 hosting generators of the angular-momentum one-body matrices on
-sym_matrix - the first producer family since the multipoles of section
+block_matrix - the first producer family since the multipoles of section
 13, and the supplier for the rotation consumers of section 6a (the
 canonical-basis J-matrix chains of the momentsofinertia/Belyaev
 machinery are the first production consumer).
@@ -1371,7 +1376,7 @@ caller-less.
 - `src_orig/angular_momentum.f90`: plain Fortran, like
   block_matrix_module free of `$`-markers; takes the angmom kernels
   from wavefunctions; generators built as
-  `new_sym_matrix`-style constructors
+  `new_block_matrix`-style constructors
   (`init(HFBlocks_global, word, herm, sty, goodqn)` per the 14.1 table;
   the sugar itself has since been dropped, section 5)
   with block_filler callbacks looping the kernels over the stored
@@ -1452,7 +1457,7 @@ stay out of this module's scope.
 
 Target (agreed 2026-11-19, design stage): the single-particle matrix
 elements of the gradient operator family migrate from densities.f90's
-`CompNablaMelements` to sym_matrix generators in a new marker-free
+`CompNablaMelements` to block_matrix generators in a new marker-free
 module `src_orig/linear_momentum.f90` - separate from the
 angular_momentum module for now, to be merged with it once both exist
 (user decision; both wrap wavefunctions.f90 kernels and both carry the
@@ -1776,7 +1781,7 @@ of increasing cost:
        in the producer's class table (15.2) - in code, a named integer
        parameter per family in the generator module (the accessor is
        per-operator, so its own code path is the metadata; no runtime
-       lookup, no sym_matrix component). The value is asserted per
+       lookup, no block_matrix component). The value is asserted per
        family and ARBITERED EMPIRICALLY: the unit arm computes one
        image-image block both ways (honest kernels and sign flip)
        before the algebra path is armed for that operator. Untested
@@ -1811,7 +1816,7 @@ family is the suggested shape:
 
     ! Any block of the complete doubled-basis matrix of \nabla_mu:
     ! stored and algebraically reconstructible blocks served from the
-    ! stored sym_matrix, image-involving blocks materialised by the
+    ! stored block_matrix, image-involving blocks materialised by the
     ! kernels on demand; the $TR call-site gate supplies the images.
     function nabla_block(mu, srow, scol, basis) result(A)
 
@@ -1860,7 +1865,7 @@ open empirical question for the migration's A/B.
 
 AMENDED 2026-11-20 (D-7 resolution): the retrieval contract gains its
 human-facing layer - two additions, both built on the section-3
-metadata components (which supersede mechanism 1's "no sym_matrix
+metadata components (which supersede mechanism 1's "no block_matrix
 component" policy above), neither changing a stored number:
 
 1. Central doubled-basis contracts, implemented once instead of

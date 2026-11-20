@@ -113,7 +113,7 @@ module linear_momentum
   use wavefunctions,     only: Derive_X_spwf, Derive_Y_spwf, Derive_Z_spwf
   use wavefunctions,     only: TimeReverse
   use wavefunctions,     only: HFBlocks_global
-  use block_matrix_module, only: sym_matrix, block_filler
+  use block_matrix_module, only: block_matrix, block_filler
   use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
   use block_matrix_module, only: STY_EVEN, STY_ODD
 
@@ -157,7 +157,7 @@ contains
   subroutine Nabla_spme_matrix(mu, spwf_basis, me)
     !---------------------------------------------------------------------------
     ! Stored half of the matrix elements of the honest gradient operator
-    !  \nabla_mu, as one sym_matrix: Re for x/z (STY_EVEN), Im for y
+    !  \nabla_mu, as one block_matrix: Re for x/z (STY_EVEN), Im for y
     !  (STY_ODD); all three are ANTIHERMITIAN, so init derives the kinds
     !  -1/-1/+1 - exactly the partner-fill signs of the legacy
     !  CompNablaMelements. Words: 3 for x/y (z-signature flipping,
@@ -177,7 +177,7 @@ contains
     !---------------------------------------------------------------------------
     integer, intent(in)           :: mu
     character(len=*), intent(in) :: spwf_basis
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     call Nabla_build(mu, .false., spwf_basis, me)
   end subroutine Nabla_spme_matrix
@@ -204,7 +204,7 @@ contains
     !---------------------------------------------------------------------------
     integer, intent(in)           :: mu
     character(len=*), intent(in)  :: spwf_basis
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     if (mu .eq. AX_Z) then
       print *, 'NablaT_spme_matrix: no folded twin exists for \nabla_z',        &
@@ -231,7 +231,7 @@ contains
     integer, intent(in)           :: mu
     logical, intent(in)           :: folded
     character(len=*), intent(in)  :: spwf_basis
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     type(Nabla_params) :: params
     integer :: word, sty_class, ibasis
@@ -490,7 +490,7 @@ contains
     !---------------------------------------------------------------------------
     ! Dense legacy shape of the stored half of the selected object, the
     !  Qlm_spme_fm precedent: the partner-reconstructing dense expansion of
-    !  the sym_matrix built by the generators, real(nwt, nwt).
+    !  the block_matrix built by the generators, real(nwt, nwt).
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu        : component selector, AX_X / AX_Y (/ AX_Z if not folded)
@@ -504,7 +504,7 @@ contains
     character(len=*), intent(in) :: spwf_basis
     real(KIND=dp), allocatable   :: me(:, :)
 
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
 
     if (folded) then
       call NablaT_spme_matrix(mu, spwf_basis, M)
@@ -573,7 +573,7 @@ contains
     logical :: row_img, col_img
     real(KIND=dp) :: der(mv, 4)
     real(KIND=dp) :: bra(mv, 4)
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     real(KIND=dp), allocatable :: S(:, :)
 
     basis = Nabla_basis_code(spwf_basis)
@@ -709,7 +709,7 @@ contains
   subroutine Nabla_copy_block(M, srow, scol, A)
     !---------------------------------------------------------------------------
     ! Copy the block (srow, scol) - or its kind-weighted partner - out of
-    !  the sym_matrix M into a freshly allocated rectangle; unallocated A
+    !  the block_matrix M into a freshly allocated rectangle; unallocated A
     !  when no part of M covers the requested pair.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -718,7 +718,7 @@ contains
     ! Output:
     !   A         : the copied block, allocated when found
     !---------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(in) :: srow, scol
     real(KIND=dp), allocatable, intent(out) :: A(:, :)
 
@@ -743,7 +743,7 @@ contains
     !---------------------------------------------------------------------------!
     ! The one-call DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3): the
     !  complete doubled-basis matrix of the honest gradient operator
-    !  materialised EAGERLY as one sym_matrix - stored-x-stored,
+    !  materialised EAGERLY as one block_matrix - stored-x-stored,
     !  stored-x-image and image-x-image blocks alike, every element
     !  computed by the honest per-pair kernels on states materialised
     !  through TimeReverse of their stored originals. The unit arm is
@@ -773,7 +773,7 @@ contains
     !---------------------------------------------------------------------------!
     integer, intent(in)           :: mu
     character(len=*), intent(in)  :: spwf_basis
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     type(Nabla_params) :: params
     integer :: counts(8), s, word, sty_class, ibasis

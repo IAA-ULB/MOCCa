@@ -28,7 +28,7 @@ module block_matrix_module
   !  in the configuration space spanned by a finite set of single-particle
   !  wavefunctions on the MOCCa grid. It implements the design summary
   !  'mocca-symmetry-block-matrix-design-summary.md', whose sections are
-  !  referenced below: sector encoding, the sym_block / sym_matrix types,
+  !  referenced below: sector encoding, the sym_block / block_matrix types,
   !  the block-list construction from MOCCa's HFBlocks bookkeeping, block
   !  population through the fill_blocks callback, the partner-reconstructing
   !  dense expansion, and the sector-diagonal basis rotations (section 6a)
@@ -274,7 +274,7 @@ module block_matrix_module
   ! The full symmetry-adapted matrix: at most 8 blocks in a flat list.
   !  After init, all runtime code loops over blocks(1:nblocks) only;
   !  quantum numbers XOR selection rules never appear at runtime again.
-  type :: sym_matrix
+  type :: block_matrix
     integer :: symmetry       ! operator symmetry word, 0..7 (physical)
     integer :: goodqn         ! good-quantum-number mask of the basis,
                               ! 0..31 (design 2b; bits 0-2 as the sector
@@ -310,14 +310,14 @@ module block_matrix_module
     integer :: st(0:8)        ! first global (1-based) index of each sector;
                               !  st(8) = n + 1; sector s spans st(s) .. st(s+1)-1
   contains
-    procedure :: init => init_sym_matrix
-    procedure :: sector_of => sector_of_sym_matrix
-    procedure :: fill_blocks => fill_blocks_sym_matrix
-    procedure :: dense => dense_sym_matrix
-    procedure :: print_dense => print_dense_sym_matrix
-    procedure :: full_trace => full_trace_sym_matrix
-    procedure :: rotate => rotate_sym_matrix
-  end type sym_matrix
+    procedure :: init => init_block_matrix
+    procedure :: sector_of => sector_of_block_matrix
+    procedure :: fill_blocks => fill_blocks_block_matrix
+    procedure :: dense => dense_block_matrix
+    procedure :: print_dense => print_dense_block_matrix
+    procedure :: full_trace => full_trace_block_matrix
+    procedure :: rotate => rotate_block_matrix
+  end type block_matrix
 
   !----------------------------------------------------------------------------
   ! One square orthonormal rotation block belonging to a single sector
@@ -331,7 +331,7 @@ module block_matrix_module
   ! A basis rotation: one real orthonormal block per populated sector,
   !  i.e. the sector-diagonal change of basis  psi' = C^T psi  whose
   !  columns are the new basis vectors expressed in the old basis (the
-  !  basis_transform convention). Applied to a sym_matrix through rotate,
+  !  basis_transform convention). Applied to a block_matrix through rotate,
   !  it expresses the SAME operator in the rotated basis and preserves
   !  every metadata field (design section 6a).
   type :: sym_rotation
@@ -374,7 +374,7 @@ module block_matrix_module
   end interface
 
   private
-  public :: sym_block, sym_matrix
+  public :: sym_block, block_matrix
   public :: sector_rotation, sym_rotation
   public :: HERMITIAN, ANTIHERMITIAN
   public :: KIND_SYMMETRIC, KIND_ANTISYMMETRIC
@@ -385,7 +385,7 @@ module block_matrix_module
 contains
 
   !----------------------------------------------------------------------------
-  subroutine init_sym_matrix(this, HFBlocks, symmetry, herm, sty, tau,          &
+  subroutine init_block_matrix(this, HFBlocks, symmetry, herm, sty, tau,          &
   &                           folded, goodqn)
     !---------------------------------------------------------------------------
     ! Construct the block list of a symmetry-adapted matrix: every populated
@@ -413,7 +413,7 @@ contains
     !                   off; in MOCCa pass the geninfo constant 'goodqn'
     !                   ($GOODQN).
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(inout) :: this
+    class(block_matrix), intent(inout) :: this
     integer, intent(in)               :: HFBlocks(8)
     integer, intent(in)               :: symmetry
     integer, intent(in)               :: herm
@@ -428,24 +428,24 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Guards: sector words are 3-bit integers, kinds are the module constants.
     if (symmetry < 0 .or. symmetry > 7) then
-      print *, 'init_sym_matrix: symmetry word must be in 0..7, got', symmetry
+      print *, 'init_block_matrix: symmetry word must be in 0..7, got', symmetry
       stop 1
     endif
     if (herm .ne. HERMITIAN .and. herm .ne. ANTIHERMITIAN) then
-      print *, 'init_sym_matrix: herm must be HERMITIAN or ANTIHERMITIAN,',     &
+      print *, 'init_block_matrix: herm must be HERMITIAN or ANTIHERMITIAN,',     &
       &         ' got', herm
       stop 1
     endif
     if (sty .ne. STY_EVEN .and. sty .ne. STY_ODD) then
-      print *, 'init_sym_matrix: sty must be STY_EVEN or STY_ODD, got', sty
+      print *, 'init_block_matrix: sty must be STY_EVEN or STY_ODD, got', sty
       stop 1
     endif
     if (tau .ne. TAU_EVEN .and. tau .ne. TAU_ODD) then
-      print *, 'init_sym_matrix: tau must be TAU_EVEN or TAU_ODD, got', tau
+      print *, 'init_block_matrix: tau must be TAU_EVEN or TAU_ODD, got', tau
       stop 1
     endif
     if (any(HFBlocks < 0)) then
-      print *, 'init_sym_matrix: HFBlocks entries must be >= 0'
+      print *, 'init_block_matrix: HFBlocks entries must be >= 0'
       stop 1
     endif
 
@@ -455,7 +455,7 @@ contains
     qn = 15
     if (present(goodqn)) qn = goodqn
     if (qn < 0 .or. qn > 31) then
-      print *, 'init_sym_matrix: goodqn mask must be in 0..31, got', qn
+      print *, 'init_block_matrix: goodqn mask must be in 0..31, got', qn
       stop 1
     endif
 
@@ -517,29 +517,29 @@ contains
       this%blocks(b)%A = 0.0d0
     enddo
     this%nblocks = b
-  end subroutine init_sym_matrix
+  end subroutine init_block_matrix
   !----------------------------------------------------------------------------
-  pure integer function sector_of_sym_matrix(this, i)
+  pure integer function sector_of_block_matrix(this, i)
     !---------------------------------------------------------------------------
     ! Map a global spwf index to its symmetry sector. Returns -1 if the index
     !  is out of range. Exploits that the bounds array is non-decreasing.
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(in) :: this
+    class(block_matrix), intent(in) :: this
     integer, intent(in)            :: i
 
     integer :: s
 
-    sector_of_sym_matrix = -1
+    sector_of_block_matrix = -1
     if (i < 1 .or. i > this%n) return
     do s = 7, 0, -1
       if (i .ge. this%st(s)) then
-        sector_of_sym_matrix = s
+        sector_of_block_matrix = s
         exit
       endif
     enddo
-  end function sector_of_sym_matrix
+  end function sector_of_block_matrix
   !----------------------------------------------------------------------------
-  subroutine fill_blocks_sym_matrix(this, fill, params)
+  subroutine fill_blocks_block_matrix(this, fill, params)
     !---------------------------------------------------------------------------
     ! Populate all stored blocks through the callback: one call per stored
     !  block, overwriting the storage handed out as an intent(out) dummy.
@@ -553,7 +553,7 @@ contains
     !   params : state handed to the callback, verbatim; callers without
     !            state pass any token
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(inout) :: this
+    class(block_matrix), intent(inout) :: this
     procedure(block_filler)           :: fill
     class(*), intent(in)              :: params
 
@@ -563,9 +563,9 @@ contains
       call fill(this%blocks(b)%srow, this%blocks(b)%scol,                        &
       &         this%blocks(b)%A, params)
     enddo
-  end subroutine fill_blocks_sym_matrix
+  end subroutine fill_blocks_block_matrix
   !----------------------------------------------------------------------------
-  function dense_sym_matrix(this) result(D)
+  function dense_block_matrix(this) result(D)
     !---------------------------------------------------------------------------
     ! Partner-reconstructing dense expansion: the full n x n matrix with
     !  all stored blocks at their global positions, unstored partners as
@@ -578,7 +578,7 @@ contains
     ! Output:
     !   D    : the dense n x n expansion, freshly allocated
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(in) :: this
+    class(block_matrix), intent(in) :: this
     real(8), allocatable :: D(:, :)
 
     integer :: b, m, ncol
@@ -598,11 +598,11 @@ contains
         &   = this%kind * transpose(this%blocks(b)%A)
       endif
     enddo
-  end function dense_sym_matrix
+  end function dense_block_matrix
   !----------------------------------------------------------------------------
-  subroutine print_dense_sym_matrix(this, lun, title)
+  subroutine print_dense_block_matrix(this, lun, title)
     !---------------------------------------------------------------------------
-    ! Human-friendly dump of a sym_matrix as one dense n x n matrix,
+    ! Human-friendly dump of a block_matrix as one dense n x n matrix,
     !  partners reconstructed by the dense expansion. Debug/test helper
     !  for SMALL matrices ONLY - memory and output scale as n**2.
     !
@@ -617,7 +617,7 @@ contains
     !   lun   : optional output unit, defaults to stdout (unit 6)
     !   title : optional line printed verbatim above the dump
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(in) :: this
+    class(block_matrix), intent(in) :: this
     integer, intent(in), optional :: lun
     character(*), intent(in), optional :: title
 
@@ -639,14 +639,14 @@ contains
 
     if (present(title)) write(u, '(A)') trim(title)
     if (this%n <= 0) then
-      write(u, '(A)') ' sym_matrix is empty or not initialised, nothing to dump'
+      write(u, '(A)') ' block_matrix is empty or not initialised, nothing to dump'
       return
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Header: symmetry word decoded into the bits it flips, the kind, the
     !  stored block list and the populated sectors with index ranges.
-    write(u, '(A,I0)') ' sym_matrix: n = ', this%n
+    write(u, '(A,I0)') ' block_matrix: n = ', this%n
 
     if (this%symmetry == 0) then
       line = 'sector-diagonal operator, flips nothing'
@@ -797,9 +797,9 @@ contains
     line = line//'|'
     write(u, '(A)') line
     write(u, '(A)') ''
-  end subroutine print_dense_sym_matrix
+  end subroutine print_dense_block_matrix
   !----------------------------------------------------------------------------
-  function full_trace_sym_matrix(this) result(t)
+  function full_trace_block_matrix(this) result(t)
     !---------------------------------------------------------------------------
     ! The honest operator's physical trace as one complex number (D-7,
     !  2026-11-20; header 'Time parity' section for the conventions).
@@ -822,7 +822,7 @@ contains
     ! Output:
     !   t    : the physical trace, complex
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(in) :: this
+    class(block_matrix), intent(in) :: this
     complex(8) :: t, ts
 
     integer :: b, i, m
@@ -854,14 +854,14 @@ contains
     else
       t = ts
     endif
-  end function full_trace_sym_matrix
+  end function full_trace_block_matrix
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! BASIS ROTATIONS (design section 6a)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  subroutine rotate_sym_matrix(this, R)
+  subroutine rotate_block_matrix(this, R)
     !---------------------------------------------------------------------------
-    ! Rotate a sym_matrix into the basis defined by the sector-diagonal
+    ! Rotate a block_matrix into the basis defined by the sector-diagonal
     !  orthonormal blocks of R: every stored block transforms independently
     !  as  A_b <- U_{srow}^T A_b U_{scol} , the same operator in the rotated
     !  basis. Unstored partners are never touched - the kind relation
@@ -875,7 +875,7 @@ contains
     !   this : the matrix whose stored blocks are rotated, in place
     !   R    : the rotation; must share this matrix's global HFBlocks
     !---------------------------------------------------------------------------
-    class(sym_matrix), intent(inout) :: this
+    class(block_matrix), intent(inout) :: this
     class(sym_rotation), intent(in) :: R
 
     integer :: b, srow, scol
@@ -899,7 +899,7 @@ contains
       tmp = matmul(this%blocks(b)%A, R%U(scol)%U)
       this%blocks(b)%A = matmul(transpose(R%U(srow)%U), tmp)
     enddo
-  end subroutine rotate_sym_matrix
+  end subroutine rotate_block_matrix
   !----------------------------------------------------------------------------
   subroutine init_sym_rotation(this, HFBlocks)
     !---------------------------------------------------------------------------
@@ -912,7 +912,7 @@ contains
     ! Input:
     !   HFBlocks(1:8) : number of spwfs per MOCCa symmetry block, the
     !                   GLOBAL count array (HFBlocks_global); see init
-    !                   of sym_matrix for the block-to-sector table
+    !                   of block_matrix for the block-to-sector table
     !---------------------------------------------------------------------------
     class(sym_rotation), intent(inout) :: this
     integer, intent(in) :: HFBlocks(8)
@@ -958,7 +958,7 @@ contains
     !  off-sector submatrix vanishes within tol - and every extracted
     !  block must be orthonormal within tol. A C that mixes sectors is
     !  REFUSED: the rotated basis would have no definite good quantum
-    !  numbers and no sym_matrix could represent operators over it.
+    !  numbers and no block_matrix could represent operators over it.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   HFBlocks(1:8) : global MOCCa count array, see init_sym_rotation

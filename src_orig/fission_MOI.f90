@@ -453,7 +453,7 @@ contains
     !---------------------------------------------------------------------------
     integer, intent(in) :: l, m
 
-    type(sym_matrix) :: me_re
+    type(block_matrix) :: me_re
     real(KIND=dp), allocatable :: D_re(:,:)
     real(KIND=dp), allocatable :: me_legacy(:,:)
     real(KIND=dp) :: dev, maxdev, lmax, symre, sc

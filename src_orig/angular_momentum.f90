@@ -89,7 +89,7 @@ module angular_momentum
   use wavefunctions,     only: angmom_z_real, angmom_z_imag
   use wavefunctions,     only: HFBlocks_global
   use wavefunctions,     only: TimeReverse
-  use block_matrix_module, only: sym_matrix, block_filler
+  use block_matrix_module, only: block_matrix, block_filler
   use block_matrix_module, only: HERMITIAN
   use block_matrix_module, only: STY_EVEN, STY_ODD
 
@@ -142,7 +142,7 @@ contains
     !   me : the stored half of the matrix elements (dimensionless)
     !---------------------------------------------------------------------------
     integer, intent(in)           :: mu
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     call Jm_build(mu, me)
   end subroutine Jmu_spme_matrix
@@ -160,7 +160,7 @@ contains
     !   me     : the built and filled matrix
     !---------------------------------------------------------------------------
     integer, intent(in)           :: mu
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     type(Jm_params) :: params
     integer :: word, sty_class
@@ -370,7 +370,7 @@ contains
     real(KIND=dp) :: psi_i(mv, 4)
     real(KIND=dp) :: psi_j(mv, 4)
     real(KIND=dp) :: derpsi_j(mv, 3, 4)
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     real(KIND=dp), allocatable :: S(:, :)
 
     ! Sizes: an image sector counts its stored partner's states; a sector
@@ -496,7 +496,7 @@ contains
   subroutine Jm_copy_block(M, srow, scol, A)
     !---------------------------------------------------------------------------
     ! Copy the block (srow, scol) - or its kind-weighted partner - out of
-    !  the sym_matrix M into a freshly allocated rectangle; unallocated A
+    !  the block_matrix M into a freshly allocated rectangle; unallocated A
     !  when no part of M covers the requested pair.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -505,7 +505,7 @@ contains
     ! Output:
     !   A         : the copied block, allocated when found
     !---------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(in) :: srow, scol
     real(KIND=dp), allocatable, intent(out) :: A(:, :)
 
@@ -530,7 +530,7 @@ contains
     !---------------------------------------------------------------------------!
     ! The one-call DEBUG WINDOW of design 15.8 (D-7, 15.9 row 3): the
     !  complete doubled-basis matrix of the honest J_mu materialised
-    !  EAGERLY as one sym_matrix - stored-x-stored, stored-x-image and
+    !  EAGERLY as one block_matrix - stored-x-stored, stored-x-image and
     !  image-x-image blocks alike, every element computed by the honest
     !  kernels on states materialised through TimeReverse of their stored
     !  originals (spinor and gradient alike: T is spinor-pointwise and
@@ -558,7 +558,7 @@ contains
     !        stored) basis, honest kernels throughout
     !---------------------------------------------------------------------------!
     integer, intent(in)           :: mu
-    type(sym_matrix), intent(out) :: me
+    type(block_matrix), intent(out) :: me
 
     type(Jm_params) :: params
     integer :: counts(8), s, word, sty_class

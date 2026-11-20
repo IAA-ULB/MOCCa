@@ -1,6 +1,6 @@
-# The symmetry-block matrix type (`sym_matrix`)
+# The symmetry-block matrix type (`block_matrix`)
 
-This page is the developer-level reference for `sym_matrix`, the type the
+This page is the developer-level reference for `block_matrix`, the type the
 `src_orig/block_matrix_module.f90` module provides for single-particle
 matrix elements between the stored Hartree-Fock wavefunctions. It is aimed
 at code that computes expectation values, one-body operator matrix
@@ -35,7 +35,7 @@ A one-body operator carries a symmetry word `op` with the same encoding: a
 bit is set if the operator flips that quantum number. Selection rules are a
 single XOR — an operator of word `op` couples sector $s$ to sector
 $\mathrm{IEOR}(s,\mathrm{op})$ and to nothing else. A matrix therefore has
-at most 8 non-vanishing dense blocks, and that is exactly what `sym_matrix`
+at most 8 non-vanishing dense blocks, and that is exactly what `block_matrix`
 stores: one contiguous rank-2 array per surviving sector pair, at most one
 side per pair.
 

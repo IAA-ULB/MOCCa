@@ -156,7 +156,7 @@ contains
     !      is present in the list
     !   *) hygiene: block slots beyond nblocks carry no allocation
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     integer :: p, word, h, s, sc, knd, b, sp, counts(0:7)
     integer :: expected, sumexp
     integer :: herms(2), stys(2)
@@ -292,7 +292,7 @@ contains
     !  survive. Finally rebuild with a word-5 matrix of an anti-Hermitian
     !  operator to verify the list and the symmetry word are restored.
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     integer   :: b, nexp
     character(len=120) :: label
 
@@ -332,7 +332,7 @@ contains
     !  indices, each of which must fall inside the bounds of the sector it
     !  is mapped to.
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     integer :: b, s, i
     logical :: inrange
 
@@ -381,7 +381,7 @@ contains
     !      the fill overwrites the pollution written before the call
     !   *) a degenerate empty block list leaves the callback uncalled
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     integer :: p, word, h, s, sc, b, r, c, mrow, ncol, sumseen
     integer :: herms(2), stys(2)
     real(8) :: offset
@@ -466,7 +466,7 @@ contains
     !  0, 1, 4, 5; the all-good mask pairs every populated sector into the
     !  empty odd-parity sectors and stores nothing at all.
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M, Meff
+    type(block_matrix) :: M, Meff
     integer :: p, word, h, s, sc, q, masks(4), b, sp, sumexp
     integer :: herms(2), stys(2)
     character(len=160) :: label
@@ -576,7 +576,7 @@ contains
     !      completeness criterion (the matrix is the entire operator
     !      iff the bit is set), not a constructor gate
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M, Mref
+    type(block_matrix) :: M, Mref
     integer :: p, word, h, sc, b
     integer :: herms(2), stys(2)
     character(len=160) :: label
@@ -653,7 +653,7 @@ contains
     !   *) every element outside stored blocks and their partners is
     !      exactly zero, so selection-rule holes survive the expansion
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     real(8), allocatable :: D(:, :), Rref(:, :)
     integer :: p, word, h, sc, q, masks(4), b, r, c, mrow, ncol
     integer :: i, j, knd
@@ -755,7 +755,7 @@ contains
     !  dense expansion obeys D(gj, gi) = kind * D(gi, gj) - the kind
     !  partner relation survives the rotation, for both kinds.
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     type(sym_rotation) :: Rident, Rrand, Rin
     real(8), allocatable :: D0(:, :), Drot(:, :), Dref(:, :), C(:, :)
     real(8), allocatable :: Ublk(:, :), tr_before(:)
@@ -1102,7 +1102,7 @@ contains
     !     no diagonal blocks at all: the trace is 0 by selection rules,
     !     whichever way the scenario bit reads.
     !---------------------------------------------------------------------------
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     integer :: b, i, mrows
     real(8) :: sdiag
     complex(8) :: tr, texp

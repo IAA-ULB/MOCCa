@@ -51,7 +51,7 @@ module angular_momentum_testing
   !   (3) kernel-transpose oracle: sampled pairs per stored block are
   !       evaluated by the kernels in both orderings; the measured mirror
   !       character is printed against the derived kind - the oracle
-  !       versus the sym_matrix implementation.
+  !       versus the block_matrix implementation.
   !   (4) partner symmetry: within-block stored blocks obey
   !       A(c, r) = kind * A(r, c).
   !   (5) purity report of the stored half (honest trio only): the
@@ -93,7 +93,7 @@ module angular_momentum_testing
   use wavefunctions,     only: angmom_yt_imag
   use wavefunctions,     only: HFBlocks_global
   use wavefunctions,     only: TimeReverse
-  use block_matrix_module, only: sym_matrix, KIND_SYMMETRIC,                  &
+  use block_matrix_module, only: block_matrix, KIND_SYMMETRIC,                  &
   &                              KIND_ANTISYMMETRIC
   use block_matrix_module, only: HERMITIAN, ANTIHERMITIAN
   use block_matrix_module, only: STY_EVEN, STY_ODD
@@ -217,7 +217,7 @@ contains
     logical, intent(in)  :: folded
     integer, intent(out) :: ifail
 
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
     character(len=24) :: objlabel
     integer :: fst, fval, forc, fpar, fpur, fful
 
@@ -259,7 +259,7 @@ contains
     !  Symmetry-forbidden objects come out with an empty block list - the
     !  structural zero - which is the correct result here.
     !------------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out) :: ifail
 
     integer :: s, b, sp, expected
@@ -329,7 +329,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     integer :: b, r, c, mr, nc, rstep, cstep
@@ -367,12 +367,12 @@ contains
     !      symmetric      max |a_ij - a_ji|   small  (kind +1)
     !      antisymmetric  max |a_ij + a_ji|   small  (kind -1)
     !  The kernels are the authority (design 14.3): the printout says what
-    !  they store, the derived kind says what the sym_matrix implementation
+    !  they store, the derived kind says what the block_matrix implementation
     !  assumes - and the test demands the two agree.
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp) :: symdev, asymdev, amax, dev
@@ -460,7 +460,7 @@ contains
     !  partner-consistency check of design section 8, applied to the
     !  generator's own storage wherever both triangles live in one block.
     !------------------------------------------------------------------------------
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out) :: ifail
 
     integer :: b, r, c, mr, ndiag
@@ -509,7 +509,7 @@ contains
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
     logical, intent(in)   :: folded
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)  :: ifail
 
     real(KIND=dp) :: oppmax, mainmax
@@ -607,14 +607,14 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   mu : honest component selector, AX_X / AX_Y / AX_Z
-    !   M  : the honest object's sym_matrix; its stored blocks supply the
+    !   M  : the honest object's block_matrix; its stored blocks supply the
     !        sampled pairs, exactly as in check_purity
     ! Output:
     !   ifail : 0 every sampled pair passes both judgments,
     !           1 at least one failure occurred
     !------------------------------------------------------------------------------
     integer, intent(in)          :: mu
-    type(sym_matrix), intent(in) :: M
+    type(block_matrix), intent(in) :: M
     integer, intent(out)         :: ifail
 
     integer :: b, r, c, mr, nc, rstep, cstep, gi, gj, npair
@@ -959,7 +959,7 @@ contains
     !  family tau.
     !------------------------------------------------------------------------------
     integer, intent(in)   :: mu
-    type(sym_matrix), intent(out) :: M
+    type(block_matrix), intent(out) :: M
 
     type(ang_twin_params) :: params
     integer :: herm_class, sty_class
@@ -1019,7 +1019,7 @@ contains
     real(KIND=dp) :: derpsi_j(mv, 3, 4)
     real(KIND=dp), allocatable :: A(:, :)
     logical :: checked
-    type(sym_matrix) :: M
+    type(block_matrix) :: M
 
     ifail = 0
     if (.not. tr_conserving_basis()) then
@@ -1172,7 +1172,7 @@ contains
     integer, intent(in)  :: mu
     integer, intent(out) :: ifail
 
-    type(sym_matrix) :: M, W
+    type(block_matrix) :: M, W
     real(KIND=dp), allocatable :: A(:, :)
     complex(8) :: tM, tW
     integer :: b, r, c, mr, nc

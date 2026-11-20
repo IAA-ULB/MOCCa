@@ -284,7 +284,7 @@ no step-by-step, no per-commit state:
 
 | Document | Lifetime | Contents |
 |---|---|---|
-| `mocca-symmetry-block-matrix-design-summary.md` | permanent | The authoritative design: intent, conventions, amendments, measured records. Read first when touching `block_matrix_module` or any generator/consumer of `sym_matrix` |
+| `mocca-symmetry-block-matrix-design-summary.md` | permanent | The authoritative design: intent, conventions, amendments, measured records. Read first when touching `block_matrix_module` or any generator/consumer of `block_matrix` |
 | `SPRINT.md` | rewritten per step | Live status: one row per landed step (commits + gates), the NEXT UP pointer, sprint conventions, operational workflow |
 | `DECISIONS.md` | until decided | Wouter's decision queue: open user decisions, pending adjudications, and the resolved record |
 | `FOUND_BUGS.md` | until fixed | Issues and inconveniences found but out of sprint scope, each with reproduction and workaround |
