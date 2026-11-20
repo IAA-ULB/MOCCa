@@ -334,18 +334,18 @@ gen_nilsson: $(PRE_MF) cp_nil $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv gen_nilsson exec/gen_nilsson.exe
 
-$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 
+$(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 $(INCLUDEFILE)
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 
+$(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 $(INCLUDEFILE)
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
 # Override the standard recipes for version information, to ensure that the relevant information
 #  from git and the compiler is included in the source code.
-$(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_mf 
+$(MF_OBJ_DIR)/version.o : $(MF_SRC_DIR)/version.f90 $(INCLUDEFILE) getgitinfo getcompilerinfo setversioninfo_mf
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(MF_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-$(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 getgitinfo getcompilerinfo setversioninfo_fam
+$(FAM_OBJ_DIR)/version.o : $(FAM_SRC_DIR)/version.f90 $(INCLUDEFILE) getgitinfo getcompilerinfo setversioninfo_fam
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
