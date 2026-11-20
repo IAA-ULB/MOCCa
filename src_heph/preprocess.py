@@ -121,8 +121,14 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
             ProcessFission_MOI(fname, src, target, so, dry_run)
         if(fname=='transform.f90'):
             ProcessTransform(fname, src, target, so, oldso, dry_run) 
-        if(fname=='densities.f90'): 
+        if(fname=='densities.f90'):
             vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation, dry_run, verbose=dry_run)
+        if(fname.startswith('densities_')):
+            # Implementation submodules of module densities: they carry the
+            # same $-markers, so they need the full density analysis and the
+            # same substitution run on their own file.
+            ProcessDensities(fname, src, target, so, fam_active,
+                             density_spwf_summation, dry_run, verbose=False)
         if(fname=='cranking.f90'):
             ProcessCranking(fname, src, target, so, dry_run)
         if(fname=='convergence.f90'):
