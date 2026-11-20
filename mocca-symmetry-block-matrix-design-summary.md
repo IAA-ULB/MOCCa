@@ -1424,6 +1424,18 @@ preamble to the row-3 consumer migration, so calcJ2andBelyaev_HFB's
 CompCOMCorrection does; the gradient family is already there
 (get_nabla_block) and only the demotion remains.
 
+Measured at the landing (2026-11-20, the unit arm on O16/SLy4,
+15.9 row 2 commit): accessor fold packaging identical to the arm's
+t-kernel twin construction - max deviation 0.0, bit for bit, on both
+NLO and the parity-merged NLO-P (the masked effective-word gate
+serving there) - the materialised-image honest kernel reproduces the
+t-kernel arithmetic exactly; the J_z image-image algebra armed by the
+tau both-ways check at 4.4e-16 (NLO) / 1.1e-16 (NLO-P); NLO-T carries
+no image sectors and the accessor is not exercised there by design.
+The gradient twin survives as the PRIVATE engine of Nabla_half_fm -
+the CompCOMCorrection production lane - asserted equal to the arm's
+own twin construction at 0.0 everywhere it runs.
+
 ### 14.4 Sequencing (one commit per row)
 
 | # | Commit | Contents | Regression net |

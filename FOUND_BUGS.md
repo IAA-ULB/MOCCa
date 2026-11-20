@@ -158,3 +158,22 @@ and lattice_energy.sh all exit 0; a pasta input with N_inertia=4 stps at
 input time. The same fix moved spag.sh's mocca_check1 capture off the
 echo - it had masked the start-run abort as green, leaving only the
 restart path to catch the failure.
+
+### F-12 get_nabla_block paired words with the unmasked physical word — FIXED
+
+Found 2026-11-20 while designing the J accessor (D-7, design 15.9 row 2):
+the accessor's block-pairing gate compared raw sector words against the
+operator's PHYSICAL word, while the generators pair with the
+goodqn-masked effective word (design 2c, the constructor's own rule).
+In parity-merged builds the two disagree: an honest cross-signature
+block of the NLO-TP build (nabla_x word 3, effective 1, sector pair
+(0,1) both stored) was served as a ZERO rectangle, contradicting the
+generator's own storage - silently, because the retrieval arm reaches
+only parity-good pairing patterns and production had no accessor
+consumer yet. Fix: both accessors (get_nabla_block, get_J_block) gate
+on word_eff = iand(word, iand(goodqn, 7)), matching init. The J
+family's fold-agreement check exercises the masked path in NLO-P
+(accessor fold blocks identical to the twin construction); the gradient
+family's fixed gate is covered by construction - its arm's pairing
+loops are still parity-good-shaped, the pending 15.6 window is the
+natural full coverage.

@@ -36,6 +36,7 @@ NEXT UP pointer - never appended to as a diary.
 | 14 | COMMENT CLEANUP of the sprint's production modules (parked deferral discharged; the testing arms keep their verification-contract banners) | LANDED | f3fbe9f1, 38cb86f6, df48b5c4 | frozen -O3 NLO mf compile per module; block matrix unit net green |
 | 15 | sym_matrix developer reference: docs/user-guide/sym-matrix.md + nav | LANDED | b9483982 | none (documentation; mkdocs build blocked locally by missing pymdownx) |
 | 16 | D-7 row 1 (design §15.9): type layer - `$GOODQN` bit 4 in Hephaestos, tau/folded components + TAU_EVEN/TAU_ODD, mandatory tau at every init call site, the bit-4-gated honest-trace contract full_trace (+ the folded-composite refusal) | LANDED | ccf485d4 | block unit net 50260 checks 0 failures, refusal scenarios 1-9 all refused; 4-config frozen -O3 mf compile 0 errors, per-config masks as recorded in design §2c; golden minimal NLO 4849/4849 identical |
+| 17 | D-7 row 2 (design §15.9): interface collapse - the get_J_block accessor in the get_nabla_block shape (F-12 fix: effective-word gate in both accessors), Jt_spme_matrix deleted, NablaT_spme_matrix private behind Nabla_half_fm, arms build their own folded twins and assert the accessor packaging + the production lane | LANDED | 67a0d31d | arms green NLO/NLO-T/NLO-P with moments net + cross-build 0 (fold agreement 0.0 on NLO and NLO-P, tau both-ways 4.4e-16/1.1e-16, halffm lane 0.0); NLO-TP mf compile; NLO mf+fam compile 0 errors; golden minimal NLO 4849/4849 identical; block unit net 50260/0 |
 
 Test-infrastructure commits alongside: cd8d9b8e (moments_testing + unit_test
 flag to &mesh/), 7dcc6118 + 57217a28 (cross-build runscript + CI job),
@@ -44,14 +45,13 @@ spurious-mode scenario).
 
 ## NEXT UP
 
-1. D-7 rows 2-3 (design §15.9; DECISIONS.md D-7): (2) interface
-   collapse - the angular-momentum accessor in the get_nabla_block
-   shape, Jt_spme_matrix and NablaT_spme_matrix demoted behind the
-   accessors, arms asserting the accessor packaging; (3) debug
-   windows - the per-family complete-matrix window,
-   trace-contract/full-box arm assertions, the gradient window
-   discharging the parked 15.6 adjudication.
-2. calcJ2andBelyaev_HFB consumer migration (design §14.4 row 3) -
+1. D-7 row 3 (design 15.9): debug windows - the per-family
+   complete-matrix window built on the accessors (eager doubled-basis
+   materialisation, bit-4 gated), arms asserting the trace contract and
+   every window block; the gradient window discharges the parked 15.6
+   opposite-half adjudication (its verdict and numbers recorded in
+   design 15.6).
+2. calcJ2andBelyaev_HFB consumer migration (design 14.4 row 3) -
    consumes the D-7 accessor and trace contract; feeds the
    sym_rotation consumers of §6a.
 3. Then the §13.5 deferred items (odd-m / Im-operator FAM fields end
