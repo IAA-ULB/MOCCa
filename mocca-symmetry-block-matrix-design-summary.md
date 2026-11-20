@@ -1698,17 +1698,24 @@ purely the deletion decision, pending the FAM phase.
   13.1 chamber-weight territory. The angular-momentum family's
   analogue was the same signature and is now ADJUDICATED (14.2b:
   reduced-mesh artifact confirmed, one dead-kernel pairing bug
-  fixed); by mechanism the artifact reading is favoured here too -
-  the crossed-component products are the chamber-cancelling ones -
-  but the derivative finding stays deliberately UNJUDGED until the
-  derivative family gets its own full-box reconstruction: the
-  angmom arm's check_fullbox is the ready template. The unit arm
-  MEASURES and reports both halves; judgment (and any fix) is
-  deferred until the derivative-kernel chamber audit - which is a
-  prerequisite for
-  nothing in this section, since every consumer contracts real
-  densities against these elements and the legacy agrees to 3e-15
-  exactly as filled.
+  fixed); by mechanism the artifact reading is favoured here too.
+  ADJUDICATED 2026-11-20 (D-7, 15.9 row 3, commit at SPRINT row 18):
+  the derivative family's own full-box reconstruction now exists -
+  check_fullbox of linear_momentum_testing, the angmom 14.2b
+  template transcribed to the gradient contraction - and judges BOTH
+  halves green on every build for every object, honest trio and
+  folded pair alike: identity of the main half against the
+  single-chamber kernel at <= 2.2e-14 (NLO/NLO-T/NLO-P, O16/SLy4
+  unit state), opposite halves <= 2.1e-17 over the full box. The
+  reduced-mesh artifact reading was correct and, unlike the angmom
+  14.2b case, NO kernel was at fault - the derivative kernels agree
+  with the legacy exactly as filled; the O(0.2) single-chamber
+  signals are pure residues. One measured convention the
+  reconstruction exposed, binding any future chamber-extended image
+  state: the T-image's per-component extension signs are the stored
+  original's signs routed through TimeReverse's constant component
+  mix (spin pairs 1 <-> 3, 2 <-> 4; pi T = T pi with per-component
+  real signs) - recorded in fullbox_nabla_me.
 - MIGRATION A/B VERDICTS (2026-11-19, row 2 of the 15.5 sequencing):
   the CompCOMCorrection consumer fed from the linear_momentum
   generators (dense twin packaging of 15.8) passes every gate against
