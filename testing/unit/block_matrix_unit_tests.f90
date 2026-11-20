@@ -1124,8 +1124,8 @@ contains
     texp = 2.0d0*cmplx(sdiag, 0.0d0, 8)
     call check(abs(tr - texp) .le. 1.0d-13,                                     &
     &          'full_trace: bit 4 set, TAU_EVEN doubles the real sum')
-    call check(M%tau .eq. TAU_EVEN .and. .not. M%folded,                        &
-    &          'full_trace: tau and folded metadata stored verbatim')
+    call check(M%tau .eq. TAU_EVEN .and. .not. M%TR_composite,                        &
+    &          'full_trace: tau and TR_composite metadata stored verbatim')
 
     ! Same matrix, TAU_ODD: the doubled trace mirrors itself away.
     call M%init(patterns(1, :), 0, HERMITIAN, STY_EVEN, TAU_ODD,              &

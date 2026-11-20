@@ -481,8 +481,18 @@ families, the test arms) passes it at migration. `folded`: a plain
 logical, honest = .false., composites = .true.; it names the section-2d
 identity explicitly so the D-1 herm overload stops being the only trace
 of foldedness - the D-1 labelling decision itself stays separate.
-Neither component derives anything in init: both are stored verbatim,
+fewer. Neither component derives anything in init: both are stored verbatim,
 like goodqn's bit 3, and both are inputs of the 15.8 contracts.
+
+AMENDED 2026-11-20 (user decision, the rename commit): the component
+`folded` is renamed `TR_composite` (type field, init dummy, metadata
+keywords at every init call site). Rationale: in MOCCa "folded" is
+mesh-folding vocabulary (the folding module, fold planes), while the
+attribute names the time-reversal composite <a|O T|b> - the rename
+disambiguates and states the operator identity. The design text keeps
+"folded composite/twin" as the concept vocabulary; only the COMPONENT
+name changed. The type-listing snippet above retains the historical name
+as the record of the landing.
 
 The (anti-)Hermitian operator relates partner blocks of the stored real
 numbers by `A(s',s) = kind * A(s,s')^T` with `kind = ±1`. A block

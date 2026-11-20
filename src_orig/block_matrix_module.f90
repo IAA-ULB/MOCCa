@@ -166,7 +166,7 @@ module block_matrix_module
     integer :: kind              ! real-symmetric or imaginary-antisymmetric
     integer :: sty               ! characteristic under the y-time-simplex
     integer :: tau               ! time parity of the operator
-    logical :: folded            ! .true. = the TR-folded composite <a|O T|b>
+    logical :: TR_composite           ! .true. = the TR composite <a|O T|b>
     integer :: n                 ! total basis size, sum(HFBlocks)
     integer :: nblocks           ! number of stored blocks, <= 8
     type(sym_block) :: blocks(8) ! actual storage of sym_blocks
@@ -248,7 +248,7 @@ module block_matrix_module
 contains
 
   subroutine init_block_matrix(this, HFBlocks, symmetry, herm, sty, tau,          &
-  &                           folded, goodqn)
+  &                           TR_composite, goodqn)
     !---------------------------------------------------------------------------
     ! Construct a block_matrix based on the classification of the operator.
     !
@@ -260,8 +260,8 @@ contains
     !   herm          : HERMITIAN or ANTIHERMITIAN, i.e. +1/-1
     !   sty           : STY_EVEN or STY_ODD       , i.e. +1/-1
     !   tau           : TAU_EVEN or TAU_ODD       , i.e. +1/-1
-    !   folded        : optional, default .false. - .true. marks the object
-    !                   as the TR-folded composite <a|O T|b> of design 2d;
+    !   TR_composite   : optional, default .false. - .true. marks the object
+    !                   as the TR composite <a|O T|b> of design 2d;
     !                   identity metadata, no fill logic reads it
     !   goodqn        : optional good-quantum-number mask of the basis
     !---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ contains
     integer, intent(in)               :: herm
     integer, intent(in)               :: sty
     integer, intent(in)               :: tau
-    logical, intent(in), optional     :: folded
+    logical, intent(in), optional     :: TR_composite
     integer, intent(in), optional      :: goodqn
 
     integer :: s, sp, b, qn, word, kind
@@ -321,10 +321,10 @@ contains
     kind      = herm*sty
     this%kind = kind
 
-    ! whether or not this matrix is time-reversal folded
+    ! identity metadata: tau, and honest operator or TR composite
     this%tau    = tau
-    this%folded = .false.
-    if (present(folded)) this%folded = folded
+    this%TR_composite = .false.
+    if (present(TR_composite)) this%TR_composite = TR_composite
 
     ! which of the quantum numbers of the operator can be exploited?
     word = iand(symmetry, qn)
@@ -515,9 +515,9 @@ contains
       write(u, '(A)')                                                        &
       & '  STy not conserved in this build: one half of a complex operator'
     endif
-    if (this%folded) then
+    if (this%TR_composite) then
       write(u, '(A)')                                                        &
-      & '  TR-folded composite <a|O T|b>: full_trace refuses this object'
+      & '  TR composite <a|O T|b>: full_trace refuses this object'
     endif
     if (this%tau .eq. TAU_EVEN) then
       line = 'time-even'
@@ -657,12 +657,12 @@ contains
     !  is the physical one. Signature-flipping words contribute nothing
     !  either way: no diagonal blocks exist, the diagonal vanishes by
     !  the XOR selection rules.
-    !  Refuses folded composites: their diagonal entries are fold
+    !  Refuses TR composites: their diagonal entries are fold
     !  diagonals <a|O T|a>, a different physical statement that the
     !  design keeps D-5-gated (DECISIONS.md).
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !   this : the honest (folded = .false.) matrix whose trace is asked
+    !   this : the honest (TR_composite = .false.) matrix whose trace is asked
     ! Output:
     !   t    : the physical trace, complex
     !---------------------------------------------------------------------------
@@ -672,8 +672,8 @@ contains
     integer :: b, i, m
     real(8) :: sdiag
 
-    if (this%folded) then
-      print *, 'full_trace: refusal - the object is the TR-folded composite',  &
+    if (this%TR_composite) then
+      print *, 'full_trace: refusal - the object is the TR composite',  &
       &         ' <a|O T|b>: its diagonals are fold diagonals, not the trace'
       stop 1
     endif

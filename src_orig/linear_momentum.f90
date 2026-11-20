@@ -262,10 +262,10 @@ contains
 
     if (folded .and. mu .eq. AX_X) then
       call me%init(HFBlocks_global, word, HERMITIAN, sty_class,                &
-      &            TAU_NABLAFAM, folded=folded, goodqn=goodqn)
+      &            TAU_NABLAFAM, TR_composite=folded, goodqn=goodqn)
     else
       call me%init(HFBlocks_global, word, ANTIHERMITIAN, sty_class,            &
-      &            TAU_NABLAFAM, folded=folded, goodqn=goodqn)
+      &            TAU_NABLAFAM, TR_composite=folded, goodqn=goodqn)
     endif
 
     ! Symmetry-forbidden objects (or an empty basis) store zero matrices

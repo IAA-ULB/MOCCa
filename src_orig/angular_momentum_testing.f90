@@ -971,7 +971,7 @@ contains
       sty_class = STY_ODD
     endif
     call M%init(HFBlocks_global, 0, herm_class, sty_class, TAU_ANGFAM,          &
-    &           folded=.true., goodqn=goodqn)
+    &           TR_composite=.true., goodqn=goodqn)
     if (M%nblocks .eq. 0) return
 
     params%st = M%st

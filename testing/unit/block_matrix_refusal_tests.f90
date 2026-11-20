@@ -141,7 +141,7 @@ program block_matrix_refusal_tests
     call M%rotate(R)
   case (9)
     print *, 'expect refusal: full_trace on the TR-folded composite'
-    call M%init(hf, 0, HERMITIAN, STY_EVEN, TAU_EVEN, folded=.true.)
+    call M%init(hf, 0, HERMITIAN, STY_EVEN, TAU_EVEN, TR_composite=.true.)
     tr = M%full_trace()
   case default
     print *, 'usage: block_matrix_refusal_tests <scenario 1..9>'
