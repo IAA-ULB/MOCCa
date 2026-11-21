@@ -121,6 +121,13 @@ module functional
  use Cranking, only: crank_current_potential, crank_spin_potential,     &
                      crankenergy_cut
  use pairing_strengths, only: vmicro, vmicro_stored
+#if(USE_MPI>0)
+ ! The MPI entities used in the generated code reached module functional
+ ! transitively through geninfo before the split; import them directly.
+ use mpi_f08, only: MPI_ALLREDUCE, MPI_Bcast,                       &
+                   MPI_CHARACTER, MPI_COMM_WORLD, MPI_IN_PLACE,    &
+                   MPI_INTEGER, MPI_REAL8, MPI_SUM
+#endif
 #if(USE_HDF5>0)
  use HDF5, only: hid_t
 #endif
@@ -378,14 +385,14 @@ $DECLARATION
     integer, intent(in)          :: filenx, fileny, filenz
     logical, intent(in)          :: sym_transfo_needed
     type(PotentialVector)      :: F
-  end function read_potentials_hdf5
-#endif
+    end function read_potentials_hdf5
     module subroutine hdf5_readpot(id, name, dset, n)
     character(len=*), intent(in) :: name
     integer(hid_t), intent(in)   :: id
     integer, intent(in)          :: n
     real(kind=dp), intent(inout) :: dset(n)
   end subroutine hdf5_readpot
+#endif
     module function readpotentials_separate(chan, ifn) result(F)
     type(PotentialVector)        :: F
     integer, intent(in)          :: chan
