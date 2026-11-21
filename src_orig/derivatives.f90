@@ -805,12 +805,15 @@ $N3ALL    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
 $N3ALL    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL
-$N3ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
-$N3ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
-$N3ALL    real(KIND=dp), intent(out) :: dddf(:,:,:,:)
+$N3ALL    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: df(:,:,:,:), ddf(:,:,:,:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: dddf(:,:,:,:)
 $N3ALL    integer, intent(in)        :: px,py,pz
 $N3ALL
-$N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
+$N3ALL    integer                    :: k, sx, sy, sz, ax, ay, az
+$N3ALL    real(KIND=dp), pointer, contiguous :: fp(:,:), gp(:,:), hp(:,:), sp(:,:), tp(:,:)
+$N3ALL    real(KIND=dp), pointer, contiguous :: fl(:,:), gl(:,:), hl(:,:)
+$N3ALL    real(KIND=dp), pointer, contiguous :: fb(:,:), qb(:,:), hb(:,:)
 $N3ALL
 $N3ALL    sx = (-px + 3)/2 ! These are equal to
 $N3ALL    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
@@ -820,61 +823,75 @@ $N3ALL    ay = 3 - sy !    2    if si =    1
 $N3ALL    az = 3 - sz !    1    if si =    2
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    !  First order derivatives and diagonal second-order ones
-$N3ALL    do i=1,ny*nz
-$N3ALL               df(:,i,1,1) =    matmul(derX  (:,:,sx),f(:,i,1))
-$N3ALL              ddf(:,i,1,1) =    matmul(laplaX(:,:,sx),f(:,i,1))
-$N3ALL    enddo
+$N3ALL    !  Same zero-copy scheme as the N2 variant: X on the flat mesh view,
+$N3ALL    !  Y per z-plane, Z over the whole box.
+$N3ALL    fp(1:nx,1:ny*nz) => f
+$N3ALL    gp(1:nx,1:ny*nz) => df(:,:,:,1)
+$N3ALL    hp(1:nx,1:ny*nz) => ddf(:,:,:,1)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX  (1,1,sx),nx, fp,nx, 0.0d0,gp,nx)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,sx),nx, fp,nx, 0.0d0,hp,nx)
 $N3ALL    do k=1,nz
-$N3ALL        do i=1,nx
-$N3ALL               df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
-$N3ALL              ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))
-$N3ALL        enddo
+$N3ALL      fl(1:nx,1:ny) => f(:,:,k)
+$N3ALL      gl(1:nx,1:ny) => df(:,:,k,2)
+$N3ALL      hl(1:nx,1:ny) => ddf(:,:,k,4)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, derY  (1,1,sy),ny, 0.0d0,gl,nx)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, laplaY(1,1,sy),ny, 0.0d0,hl,nx)
 $N3ALL    enddo
-$N3ALL    do j=1,ny
-$N3ALL      do i=1,nx
-$N3ALL               df(i,j,:,3) =    matmul(derZ  (:,:,sz),f(i,j,:))
-$N3ALL              ddf(i,j,:,6) =    matmul(laplaZ(:,:,sz),f(i,j,:))
-$N3ALL      enddo
-$N3ALL    enddo
+$N3ALL    fb(1:nx*ny,1:nz) => f
+$N3ALL    qb(1:nx*ny,1:nz) => df(:,:,:,3)
+$N3ALL    hb(1:nx*ny,1:nz) => ddf(:,:,:,6)
+$N3ALL    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fb,nx*ny, derZ  (1,1,sz),nz, 0.0d0,qb,nx*ny)
+$N3ALL    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fb,nx*ny, laplaZ(1,1,sz),nz, 0.0d0,hb,nx*ny)
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Off-diagonal second order derivatives
 $N3ALL    do k=1,nz
-$N3ALL      do i=1,nx
-$N3ALL              ddf(i,:,k,2) =    matmul(derY  (:,:,sy),df(i,:,k,1))
-$N3ALL      enddo
+$N3ALL      fl(1:nx,1:ny) => df(:,:,k,1)
+$N3ALL      gl(1:nx,1:ny) => ddf(:,:,k,2)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, derY(1,1,sy),ny, 0.0d0,gl,nx)
 $N3ALL    enddo
 $N3ALL
-$N3ALL    do j=1,ny
-$N3ALL      do i=1,nx
-$N3ALL              ddf(i,j,:,3) =    matmul(derZ  (:,:,sz),df(i,j,:,1))
-$N3ALL              ddf(i,j,:,5) =    matmul(derZ  (:,:,sz),df(i,j,:,2))
-$N3ALL      enddo
-$N3ALL    enddo
+$N3ALL    fb(1:nx*ny,1:nz) => df(:,:,:,1)
+$N3ALL    qb(1:nx*ny,1:nz) => ddf(:,:,:,3)
+$N3ALL    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fb,nx*ny, derZ(1,1,sz),nz, 0.0d0,qb,nx*ny)
+$N3ALL    fb(1:nx*ny,1:nz) => df(:,:,:,2)
+$N3ALL    qb(1:nx*ny,1:nz) => ddf(:,:,:,5)
+$N3ALL    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fb,nx*ny, derZ(1,1,sz),nz, 0.0d0,qb,nx*ny)
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Third order derivatives
+$N3ALL    ! Third order derivatives: chained products on the second-order slots;
+$N3ALL    ! mixed slots use the opposite symmetry columns ax/ay/az.
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,1)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,1)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,sx),nx, sp,nx, 0.0d0,tp,nx)
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,2)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,2)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,ax),nx, sp,nx, 0.0d0,tp,nx)
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,3)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,3)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,ax),nx, sp,nx, 0.0d0,tp,nx)
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,4)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,4)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,sx),nx, sp,nx, 0.0d0,tp,nx)
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,5)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,5)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,sx),nx, sp,nx, 0.0d0,tp,nx)
+$N3ALL    sp(1:nx,1:ny*nz) => ddf(:,:,:,6)
+$N3ALL    tp(1:nx,1:ny*nz) => dddf(:,:,:,6)
+$N3ALL    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,sx),nx, sp,nx, 0.0d0,tp,nx)
 $N3ALL    do k=1,nz
-$N3ALL      do j=1,ny
-$N3ALL             dddf(:,j,k, 1)=    matmul(derX  (:,:,sx),ddf(:,j,k,1))
-$N3ALL             dddf(:,j,k, 2)=    matmul(derX  (:,:,ax),ddf(:,j,k,2))
-$N3ALL             dddf(:,j,k, 3)=    matmul(derX  (:,:,ax),ddf(:,j,k,3))
-$N3ALL
-$N3ALL             dddf(:,j,k, 4)=    matmul(derX  (:,:,sx),ddf(:,j,k,4))
-$N3ALL             dddf(:,j,k, 5)=    matmul(derX  (:,:,sx),ddf(:,j,k,5))
-$N3ALL             dddf(:,j,k, 6)=    matmul(derX  (:,:,sx),ddf(:,j,k,6))
-$N3ALL      enddo
+$N3ALL      fl(1:nx,1:ny) => ddf(:,:,k,4)
+$N3ALL      gl(1:nx,1:ny) => dddf(:,:,k,7)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, derY(1,1,sy),ny, 0.0d0,gl,nx)
+$N3ALL      fl(1:nx,1:ny) => ddf(:,:,k,5)
+$N3ALL      gl(1:nx,1:ny) => dddf(:,:,k,8)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, derY(1,1,ay),ny, 0.0d0,gl,nx)
+$N3ALL      fl(1:nx,1:ny) => ddf(:,:,k,6)
+$N3ALL      gl(1:nx,1:ny) => dddf(:,:,k,9)
+$N3ALL      call dgemm('N','T',nx,ny,ny, 1.0d0, fl,nx, derY(1,1,sy),ny, 0.0d0,gl,nx)
 $N3ALL    enddo
-$N3ALL    do k=1,nz
-$N3ALL      do i=1,nx
-$N3ALL             dddf(i,:,k, 7)=    matmul(derY  (:,:,sy),ddf(i,:,k,4))
-$N3ALL             dddf(i,:,k, 8)=    matmul(derY  (:,:,ay),ddf(i,:,k,5))
-$N3ALL             dddf(i,:,k, 9)=    matmul(derY  (:,:,sy),ddf(i,:,k,6))
-$N3ALL      enddo
-$N3ALL    enddo
-$N3ALL    do j=1,ny
-$N3ALL      do i=1,nx
-$N3ALL             dddf(i,j,:,10) =   matmul(derZ  (:,:,sz),ddf(i,j,:,6))
-$N3ALL      enddo
-$N3ALL    enddo
+$N3ALL    fb(1:nx*ny,1:nz) => ddf(:,:,:,6)
+$N3ALL    qb(1:nx*ny,1:nz) => dddf(:,:,:,10)
+$N3ALL    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fb,nx*ny, derZ(1,1,sz),nz, 0.0d0,qb,nx*ny)
 $N3ALL
 $N3ALL end subroutine Derive_tot_3D
 
