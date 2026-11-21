@@ -8,7 +8,7 @@ submodule (functional) functional_fields
 implicit none
 contains
 
-function Add_potentialvector(F1, F2) result(F)
+module function Add_potentialvector(F1, F2) result(F)
     !---------------------------------------------------------------------------
     ! Sum two potential-vectors F1 and F2 to get a new potential-vector F, so
     ! that F_a = F1_a + F2_a for every potential with latin index a.
@@ -36,7 +36,7 @@ $ADD_POTENTIALS
 end function Add_potentialvector
 
 
-function multiply_potentialvector(a, F1) result(F)
+module function multiply_potentialvector(a, F1) result(F)
     !---------------------------------------------------------------------------
     ! Multiply a potential-vector F1 with a scalar a such that 
     ! F_b = a * F1_b for every potential with latin index b.
@@ -122,7 +122,7 @@ end function multiply_potentialvector
  
 
 #if( $FAM == 0)
-  function PVectorInproduct(F1, F2) result(x)
+  module function PVectorInproduct(F1, F2) result(x)
     !---------------------------------------------------------------------------
     ! Define a basic inproduct on the space of the potential vectors.
     ! 

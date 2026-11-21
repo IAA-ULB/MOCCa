@@ -8,7 +8,7 @@ submodule (functional) functional_io
 implicit none
 contains
 
-  subroutine WritePotentials(chan, F)
+  module subroutine WritePotentials(chan, F)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.
     !---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ $WRITEPOTENTIALS
 #if(USE_HDF5>0 && $FAM == 0)
   ! No need to write potentials to file when dealing with FAM
 
-  subroutine write_hdf5_potentials(file_id, F)
+  module subroutine write_hdf5_potentials(file_id, F)
     use HDF5
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to the hdf5 file.
@@ -63,7 +63,7 @@ $WRITEPOTENTIALS_HDF5
 #endif
 
 
-  function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) &
+  module function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) &
   & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -132,7 +132,7 @@ $READPOTENTIALS
 
 #if(USE_HDF5 > 0)
 
-  function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) &
+  module function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) &
    & result(F)
     use HDF5
     !---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ $READPOTENTIALS_HDF5
   end function read_potentials_hdf5
 
 
-  subroutine hdf5_readpot(id, name, dset, n)
+  module subroutine hdf5_readpot(id, name, dset, n)
     use HDF5
     !-----------------------------------------------------------------
     ! Subroutine that reads a double precision potential of length n
@@ -237,7 +237,7 @@ $READPOTENTIALS_HDF5
 #endif
 
 
-  function readpotentials_separate(chan, ifn) result(F)
+  module function readpotentials_separate(chan, ifn) result(F)
     !---------------------------------------------------------------------------
     ! Read mean-field potentials from a separate user-provided file that is 
     ! NOT a wavefunction file. This routine should not be confused with the 
