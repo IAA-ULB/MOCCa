@@ -92,17 +92,17 @@ module functional
  ! The raw EDF couplings (t0, x3, sigma_b, t1n2, ...) are functional-
  ! dependent: which names exist and are referenced by the generated code
  ! differs per .func file.  Hephaestos therefore fills in the only:-list
- ! of the coupling names ($COUPLINGS) and, in the generated
- ! parameterization, declares the full union of couplings over all .func
- ! files so that these names exist in every build.
- use parameterization, only: alpha, Cc, COM1body, COM2body,          &
+ ! of the coupling names here via a dedicated marker, and, in the
+ ! generated parameterization, declares the full union of couplings over
+ ! all .func files so that these names exist in every build.
+ use parameterization, only: Cc, COM1body, COM2body,              &
                             Estabn, Estabp, hbarclum, hbm,          &
                             neutronsize, nucleonmass,               &
                             nucleonsize_selfconsistent,              &
                             printparameterization, protonsize,     &
                             readparameterization, RotCorr, RotcorrB, &
                             rotcorrC, Vibcorr, vibcorrB, vibcorrD,   &
-                            vibcorrL, Vn, Vp, pow, lr_pow,            &
+                            vibcorrL, pow, lr_pow,                   &
                             $COUPLINGS
  use pairing, only: Bogoliubov, CalcEntropy, calcpairingenergy,           &
                    CanTransfo, entropy, FermiEnergy, kappa_can,         &

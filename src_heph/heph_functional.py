@@ -686,15 +686,18 @@ def coupling_union():
 def coupling_onlylist(indent=27):
     """The $COUPLINGS substitution for module functional's use statement:
     the union of all coupling names, formatted as Fortran continuation
-    lines (each within the 132-character line limit)."""
+    lines (each within the 132-character line limit).
+
+    Note that a continued use-statement needs an explicit comma at the
+    end of every continuation segment:  'x, &\\n  y'  parses as 'x y',
+    not 'x, y'."""
     names = sorted(coupling_union())
-    lines = []
-    line = ''
     pieces = []
+    line = ''
     for n in names:
         candidate = (line + (', ' if line else '') + n)
-        if(len(' '*indent + candidate) > 100):
-            pieces.append(candidate if not line else line)
+        if(line and len(' '*indent + candidate) > 100):
+            pieces.append(line + ',')
             line = n
         else:
             line = candidate
@@ -702,11 +705,8 @@ def coupling_onlylist(indent=27):
         pieces.append(line)
     out = ''
     for i, p in enumerate(pieces):
-        if(len(pieces) > 1 and i >= 0):
-            if(i < len(pieces) - 1):
-                out += p + ' &\n' + ' '*indent
-            else:
-                out += p
+        if(i < len(pieces) - 1):
+            out += p + ' &\n' + ' '*indent
         else:
             out += p
     return out
