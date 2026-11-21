@@ -105,17 +105,22 @@ module derivatives
  !   free to inline.
  !
  !==============================================================================
- ! Further thoughts on optimisation, not implemented yet
+ ! Dense-algebra scheme (implemented)
  !
- ! 1. add explicit contiguous statements in more places, perhaps it will help
- !    the compilers optimize.
- ! 2. add explicit call to BLAS routines (DAXPY notably, possibly DGEM)
- !
+ ! The hot kernels (Derive_tot, Derive_lap_3D, Derive_X/Y/Z_single_3D) apply
+ ! the operator matrices with zero-copy DGEMM products through
+ ! bounds-remapped contiguous pointers: X on the flat (nx, ny*nz) mesh view,
+ ! Y per z-plane as C = F * A^T, Z on the (nx*ny, nz) box view. Second and
+ ! third orders are chained products on the lower-order slots. No packing,
+ ! no temporaries. The payoff requires an optimized BLAS (OpenBLAS/MKL);
+ ! against a netlib-grade BLAS the previous hand loops were competitive.
  !==============================================================================
 
  use geninfo
 
  implicit none
+
+ external dgemm
 
  !------------------------------------------------------------------------------
  ! Contains the matrix elements to perform a derivation on the mesh, in either
@@ -534,66 +539,46 @@ $N2    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
 $N2    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzzz
 $N2    !---------------------------------------------------------------------------
 $N2
-$N2    real(KIND=dp), intent(in)  :: f(:,:,:)
-$N2    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
+$N2    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+$N2    real(KIND=dp), intent(out), target, contiguous :: df(:,:,:,:), ddf(:,:,:,:)
 $N2    integer, intent(in)        :: px,py,pz
 $N2
 $N2    integer                    :: i,j,k,l, sx, sy,sz
-$N2    real(KIND=dp), allocatable :: A(:,:), B(:,:)
+$N2    real(KIND=dp), allocatable :: A(:,:)
+$N2    real(KIND=dp), pointer, contiguous :: fxp(:,:), gx1(:,:), gx2(:,:)
+$N2    real(KIND=dp), pointer, contiguous :: fy(:,:), gy1(:,:), gy2(:,:)
+$N2    real(KIND=dp), pointer, contiguous :: fz(:,:), gz1(:,:), gz2(:,:)
 $N2
-$N2    sx = (-px + 3)/2 ! These are equal to !NS:check the sign
+$N2    sx = (-px + 3)/2 ! These are equal to
 $N2    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
 $N2    sz = (-pz + 3)/2 !    2    if pi =   +1
 $N2
-$N2    df = 0.0d0 ; ddf = 0.0d0
+$N2    ! All products below go straight onto the flat mesh storage through
+$N2    ! bounds-remapped pointers - no packing, no temporaries. The operator
+$N2    ! columns derX(1,1,s) etc. are dense views already (column stride n).
+$N2    ! X-direction: operator acts on the first index; f and the df/ddf
+$N2    ! slots ARE (nx,ny*nz) matrices in memory.
+$N2    fxp(1:nx,1:ny*nz) => f
+$N2    gx1(1:nx,1:ny*nz) => df(:,:,:,1)
+$N2    gx2(1:nx,1:ny*nz) => ddf(:,:,:,1)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX  (1,1,sx),nx, fxp,nx, 0.0d0,gx1,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,sx),nx, fxp,nx, 0.0d0,gx2,nx)
 $N2
-$N2    allocate(A(nx,nx), B(nx,nx))
-$N2    !---------------------------------------------------------------------------
-$N2    !  First order derivatives and diagonal second-order ones
-$N2    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
+$N2    ! Y-direction: one small product per z-plane, C_k = F_k * A^T.
 $N2    do k=1,nz
-$N2     do j=1,ny
-$N2      do l=1,nx
-$N2       do i=1,nx
-$N2         df(i,j,k,1) =  df(i,j,k,1) + A(i,l)*f(l,j,k)
-$N2        ddf(i,j,k,1) = ddf(i,j,k,1) + B(i,l)*f(l,j,k)
-$N2       enddo
-$N2      enddo
-$N2     enddo
+$N2     fy(1:nx,1:ny)  => f(:,:,k)
+$N2     gy1(1:nx,1:ny) => df(:,:,k,2)
+$N2     gy2(1:nx,1:ny) => ddf(:,:,k,4)
+$N2     call dgemm('N','T',nx,ny,ny, 1.0d0, fy,nx, derY  (1,1,sy),ny, 0.0d0,gy1,nx)
+$N2     call dgemm('N','T',nx,ny,ny, 1.0d0, fy,nx, laplaY(1,1,sy),ny, 0.0d0,gy2,nx)
 $N2    enddo
-$N2    deallocate(A, B)
-!           call dgemm('N','N',  nx,ny*nz,nx,1.0d0,A,nx,f(1:nx,1:ny*nz,1),nx,0.0d0, df(1:nx,1:ny*nz,1,1),nx)
-!           call dsymm('L','U',  nx,ny*nz,   1.0d0,B,nx,f(1:nx,1:ny*nz,1),nx,0.0d0,ddf(1:nx,1:ny*nz,1,1),nx)
-
-$N2    allocate(A(ny,ny), B(ny,ny))
-$N2    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
-$N2    do k=1,nz
-$N2     do j=1,ny
-$N2      do l=1,ny
-$N2       do i=1,nx
-$N2             df(i,j,k,2) =  df(i,j,k,2) + A(j,l)*f(i,l,k)
-$N2            ddf(i,j,k,4) = ddf(i,j,k,4) + B(j,l)*f(i,l,k)
-$N2       enddo
-$N2      enddo
-$N2     enddo
-$N2    enddo
-$N2    deallocate(A, B)
-!
-$N2    allocate(A(nz,nz), B(nz,nz))
-$N2    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
-$N2    do k=1,nz
-$N2     do l=1,nz
-$N2      do j=1,ny
-$N2        do i=1,nx
-$N2             df(i,j,k,3) =  df(i,j,k,3) + A(k,l)*f(i,j,l)
-$N2            ddf(i,j,k,6) = ddf(i,j,k,6) + B(k,l)*f(i,j,l)
-$N2          enddo
-$N2        enddo
-$N2      enddo
-$N2    enddo
-$N2    deallocate(A,B)
-!           call dgemm('N','T',  nx*ny,nz,nz,1.0d0,f(1:nx*ny,1,1:nz),nx*ny,A,nz,0.0d0, df(1:nx*ny,1,1:nz,3),nx*ny)
-!           call dsymm('R','U',  nx*ny,   nz,1.0d0,B,nz,f(1:nx*ny,1,1:nz),nx*ny,0.0d0,ddf(1:nx*ny,1,1:nz,6),nx*ny)
+$N2
+$N2    ! Z-direction: the box viewed as (nx*ny,nz), one product.
+$N2    fz(1:nx*ny,1:nz)  => f
+$N2    gz1(1:nx*ny,1:nz) => df(:,:,:,3)
+$N2    gz2(1:nx*ny,1:nz) => ddf(:,:,:,6)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, derZ  (1,1,sz),nz, 0.0d0,gz1,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, laplaZ(1,1,sz),nz, 0.0d0,gz2,nx*ny)
 $N2ALL !---------------------------------------------------------------------------
 $N2ALL ! Off-diagonal second order derivatives
 $N2ALL allocate(A(ny,ny))
@@ -634,7 +619,7 @@ $N2
 $N2    real(KIND=dp), intent(in),target  :: f(:)
 $N2    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:)
 $N2    integer, intent(in)        :: px,py,pz
-$N2    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:)
+$N2    real(KIND=dp), pointer, contiguous :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:)
 $N2
 $N2    f3 (1:nx,1:ny,1:nz)      => f
 $N2    df3(1:nx,1:ny,1:nz,1:3)  => df
@@ -918,22 +903,17 @@ $N3ALL end subroutine Derive_tot_1D
     ! fx = First order derivative in the x direction
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fx(:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fx(:,:,:)
     integer, intent(in)        :: px
-    integer                    :: i,j,k,l,sx
+    integer                    :: sx
+    real(KIND=dp), pointer, contiguous :: f2(:,:), x1(:,:)
 
     sx = (-px + 3)/2
-    fx  = 0.0d0
-    do k=1,nz
-     do j=1,ny
-      do l=1,nx
-       do i=1,nx
-        fx(i,j,k) = fx(i,j,k) + derX(i,l,sx) * f(l,j,k)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! Operator acts on the first (contiguous) index: one zero-copy product.
+    f2(1:nx,1:ny*nz) => f
+    x1(1:nx,1:ny*nz) => fx
+    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,sx),nx, f2,nx, 0.0d0,x1,nx)
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
@@ -1007,7 +987,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fx(:)
     integer, intent(in)                :: px
-    real(KIND=dp), pointer             :: f3(:,:,:), fx3(:,:,:)
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fx3(:,:,:)
 
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fx3(1:nx,1:ny,1:nz) => fx(1:nx*ny*nz)
@@ -1085,22 +1065,19 @@ $N3ALL end subroutine Derive_tot_1D
     ! py = sign of the symmetry transformation in the y-direction
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in), target  :: f(:,:,:)
-    real(KIND=dp), intent(out), target :: fy(:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fy(:,:,:)
     integer, intent(in)                :: py
-    integer                            :: i,j,k,l,sy
+    integer                            :: k, sy
+    real(KIND=dp), pointer, contiguous :: fyp(:,:), cyp(:,:)
 
     sy = (-py + 3)/2 !    1    if pi =   -1  or 0
 
-    fy = 0.0d0
+    ! One zero-copy product per z-plane: C_k = F_k * A^T.
     do k=1,nz
-     do j=1,ny
-      do l=1,ny
-       do i=1,nx
-        fy(i,j,k) = fy(i,j,k) + derY(j,l,sy) * f(i,l,k)
-       enddo
-      enddo
-     enddo
+     fyp(1:nx,1:ny) => f(:,:,k)
+     cyp(1:nx,1:ny) => fy(:,:,k)
+     call dgemm('N','T',nx,ny,ny, 1.0d0, fyp,nx, derY(1,1,sy),ny, 0.0d0,cyp,nx)
     enddo
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
@@ -1176,7 +1153,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fy(:)
     integer, intent(in)                :: py
-    real(KIND=dp), pointer             :: f3(:,:,:), fy3(:,:,:)
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fy3(:,:,:)
 
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fy3(1:nx,1:ny,1:nz) => fy(1:nx*ny*nz)
@@ -1250,23 +1227,18 @@ $N3ALL end subroutine Derive_tot_1D
     ! fz = First order derivative in the z direction
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fz(:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fz(:,:,:)
     integer, intent(in)        :: pz
-    integer                    :: i,j,k,l,sz
+    integer                    :: sz
+    real(KIND=dp), pointer, contiguous :: fzp(:,:), czp(:,:)
 
     sz = (-pz + 3)/2 !    2    if pi =   +1
-    fz = 0.0d0
 
-    do k=1,nz
-     do l=1,nz
-      do j=1,ny
-       do i=1,nx
-         fz(i,j,k) = fz(i,j,k) + derZ(k,l,sz) * f(i,j,l)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! The box viewed as (nx*ny,nz): one zero-copy product.
+    fzp(1:nx*ny,1:nz) => f
+    czp(1:nx*ny,1:nz) => fz
+    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fzp,nx*ny, derZ(1,1,sz),nz, 0.0d0,czp,nx*ny)
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
@@ -1340,7 +1312,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fz(:)
     integer, intent(in)                :: pz
-    real(KIND=dp), pointer             :: f3(:,:,:), fz3(:,:,:)
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fz3(:,:,:)
 
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fz3(1:nx,1:ny,1:nz) => fz(1:nx*ny*nz)
@@ -1420,47 +1392,35 @@ $N3ALL end subroutine Derive_tot_1D
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) ::  df(:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    real(KIND=dp), intent(out), target, contiguous ::  df(:,:,:)
     integer, intent(in)        :: px,py,pz
 
-    integer                    :: i,j,k,l, sx, sy,sz
+    integer                    :: k, sx, sy,sz
+    real(KIND=dp), pointer, contiguous :: fxp(:,:), fyp(:,:)
+    real(KIND=dp), pointer, contiguous :: cx(:,:), cyp(:,:), gz(:,:)
 
     sx = (-px + 3)/2 ! These are equal to
     sy = (-py + 3)/2 !    1    if pi =   -1  or 0
     sz = (-pz + 3)/2 !    2    if pi =   +1
 
-    df = 0.0d0
+    ! Zero-copy dense products straight onto the flat mesh storage; the
+    ! three directions accumulate into df through the BLAS beta factor.
+    ! X-direction: operator acts on the first index - one product.
+    fxp(1:nx,1:ny*nz) => f
+    cx(1:nx,1:ny*nz)  => df
+    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,sx),nx, fxp,nx, 0.0d0,cx,nx)
 
+    ! Y-direction: one product per z-plane, accumulating onto df.
     do k=1,nz
-     do j=1,ny
-      do i=1,nx
-       do l=1,nx
-        df(i,j,k) = df(i,j,k) + laplaX(i,l,sx) * f(l,j,k)
-       enddo
-      enddo
-     enddo
+     fyp(1:nx,1:ny) => f(:,:,k)
+     cyp(1:nx,1:ny) => df(:,:,k)
+     call dgemm('N','T',nx,ny,ny, 1.0d0, fyp,nx, laplaY(1,1,sy),ny, 1.0d0,cyp,nx)
     enddo
 
-    do k=1,nz
-     do j=1,ny
-      do l=1,ny
-       do i=1,nx
-        df(i,j,k) = df(i,j,k) + laplaY(j,l,sy) * f(i,l,k)
-       enddo
-      enddo
-     enddo
-    enddo
-
-    do k=1,nz
-     do l=1,nz
-      do j=1,ny
-       do i=1,nx
-        df(i,j,k) = df(i,j,k) + laplaZ(k,l,sz) * f(i,j,l)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! Z-direction: the box viewed as (nx*ny,nz), one accumulating product.
+    gz(1:nx*ny,1:nz) => df
+    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fxp,nx*ny, laplaZ(1,1,sz),nz, 1.0d0,gz,nx*ny)
 
  end subroutine Derive_lap_3D
  
@@ -1542,7 +1502,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out), target :: df(:)
     integer, intent(in)        :: px,py,pz
-    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:)
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:), df3(:,:,:)
 
     f3(1:nx,1:ny,1:nz)   => f
     df3(1:nx,1:ny,1:nz)  => df
