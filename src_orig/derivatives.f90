@@ -543,8 +543,7 @@ $N2    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
 $N2    real(KIND=dp), intent(out), target, contiguous :: df(:,:,:,:), ddf(:,:,:,:)
 $N2    integer, intent(in)        :: px,py,pz
 $N2
-$N2    integer                    :: i,j,k,l, sx, sy,sz
-$N2    real(KIND=dp), allocatable :: A(:,:)
+$N2    integer                    :: k, sx, sy,sz
 $N2    real(KIND=dp), pointer, contiguous :: fxp(:,:), gx1(:,:), gx2(:,:)
 $N2    real(KIND=dp), pointer, contiguous :: fy(:,:), gy1(:,:), gy2(:,:)
 $N2    real(KIND=dp), pointer, contiguous :: fz(:,:), gz1(:,:), gz2(:,:)
@@ -580,33 +579,20 @@ $N2    gz2(1:nx*ny,1:nz) => ddf(:,:,:,6)
 $N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, derZ  (1,1,sz),nz, 0.0d0,gz1,nx*ny)
 $N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, laplaZ(1,1,sz),nz, 0.0d0,gz2,nx*ny)
 $N2ALL !---------------------------------------------------------------------------
-$N2ALL ! Off-diagonal second order derivatives
-$N2ALL allocate(A(ny,ny))
-$N2ALL A = derY  (:,:,sy)
+$N2ALL ! Off-diagonal second order derivatives: Y applied to the x-derivative,
+$N2ALL ! Z applied to the x- and y-derivatives. Same zero-copy pattern.
 $N2ALL do k=1,nz
-$N2ALL  do j=1,ny
-$N2ALL   do l=1,ny
-$N2ALL    do i=1,nx
-$N2ALL     ddf(i,j,k,2) = ddf(i,j,k,2) + A(j,l) * df(i,l,k,1)
-$N2ALL    enddo
-$N2ALL   enddo
-$N2ALL  enddo
+$N2ALL  fy(1:nx,1:ny) => df(:,:,k,1)
+$N2ALL  gy2(1:nx,1:ny) => ddf(:,:,k,2)
+$N2ALL  call dgemm('N','T',nx,ny,ny, 1.0d0, fy,nx, derY(1,1,sy),ny, 0.0d0,gy2,nx)
 $N2ALL enddo
-$N2ALL deallocate(A)
 $N2ALL
-$N2ALL allocate(A(nz,nz))
-$N2ALL A = derZ  (:,:,sz)
-$N2ALL do k=1,nz
-$N2ALL  do l=1,nz
-$N2ALL   do j=1,ny
-$N2ALL    do i=1,nx
-$N2ALL     ddf(i,j,k,3) = ddf(i,j,k,3) + A(k,l) * df(i,j,l,1)
-$N2ALL     ddf(i,j,k,5) = ddf(i,j,k,5) + A(k,l) * df(i,j,l,2)
-$N2ALL    enddo
-$N2ALL   enddo
-$N2ALL  enddo
-$N2ALL enddo
-$N2ALL deallocate(A)
+$N2ALL fz(1:nx*ny,1:nz) => df(:,:,:,1)
+$N2ALL gz2(1:nx*ny,1:nz) => ddf(:,:,:,3)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, derZ(1,1,sz),nz, 0.0d0,gz2,nx*ny)
+$N2ALL fz(1:nx*ny,1:nz) => df(:,:,:,2)
+$N2ALL gz2(1:nx*ny,1:nz) => ddf(:,:,:,5)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fz,nx*ny, derZ(1,1,sz),nz, 0.0d0,gz2,nx*ny)
 $N2ALL !---------------------------------------------------------------------------
 $N2 end subroutine Derive_tot_3D
 
