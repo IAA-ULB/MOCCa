@@ -1526,9 +1526,6 @@ def GenerateAction(field, symmetrize, so):
 
     for true_larg in largs:
 
-        # reset temp to 0
-        expression = expression + ts.temp_ini
-
         # Get the multiplicity correct
         # m = multiplicities[largs.index(true_larg)]
 
@@ -1551,10 +1548,16 @@ def GenerateAction(field, symmetrize, so):
         leftind = LeftOperator(true_larg, start)
 
         rargs = list(itertools.product(range(3), repeat=rdim - len(cross)))
+
         dic["RMULT"] = ""
 
         master_rarg = []
+        # Each rarg group gets its own sweep over the mesh; the first group
+        # of four lines covers all four spinor slots, so it initializes temp
+        # instead of accumulating into it (the old temp = 0.0 wipe is gone).
+        first_group = True
         for rarg in rargs:
+            expression = expression + ts.position_loop
 
             rarg_uncontracted = []
             if RightOperator.dimension == 0:
@@ -1609,7 +1612,6 @@ def GenerateAction(field, symmetrize, so):
                     rarg_uncontracted.append(p)
             # -------------------------------------------------------------------
             # Loop over right-arguments
-            expression = expression + ts.position_loop
             for true_rarg in rarg_uncontracted:
                 # Action of the right operator for this indices
                 rightind = RightOperator(true_rarg, start)
@@ -1683,15 +1685,27 @@ def GenerateAction(field, symmetrize, so):
                         else:
                             SIGN = SIGN * np.sign(l)
                     if SIGN > 0:
+                        line_sign = 1
+                    else:
+                        line_sign = -1
+                    if line_sign > 0:
                         dic["SIGN"] = "+"
                     else:
                         dic["SIGN"] = "-"
-                    expression = expression + ts.action.substitute(dic)
-            expression = expression + ts.position_end
+                    if first_group:
+                        if line_sign > 0:
+                            dic["SIGNW"] = ""
+                        else:
+                            dic["SIGNW"] = "- "
+                        expression = expression + ts.action_init.substitute(dic)
+                    else:
+                        expression = expression + ts.action.substitute(dic)
+                first_group = False
             # ---------------------------------------------------------------
-            # End of true_rarg loop
-        # -------------------------------------------------------------------
-        # End of rarg loop
+            # End of true_rarg loop: close this group's sweep over the mesh.
+            expression = expression + ts.position_end
+        # -----------------------------------------------------------------------
+        # End of rarg loop.
         # -----------------------------------------------------------------------
         # Calculation of the derivatives in steps:
         lasttemp = "temp"

@@ -275,6 +275,43 @@ unrelated failures observed: `make CONFIG=BXL mf` references `F%F_Nm_Nm`
 absent from the BXL PotentialVector (reproduces with pristine sources);
 `store_derivatives.sh` harness needs `-p` and the `LC_ALL=C awk` fix.
 
+### A2 implemented (and measured)
+
+Change in `GenerateAction` (generator): the whole-array `temp = 0.0`
+wipe before each contribution group is replaced by a slot
+initialization (`=` instead of `+=` with the line sign folded as a
+leading `-` if needed) on the first four-line group of each block.
+The generated code otherwise keeps the old structure: one mesh sweep
+per contribution group, temp accumulated across groups of a block,
+derivatives, one final add to hpsi.
+
+Measured (Ca40 20^3, two runs each, energies bit-identical to A1):
+
+| | A1 | A2 | gain |
+|---|---|---|---|
+| NLO potential action (s) | 1.940 | 1.879 / 1.891 | ~3% |
+| N2LO potential action (s) | 4.577 | 4.413 / 4.476 | ~3% |
+
+Negative results, recorded so we do not retry them blind:
+
+- **Sweep fusion across contribution groups of a block is a loss** (NLO
+  action 1.94 -> 2.27 s, +17%): one large `do i=1,mv` body per block
+  wrecks the compiler's per-group vectorization/register blocking.
+  The per-group sweeps stay.
+- **Folding derivative-free blocks directly into hpsi is neutral at
+  best** (1.85 s without vs 1.87-1.89 s with, when restricted to
+  single-sweep blocks; unrestricted it multiplies hpsi read-modify-
+  write traffic and costs 13%). Removed entirely: the temp round trip
+  is not the bottleneck at group granularity.
+
+The remaining ~3% is the honest ceiling of the wipe/reshape family; the
+next real gain is Stage B (F reuse and wider GEMM s.p. width across
+spwfs in one sweep).
+
+Validation for A2: `minimal.sh NLO` (O16 -128.5131254465, unchanged),
+Ca40 NLO/N2LO energies bit-identical, `fam_unit_tests.sh NLO` passes,
+NLO/NLO-T/N2LO mf and NLO fam build clean.
+
 
 
 - T_sphamil is 25-27% of a mean-field-dominated run — the single largest

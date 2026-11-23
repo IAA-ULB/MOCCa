@@ -7,9 +7,12 @@ action_final_pairing    = T(  tab + \
 'deltapsi(:,$IND) =  deltapsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
 
 
-temp_ini        = tab + 'temp = 0.0 \n'
 action    = T(2*tab + \
 'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT F%$FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
+# First group of contributions after the (removed) temp = 0.0 wipe:
+# initialize the slot instead of accumulating into it.
+action_init  = T(2*tab + \
+'temp(i,$IND) = $SIGNW $RMULT F%$FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
 
 #derive     = T(tab + \
 #'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
