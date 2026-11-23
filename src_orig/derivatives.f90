@@ -124,6 +124,7 @@ module derivatives
  !==============================================================================
 
  use geninfo
+ use timing
 
  implicit none
 
@@ -1070,6 +1071,7 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: px(4)
     integer                    :: m
 
+    call start_timer(T_der_kernel)
 #if(USE_Periodic>0)
     do m=1,2
      call Derive_X_1D_periodic(f(:,2*m-1:2*m), px(2*m-1:2*m), fx(:,2*m-1:2*m))
@@ -1079,6 +1081,7 @@ $N3ALL end subroutine Derive_tot_1D
      call Derive_X_single_1D(f(:,m), px(m), fx(:,m))
     enddo
 #endif
+    call stop_timer(T_der_kernel)
  end subroutine Derive_X_spwf
 
   subroutine Derive_Y_single_3D(f, py, fy)
@@ -1231,6 +1234,7 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)                :: py(4)
     integer                            :: m
 
+    call start_timer(T_der_kernel)
 #if(USE_Periodic>0)
     do m=1,2
      call Derive_Y_1D_periodic(f(:,2*m-1:2*m), py(2*m-1:2*m), fy(:,2*m-1:2*m))
@@ -1240,6 +1244,7 @@ $N3ALL end subroutine Derive_tot_1D
      call Derive_Y_single_1D(f(:,m), py(m), fy(:,m))
     enddo
 #endif
+    call stop_timer(T_der_kernel)
 
  end subroutine Derive_Y_spwf
 
@@ -1381,6 +1386,7 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: pz(4)
     integer                    :: m
 
+    call start_timer(T_der_kernel)
 #if(USE_Periodic>0)
     do m=1,2
      call Derive_Z_1D_periodic(f(:,2*m-1:2*m), pz(2*m-1:2*m), fz(:,2*m-1:2*m))
@@ -1390,6 +1396,7 @@ $N3ALL end subroutine Derive_tot_1D
      call Derive_Z_single_1D(f(:,m), pz(m), fz(:,m))
     enddo
 #endif
+    call stop_timer(T_der_kernel)
  end subroutine Derive_Z_spwf
 
  subroutine Derive_lap_3D(f, px, py, pz, df)
@@ -1503,10 +1510,12 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: px,py,pz
     real(KIND=dp), pointer, contiguous :: f3(:,:,:), df3(:,:,:)
 
+    call start_timer(T_der_kernel)
     f3(1:nx,1:ny,1:nz)   => f
     df3(1:nx,1:ny,1:nz)  => df
 
     call Derive_lap_3d(f3, px,py,pz,df3)
+    call stop_timer(T_der_kernel)
 
  end subroutine Derive_lap_1d
  
@@ -1532,10 +1541,12 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: px,py,pz
     complex(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:)
 
+    call start_timer(T_der_kernel)
     f3(1:nx,1:ny,1:nz)   => f
     df3(1:nx,1:ny,1:nz)  => df
 
     call Derive_lap_3d_complex(f3, px,py,pz,df3)
+    call stop_timer(T_der_kernel)
 
  end subroutine Derive_lap_1d_complex
 

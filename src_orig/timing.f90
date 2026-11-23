@@ -48,6 +48,7 @@ module timing
   integer :: T_calc_sph, T_calc_sph_me, T_update_sph
   integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
+  integer :: T_sph_copy, T_sph_dtot, T_sph_action, T_der_kernel
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
   integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
@@ -536,6 +537,10 @@ contains
       call add_timer('Energy calculations', T_energy)
       call add_timer('Pairing solver ', T_pairing)
       call add_timer('Sp. Hamiltonian ', T_sphamil)
+      call add_timer('SpHamil: pot copy+combine', T_sph_copy)
+      call add_timer('SpHamil: on-the-fly derive', T_sph_dtot)
+      call add_timer('SpHamil: potential action', T_sph_action)
+      call add_timer('Derive kernel time', T_der_kernel)
       call add_timer('Coulomb solver', T_coulomb)
       call add_timer('Can. basis construction', T_den_can)
       call add_timer('Moments of inertia ', T_MOI)
