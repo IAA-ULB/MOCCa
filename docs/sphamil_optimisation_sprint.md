@@ -312,6 +312,31 @@ Validation for A2: `minimal.sh NLO` (O16 -128.5131254465, unchanged),
 Ca40 NLO/N2LO energies bit-identical, `fam_unit_tests.sh NLO` passes,
 NLO/NLO-T/N2LO mf and NLO fam build clean.
 
+### B2 attempted (and rejected)
+
+Fully implemented and measured, then removed from the tree (generator
+wave-extension of the action, `apply_sphamil_batch`, block-rewired
+`apply_sphamil_block` / `Evolve_momentum`). Ca40 20^3, NLO potential
+action timer, energies bit-identical throughout:
+
+| variant | time (s) | calls |
+|---|---|---|
+| A2 per-spwf baseline | 1.879 / 1.891 | 5848 |
+| batched, w-loop innermost in the mesh sweep | 4.19 | 1248 |
+| batched, w-loop outside the mesh sweep | 2.298 | 1248 |
+| generated batch body, but called with mb=1 per wave | 1.919 | 5848 |
+
+The mb=1 row isolates the cause: the batched function body itself runs
+at baseline speed, so the ~22% loss is the wave loop inside/i-sweep
+shape — widening temp/dtemp/ddtemp to (mv,4,mb) multiplies the working
+set of the hot mesh sweep and destroys the L1/L2 locality that makes
+the per-spwf form fast. The Derive kernels still run one spwf at a time
+inside the batch body, so batching bought no kernel efficiency, only
+cache pressure. **Conclusion: generator-level batching across spwfs is
+a dead end at this mesh size; Stage B effort goes to B1 (wide batched
+Derive kernels), which widens the GEMMs without widening the sweep
+working set.**
+
 
 
 - T_sphamil is 25-27% of a mean-field-dominated run — the single largest
@@ -345,3 +370,5 @@ fully converged — irrelevant for fractions), and these runs use the
 - `use timing` added to the `derivatives` module (needed for the kernel
   timers; previously the module did not use `timing`).
 - Baseline timings recorded above (NLO + N2LO, gfortran, serial).
+- B2 implemented end to end, measured, rejected and reverted (numbers
+  above); sprint refocuses on B1 (wide batched Derive kernels).
