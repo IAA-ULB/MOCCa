@@ -170,6 +170,51 @@ axpys against locked columns entirely.
    resolved): propose `ortho_strategy` default 'CHOLESKY' for serial.
    The LOEWDIN stub (`stp('Implementation error')`) can stay stubbed.
 
+## Secondary: copy and allocation cleanup in the subspace rotation
+
+Code-level analysis of the serial `calc_sphamil` +
+`apply_subspace_rotation` (evolution.f90, `T_calc_sph` / `T_subrot_*`
+timers). Not measured yet - the Ca40 benchmarks of the sphamil sprint
+ran with subspace rotation INACTIVE. The algebra (matrix-element
+DGEMM, DSYEV, rotation DGEMM) is already well-shaped; the wins are in
+the Fortran shuffling around it. Expected size: single-digit percent
+of the subspace step, which itself is dominated by the ~800
+`apply_sphamil_prec` evaluations it launches (0.28 s per call-set at
+800 spwfs) - tidy-up, not a 29x.
+
+- **`calc_sphamil`: remove the `temp_wfs` copies.** The per-spwf
+  `temp_wfs(:,:,i) = hfpsi(:,:,wave)` exists only to feed
+  `apply_sphamil_prec` (which does not modify its input; the slice
+  `hfpsi(:,:,wave)` is contiguous and can be passed directly) and to
+  build the contiguous matrix-element DGEMM operand. `HFPsi` is stored
+  `(mv,4,N)`, which is memory-identical to `(4mv, N)` - so with no
+  locked spwfs in the block, the DGEMM operand is a free pointer
+  remap of `hfpsi(:,:,si+1:si+N)`. Gathers remain only for
+  locked-containing blocks, over the active columns only.
+- **`apply_subspace_rotation`: five passes over the wavefunction set
+  to two or three.** Today: per-(k,wave) gather into `temp_wfs` (1),
+  `temp_wfs_in = temp_wfs` full copy (2, with `temp_wfs_in` allocated
+  by implicit assignment per block), DGEMM read/write (3, 4),
+  per-(k,wave) scatter back (5). With no locks, gather and scatter are
+  identity remaps: rotate straight out of `HFPsi` into a scratch
+  buffer, then one copy back. With locks, keep the gather of active
+  columns but drop the `temp_wfs_in` copy by rotating into scratch and
+  scatting only the active columns. `Momentum_Updates` gets the same
+  fix.
+- **Allocation churn**: `hpsi`, `temp_wfs`, `active_sph`,
+  `active_indices` per block per call in `calc_sphamil`; the DSYEV
+  workspace query + reallocation per block in
+  `apply_subspace_rotation`. Hoist all of it to maximum-block-size
+  workspaces.
+- **DSYEV vs DSYEVD/DSYEVR**: at per-block N around 100 the
+  divide-and-conquer routine may be faster; benchmark, do not assume.
+- Cosmetic: the `active_sph`-into-`sph` scatter and the `findloc` per
+  spwf in the eigenvalue bookkeeping are trivial next to the above.
+
+Acceptance for all of the above: bit-comparison of the rotated
+wavefunctions and eigenvalues against the current implementation on a
+rotation-heavy run, plus the minimal/fam goldens.
+
 ## Non-goals
 
 - No change to the GS routine itself (it remains the reference
