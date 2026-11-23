@@ -114,7 +114,11 @@ module derivatives
  ! third orders are chained products on the lower-order slots. No packing,
  ! no temporaries. In the periodic (pasta) routines the complex operators and
  ! fields are stored as separate contiguous real/imag blocks; one complex
- ! product becomes four of the same real DGEMMs per direction. The payoff
+ ! product becomes four of the same real DGEMMs per direction. The
+ ! non-periodic complex kernels (FAM/cranking) instead keep the true
+ ! interleaved complex storage and apply ZGEMM against the complexified
+ ! operator copies derXc/derYc/derZc/laplaXc/... (built once in inilag,
+ ! 2x the strictly necessary flops, see the declarations below). The payoff
  ! requires an optimized BLAS (OpenBLAS/MKL); against a netlib-grade BLAS
  ! the previous hand loops were competitive.
  !==============================================================================
@@ -124,6 +128,7 @@ module derivatives
  implicit none
 
  external dgemm
+ external zgemm
 
  !------------------------------------------------------------------------------
  ! Contains the matrix elements to perform a derivation on the mesh, in either
@@ -149,6 +154,18 @@ module derivatives
  ! (diagonal) derivatives on the mesh.
  !------------------------------------------------------------------------------
  real*8, allocatable :: laplaX(:,:,:),laplaY(:,:,:),laplaZ(:,:,:)
+ !------------------------------------------------------------------------------
+ ! Complex copies of the operators above (zero imaginary part), used by the
+ ! complex kernels below: the FAM/cranking fields are stored interleaved as
+ ! true complex arrays, so the real operators enter ZGEMM as complex ones.
+ ! NOTE: ZGEMM on a purely real (imag=0) operator computes four real GEMMs
+ ! of which two are multiplied against zeros: this is 2x the strictly
+ ! necessary flops. That cost is accepted because the complex storage is
+ ! interleaved and cannot be reinterpreted as real views without copies;
+ ! the BLAS-3 machinery still outperforms the hand loops by far.
+ !------------------------------------------------------------------------------
+ complex(KIND=dp), allocatable :: derXc(:,:,:), derYc(:,:,:), derZc(:,:,:)
+ complex(KIND=dp), allocatable :: laplaXc(:,:,:), laplaYc(:,:,:), laplaZc(:,:,:)
 
  !------------------------------------------------------------------------------
  ! Interfaces to the different derivative routines.
@@ -514,6 +531,17 @@ contains
       LaplaZ(:,:,4) = 0.d0
     endif
 #endif
+
+    ! Complex copies for the ZGEMM-based kernels: zero imaginary part.
+    ! (2x flops vs two real GEMMs, see the module header.)
+    allocate(derXc(nx,nx,4),   derYc(ny,ny,4),   derZc(nz,nz,4))
+    allocate(laplaXc(nx,nx,4), laplaYc(ny,ny,4), laplaZc(nz,nz,4))
+    derXc   = cmplx(derX,   0.0d0, KIND=dp)
+    derYc   = cmplx(derY,   0.0d0, KIND=dp)
+    derZc   = cmplx(derZ,   0.0d0, KIND=dp)
+    laplaXc = cmplx(laplaX, 0.0d0, KIND=dp)
+    laplaYc = cmplx(laplaY, 0.0d0, KIND=dp)
+    laplaZc = cmplx(laplaZ, 0.0d0, KIND=dp)
 
  end subroutine inilag
 
@@ -930,22 +958,18 @@ $N3ALL end subroutine Derive_tot_1D
     ! fx = First order derivative in the x direction
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-    complex(KIND=dp), intent(in)  :: f(:,:,:)
-    complex(KIND=dp), intent(out) :: fx(:,:,:)
+    complex(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    complex(KIND=dp), intent(out), target, contiguous :: fx(:,:,:)
     integer, intent(in)        :: px
-    integer                    :: i,j,k,l,sx
+    integer                    :: sx
+    complex(KIND=dp), pointer, contiguous :: f2(:,:), x1(:,:)
 
     sx = (-px + 3)/2
-    fx  = 0.0d0
-    do k=1,nz
-     do j=1,ny
-      do l=1,nx
-       do i=1,nx
-        fx(i,j,k) = fx(i,j,k) + derX(i,l,sx) * f(l,j,k)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! One ZGEMM on the flat mesh view. The complex operators carry zero
+    ! imaginary part, so this does 2x the strictly necessary flops.
+    f2(1:nx,1:ny*nz) => f
+    x1(1:nx,1:ny*nz) => fx
+    call zgemm('N','N',nx,ny*nz,nx, (1.0d0,0.0d0), derXc(1,1,sx),nx, f2,nx, (0.0d0,0.0d0),x1,nx)
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
@@ -1092,22 +1116,19 @@ $N3ALL end subroutine Derive_tot_1D
     ! fy = First order derivative in the y direction
     ! py = sign of the symmetry transformation in the y-direction
     !---------------------------------------------------------------------------
-    complex(KIND=dp), intent(in), target  :: f(:,:,:)
-    complex(KIND=dp), intent(out), target :: fy(:,:,:)
+    complex(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    complex(KIND=dp), intent(out), target, contiguous :: fy(:,:,:)
     integer, intent(in)                :: py
-    integer                            :: i,j,k,l,sy
+    integer                            :: k, sy
+    complex(KIND=dp), pointer, contiguous :: fp(:,:), gp(:,:)
 
     sy = (-py + 3)/2 !    1    if pi =   -1  or 0
 
-    fy = 0.0d0
+    ! One ZGEMM per z-plane: C_k = F_k * A^T (2x flops, zero imag part).
     do k=1,nz
-     do j=1,ny
-      do l=1,ny
-       do i=1,nx
-        fy(i,j,k) = fy(i,j,k) + derY(j,l,sy) * f(i,l,k)
-       enddo
-      enddo
-     enddo
+      fp(1:nx,1:ny) => f(:,:,k)
+      gp(1:nx,1:ny) => fy(:,:,k)
+      call zgemm('N','T',nx,ny,ny, (1.0d0,0.0d0), fp,nx, derYc(1,1,sy),ny, (0.0d0,0.0d0),gp,nx)
     enddo
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
@@ -1252,23 +1273,18 @@ $N3ALL end subroutine Derive_tot_1D
     ! fz = First order derivative in the z direction
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
-    complex(KIND=dp), intent(in)  :: f(:,:,:)
-    complex(KIND=dp), intent(out) :: fz(:,:,:)
+    complex(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    complex(KIND=dp), intent(out), target, contiguous :: fz(:,:,:)
     integer, intent(in)        :: pz
-    integer                    :: i,j,k,l,sz
+    integer                    :: sz
+    complex(KIND=dp), pointer, contiguous :: f2(:,:), x1(:,:)
 
     sz = (-pz + 3)/2 !    2    if pi =   +1
-    fz = 0.0d0
 
-    do k=1,nz
-     do l=1,nz
-      do j=1,ny
-       do i=1,nx
-         fz(i,j,k) = fz(i,j,k) + derZ(k,l,sz) * f(i,j,l)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! Whole box as (nx*ny, nz): one ZGEMM C = F * A^T (2x flops again).
+    f2(1:nx*ny,1:nz) => f
+    x1(1:nx*ny,1:nz) => fz
+    call zgemm('N','T',nx*ny,nz,nz, (1.0d0,0.0d0), f2,nx*ny, derZc(1,1,sz),nz, (0.0d0,0.0d0),x1,nx*ny)
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
@@ -1436,47 +1452,32 @@ $N3ALL end subroutine Derive_tot_1D
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
 
-    complex(KIND=dp), intent(in)  :: f(:,:,:)
-    complex(KIND=dp), intent(out) ::  df(:,:,:)
+    complex(KIND=dp), intent(in), target, contiguous  :: f(:,:,:)
+    complex(KIND=dp), intent(out), target, contiguous :: df(:,:,:)
     integer, intent(in)        :: px,py,pz
 
-    integer                    :: i,j,k,l, sx, sy,sz
+    integer                    :: k, sx, sy,sz
+    complex(KIND=dp), pointer, contiguous :: fx(:,:), cyp(:,:), fzb(:,:)
 
     sx = (-px + 3)/2 ! These are equal to
     sy = (-py + 3)/2 !    1    if pi =   -1  or 0
     sz = (-pz + 3)/2 !    2    if pi =   +1
 
-    df = 0.0d0
-
+    ! Laplacian as three accumulating ZGEMMs on the standard views (X flat,
+    ! Y per plane, Z whole box); the complex operators have zero imaginary
+    ! part, so each product does 2x the strictly necessary flops. The first
+    ! product enters with beta=0, wiping df (no explicit zeroing).
+    fx(1:nx,1:ny*nz) => f
+    cyp(1:nx,1:ny*nz) => df
+    call zgemm('N','N',nx,ny*nz,nx, (1.0d0,0.0d0), laplaXc(1,1,sx),nx, fx,nx, (0.0d0,0.0d0),cyp,nx)
     do k=1,nz
-     do j=1,ny
-      do i=1,nx
-       do l=1,nx
-        df(i,j,k) = df(i,j,k) + laplaX(i,l,sx) * f(l,j,k)
-       enddo
-      enddo
-     enddo
+      fx(1:nx,1:ny)  => f(:,:,k)
+      cyp(1:nx,1:ny) => df(:,:,k)
+      call zgemm('N','T',nx,ny,ny, (1.0d0,0.0d0), fx,nx, laplaYc(1,1,sy),ny, (1.0d0,0.0d0),cyp,nx)
     enddo
-
-    do k=1,nz
-     do j=1,ny
-      do l=1,ny
-       do i=1,nx
-        df(i,j,k) = df(i,j,k) + laplaY(j,l,sy) * f(i,l,k)
-       enddo
-      enddo
-     enddo
-    enddo
-
-    do k=1,nz
-     do l=1,nz
-      do j=1,ny
-       do i=1,nx
-        df(i,j,k) = df(i,j,k) + laplaZ(k,l,sz) * f(i,j,l)
-       enddo
-      enddo
-     enddo
-    enddo
+    fzb(1:nx*ny,1:nz)  => f
+    cyp(1:nx*ny,1:nz)  => df
+    call zgemm('N','T',nx*ny,nz,nz, (1.0d0,0.0d0), fzb,nx*ny, laplaZc(1,1,sz),nz, (1.0d0,0.0d0),cyp,nx*ny)
 
  end subroutine Derive_lap_3D_complex
 
