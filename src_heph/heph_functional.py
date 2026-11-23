@@ -655,6 +655,63 @@ def ParseDensities(term):
     #---------------------------------------------------------------------------
     return (densities, coupling)
 
+def coupling_union():
+    """Ordered dict name -> 'R'/'I' of all EDF coupling parameters declared
+    in any of the known .func files.
+
+    Rationale: the coupling names of a Skyrme-like EDF are functional-
+    dependent (NLO has sigma_b and t3b, N2LO has t1n2/x1n2, ...), while the
+    generated functional code references them whenever the functional at
+    hand has those terms.  The module functional lives in a F2008 parent-
+    with-submodules layout that requires only:-listed use statements
+    (gfortran 13 rejects submodule attachment over a bare re-export of the
+    parameterization interfaces), and an only:-list can only name entities
+    that exist in every build.  The union keeps the name space stable
+    across all functionals without changing numerical behaviour: absent
+    couplings keep the standard -123456789 sentinel and are never
+    referenced by any term of the current functional."""
+    import re as _re
+    import glob as _glob
+    union = dict()
+    for _ffile in sorted(_glob.glob('functionals/*.func') +
+                          _glob.glob('functionals/work_in_progress/*.func')):
+        with open(_ffile, 'r') as _fh:
+            for _line in _fh:
+                if('!TERMS' in _line):
+                    break
+                for _m in _re.finditer(r'(?:^|;)\s*([RI])\s*(\w+)', _line):
+                    union.setdefault(_m.group(2), _m.group(1))
+    return union
+
+def coupling_onlylist(indent=27):
+    """The $COUPLINGS substitution for module functional's use statement:
+    the union of all coupling names, formatted as Fortran continuation
+    lines (each within the 132-character line limit).
+
+    Note that a continued use-statement needs an explicit comma at the
+    end of every continuation segment:  'x, &\\n  y'  parses as 'x y',
+    not 'x, y'."""
+    names = sorted(coupling_union())
+    pieces = []
+    line = ''
+    for n in names:
+        candidate = (line + (', ' if line else '') + n)
+        if(line and len(' '*indent + candidate) > 100):
+            pieces.append(line + ',')
+            line = n
+        else:
+            line = candidate
+    if(line):
+        pieces.append(line)
+    out = ''
+    for i, p in enumerate(pieces):
+        if(i < len(pieces) - 1):
+            out += p + ' &\n' + ' '*indent
+        else:
+            out += p
+    return out
+
+
 def ProcessParameterization(fname, src, target, dry_run=False):
     """
      Process the parameterization.f90 file to include the different parameters.
@@ -670,11 +727,11 @@ def ProcessParameterization(fname, src, target, dry_run=False):
     checkparam= ''
     resetparam= ''
     bcastparam= ''
-    
+
     for k,s in enumerate(paramparameters):
         dic= {}
         dic['PARAM']     = s
-        
+
         if(paramtypes[k] == 'real'):
           decl      = decl      + ts.decl_real.substitute(dic)
           printparam= printparam+ ts.print_real.substitute(dic)
@@ -692,8 +749,23 @@ def ProcessParameterization(fname, src, target, dry_run=False):
         checkparam= checkparam+ '\n'
         resetparam= resetparam+ ts.reset.substitute(dic)
         
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # Widen the declared parameter space to the union over all known .func
+    # files (declarations only, sentinel default, not read/checked/reset).
+    # See coupling_union() for the rationale.
+    union = coupling_union()
+    for _name in sorted(union):
+        _type = union[_name]
+        if(_name in paramparameters):
+            continue
+        _dic = {'PARAM': _name}
+        if(_type == 'R'):
+            decl = decl + ts.decl_real.substitute(_dic)
+        else:
+            decl = decl + ts.decl_int.substitute(_dic)
+
     # Remove the trailing comma and add line-end
-    readparam = readparam[:-5] + '\n'    
+    readparam = readparam[:-5] + '\n'
     
     dic= {}
     dic['PARAMDECL']   = decl
@@ -1090,9 +1162,19 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['FAM'] = '0'
       
     dic['PVECTORINPRODUCT'] = inproduct
+    # The only:-list of the (functional-dependent) EDF coupling names for
+    # module functional's use of the parameterization: see coupling_union().
+    dic['COUPLINGS']   = coupling_onlylist()
 
-    if(not dry_run):  
-      substitute(src+fname, target+fname, dic)    
+    if(not dry_run):
+      #  fname may be a single file name, or a list of names that all get
+      #  the same keyword dictionary substituted into them: the parent
+      #  functional.f90 and the F2008 submodules functional_*.f90, which
+      #  contain part of the generated code.
+      if(isinstance(fname,str)): fnames = [fname]
+      else: fnames = fname
+      for f in fnames:
+        substitute(src+f, target+f, dic)
 
     return pot_declaration
 

@@ -58,6 +58,7 @@ use pairing
 use functional
 use momentsofinertia
 use moments
+use Cranking
 use Coulombmod
 use transform
 use fission_MOI

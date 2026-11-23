@@ -28,7 +28,8 @@ PYTHON_CMD  = python3
 # USE_MPI    : whether (1) or not (0) to compile with MPI support
 CXX         = gfortran
 OPTFLAGS    = -O0 -g -Wall -Wno-uninitialized -fbacktrace -fbounds-check
-CXXFLAGS    = -J$(MODDIR)
+CXXFLAGS    =
+MODFLAG     = -J
 PREPFLAG    = -cpp
 DEBUG_LEVEL = 0
 USE_MPI     = 0

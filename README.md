@@ -60,7 +60,7 @@ The last command will
  2. compile the resulting MOCCa source code with gfortran, 
  3. place the executable `MOCCa.default.exe` in the `exec/` directory.
 
-Note that compilation may take several minutes, depending on your choices.
+Note that compilation may take several minutes, depending on your choices. Parallel compilation (`make -j4 mf`, ...) is supported: the Makefile tracks the `.mod` module dependencies of the generated sources (`scripts/gen_moddeps.py`), so objects are compiled in a correct order and any interface change automatically triggers recompilation of the consuming objects as well.
 
 See the [compilation section](docs/user-guide/compilation.md) of the full documentation for advanced options.
 

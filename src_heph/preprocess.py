@@ -65,7 +65,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                          'folding.f90', 'timing.f90', \
                          'fam_run.f90', 'fam_gmres.f90', \
                          'hdf5_auxiliary.f90', \
-                         'IO_aux.f90', 'basis_transform.f90' ]
+                         'IO_aux.f90', 'basis_transform.f90',
+                         'BCS_quantities.f90' ]
     # List of files that can be processed by a generic preprocessor
     generic_process_files = [ 'mocca.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \
@@ -92,7 +93,17 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         if(fname=='parameterization.f90'):
             ProcessParameterization(fname, src, target, dry_run)                    
         if(fname=='functional.f90'):
-            vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
+            # The parent file and its F2008 implementation submodules
+            # (functional_{energy,potentials,fields,io}.f90) all carry the
+            # same $-markers: substitute the same keyword dictionary into
+            # each of them.
+            functional_files = ['functional.f90',
+                                'functional_energy.f90',
+                                'functional_potentials.f90',
+                                'functional_fields.f90',
+                                'functional_io.f90',
+                                'functional_coefs.f90']
+            vectors_potentials = ProcessFunctional(functional_files, src, target,so, oldso, ph_pp_decoupl,fam_active, density_spwf_summation, dry_run)
         if(fname=='vectors.f90'):
             # Temporary workaround : run both processings in dry_run mode to get the strings
             #  TODO: fix this mess!
@@ -120,8 +131,14 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
             ProcessFission_MOI(fname, src, target, so, dry_run)
         if(fname=='transform.f90'):
             ProcessTransform(fname, src, target, so, oldso, dry_run) 
-        if(fname=='densities.f90'): 
+        if(fname=='densities.f90'):
             vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation, dry_run, verbose=dry_run)
+        if(fname.startswith('densities_')):
+            # Implementation submodules of module densities: they carry the
+            # same $-markers, so they need the full density analysis and the
+            # same substitution run on their own file.
+            ProcessDensities(fname, src, target, so, fam_active,
+                             density_spwf_summation, dry_run, verbose=False)
         if(fname=='cranking.f90'):
             ProcessCranking(fname, src, target, so, dry_run)
         if(fname=='convergence.f90'):
