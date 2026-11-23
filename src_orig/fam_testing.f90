@@ -309,6 +309,7 @@ $TR   dkappa_minus = - dkappa_minus
     real(KIND=dp)                 :: stabfactor(2)
     integer                       :: si, B, N, i, it, j, N2, T
     type(PotentialVector)         :: dFs, dFa, F, dF_pp_minus, dF_pp_plus
+    type(PotentialVector)         :: Fcombined
     type(DensityVector)           :: R, dRs, dRa, R_pp_plus, R_pp_minus, dR_pp_plus, dR_pp_minus
 
   1 format (100('-'))
@@ -331,8 +332,10 @@ $TR   dkappa_minus = - dkappa_minus
     R = densit(rho_can, kappa_pairing)
     F = calcpotentials(R)
 
-    ! Important: apply_sphamil requires that the potentials in F are NOT combined!
-    !            don't call combine_potentials(F) here!
+    ! apply_sphamil_prec requires the potentials in F to be combined:
+    ! combine once here, and reuse the result for all spwfs below.
+    Fcombined = F
+    call combine_potentials(Fcombined)
     allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
     si = 0
     do B=1,8
@@ -340,8 +343,8 @@ $TR   dkappa_minus = - dkappa_minus
       it = -1
       if(B .ge. 5) it = +1
       do j=si+1,si+N
-        hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
-        &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
+        hpsi = apply_sphamil_prec(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
+        &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,Fcombined)
         do i=si+1,si+N
           sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
         enddo

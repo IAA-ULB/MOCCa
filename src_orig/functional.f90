@@ -2132,6 +2132,67 @@ $N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
     type(PotentialVector)             :: F
 
     real(KIND=dp)             :: hpsi(mv,4)
+    !
+    ! This variant combines the potentials itself; it is the entry point
+    ! for callers that do not manage the combined potentials themselves.
+    ! Callers acting with h on many spwfs for unchanged potentials should
+    ! combine once and use apply_sphamil_prec below, per spwf.
+    call start_timer(T_sph_copy)
+    F = Fin
+    call combine_potentials(F)
+    call stop_timer(T_sph_copy)
+
+    hpsi = apply_sphamil_prec(psi, dpsi, ddpsi,                         &
+$N3 &                                 dddpsi,                           &
+&                                        sx,sy,sz,iso, onthefly, F)
+
+  end function apply_sphamil
+
+  function apply_sphamil_prec(psi, dpsi, ddpsi,                         &
+$N3                                 dddpsi,                             &
+&                                        sx,sy,sz,iso, onthefly, F) result(hpsi)
+    !---------------------------------------------------------------------------
+    ! Apply the single-particle hamiltonian to a spwf, taking a set of
+    ! potentials F that has ALREADY been processed by combine_potentials
+    ! (Coulomb, constraints and cranking folded into the EDF fields).
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Interface and semantics are otherwise identical to apply_sphamil,
+    ! which wraps this routine and performs the F = Fin copy + combination
+    ! for callers that pass an uncombined potential vector.
+    ! All T_sphamil (sub)timers are started here.
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !          psi : spwf to act on with h
+    !  d/dd/dddpsi : arrays containing the first, second and third derivatives
+    !                of the spwf. ddpsi does not need to be a "full" matrix
+    !                when dealing with standard NLO EDFs. dddpsi is only used
+    !                when dealing with N3LO EDFs.
+    ! sx/sy/sz     : signs under reflection symmetry for this particular spwf
+    !                not referenced when onthefly = .false.
+    ! onthefly     : if .true., recalculate the derivatives of psi and store
+    !                them in the array psi.
+    ! F            : combined mean-field potentials determining the
+    !                singleparticle hamiltonian
+    ! Output:
+    !    hpsi      : h | psi >
+    !  d/dd/dddpsi : arrays containing the derivatives of psi
+    !                if onthefly = .true.
+    !---------------------------------------------------------------------------
+
+    use derivatives
+
+    ! Logical indicating if the derivatives need to be calculated before
+    ! applying h.
+    ! If false, the derivatives are passed in. If True, the derivatives are not
+    ! passed in and need to be calculated.
+    logical, intent(in)               :: onthefly
+    real(KIND=dp), intent(in)         :: psi(mv,4)
+    real(KIND=dp), intent(inout)      :: dpsi(mv,3,4),ddpsi(mv,6,4)
+$N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
+    integer, intent(in)               :: sx(4),sy(4),sz(4), iso
+    type(PotentialVector), intent(in) :: F
+
+    real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Declaration of temporary spinors
@@ -2153,15 +2214,6 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     integer :: it, i,k
 
     call start_timer(T_sphamil)
-    !---------------------------------------------------------------------------
-    ! Dirty trick: the potential vector Fin contains all relevant information on
-    !              the potentials, namely F_I_I and the coulombpotential.
-    !              Below however, we only act with F_I_I; for the purpose of this
-    !              routine we add these potentials together.
-    !---------------------------------------------------------------------------
-    ! TODO: add in constraint_I_I to the definition of a potentialvector
-    F = Fin
-    call combine_potentials(F)
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
@@ -2186,6 +2238,7 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     !---------------------------------------------------------------------------
 
     if(OnTheFly) then
+      call start_timer(T_sph_dtot)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the derivatives of this spwf on the fly
 #if(USE_Periodic==0)
@@ -2206,9 +2259,11 @@ $N2             &                   dpsi(:,:,(2*k-1):2*k), &
 $N2             &                  ddpsi(:,:,(2*k-1):2*k))
       enddo
 #endif
+      call stop_timer(T_sph_dtot)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !---------------------------------------------------------------------------
+    call start_timer(T_sph_action)
     ! Action of the kinetic energy
     do k=1,4
         do i=1,mv
@@ -2231,9 +2286,10 @@ $N2             &                  ddpsi(:,:,(2*k-1):2*k))
     !---------------------------------------------------------------------------
 $SKYRMEACTION
 
+    call stop_timer(T_sph_action)
     call stop_timer(T_sphamil)
 
-  end function apply_sphamil
+  end function apply_sphamil_prec
 
   function delta_action(        psi,   &
 $N1DELTA                   &   dpsi,   &

@@ -332,6 +332,7 @@ contains
         use wavefunctions
         
         type(PotentialVector), intent(in) :: F
+        type(PotentialVector)             :: Fcombined
         integer, intent(in)               :: iteration
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
@@ -346,6 +347,9 @@ contains
 #if(USE_MPI > 0)
         call stp('Subroutine evolve_graddesc is not ready for use in MPI calculations.')
 #endif
+        ! All spwfs see the same potentials: combine once, then apply.
+        Fcombined = F
+        call combine_potentials(Fcombined)
         do wave=1,nwt
             if(wave .le. nwn) then
                 iso = -1
@@ -353,11 +357,12 @@ contains
                 iso = +1
             endif
 
-            hpsi = apply_sphamil( hfpsi(:,:,wave),                           &
+            hpsi = apply_sphamil_prec( hfpsi(:,:,wave),                      &
             &              hfdpsi(:,:,:,wave)    ,                           &
             &              hfddpsi(:,:,:,wave)   ,                           &
 $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,   &
+            &              Fcombined)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
@@ -460,6 +465,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         external :: DSYEV
         
         type(PotentialVector), intent(in) :: F
+        type(PotentialVector)             :: Fcombined
         integer, intent(in)               :: iteration
         integer, allocatable              :: indices(:)
         
@@ -530,6 +536,10 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
            sphamil(:,wave)   = 0.0d0
         enddo
 
+        ! All spwfs see the same potentials: combine once, then apply.
+        Fcombined = F
+        call combine_potentials(Fcombined)
+
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
@@ -559,11 +569,12 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
             endif
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
-            hpsi = apply_sphamil(  hfpsi(:,:,wave)       ,                          &
+            hpsi = apply_sphamil_prec(  hfpsi(:,:,wave)     ,                        &
             &                     hfdpsi(:,:,:,der_index),                          &
             &                    hfddpsi(:,:,:,der_index),                          &
-$N3         &                   hfdddpsi(:,:,:,der_index),                          &
-            &                      sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,F)
+$N3         &                   hfdddpsi(:,:,:,der_index),                         &
+            &                  sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,     &
+            &                  Fcombined)
 
 
             ! 27/10/'26 : this is no longer hidden behind a condition
@@ -974,11 +985,16 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       logical, intent(in)                  :: onthefly
       integer                              :: wave
       type(PotentialVector), intent(in)    :: F
-      
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      type(PotentialVector)                :: Fwork
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! The potentials are identical for all vectors: combine once.
+      Fwork = F
+      call combine_potentials(Fwork)
       do wave=1,m
-        hx(:,:,wave)=apply_sphamil(x(:,:,wave),dx(:,:,:,wave),ddx(:,:,:,wave), &
-        &                          sx,sy,sz,iso,onthefly,F)
+        hx(:,:,wave)=apply_sphamil_prec(x(:,:,wave),dx(:,:,:,wave),           &
+        &                          ddx(:,:,:,wave),                          &
+        &                          sx,sy,sz,iso,onthefly,Fwork)
       enddo
     end subroutine apply_sphamil_block
 
@@ -1022,11 +1038,15 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       real(KIND=dp), intent(out), target   :: hx(mv,4,m)
       integer                              :: wave
       type(PotentialVector), intent(in)    :: F
-      
+      type(PotentialVector)                :: Fwork
+
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! The potentials are identical for all vectors: combine once.
+      Fwork = F
+      call combine_potentials(Fwork)
       do wave=1,m
-        hx(:,:,wave)=apply_sphamil(x(:,:,wave),dx(:,:,:),ddx(:,:,:), &
-        &                          sx,sy,sz,iso,.true.,F)
+        hx(:,:,wave)=apply_sphamil_prec(x(:,:,wave),dx(:,:,:),ddx(:,:,:), &
+        &                          sx,sy,sz,iso,.true.,Fwork)
       enddo
     end subroutine apply_sphamil_block_no_derivative_storage
 
@@ -1132,6 +1152,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         !
         !------------------------------------------------------------------------
         type(PotentialVector), intent(in) :: F
+        type(PotentialVector)             :: Fcombined
         logical, intent(in)        :: onthefly
 
         real(KIND=dp), allocatable :: sph(:,:)
@@ -1168,9 +1189,12 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         allocate(sph(nwt,nwt))
 #endif
         sph = 0.0d0
+        ! All spwfs see the same potentials: combine once, then apply.
+        Fcombined = F
+        call combine_potentials(Fcombined)
         si = 0
         do B=1,8                      !<---- this loops over local spwf indices
-#if(USE_MPI == 0) 
+#if(USE_MPI == 0)
           N = HFBlocks(B) ; if(N.eq.0) cycle
           iso = -1        ; if(B.gt.4) iso = +1
 
@@ -1204,11 +1228,11 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
                 der_index = 1
              endif
              temp_wfs(:,:,i) = hfpsi(:,:,wave)
-             hpsi(:,:,i) = apply_sphamil(temp_wfs(:,:,i),          &
+             hpsi(:,:,i) = apply_sphamil_prec(temp_wfs(:,:,i),     &
                   &                      HFdPsi(:,:,:,der_index) , &
                   &                      HFddPsi(:,:,:,der_index), &
                   &                      sx(:,wave),sy(:,wave),sz(:,wave), &
-                  &                      iso,.not.store_derivatives,F)
+                  &                      iso,.not.store_derivatives,Fcombined)
           enddo
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Calculate matrix elements by way of a BLAS call
@@ -1533,6 +1557,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       !   spwf_dispersions: array containing the dispersions of all spwfs
       !-------------------------------------------------------------------------
       type(PotentialVector), intent(in) :: F
+      type(PotentialVector)             :: Fcombined
       integer                    :: wave , iso, wave_global
       real(KIND=dp), allocatable :: hpsi(:,:)
       real(KIND=dp), allocatable :: spwf_dispersions(:)
@@ -1542,19 +1567,23 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 #endif
 
       allocate(spwf_dispersions(nwt))
-      do wave=1,nwt_local 
+      ! All spwfs see the same potentials: combine once, then apply.
+      Fcombined = F
+      call combine_potentials(Fcombined)
+      do wave=1,nwt_local
           wave_global = spwf_map(wave)
           if(wave_global .le. nwn) then
               iso = -1
           else
               iso = +1
           endif
-  
-          hpsi = apply_sphamil( hfpsi(:,:,wave),                           &
+
+          hpsi = apply_sphamil_prec( hfpsi(:,:,wave),                      &
           &              hfdpsi(:,:,:,wave)    ,                           &
           &              hfddpsi(:,:,:,wave)   ,                           &
 $N3       &              hfdddpsi(:,:,:,wave)  ,                           &
-          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
+          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,   &
+          &              Fcombined)
 
           energy = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
           spwf_dispersions(wave_global) = sum(hpsi**2)*dv - energy**2
@@ -1650,6 +1679,7 @@ $N3       &              hfdddpsi(:,:,:,wave)  ,                           &
         
 
       type(PotentialVector), intent(in):: F
+      type(PotentialVector)            :: Fcombined
       integer, intent(in)              :: iteration
 
       real(KIND=dp), allocatable, save :: maxspwf(:,:,:)
@@ -1702,6 +1732,9 @@ $N3       allocate(dddmax(nx*ny*nz,10,4))
       ! wavefunctions (one for each isospin) to guess at the maximal eigenvalue
       ! of the single-particle hamiltonian.
       estimated_max_spe = 0.0d0
+      ! The potentials do not change during the iteration: combine once.
+      Fcombined = F
+      call combine_potentials(Fcombined)
       do it = 1,2
         con(it) = 1
         iso     = 2*it-3
@@ -1712,9 +1745,10 @@ $N3       allocate(dddmax(nx*ny*nz,10,4))
           ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
           !   assumed to be the reflection quantum numbers of the very first
           !   symmetry block.
-          actionofh = apply_sphamil(maxspwf(:,:,it), dmax, ddmax,              &
+          actionofh = apply_sphamil_prec(maxspwf(:,:,it), dmax, ddmax,        &
 $N3       &                                         dddmax,                    &
-          &                                  sx_max,sy_max,sz_max,iso,.true., F)
+          &                           sx_max,sy_max,sz_max,iso,.true.,        &
+          &                           Fcombined)
           con(it)                  = estimated_max_spe(it)
           estimated_max_spe(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
           con(it)                  = con(it) - estimated_max_spe(it)
