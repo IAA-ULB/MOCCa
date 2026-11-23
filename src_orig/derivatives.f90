@@ -112,8 +112,11 @@ module derivatives
  ! bounds-remapped contiguous pointers: X on the flat (nx, ny*nz) mesh view,
  ! Y per z-plane as C = F * A^T, Z on the (nx*ny, nz) box view. Second and
  ! third orders are chained products on the lower-order slots. No packing,
- ! no temporaries. The payoff requires an optimized BLAS (OpenBLAS/MKL);
- ! against a netlib-grade BLAS the previous hand loops were competitive.
+ ! no temporaries. In the periodic (pasta) routines the complex operators and
+ ! fields are stored as separate contiguous real/imag blocks; one complex
+ ! product becomes four of the same real DGEMMs per direction. The payoff
+ ! requires an optimized BLAS (OpenBLAS/MKL); against a netlib-grade BLAS
+ ! the previous hand loops were competitive.
  !==============================================================================
 
  use geninfo
@@ -643,105 +646,102 @@ $N2    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
 $N2    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzzz
 $N2    !---------------------------------------------------------------------------
 $N2
-$N2    real(KIND=dp), intent(in)  :: f(:,:,:,:)
-$N2    real(KIND=dp), intent(out) :: df(:,:,:,:,:), ddf(:,:,:,:,:)
+$N2    real(KIND=dp), intent(in), target, contiguous  :: f(:,:,:,:)
+$N2    real(KIND=dp), intent(out), target, contiguous :: df(:,:,:,:,:), ddf(:,:,:,:,:)
 $N2    integer, intent(in)        :: px(2), py(2), pz(2)
-$N2    integer                    :: i,k,j,l
+$N2    integer                    :: k
 $N2    integer                    :: sx(2), sy(2), sz(2)
+$N2    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:)
+$N2    real(KIND=dp), pointer, contiguous :: gr(:,:), gi(:,:)
+$N2    real(KIND=dp), pointer, contiguous :: hr(:,:), hi(:,:)
 $N2
 $N2    sx = (-px + 1)/2*2 ! These are equal to
 $N2    sy = (-py + 1)/2*2 !    0    if pi =   +1  or 0
 $N2    sz = (-pz + 1)/2*2 !    2    if pi =   -1
 $N2
-$N2    df = 0.0d0 ; ddf = 0.0d0
 $N2    !---------------------------------------------------------------------------
-$N2    !  First order derivatives and diagonal second-order ones
-$N2    !NS: Now d_re f=derX_re*f_re-derX_im*f_im
-$N2    !   sx accounts for the parity
+$N2    !  First order derivatives and diagonal second-order ones.
+$N2    !NS: each complex product = four zero-copy DGEMMs; the first product
+$N2    !    carries beta=0, wiping the output block (no explicit zeroing).
+$N2    ! X-direction: operator acts on the first index of the flat mesh view.
+$N2    fr(1:nx,1:ny*nz) => f(:,:,:,1)
+$N2    fi(1:nx,1:ny*nz) => f(:,:,:,2)
+$N2    gr(1:nx,1:ny*nz) => df(:,:,:,1,1)
+$N2    gi(1:nx,1:ny*nz) => df(:,:,:,1,2)
+$N2    hr(1:nx,1:ny*nz) => ddf(:,:,:,1,1)
+$N2    hi(1:nx,1:ny*nz) => ddf(:,:,:,1,2)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX  (1,1,1+sx(1)),nx, fr,nx, 0.0d0,gr,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx,-1.0d0, derX  (1,1,2+sx(2)),nx, fi,nx, 1.0d0,gr,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX  (1,1,2+sx(1)),nx, fr,nx, 0.0d0,gi,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX  (1,1,1+sx(2)),nx, fi,nx, 1.0d0,gi,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,1+sx(1)),nx, fr,nx, 0.0d0,hr,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx,-1.0d0, laplaX(1,1,2+sx(2)),nx, fi,nx, 1.0d0,hr,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,2+sx(1)),nx, fr,nx, 0.0d0,hi,nx)
+$N2    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, laplaX(1,1,1+sx(2)),nx, fi,nx, 1.0d0,hi,nx)
+$N2    ! Y-direction: per z-plane products C = F * A^T.
 $N2    do k=1,nz
-$N2     do j=1,ny
-$N2      do l=1,nx
-$N2       do i=1,nx
-$N2         df(i,j,k,1,1) = df(i,j,k,1,1) + derX  (i,l,1+sx(1))*f(l,j,k,1) &
-$N2                       &               - derX  (i,l,2+sx(2))*f(l,j,k,2)
-$N2         df(i,j,k,1,2) = df(i,j,k,1,2) + derX  (i,l,2+sx(1))*f(l,j,k,1) &
-$N2                       &               + derX  (i,l,1+sx(2))*f(l,j,k,2)
-$N2        ddf(i,j,k,1,1) = ddf(i,j,k,1,1)+ laplaX(i,l,1+sx(1))*f(l,j,k,1) &
-$N2                       &               - laplaX(i,l,2+sx(2))*f(l,j,k,2)
-$N2        ddf(i,j,k,1,2) = ddf(i,j,k,1,2)+ laplaX(i,l,2+sx(1))*f(l,j,k,1) &
-$N2                       &               + laplaX(i,l,1+sx(2))*f(l,j,k,2)
-$N2       enddo
-$N2      enddo
+$N2      fr(1:nx,1:ny) => f(:,:,k,1)
+$N2      fi(1:nx,1:ny) => f(:,:,k,2)
+$N2      gr(1:nx,1:ny) => df(:,:,k,2,1)
+$N2      gi(1:nx,1:ny) => df(:,:,k,2,2)
+$N2      hr(1:nx,1:ny) => ddf(:,:,k,4,1)
+$N2      hi(1:nx,1:ny) => ddf(:,:,k,4,2)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY  (1,1,1+sy(1)),ny, 0.0d0,gr,nx)
+$N2      call dgemm('N','T',nx,ny,ny,-1.0d0, fi,nx, derY  (1,1,2+sy(2)),ny, 1.0d0,gr,nx)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY  (1,1,2+sy(1)),ny, 0.0d0,gi,nx)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fi,nx, derY  (1,1,1+sy(2)),ny, 1.0d0,gi,nx)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, laplaY(1,1,1+sy(1)),ny, 0.0d0,hr,nx)
+$N2      call dgemm('N','T',nx,ny,ny,-1.0d0, fi,nx, laplaY(1,1,2+sy(2)),ny, 1.0d0,hr,nx)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, laplaY(1,1,2+sy(1)),ny, 0.0d0,hi,nx)
+$N2      call dgemm('N','T',nx,ny,ny, 1.0d0, fi,nx, laplaY(1,1,1+sy(2)),ny, 1.0d0,hi,nx)
 $N2    enddo
-$N2    enddo
-$N2
-$N2    do k=1,nz
-$N2     do j=1,ny
-$N2      do l=1,ny
-$N2       do i=1,nx
-$N2         df(i,j,k,2,1) = df(i,j,k,2,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) &
-$N2                       &               - derY  (j,l,2+sy(2))*f(i,l,k,2)
-$N2         df(i,j,k,2,2) = df(i,j,k,2,2) + derY  (j,l,2+sy(1))*f(i,l,k,1) &
-$N2                       &               + derY  (j,l,1+sy(2))*f(i,l,k,2)
-$N2        ddf(i,j,k,4,1) = ddf(i,j,k,4,1)+ laplaY(j,l,1+sy(1))*f(i,l,k,1) &
-$N2                       &               - laplaY(j,l,2+sy(2))*f(i,l,k,2)
-$N2        ddf(i,j,k,4,2) = ddf(i,j,k,4,2)+ laplaY(j,l,2+sy(1))*f(i,l,k,1) &
-$N2                       &               + laplaY(j,l,1+sy(2))*f(i,l,k,2)
-$N2       enddo
-$N2      enddo
-$N2     enddo
-$N2    enddo
-$N2
-$N2    do k=1,nz
-$N2     do l=1,nz
-$N2      do j=1,ny
-$N2       do i=1,nx
-$N2         df(i,j,k,3,1) = df(i,j,k,3,1) + derZ  (k,l,1+sz(1))*f(i,j,l,1) &
-$N2                       &               - derZ  (k,l,2+sz(2))*f(i,j,l,2)
-$N2         df(i,j,k,3,2) = df(i,j,k,3,2) + derZ  (k,l,2+sz(1))*f(i,j,l,1) &
-$N2                       &               + derZ  (k,l,1+sz(2))*f(i,j,l,2)
-$N2        ddf(i,j,k,6,1) = ddf(i,j,k,6,1)+ laplaZ(k,l,1+sz(1))*f(i,j,l,1) &
-$N2                       &               - laplaZ(k,l,2+sz(2))*f(i,j,l,2)
-$N2        ddf(i,j,k,6,2) = ddf(i,j,k,6,2)+ laplaZ(k,l,2+sz(1))*f(i,j,l,1) &
-$N2                       &               + laplaZ(k,l,1+sz(2))*f(i,j,l,2)
-$N2       enddo
-$N2      enddo
-$N2     enddo
-$N2    enddo
+$N2    ! Z-direction: the whole box as (nx*ny, nz).
+$N2    fr(1:nx*ny,1:nz) => f(:,:,:,1)
+$N2    fi(1:nx*ny,1:nz) => f(:,:,:,2)
+$N2    gr(1:nx*ny,1:nz) => df(:,:,:,3,1)
+$N2    gi(1:nx*ny,1:nz) => df(:,:,:,3,2)
+$N2    hr(1:nx*ny,1:nz) => ddf(:,:,:,6,1)
+$N2    hi(1:nx*ny,1:nz) => ddf(:,:,:,6,2)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ  (1,1,1+sz(1)),nz, 0.0d0,gr,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz,-1.0d0, fi,nx*ny, derZ  (1,1,2+sz(2)),nz, 1.0d0,gr,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ  (1,1,2+sz(1)),nz, 0.0d0,gi,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fi,nx*ny, derZ  (1,1,1+sz(2)),nz, 1.0d0,gi,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, laplaZ(1,1,1+sz(1)),nz, 0.0d0,hr,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz,-1.0d0, fi,nx*ny, laplaZ(1,1,2+sz(2)),nz, 1.0d0,hr,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, laplaZ(1,1,2+sz(1)),nz, 0.0d0,hi,nx*ny)
+$N2    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fi,nx*ny, laplaZ(1,1,1+sz(2)),nz, 1.0d0,hi,nx*ny)
 $N2ALL !---------------------------------------------------------------------------
-$N2ALL ! Off-diagonal second order derivatives
+$N2ALL ! Off-diagonal second order derivatives: chained products on the
+$N2ALL ! first-order slots, same four-DGEMM complex expansion.
 $N2ALL do k=1,nz
-$N2ALL  do l=1,ny
-$N2ALL   do j=1,ny
-$N2ALL    do i=1,nx
-$N2ALL     ! XY-derivative
-$N2ALL     ddf(i,j,k,2,1) = ddf(i,j,k,2,1)+ derY(j,l,1+sy(1))*df(i,l,k,1,1) &
-$N2ALL                    &               - derY(j,l,2+sy(2))*df(i,l,k,1,2)
-$N2ALL     ddf(i,j,k,2,2) = ddf(i,j,k,2,2)+ derY(j,l,2+sy(1))*df(i,l,k,1,1) &
-$N2ALL                    &               + derY(j,l,1+sy(2))*df(i,l,k,1,2)
-$N2ALL    enddo
-$N2ALL   enddo
-$N2ALL  enddo
+$N2ALL   fr(1:nx,1:ny) => df(:,:,k,1,1)
+$N2ALL   fi(1:nx,1:ny) => df(:,:,k,1,2)
+$N2ALL   gr(1:nx,1:ny) => ddf(:,:,k,2,1)
+$N2ALL   gi(1:nx,1:ny) => ddf(:,:,k,2,2)
+$N2ALL   call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY(1,1,1+sy(1)),ny, 0.0d0,gr,nx)
+$N2ALL   call dgemm('N','T',nx,ny,ny,-1.0d0, fi,nx, derY(1,1,2+sy(2)),ny, 1.0d0,gr,nx)
+$N2ALL   call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY(1,1,2+sy(1)),ny, 0.0d0,gi,nx)
+$N2ALL   call dgemm('N','T',nx,ny,ny, 1.0d0, fi,nx, derY(1,1,1+sy(2)),ny, 1.0d0,gi,nx)
 $N2ALL enddo
-$N2ALL 
-$N2ALL do k=1,nz
-$N2ALL  do l=1,nz
-$N2ALL   do j=1,ny
-$N2ALL    do i=1,nx
-$N2ALL     ! XZ-derivative
-$N2ALL     ddf(i,j,k,3,1) = ddf(i,j,k,3,1)+ derZ(k,l,1+sz(1))*df(i,j,l,1,1) &
-$N2ALL                    &               - derZ(k,l,2+sz(2))*df(i,j,l,1,2)
-$N2ALL     ddf(i,j,k,3,2) = ddf(i,j,k,3,2)+ derZ(k,l,2+sz(1))*df(i,j,l,1,1) &
-$N2ALL                    &               + derZ(k,l,1+sz(2))*df(i,j,l,1,2)
-$N2ALL     ! YZ-derivative
-$N2ALL     ddf(i,j,k,5,1) = ddf(i,j,k,5,1)+ derZ(k,l,1+sz(1))*df(i,j,l,2,1) &
-$N2ALL                    &               - derZ(k,l,2+sz(2))*df(i,j,l,2,2)
-$N2ALL     ddf(i,j,k,5,2) = ddf(i,j,k,5,2)+ derZ(k,l,2+sz(1))*df(i,j,l,2,1) &
-$N2ALL                    &               + derZ(k,l,1+sz(2))*df(i,j,l,2,2)
-$N2ALL    enddo
-$N2ALL   enddo
-$N2ALL  enddo
-$N2ALL enddo
+$N2ALL
+$N2ALL ! XZ-derivative: box view of df slot 1.
+$N2ALL fr(1:nx*ny,1:nz) => df(:,:,:,1,1)
+$N2ALL fi(1:nx*ny,1:nz) => df(:,:,:,1,2)
+$N2ALL gr(1:nx*ny,1:nz) => ddf(:,:,:,3,1)
+$N2ALL gi(1:nx*ny,1:nz) => ddf(:,:,:,3,2)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,1+sz(1)),nz, 0.0d0,gr,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz,-1.0d0, fi,nx*ny, derZ(1,1,2+sz(2)),nz, 1.0d0,gr,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,2+sz(1)),nz, 0.0d0,gi,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fi,nx*ny, derZ(1,1,1+sz(2)),nz, 1.0d0,gi,nx*ny)
+$N2ALL ! YZ-derivative: box view of df slot 2.
+$N2ALL fr(1:nx*ny,1:nz) => df(:,:,:,2,1)
+$N2ALL fi(1:nx*ny,1:nz) => df(:,:,:,2,2)
+$N2ALL gr(1:nx*ny,1:nz) => ddf(:,:,:,5,1)
+$N2ALL gi(1:nx*ny,1:nz) => ddf(:,:,:,5,2)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,1+sz(1)),nz, 0.0d0,gr,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz,-1.0d0, fi,nx*ny, derZ(1,1,2+sz(2)),nz, 1.0d0,gr,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,2+sz(1)),nz, 0.0d0,gi,nx*ny)
+$N2ALL call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fi,nx*ny, derZ(1,1,1+sz(2)),nz, 1.0d0,gi,nx*ny)
 $N2    !---------------------------------------------------------------------------
 $N2 end subroutine Derive_tot_periodic_3D
 
@@ -959,25 +959,22 @@ $N3ALL end subroutine Derive_tot_1D
     ! fx = First order derivative in the x direction
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
-    real(KIND=dp), intent(out) :: fx(:,:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fx(:,:,:,:)
     integer, intent(in)        :: px(2)
-    integer                    :: i,j,k,l,sx(2)
+    integer                    :: sx(2)
+    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:), gr(:,:), gi(:,:)
 
     sx = (-px + 1)/2*2
-    fx  = 0.0d0
-    do k=1,nz
-     do j=1,ny
-      do l=1,nx
-       do i=1,nx
-         fx(i,j,k,1) = fx(i,j,k,1) + derX  (i,l,1+sx(1))*f(l,j,k,1) &
-                       &           - derX  (i,l,2+sx(2))*f(l,j,k,2)
-         fx(i,j,k,2) = fx(i,j,k,2) + derX  (i,l,2+sx(1))*f(l,j,k,1) &
-                       &           + derX  (i,l,1+sx(2))*f(l,j,k,2)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! Real/imag parts live in separate contiguous blocks: zero-copy views.
+    fr(1:nx,1:ny*nz) => f(:,:,:,1)
+    fi(1:nx,1:ny*nz) => f(:,:,:,2)
+    gr(1:nx,1:ny*nz) => fx(:,:,:,1)
+    gi(1:nx,1:ny*nz) => fx(:,:,:,2)
+    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,1+sx(1)),nx, fr,nx, 0.0d0,gr,nx)
+    call dgemm('N','N',nx,ny*nz,nx,-1.0d0, derX(1,1,2+sx(2)),nx, fi,nx, 1.0d0,gr,nx)
+    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,2+sx(1)),nx, fr,nx, 0.0d0,gi,nx)
+    call dgemm('N','N',nx,ny*nz,nx, 1.0d0, derX(1,1,1+sx(2)),nx, fi,nx, 1.0d0,gi,nx)
  end subroutine Derive_X_3D_periodic
 
  subroutine Derive_X_single_1D(f, px, fx)
@@ -1123,26 +1120,27 @@ $N3ALL end subroutine Derive_tot_1D
     ! Compute the Y-derivative of a single complex function on the mesh.
     !
     ! fy = First order derivative in the x direction
-    ! py = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! Real/imag parts of the operator sit in block pairs (1+s, 2+s).
+    ! One complex product = four zero-copy DGEMMs per z-plane: beta wipes
+    ! the output block, so no explicit zeroing is needed.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
-    real(KIND=dp), intent(out) :: fy(:,:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fy(:,:,:,:)
     integer, intent(in)        :: py(2)
-    integer                    :: i,j,k,l,sy(2)
+    integer                    :: k, sy(2)
+    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:), gr(:,:), gi(:,:)
 
     sy = (-py + 1)/2*2
-    fy  = 0.0d0
     do k=1,nz
-     do j=1,ny
-      do l=1,ny
-       do i=1,nx
-         fy(i,j,k,1) = fy(i,j,k,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) &
-                       &           - derY  (j,l,2+sy(2))*f(i,l,k,2)
-         fy(i,j,k,2) = fy(i,j,k,2) + derY  (j,l,2+sy(1))*f(i,l,k,1) &
-                       &           + derY  (j,l,1+sy(2))*f(i,l,k,2)
-       enddo
-      enddo
-     enddo
+      fr(1:nx,1:ny) => f(:,:,k,1)
+      fi(1:nx,1:ny) => f(:,:,k,2)
+      gr(1:nx,1:ny) => fy(:,:,k,1)
+      gi(1:nx,1:ny) => fy(:,:,k,2)
+      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY(1,1,1+sy(1)),ny, 0.0d0,gr,nx)
+      call dgemm('N','T',nx,ny,ny,-1.0d0, fi,nx, derY(1,1,2+sy(2)),ny, 1.0d0,gr,nx)
+      call dgemm('N','T',nx,ny,ny, 1.0d0, fr,nx, derY(1,1,2+sy(1)),ny, 0.0d0,gi,nx)
+      call dgemm('N','T',nx,ny,ny, 1.0d0, fi,nx, derY(1,1,1+sy(2)),ny, 1.0d0,gi,nx)
     enddo
  end subroutine Derive_Y_3D_periodic
 
@@ -1284,25 +1282,22 @@ $N3ALL end subroutine Derive_tot_1D
     ! fz = First order derivative in the x direction
     ! pz = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
-    real(KIND=dp), intent(out) :: fz(:,:,:,:)
+    real(KIND=dp), intent(in), target, contiguous  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out), target, contiguous :: fz(:,:,:,:)
     integer, intent(in)        :: pz(2)
-    integer                    :: i,j,k,l,sz(2)
+    integer                    :: sz(2)
+    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:), gr(:,:), gi(:,:)
 
     sz = (-pz + 1)/2*2
-    fz  = 0.0d0
-    do k=1,nz
-     do l=1,nz
-      do j=1,ny
-       do i=1,nx
-         fz(i,j,k,1) = fz(i,j,k,1) + derZ  (k,l,1+sz(1))*f(i,j,l,1) &
-                       &           - derZ  (k,l,2+sz(2))*f(i,j,l,2)
-         fz(i,j,k,2) = fz(i,j,k,2) + derZ  (k,l,2+sz(1))*f(i,j,l,1) &
-                       &           + derZ  (k,l,1+sz(2))*f(i,j,l,2)
-       enddo
-      enddo
-     enddo
-    enddo
+    ! Whole box per part: C = F * A^T on the (nx*ny, nz) view.
+    fr(1:nx*ny,1:nz) => f(:,:,:,1)
+    fi(1:nx*ny,1:nz) => f(:,:,:,2)
+    gr(1:nx*ny,1:nz) => fz(:,:,:,1)
+    gi(1:nx*ny,1:nz) => fz(:,:,:,2)
+    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,1+sz(1)),nz, 0.0d0,gr,nx*ny)
+    call dgemm('N','T',nx*ny,nz,nz,-1.0d0, fi,nx*ny, derZ(1,1,2+sz(2)),nz, 1.0d0,gr,nx*ny)
+    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fr,nx*ny, derZ(1,1,2+sz(1)),nz, 0.0d0,gi,nx*ny)
+    call dgemm('N','T',nx*ny,nz,nz, 1.0d0, fi,nx*ny, derZ(1,1,1+sz(2)),nz, 1.0d0,gi,nx*ny)
  end subroutine Derive_Z_3D_periodic
 
  subroutine Derive_Z_single_1D(f, pz, fz)
