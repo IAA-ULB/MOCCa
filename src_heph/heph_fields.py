@@ -1707,6 +1707,32 @@ def GenerateAction(field, symmetrize, so):
         # -----------------------------------------------------------------------
         # End of rarg loop.
         # -----------------------------------------------------------------------
+        # A single plain derivative (no laplacian) whose result feeds hpsi
+        # with identity spinor mapping and uniform sign can fold its final
+        # accumulation pass into the derivative kernel (accumulate with
+        # beta=1). Restricted to hpsi blocks: pairing fields write deltapsi.
+        single_derive = (LeftOperator.derorder == 1) and not any(
+            c[0] == 0 for c in lcoupl
+        )
+        acc_ok = single_derive and ("P" not in field)
+        if acc_ok:
+            uni = 0
+            for k in range(4):
+                sign = np.sign(leftind[k, 0])
+                if (symmetrize == -1) and ("C" in left or "C" in right):
+                    sign = -sign
+                if int(abs(leftind[k, 0])) != k + 1 or (k > 0 and sign != uni):
+                    acc_ok = False
+                    break
+                uni = sign
+        if acc_ok:
+            mult = dic["LMULT"].replace("*", "").strip()
+            if mult == "":
+                mult = "1.0d0"
+            if uni > 0:
+                dic["ACCCOEF"] = mult
+            else:
+                dic["ACCCOEF"] = "-" + mult
         # Calculation of the derivatives in steps:
         lasttemp = "temp"
         for lorder in range(LeftOperator.derorder):
@@ -1763,30 +1789,41 @@ def GenerateAction(field, symmetrize, so):
                     else:
                         dic["SYM"] = "-s" + Direction[direc - 1] + "(%d)" % (k + 1)
                     expression = expression + ts.sym.substitute(dic)
-                expression = expression + ts.derive.substitute(dic)
+                if acc_ok:
+                    # Final pass folded into the kernel: no dtemp round
+                    # trip, the result goes straight into hpsi.
+                    expression = expression + ts.derive_acc.substitute(dic)
+                else:
+                    expression = expression + ts.derive.substitute(dic)
                 lasttemp = (lorder + 1) * "d" + "temp"
         # -----------------------------------------------------------------------
         # Add final result to hpsi
-        dic["TEMP"] = lasttemp
-        for k in range(4):
-            dic["LIND"] = ""
-            for l in true_larg[0 : LeftOperator.derorder]:
-                dic["LIND"] = dic["LIND"] + "," + str(l + 1)
-            dic["IND"] = k + 1
-            dic["RCOMP"] = int(abs(leftind[k, 0]))
-            SIGN = np.sign(leftind[k, 0])
-            if (symmetrize == -1) and ("C" in left or "C" in right):
-                SIGN = -SIGN
+        if acc_ok:
+            # Already accumulated by the derivative kernel.
+            expression = expression + "\n"
+        else:
+            dic["TEMP"] = lasttemp
+            for k in range(4):
+                dic["LIND"] = ""
+                for l in true_larg[0 : LeftOperator.derorder]:
+                    dic["LIND"] = dic["LIND"] + "," + str(l + 1)
+                dic["IND"] = k + 1
+                dic["RCOMP"] = int(abs(leftind[k, 0]))
+                SIGN = np.sign(leftind[k, 0])
+                if (symmetrize == -1) and ("C" in left or "C" in right):
+                    SIGN = -SIGN
 
-            if SIGN > 0:
-                dic["SIGN"] = "+"
-            else:
-                dic["SIGN"] = "-"
+                if SIGN > 0:
+                    dic["SIGN"] = "+"
+                else:
+                    dic["SIGN"] = "-"
 
-            if "P" not in field:
-                expression = expression + ts.action_final.substitute(dic)
-            else:
-                expression = expression + ts.action_final_pairing.substitute(dic)
+                if "P" not in field:
+                    expression = expression + ts.action_final.substitute(dic)
+                else:
+                    expression = expression + ts.action_final_pairing.substitute(
+                        dic
+                    )
         expression = expression + "\n"
         # -----------------------------------------------------------------------
         # End of true_larg loop

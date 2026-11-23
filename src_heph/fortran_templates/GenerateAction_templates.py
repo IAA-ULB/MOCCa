@@ -18,6 +18,11 @@ action_init  = T(2*tab + \
 #'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
 derive     = T(tab + \
 'call Derive_$DIR($DNUMBER(:,:), sym, d$DNUMBER(:,:,$DIRIND)) \n')
+# Accumulating form: the last derivative of a block writes its result
+# straight into hpsi (kernel beta=1), replacing the separate
+# hpsi = hpsi +/- c * dtemp pass.
+derive_acc = T(tab + \
+'call Derive_$DIR($DNUMBER(:,:), sym, hpsi(:,:), $ACCCOEF) \n')
 lap        = T(tab + \
 'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
 sym        = T(tab + \

@@ -198,6 +198,7 @@ module derivatives
     module procedure derive_X_single_3D
     module procedure derive_X_single_3D_complex
     module procedure derive_X_spwf
+    module procedure derive_X_spwf_acc
  end interface
 
  interface derive_Y
@@ -206,6 +207,7 @@ module derivatives
     module procedure derive_Y_single_3D
     module procedure derive_Y_single_3D_complex
     module procedure derive_Y_spwf
+    module procedure derive_Y_spwf_acc
  end interface
 
  interface derive_Z
@@ -214,6 +216,7 @@ module derivatives
     module procedure derive_Z_single_3D
     module procedure derive_Z_single_3D_complex
     module procedure derive_Z_spwf
+    module procedure derive_Z_spwf_acc
  end interface
 
 contains
@@ -1084,6 +1087,49 @@ $N3ALL end subroutine Derive_tot_1D
     call stop_timer(T_der_kernel)
  end subroutine Derive_X_spwf
 
+ subroutine Derive_X_spwf_acc(f, px, fx, coef)
+    !---------------------------------------------------------------------------
+    ! Accumulating variant of Derive_X_spwf, used by the generated action to
+    ! fold its final accumulation pass into the derivative kernel:
+    !   fx = fx + coef * dX f
+    !
+    ! The output is NOT wiped first: previous content of fx is kept.
+    ! px  = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous :: f(:,:)
+    real(KIND=dp), intent(inout), target, contiguous :: fx(:,:)
+    integer, intent(in)          :: px(4)
+    real(KIND=dp), intent(in)    :: coef
+    integer                      :: m, s1, s2
+    real(KIND=dp), pointer, contiguous :: f2(:,:), x2(:,:), fr(:,:), fi(:,:), gr(:,:), gi(:,:)
+
+    call start_timer(T_der_kernel)
+#if(USE_Periodic>0)
+    ! Component pairs (2m-1,2m) form one complex function each; real and
+    ! imaginary parts live in separate contiguous blocks (zero-copy views).
+    do m=1,2
+     s1 = (-px(2*m-1) + 1)/2*2
+     s2 = (-px(2*m)   + 1)/2*2
+     fr(1:nx,1:ny*nz) => f(:,2*m-1)
+     fi(1:nx,1:ny*nz) => f(:,2*m)
+     gr(1:nx,1:ny*nz) => fx(:,2*m-1)
+     gi(1:nx,1:ny*nz) => fx(:,2*m)
+     call dgemm('N','N',nx,ny*nz,nx, coef, derX(1,1,1+s1),nx, fr,nx, 1.0d0,gr,nx)
+     call dgemm('N','N',nx,ny*nz,nx,-coef, derX(1,1,2+s2),nx, fi,nx, 1.0d0,gr,nx)
+     call dgemm('N','N',nx,ny*nz,nx, coef, derX(1,1,2+s1),nx, fr,nx, 1.0d0,gi,nx)
+     call dgemm('N','N',nx,ny*nz,nx, coef, derX(1,1,1+s2),nx, fi,nx, 1.0d0,gi,nx)
+    enddo
+#else
+    do m=1,4
+     s1 = (-px(m) + 3)/2
+     f2(1:nx,1:ny*nz) => f(:,m)
+     x2(1:nx,1:ny*nz) => fx(:,m)
+     call dgemm('N','N',nx,ny*nz,nx, coef, derX(1,1,s1),nx, f2,nx, 1.0d0,x2,nx)
+    enddo
+#endif
+    call stop_timer(T_der_kernel)
+ end subroutine Derive_X_spwf_acc
+
   subroutine Derive_Y_single_3D(f, py, fy)
     !---------------------------------------------------------------------------
     ! Compute the Y-derivative of a single 3D-function on the mesh.
@@ -1248,6 +1294,60 @@ $N3ALL end subroutine Derive_tot_1D
 
  end subroutine Derive_Y_spwf
 
+ subroutine Derive_Y_spwf_acc(f, py, fy, coef)
+    !---------------------------------------------------------------------------
+    ! Accumulating variant of Derive_Y_spwf, used by the generated action to
+    ! fold its final accumulation pass into the derivative kernel:
+    !   fy = fy + coef * dY f
+    !
+    ! The output is NOT wiped first: previous content of fy is kept.
+    ! py  = sign of the symmetry transformation in the y-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous :: f(:,:)
+    real(KIND=dp), intent(inout), target, contiguous :: fy(:,:)
+    integer, intent(in)          :: py(4)
+    real(KIND=dp), intent(in)    :: coef
+    integer                      :: m, k, s1, s2
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:,:), fy3(:,:,:,:)
+    real(KIND=dp), pointer, contiguous :: fr3(:,:,:), fyr3(:,:,:)
+    real(KIND=dp), pointer, contiguous :: fyp(:,:), cyp(:,:)
+    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:), gr(:,:), gi(:,:)
+
+    call start_timer(T_der_kernel)
+#if(USE_Periodic>0)
+    ! Component pairs (2m-1,2m) form one complex function each; one
+    ! accumulating product quadruple per z-plane, as in Derive_Y_spwf.
+    do m=1,2
+     s1 = (-py(2*m-1) + 1)/2*2
+     s2 = (-py(2*m)   + 1)/2*2
+     f3 (1:nx,1:ny,1:nz,1:2) => f (:,2*m-1:2*m)
+     fy3(1:nx,1:ny,1:nz,1:2) => fy(:,2*m-1:2*m)
+     do k=1,nz
+      fr(1:nx,1:ny) => f3(:,:,k,1)
+      fi(1:nx,1:ny) => f3(:,:,k,2)
+      gr(1:nx,1:ny) => fy3(:,:,k,1)
+      gi(1:nx,1:ny) => fy3(:,:,k,2)
+      call dgemm('N','T',nx,ny,ny, coef, fr,nx, derY(1,1,1+s1),ny, 1.0d0,gr,nx)
+      call dgemm('N','T',nx,ny,ny,-coef, fi,nx, derY(1,1,2+s2),ny, 1.0d0,gr,nx)
+      call dgemm('N','T',nx,ny,ny, coef, fr,nx, derY(1,1,2+s1),ny, 1.0d0,gi,nx)
+      call dgemm('N','T',nx,ny,ny, coef, fi,nx, derY(1,1,1+s2),ny, 1.0d0,gi,nx)
+     enddo
+    enddo
+#else
+    do m=1,4
+     s1 = (-py(m) + 3)/2
+     fr3(1:nx,1:ny,1:nz)  => f (:,m)
+     fyr3(1:nx,1:ny,1:nz) => fy(:,m)
+     do k=1,nz
+      fyp(1:nx,1:ny) => fr3(:,:,k)
+      cyp(1:nx,1:ny) => fyr3(:,:,k)
+      call dgemm('N','T',nx,ny,ny, coef, fyp,nx, derY(1,1,s1),ny, 1.0d0,cyp,nx)
+     enddo
+    enddo
+#endif
+    call stop_timer(T_der_kernel)
+ end subroutine Derive_Y_spwf_acc
+
   subroutine Derive_Z_single_3D(f, pz, fz)
     !---------------------------------------------------------------------------
     ! Compute the Z-derivative of a single 1D-function on the mesh.
@@ -1398,6 +1498,50 @@ $N3ALL end subroutine Derive_tot_1D
 #endif
     call stop_timer(T_der_kernel)
  end subroutine Derive_Z_spwf
+
+ subroutine Derive_Z_spwf_acc(f, pz, fz, coef)
+    !---------------------------------------------------------------------------
+    ! Accumulating variant of Derive_Z_spwf, used by the generated action to
+    ! fold its final accumulation pass into the derivative kernel:
+    !   fz = fz + coef * dZ f
+    !
+    ! The output is NOT wiped first: previous content of fz is kept.
+    ! pz  = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous :: f(:,:)
+    real(KIND=dp), intent(inout), target, contiguous :: fz(:,:)
+    integer, intent(in)          :: pz(4)
+    real(KIND=dp), intent(in)    :: coef
+    integer                      :: m, s1, s2
+    real(KIND=dp), pointer, contiguous :: f2(:,:), x2(:,:)
+    real(KIND=dp), pointer, contiguous :: fr(:,:), fi(:,:)
+
+    call start_timer(T_der_kernel)
+#if(USE_Periodic>0)
+    ! Component pairs (2m-1,2m) form one complex function each; the box is
+    ! viewed as (nx*ny,nz), one accumulating product quadruple per pair.
+    do m=1,2
+     s1 = (-pz(2*m-1) + 1)/2*2
+     s2 = (-pz(2*m)   + 1)/2*2
+     fr(1:nx*ny,1:nz) => f(:,2*m-1)
+     fi(1:nx*ny,1:nz) => f(:,2*m)
+     f2(1:nx*ny,1:nz) => fz(:,2*m-1)
+     x2(1:nx*ny,1:nz) => fz(:,2*m)
+     call dgemm('N','T',nx*ny,nz,nz, coef, fr,nx*ny, derZ(1,1,1+s1),nz, 1.0d0,f2,nx*ny)
+     call dgemm('N','T',nx*ny,nz,nz,-coef, fi,nx*ny, derZ(1,1,2+s2),nz, 1.0d0,f2,nx*ny)
+     call dgemm('N','T',nx*ny,nz,nz, coef, fr,nx*ny, derZ(1,1,2+s1),nz, 1.0d0,x2,nx*ny)
+     call dgemm('N','T',nx*ny,nz,nz, coef, fi,nx*ny, derZ(1,1,1+s2),nz, 1.0d0,x2,nx*ny)
+    enddo
+#else
+    do m=1,4
+     s1 = (-pz(m) + 3)/2
+     f2(1:nx*ny,1:nz) => f(:,m)
+     x2(1:nx*ny,1:nz) => fz(:,m)
+     call dgemm('N','T',nx*ny,nz,nz, coef, f2,nx*ny, derZ(1,1,s1),nz, 1.0d0,x2,nx*ny)
+    enddo
+#endif
+    call stop_timer(T_der_kernel)
+ end subroutine Derive_Z_spwf_acc
 
  subroutine Derive_lap_3D(f, px, py, pz, df)
     !---------------------------------------------------------------------------

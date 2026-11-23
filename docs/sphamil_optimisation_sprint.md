@@ -337,6 +337,57 @@ a dead end at this mesh size; Stage B effort goes to B1 (wide batched
 Derive kernels), which widens the GEMMs without widening the sweep
 working set.**
 
+### B1 assessed (and rejected without implementation)
+
+The B1 kernels have no caller after the B2 rejection (in the per-spwf
+action every Derive sees one spwf's temp(mv,4)), and at 20^3 the GEMM
+shapes are already at their bandwidth floor: X is (nx, ny*nz, nx) per
+component with an L1-resident 3.2 KB operator matrix, Z is
+(nx*ny, nz, nz); only Y is narrow ((nx,ny,ny) per z-plane, 80 tiny
+products per call), but the operator contracts the dense column index,
+so GEMM merging across spinor components is structurally impossible
+without explicit transposes — which cost more traffic than the tiny
+products save. Widening buys nothing when BLAS already reads and
+writes every byte exactly once. Stage B is closed as a loss-maker at
+this mesh size; the remaining win is in the accumulation passes, which
+is candidate 4 (A3 below).
+
+### A3 implemented (and measured)
+
+Kernel side (`src_orig/derivatives.f90`): `Derive_X/Y/Z_spwf_acc(f, p,
+fx, coef)` — accumulating siblings of the spwf kernels
+(`fx = fx + coef * D f`, DGEMM alpha=coef, beta=1, output not wiped),
+real and periodic variants, dispatched through the same `derive_X/Y/Z`
+generics by argument count.
+
+Generator side: `GenerateAction` folds the final accumulation pass of a
+block into its derivative kernel when the block chain is a single
+plain derivative (no laplacian), the field is not pairing-related and
+the spinor mapping of the final add is the identity with uniform
+sign — then `Derive_D(temp(:,:), sym, hpsi(:,:), coef)` replaces the
+`dtemp` round trip plus the four `hpsi = hpsi +/- c*dtemp` lines. The
+`sym(4)` declaration of `apply_sphamil` becomes unconditional since
+the folded blocks no longer reference `dtemp`. Lap-terminated and
+pairing blocks keep their pass.
+
+Measured (Ca40 20^3, energies bit-identical):
+
+| | A2 | A3 | gain |
+|---|---|---|---|
+| NLO potential action (s) | 1.879 / 1.891 | 1.730 / 1.723 | ~8% |
+| N2LO potential action (s) | 4.413 / 4.476 | 4.317 | ~2.5% |
+
+9 of the 13 whole-array passes per N2LO sphamil call are folded (the
+rest are lap-terminated); NLO folds all its derivative blocks, hence
+the larger gain.
+
+Validation: minimal.sh NLO token-identical to the base reference (O16
+-128.5131254465), Ca40 NLO/N2LO energies bit-identical
+(-344.2583993889 / -345.3964925397), `fam_unit_tests.sh NLO` passes,
+NLO/N2LO/NLO-T mf and NLO fam and NLO-P mf build clean. The moments
+suite could not be run here (`moments_unit_tests.sh` is not in this
+checkout; it exists in CI only).
+
 
 
 - T_sphamil is 25-27% of a mean-field-dominated run — the single largest
@@ -371,4 +422,6 @@ fully converged — irrelevant for fractions), and these runs use the
   timers; previously the module did not use `timing`).
 - Baseline timings recorded above (NLO + N2LO, gfortran, serial).
 - B2 implemented end to end, measured, rejected and reverted (numbers
-  above); sprint refocuses on B1 (wide batched Derive kernels).
+  above); B1 assessed as infeasible without B2 (no caller, bandwidth-
+  bound GEMM shapes); A3 (accumulating kernels, folded final passes)
+  implemented and measured.
