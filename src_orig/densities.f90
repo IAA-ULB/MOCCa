@@ -468,6 +468,7 @@ $ZEROING
           der_index = wave
         else
           der_index = 1
+          call start_timer(T_den_deriv)
 #if(USE_Periodic==0)
           do k=1,4
            call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave), &
@@ -484,18 +485,23 @@ $ZEROING
            &                        denddpsi (:,:,(2*k-1):2*k,der_index))
           enddo
 #endif
+          call stop_timer(T_den_deriv)
         endif
 
 
         !---------------------------------------------------------------------------
 
+        call start_timer(T_den_expr)
         do i=1,mv
 $EXPRESSION
 $DERIVATION_SUM_SPWF_PH
         enddo
+        call stop_timer(T_den_expr)
 
         ! Separate expression for the sum of divJ - see comments in that function
+        call start_timer(T_den_divJ)
         R%divJ(:,it) = R%divJ(:,it) + weight * divJ_spwf(der_index)
+        call stop_timer(T_den_divJ)
     enddo
     call stop_timer(T_den_ph)
 
@@ -1503,35 +1509,48 @@ function divJ_spwf(der_index)
     !       store_derivatives = .true.
     ! flag requires that this function call be within a loop.
     !
+    ! The old implementation chained six (Pauli + ImagMultiplySpinor)
+    ! whole-array operations per call, each materializing a full (mv,4)
+    ! temporary; those temporaries dominated the cost of the particle-
+    ! hole density loop, which calls this function once per spwf. The
+    ! sweep below computes the same 24 products per mesh point in one
+    ! pass, touching each first-derivative value exactly once. With
+    !   d_mu_c = DendPsi(i,mu,c,der_index),
+    ! the six terms (x y z)-style, in the original sign convention, are
+    !   Im[D_1 sigma_z D_2] - Im[D_2 sigma_z D_1]
+    ! - Im[D_1 sigma_y D_3] + Im[D_3 sigma_y D_1]
+    ! + Im[D_2 sigma_x D_3] - Im[D_3 sigma_x D_2]
+    ! which, collected per d_mu_c (terms pair up), is the closed form
+    ! below.
     !---------------------------------------------------------------------------
-    integer, intent(in) :: der_index
+    integer, intent(in)         :: der_index
 
     real(KIND=dp) :: divJ_spwf(nx*ny*nz)
-    ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed
-    real(KIND=dp) :: temp(nx*ny*nz,4)
+    real(KIND=dp) :: d1c1, d1c2, d1c3, d1c4
+    real(KIND=dp) :: d2c1, d2c2, d2c3, d2c4
+    real(KIND=dp) :: d3c1, d3c2, d3c3, d3c4
+    integer       :: i
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! I code this with calls to the Pauli and ImagMultiplySpinor functions
-    ! to make no mistakes
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! x y z
-    temp      = Pauli(DenDPsi(:,2,:,der_index), 3)
-    divJ_spwf =             ImagMultiplySpinor(DendPsi(:,1,:,der_index), temp)
-    ! y x z
-    temp = Pauli(DenDPsi(:,1,:,der_index), 3)
-    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,2,:,der_index), temp)
-    ! x z y
-    temp = Pauli(DenDPsi(:,3,:,der_index), 2)
-    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,1,:,der_index), temp)
-    ! z x y
-    temp = Pauli(DenDPsi(:,1,:,der_index), 2)
-    divJ_spwf = divJ_spwf + ImagMultiplySpinor(DendPsi(:,3,:,der_index), temp)
-    ! y z x
-    temp = Pauli(DenDPsi(:,3,:,der_index), 1)
-    divJ_spwf = divJ_spwf + ImagMultiplySpinor(DendPsi(:,2,:,der_index), temp)
-    ! z y x
-    temp = Pauli(DenDPsi(:,2,:,der_index), 1)
-    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,3,:,der_index), temp)
+    do i=1,nx*ny*nz
+      d1c1 = DendPsi(i,1,1,der_index) ; d2c1 = DendPsi(i,2,1,der_index)
+      d1c2 = DendPsi(i,1,2,der_index) ; d2c2 = DendPsi(i,2,2,der_index)
+      d1c3 = DendPsi(i,1,3,der_index) ; d2c3 = DendPsi(i,2,3,der_index)
+      d1c4 = DendPsi(i,1,4,der_index) ; d2c4 = DendPsi(i,2,4,der_index)
+      d3c1 = DendPsi(i,3,1,der_index)
+      d3c2 = DendPsi(i,3,2,der_index)
+      d3c3 = DendPsi(i,3,3,der_index)
+      d3c4 = DendPsi(i,3,4,der_index)
+
+      divJ_spwf(i) = ( 2.0d0 * &
+           &  ( d1c1 * (d2c2 + d3c3) &
+           &  + d1c2 * (d3c4 - d2c1) &
+           &  - d1c3 * (d2c4 + d3c1) &
+           &  + d1c4 * (d2c3 - d3c2) &
+           &  + d2c1 * d3c4 &
+           &  - d2c2 * d3c3 &
+           &  + d2c3 * d3c2 &
+           &  - d2c4 * d3c1 ) )
+    enddo
 
 end function divJ_spwf
 

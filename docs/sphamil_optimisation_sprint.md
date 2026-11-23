@@ -388,6 +388,52 @@ NLO/N2LO/NLO-T mf and NLO fam and NLO-P mf build clean. The moments
 suite could not be run here (`moments_unit_tests.sh` is not in this
 checkout; it exists in CI only).
 
+## Extension: the particle-hole density calculation
+
+Post-A3 the ph-density block (Ca40 20^3 NLO: 1.67 s, second-largest
+timer of the run) was instrumented with subtimers (`Density: spwf
+derive`, `T_den_deriv`; `Density: expression sweep`, `T_den_expr`;
+`Density: divJ per spwf`, `T_den_divJ` in `src_orig/densities.f90`).
+Attribution (stored mode, 5050 spwf contributions):
+
+- generated expression sweep: 0.54 s
+- divJ_spwf evaluation: 1.13 s  (68% of the block!)
+- (on-the-fly mode only) per-spwf Derive_tot: 0.64 s
+
+**divJ_spwf rewrite (D1, in `src_orig/densities.f90`, no generator
+change).** The old implementation chained six (Pauli +
+ImagMultiplySpinor) whole-array operations per call, each materializing
+a full (mv,4) temporary - called once per spwf, that workspace traffic
+dominated the whole density calculation even though divJ is only used
+for the multipole moments of J (never for energies, by design). The
+rewrite expands the six terms - which pair up, giving an overall factor
+2 - into one fused sweep with one product expression per mesh point,
+touching every first-derivative value exactly once (no temporaries).
+
+Result (Ca40 20^3, energies bit-identical, divJ multipoles unchanged
+to printed precision):
+
+| | before | after |
+|---|---|---|
+| divJ per spwf | 1.13 s | 0.08 s |
+| Density: ph (NLO stored) | 1.67 s | 0.63 s |
+| Density: ph (N2LO stored) | ~3.5 s | 3.10 s |
+| whole run (NLO stored) | 10.32 s | 9.35 s |
+| whole run (NLO on-the-fly) | 10.52 s | 9.61 s |
+
+Validation: minimal.sh NLO (O16 -128.5131254465 unchanged),
+Ca40 NLO/N2LO energies bit-identical, fam_unit_tests.sh NLO passes,
+N2LO/NLO-T mf build clean.
+
+Remaining density costs, recorded for a future pass: the generated
+expression sweep itself (NLO 0.54 s, N2LO 3.02 s - N2LO's density
+fields are far more numerous), and the recompute duplication between
+sphamil's on-the-fly Derive_tot and the density loop in
+store_derivatives=false mode. A wave-batched restructuring of the
+generated expression (amortizing the shared R% accumulation rows
+across spwfs, unlike the rejected sphamil B2 which batched private
+temporaries) is the candidate, untested.
+
 
 
 - T_sphamil is 25-27% of a mean-field-dominated run — the single largest

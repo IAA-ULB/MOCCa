@@ -48,6 +48,7 @@ module timing
   integer :: T_calc_sph, T_calc_sph_me, T_update_sph
   integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
+  integer :: T_den_deriv, T_den_expr, T_den_divJ
   integer :: T_sph_copy, T_sph_dtot, T_sph_action, T_der_kernel
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
@@ -531,6 +532,9 @@ contains
       call add_timer('Density calculations', T_densities)
       call add_timer('Density: pp', T_den_pp)
       call add_timer('Density: ph', T_den_ph)
+      call add_timer('Density: spwf derive', T_den_deriv)
+      call add_timer('Density: expression sweep', T_den_expr)
+      call add_timer('Density: divJ per spwf', T_den_divJ)
       call add_timer('Density: derivatives', T_den_der)
       call add_timer('Potential calculations', T_potentials)
       call add_timer('Potential preconditioning', T_pot_precon)
