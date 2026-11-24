@@ -320,9 +320,20 @@ module wavefunctions
  ! runs with identical input give identical output, even when running across
  ! different numbers of MPI ranks.
  character(len=20)           :: random_numbers = 'FAST'
- ! Logical tracking whether a given single-particle orbital is locked, i.e.
- !  if is no longer evolved by the iterations.
- logical, allocatable :: locked(:)
+ ! Status of each spwf in the iteration procedure:
+ !   ITS_ACTIVE      - evolved and required to converge (and lock)
+ !   ITS_LOCKED      - dispersion below the locking treshold; no longer evolved
+ !   ITS_SACRIFICIAL - evolved indefinitely but exempt from convergence; the
+ !                     newest two growth batches (identified positionally,
+ !                     never by energy - see add_spwfs in mocca.f90)
+ integer, parameter    :: ITS_ACTIVE = 0
+ integer, parameter    :: ITS_LOCKED = 1
+ integer, parameter    :: ITS_SACRIFICIAL = 2
+ integer, allocatable  :: iteration_status(:)
+ ! Per symmetry block: block-local index above which spwfs are sacrificial,
+ ! and the number of spwfs the SECOND-newest batch added to that block.
+ integer :: sacrifice_from(8) = 0
+ integer :: prev_extra_blocks(8) = 0
  !------------------------------------------------------------------------------
  ! Overloading of the transform_spwfs_inplace routine depending on the type
  ! of the unitary transformation: complex or real.
@@ -1151,7 +1162,7 @@ end subroutine loadbalance
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Original Lagrange mesh derivatives
     do wave=1,nwt_local
-        if(locked(wave)) cycle
+        if(iteration_status(wave) == ITS_LOCKED) cycle
         do k=1,4
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
@@ -1539,13 +1550,13 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
         do i = 1,N
             nw = indices(i)
-            if(locked(nw)) then
+            if(iteration_status(nw) == ITS_LOCKED) then
                cycle ! cycle if the spwf is locked
             else
                ! orthonormalize against ALL locked spwfs
                do j=1,N
                  mw = indices(j)
-                 if(locked(mw)) then
+                 if(iteration_status(mw) == ITS_LOCKED) then
                     norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
                     HFPsi(:,:,nw) = HFPsi(:,:,nw) - norm * HFPsi(:,:,mw)
                  endif
@@ -1577,7 +1588,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             do j= i+1, HFBlocks(b)
               mw = indices(j)
-              if(locked(mw)) cycle ! don't update if spwf(mw) is locked
+              if(iteration_status(mw) == ITS_LOCKED) cycle ! don't update if spwf(mw) is locked
               ! Real part of the inproduct
               norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
               HFPsi(:,:,mw) = HFPsi(:,:,mw) - norm * HFPsi(:,:,nw)

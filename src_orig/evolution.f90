@@ -274,7 +274,7 @@ contains
         8 format(' Orthonormalisation strategy: ', a20)
         9 format(' Subspace rotation          :   ACTIVE')
        10 format(' Subspace rotation          : INACTIVE')
-        
+       44 format(' Locking: dispersion treshold = ', es10.3)
         print 1
         print 2, adjustl(Strategy)
         print 31, maxiter, printiter, max_inner_iter
@@ -306,9 +306,11 @@ contains
         
         if(subspace_rotation) then
             print 9
-        else 
+        else
             print 10
         endif
+
+        if(locking_treshold > 0) print 44, locking_treshold
 
     end subroutine PrintEvolution
 
@@ -469,8 +471,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         type(PotentialVector), intent(in) :: F
         integer, intent(in)               :: iteration
         integer, allocatable              :: indices(:)
-        
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+
+        integer               :: current_batch, cutoff_batch
         integer               :: wg, wg2, der_index
         logical               :: on_the_fly, all_lower_converged
 #if(USE_MPI>0)
@@ -491,7 +494,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
           allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
         endif
 
-        locked = .false.
+        ! Locked spwfs become active again unless they are sacrificial
+        where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         ! Check what spwfs we can lock
         if(locking_treshold > 0) then
           si = 0
@@ -509,15 +513,17 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
                   !print *, wave, wave2, dispersions(indices(wave2)), &
                   !     & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
                 enddo
-                if(all_lower_converged) locked(indices(wave)) = .true.
+                if(all_lower_converged .and.                          &
+                     &    iteration_status(indices(wave)) /= ITS_SACRIFICIAL) then
+                   iteration_status(indices(wave)) = ITS_LOCKED
+                endif
              enddo
-             !print *, 'B = ', locked(si+1:si+N)
              !print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
              !print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
              si = si + N
           enddo
         else
-           locked = .false.
+           where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         endif
 
         if(EstimateParams) call IterativeEstimation(F,iteration)
@@ -528,7 +534,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
 
         ! Zero everything about the evolving spwfs
         do wave=1,nwt
-           if(locked(wave)) cycle
+           if(iteration_status(wave) == ITS_LOCKED) cycle
            hftransfo(wave,:) = 0.0d0
            hftransfo(:,wave) = 0.0d0
            spenergies(wave)  = 0.0d0
@@ -544,7 +550,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
           do wave=si+1,si+N     ! = local index of the spwf
             wg = spwf_map(wave) ! = global index of the spwf
 
-            if(locked(wave)) then
+            if(iteration_status(wave) == ITS_LOCKED) then
               ! Don't evolve if locked, but do track contribution to weighted dispersion
               select case(pairingtype)
               case(0,1)
@@ -1183,12 +1189,13 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
           ! Set sph to be "diagonal"-like for locked wavefunctions
           do wave = si+1,si+N
-            if(locked(wave)) sph(wave, wave) = spenergies(wave)
+            if(iteration_status(wave) == ITS_LOCKED)                 &
+     &                                  sph(wave, wave) = spenergies(wave)
           enddo
 
           active_count = 0
           do i = 1, N
-            if (.not. locked(si + i)) then
+            if (iteration_status(si + i) /= ITS_LOCKED) then
                 active_count = active_count + 1
                 active_indices(active_count) = i
             endif
@@ -1315,7 +1322,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           ! Count how many of the spwfs are "active", i.e. not locked
           active_count = 0
           do i = 1, N
-             if (.not. locked(si + i)) active_count = active_count + 1
+             if (.not. iteration_status(si + i) == ITS_LOCKED) active_count = active_count + 1
           enddo
 
           ! If all wavefunctions are locked, skip this block entirely
@@ -1333,7 +1340,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           allocate(active_indices(active_count))
           active_count = 0
           do i = 1, N
-            if (.not. locked(si + i)) then
+            if (iteration_status(si + i) /= ITS_LOCKED) then
               active_count = active_count + 1
               active_indices(active_count) = i
             endif
@@ -1419,7 +1426,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
          ! --- NEW: Update output arrays for active and locked wavefunctions ---
          do i = 1, N
-          if (.not. locked(si + i)) then
+          if (iteration_status(si + i) /= ITS_LOCKED) then
               ! For active wavefunctions: use results from diagonalization
               j = findloc(active_indices, i, dim=1)  ! Find position in active list
               sph(si+i, si+i) = active_eigenvalues(j)

@@ -576,7 +576,8 @@ contains
 
      use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
 
-     use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
+     use wavefunctions, only: iteration_status, ITS_ACTIVE, ITS_LOCKED, ITS_SACRIFICIAL
+     use wavefunctions, only: deriveHF, sphamil, HFtransfo, spenergies
      use wavefunctions, only: nwn, nwp, nwt, hfpsi, hfblocks_global, hfblocks
      use wavefunctions, only: rank_map, spwf_inverse, spwf_map
      use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
@@ -594,6 +595,8 @@ contains
 
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
      use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
+     use pairing,       only: FermiEnergy
+     use scfiteration,  only: spectrum_ecut, spectrum_batch
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
      use pairing,       only: cantransfo, cancuttransfo
 
@@ -605,10 +608,13 @@ contains
      use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail, old_blocks(8), B
-     integer, allocatable           :: old_rank_map(:), old_spwf_inverse(:)
+     integer                        :: ifail, nbatches
+     integer                        :: extra_blocks(8)
+     real(dp)                       :: ceiling_n, ceiling_p
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
+
+     nbatches = 0
 
      do iter=1, maxiter
          ! Just keep doing heavy-ball steps
@@ -620,39 +626,37 @@ contains
          if (store_derivatives) call deriveHF() ! and update derivatives
 
          call print_summary_spectrum(iter)
-         ! Convergence is reached if ALL the spwfs are locked inside the
-         !  evolution,i.e. if their dispersion is small enough
-         convergence_achieved = ALL(locked)
+         ! Convergence is reached if ALL spwfs are locked, i.e. every state
+         ! of every added batch has settled. Spwfs above FermiEnergy +
+         ! spectrum_ecut are superfluous by design: the last growth batch
+         ! deliberately overshoots the cutoff.
+         ! Convergence is reached if no spwf is left in the active state:
+         ! every lockable spwf must be locked, and the sacrificial states of
+         ! the newest growth batches are exempt by construction.
+         convergence_achieved = ALL(iteration_status /= ITS_ACTIVE)
 
-         !if(iter.eq.1) then
-         !   nwn = nwn + 10
-         !   nwp = nwp + 10
-         !   nwt = nwn + nwp
-!
-!            old_blocks = HFBlocks
-!            do B=1,8,2
-!               HFBlocks(B) = HFBlocks(B) + 5
-!               HFBlocks_global(B) = HFBlocks_global(B) + 5
-!            enddo
-!
-!            call transforminput(nx,ny,nz,nwn-10,nwp-10,dx,old_blocks,grad_blocks, &
-!                &       spwf_map,rank_map,spwf_inverse,(/ 5,0,5,0,5,0,5,0 /))
-!            deallocate(locked); allocate(locked(nwt)) ; locked = .false.
-!            call orthonormalize()
-!
-!            if(allocated(Pcutoffs)) deallocate(Pcutoffs)
-!            call set_spwf_symmetries(sx,sy,sz,HFBlocks)
-!            call deallocate_derivatives()
-!            call allocate_memory_derivatives(PairingType)
-!            if(store_derivatives) call deriveHF()
-!            if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, rho_can, kappa_can)
-!            if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
-!            if(allocated( HF_spin)) deallocate( HF_spin, HF_STR,  HF_STI, spwf_r2_hf, P_hf)
-!            if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
-!            if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR,  CAN_STI, spwf_r2_can, P_can)
-!
-!            if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
-         !endif
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Spectrum growth (scfscheme = 2): once all lockable spwfs are
+         ! locked, add a batch if the locked spectrum does not yet reach
+         ! the Fermi energy + spectrum_ecut for both isospins. Empty masks
+         ! (nothing locked in an isospin) yield -huge, i.e. growth.
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         if (convergence_achieved .and. spectrum_ecut > 0) then
+            ceiling_n = maxval(spenergies(1:nwn),   mask=iteration_status(1:nwn)==ITS_LOCKED)
+            ceiling_p = maxval(spenergies(nwn+1:nwt),                             &
+                 &              mask=iteration_status(nwn+1:nwt)==ITS_LOCKED)
+            print '(a,2f9.3)', ' Spectrum ceilings at convergence (n,p): ', ceiling_n, ceiling_p
+            if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or. &
+                 & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
+               extra_blocks = spectrum_growth_blocks(spectrum_batch)
+               call add_spwfs(extra_blocks)
+               nbatches = nbatches + 1
+               convergence_achieved = .false.
+               print '(a,f8.3,a,f8.3,a,f8.3)', &
+                    & ' Locked spectrum ceilings (n: ', ceiling_n, ', p: ', &
+                    & ceiling_p, ') below Fermi + spectrum_ecut; growing.'
+            end if
+         end if
 
          if (convergence_achieved .or. iter .eq. maxiter) then
             ! Let us prepare for a final printout
@@ -687,6 +691,121 @@ contains
 
      enddo
    end subroutine iterate_spectrum
+
+   function spectrum_growth_blocks(nex) result(extrablocks)
+     !-------------------------------------------------------------------------
+     ! Number of extra spwfs per symmetry block for one growth batch: nex
+     ! spwfs for every block that exists in this build's symmetry scenario.
+     ! Blocks that do not exist are left empty; TransformInput's sanity
+     ! checks remain the final arbiter.
+     !-------------------------------------------------------------------------
+     ! Input:  nex - desired number of new spwfs per symmetry block
+     ! Output: extrablocks(8)
+     !-------------------------------------------------------------------------
+     integer, intent(in) :: nex
+     integer             :: extrablocks(8)
+
+     extrablocks = 0
+$TR      extrablocks(1) = nex ; extrablocks(3) = nex
+$TR      extrablocks(5) = nex ; extrablocks(7) = nex
+$NTR     extrablocks = nex
+$PBROKEN extrablocks(3) = 0 ; extrablocks(4) = 0
+$PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
+
+   end function spectrum_growth_blocks
+
+   subroutine add_spwfs(extrablocks)
+     !-------------------------------------------------------------------------
+     ! Grow the single-particle space mid-run by extrablocks(8) spwfs per
+     ! symmetry block. The spwf array itself, the block bookkeeping, the
+     ! loadbalancing and the reduced-subspace matrices (HFtransfo, sphamil,
+     ! dispersions) are handled by TransformInput; this routine refreshes
+     ! everything else that is dimensioned per spwf.
+     ! New spwfs are random-initialized by TransformInput; native spwfs are
+     ! left untouched by the subsequent orthonormalisation.
+     !-------------------------------------------------------------------------
+     ! Input: extrablocks - number of new spwfs per symmetry block
+     !-------------------------------------------------------------------------
+     use compilation,   only: dp
+
+     use geninfo,       only: nx, ny, nz, dx, store_derivatives
+
+     use wavefunctions, only: iteration_status, deriveHF, ITS_ACTIVE, ITS_SACRIFICIAL
+     use wavefunctions, only: sacrifice_from, prev_extra_blocks
+     use wavefunctions, only: nwn, nwp, nwt, HFBlocks
+     use wavefunctions, only: rank_map, spwf_inverse, spwf_map
+     use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz, orthonormalize
+     use wavefunctions, only: canenergies
+     use wavefunctions, only: HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, HF_spin
+     use wavefunctions, only: HF_STR, HF_STI, spwf_r2_hf, P_hf
+     use wavefunctions, only: CAN_J, CAN_JTR, CAN_JTI, CAN_J2, CAN_JJ, CAN_spin
+     use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
+
+     use transform,      only: TransformInput
+     use pairing,        only: PairingType, PairingScheme, SolvePairing
+     use pairing,        only: cantransfo, cancuttransfo
+     use pairing,        only: rho_can, kappa_can, qpenergies
+
+     use HFB,            only: grad_blocks, qp_j, qp_JTR, qp_JTI, qpdispersions
+     use pairingcutoffs, only: Pcutoffs
+
+     integer, intent(in) :: extrablocks(8)
+     integer             :: old_nwn, old_nwp, old_blocks(8), ifail
+     integer             :: b, i, sb
+
+     old_nwn = nwn ; old_nwp = nwp ; old_blocks = HFBlocks
+
+     nwn = nwn + sum(extrablocks(1:4))
+     nwp = nwp + sum(extrablocks(5:8))
+     nwt = nwn + nwp
+
+     call TransformInput(nx,ny,nz,old_nwn,old_nwp,dx,old_blocks,grad_blocks, &
+          &        spwf_map,rank_map,spwf_inverse,extrablocks)
+
+     ! Rebuild the spwf statuses for the enlarged space: existing spwfs are
+     ! active (locked spwfs re-lock at the next evolution anyway), new ones
+     ! start active too. Batches append at the end of each symmetry block, so
+     ! the sacrificial set (the newest two batches) is fixed by per-block
+     ! boundaries alone - no batch ledger needed.
+     sacrifice_from = max(0, old_blocks - prev_extra_blocks)
+     prev_extra_blocks = extrablocks
+     if(allocated(iteration_status)) deallocate(iteration_status)
+     allocate(iteration_status(nwt)) ; iteration_status = ITS_ACTIVE
+     sb = 0
+     do b=1,8
+        do i=1, old_blocks(b)
+           iteration_status(sb+i) = ITS_ACTIVE
+        enddo
+        do i=old_blocks(b)+1, HFBlocks(b)
+           if(i > sacrifice_from(b)) iteration_status(sb+i) = ITS_SACRIFICIAL
+        enddo
+        sb = sb + HFBlocks(b)
+     enddo
+     call orthonormalize()
+
+     if(allocated(Pcutoffs)) deallocate(Pcutoffs)
+     call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+     call deallocate_derivatives()
+     call allocate_memory_derivatives(PairingType)
+     if(store_derivatives) call deriveHF()
+     if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, kappa_can)
+     if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
+     if(allocated( HF_spin)) deallocate( HF_spin, HF_STR, HF_STI, spwf_r2_hf, P_hf)
+     if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
+     if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR, CAN_STI, spwf_r2_can, P_can)
+     if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
+
+     ! TransformInput leaves rho_can zeroed; the (dt,mu) estimation and the
+     ! weighted dispersions need HF occupations -> refill them.
+     if(PairingType == 0) then
+        if(allocated(qpenergies)) deallocate(qpenergies)
+        call SolvePairing(PairingScheme, ifail)
+     end if
+
+     print '(a,i0,a)', ' Growing the spwf space to ', nwt, ' spwfs.'
+
+   end subroutine add_spwfs
 
    subroutine printsummary(iter, potentials_frozen)
       !---------------------------------------------------------------------------

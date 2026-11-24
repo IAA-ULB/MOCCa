@@ -44,6 +44,16 @@ module SCFiteration
   ! Note: (1) does not work at the moment!
   integer  :: scfscheme = 0
   !-----------------------------------------------------------------------------
+  ! Growth of the spwf space during scfscheme = 2 (frozen-potential spectrum
+  ! iteration). Batches of spwfs are added whenever the currently lockable
+  ! states are all locked, until the locked single-particle spectrum covers
+  ! FermiEnergy + spectrum_ecut for both isospins.
+  !   spectrum_ecut > 0  : grow, up to that excitation energy in MeV
+  !   spectrum_ecut <= 0  : no growth at all
+  !   spectrum_batch      : number of new spwfs per symmetry block per batch
+  real(dp)  :: spectrum_ecut = -1.0
+  integer   :: spectrum_batch = 5
+  !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
   integer  :: mixingscheme = 0
 
@@ -63,7 +73,8 @@ contains
 #endif
 
     namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
-    &                       kerker_k0, scfscheme
+    &                       kerker_k0, scfscheme,                          &
+    &                       spectrum_ecut, spectrum_batch
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -82,6 +93,13 @@ contains
       if(locking_treshold > 0 .and. scfscheme .ne. 2) then
          call stp('Locking is not compatible with evolving potentials.')
       endif
+
+      if(spectrum_ecut > 0 .and. scfscheme .ne. 2) then
+         call stp('Spectrum growth (spectrum_ecut) requires scfscheme = 2.')
+      endif
+      if(spectrum_batch < 1) then
+         call stp('spectrum_batch must be at least 1.')
+      endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Broadcasting the MPI information
@@ -93,6 +111,8 @@ contains
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(spectrum_ecut, 1, MPI_REAL8 , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(spectrum_batch, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
   
   end subroutine readscfiteration
@@ -107,6 +127,7 @@ contains
     !3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
     5 format('   Kerker k0   = '      , f7.4)
+    6 format('   Spectrum growth to Fermi + ', f6.2, ' MeV in batches of ', i4, ' spwfs/block')
 
     print 1
     select case(scfscheme)
@@ -118,6 +139,7 @@ contains
        ! not operational!
     case(2)
       print 2, ' NO SCF evolution!'
+      if(spectrum_ecut > 0) print 6, spectrum_ecut, spectrum_batch
     end select
   end subroutine printscfiteration
 

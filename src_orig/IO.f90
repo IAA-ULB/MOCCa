@@ -621,9 +621,9 @@ contains
     ! orthonormalize ...
     call transfer_1D_to_2D(HFPsi, HFPsi_2D)
 #endif
-    ! Failsafe for the locked array
-    if(allocated(locked)) deallocate(locked)
-    allocate(locked(nwt_local)) ; locked = .false.
+    ! Failsafe for the iteration_status array
+    if(allocated(iteration_status)) deallocate(iteration_status)
+    allocate(iteration_status(nwt_local)) ; iteration_status = ITS_ACTIVE
     call orthonormalize
 #if(USE_MPI > 0)
     ! ... and make sure the results get back to the original layout
