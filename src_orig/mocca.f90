@@ -572,41 +572,23 @@ contains
      !   iomsg: string, message about (non)convergence
      !-------------------------------------------------------------------------
 
-     use compilation,   only: dp
-
-     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
+     use geninfo,       only: MaxIter, store_derivatives
 
      use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
-     use wavefunctions, only: nwn, nwp, nwt, hfpsi, hfblocks_global, hfblocks
-     use wavefunctions, only: rank_map, spwf_inverse, spwf_map
-     use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
-     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz, canenergies, orthonormalize
 
-     use wavefunctions, only: HF_J, HF_JTR,  HF_JTI,  HF_J2,  HF_JJ,  HF_spin
-     use wavefunctions, only: HF_STR,  HF_STI, spwf_r2_hf, P_hf
-     use wavefunctions, only: CAN_J, CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ,  CAN_spin
-     use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
-
-     use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
-     use evolution,     only: apply_subspace_rotation
+     use evolution,     only: Evolve_subspace, calc_sphamil, apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
 
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
-     use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
+     use pairing,       only: pairingscheme
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
-     use pairing,       only: cantransfo, cancuttransfo
 
-     use pairingcutoffs, only : computepairingcutoffs
-
-     use HFB,           only: grad_blocks, qp_j, qp_JTR, qp_JTI, qpdispersions
      use densities,     only: construct_canonical_basis, densit, Density
      use cranking,      only: updateAM
-     use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail, old_blocks(8), B
-     integer, allocatable           :: old_rank_map(:), old_spwf_inverse(:)
+     integer                        :: ifail
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
 
