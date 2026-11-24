@@ -58,6 +58,29 @@ module folding
       module procedure fold_form_factor_reverse_complex
  end interface
 
+
+ ! Friedrich-Walcher 2003 parameters 
+ ! a11, a21, ab, Qb and sb are in GeV-based units 
+ integer, parameter :: fw_proton = 1
+ integer, parameter :: fw_neutron = 2
+
+ real(kind=dp), parameter :: fw_p_a10 =  1.041_dp
+ real(kind=dp), parameter :: fw_p_a11 =  0.765_dp
+ real(kind=dp), parameter :: fw_p_a20 = -0.041_dp
+ real(kind=dp), parameter :: fw_p_a21 =  6.2_dp
+ real(kind=dp), parameter :: fw_p_ab  = -0.23_dp
+ real(kind=dp), parameter :: fw_p_Qb  =  0.07_dp
+ real(kind=dp), parameter :: fw_p_sb  =  0.27_dp
+
+ real(kind=dp), parameter :: fw_n_a10 =  1.04_dp
+ real(kind=dp), parameter :: fw_n_a11 =  1.73_dp
+ real(kind=dp), parameter :: fw_n_a20 = -1.04_dp
+ real(kind=dp), parameter :: fw_n_a21 =  1.54_dp
+ real(kind=dp), parameter :: fw_n_ab  =  0.23_dp
+ real(kind=dp), parameter :: fw_n_Qb  =  0.29_dp
+ real(kind=dp), parameter :: fw_n_sb  =  0.20_dp
+
+
 contains
 
 
@@ -440,6 +463,137 @@ subroutine galster_1D(G, mesh, m, p)
 
 end subroutine galster_1D
 
+
+!-----------------------------------------------------------------------------
+ ! Exact 3D Breit-frame density.
+ ! This is useful for validation and plotting; the Cartesian folding matrices
+ ! use fw(), the transverse marginal, rather than evaluating fw at |x|.
+ ! Output units: fm^-3.
+ !-----------------------------------------------------------------------------
+ pure function fw(r_input, nucleon) result(rho)
+   real(kind=dp), intent(in) :: r_input
+   integer, intent(in) :: nucleon
+   real(kind=dp) :: rho
+
+   real(kind=dp), parameter :: hbarc_fw = 0.1973269804_dp
+   real(kind=dp), parameter :: pi = 3.1415926535897932384626433832795_dp
+   real(kind=dp) :: a10, a11, a20, a21, ab, Qb, sb
+   real(kind=dp) :: m1, m2, a, qb_fm, s, r, r_safe
+   real(kind=dp) :: dip, Rterm, Tterm, bump, bump0, R0
+
+   select case(nucleon)
+   case(fw_proton)
+     a10 = fw_p_a10
+     a11 = fw_p_a11
+     a20 = fw_p_a20
+     a21 = fw_p_a21
+     ab  = fw_p_ab
+     Qb  = fw_p_Qb
+     sb  = fw_p_sb
+   case(fw_neutron)
+     a10 = fw_n_a10
+     a11 = fw_n_a11
+     a20 = fw_n_a20
+     a21 = fw_n_a21
+     ab  = fw_n_ab
+     Qb  = fw_n_Qb
+     sb  = fw_n_sb
+   case default
+     rho = 0.0_dp
+     return
+   end select
+
+   r = abs(r_input)
+
+  
+   m1 = a11/hbarc_fw**2
+   m2 = a21/hbarc_fw**2
+   a  = ab*hbarc_fw**2
+   qb_fm = Qb/hbarc_fw
+   s  = sb/hbarc_fw
+
+   dip = sqrt(pi/8.0_dp) * ( &
+       a10*m1**1.5_dp*exp(-sqrt(m1)*r) &
+     + a20*m2**1.5_dp*exp(-sqrt(m2)*r) )
+
+   Rterm = qb_fm**3 + 3.0_dp*qb_fm*s**2*(1.0_dp-s**2*r**2)
+   Tterm = 3.0_dp*qb_fm**2 + 3.0_dp*s**2 - s**4*r**2
+
+   if (r < 1.0e-8_dp) then
+     R0 = qb_fm**3 + 3.0_dp*qb_fm*s**2
+     bump0 = 2.0_dp*a*s * &
+       (R0*qb_fm + s**2*(3.0_dp*qb_fm**2+3.0_dp*s**2))
+     bump = bump0
+   else
+     r_safe = r
+     bump = (2.0_dp*a*s/r_safe) &
+       * exp(-0.5_dp*s**2*r_safe**2) &
+       * ( Rterm*sin(qb_fm*r_safe) &
+           + s**2*r_safe*Tterm*cos(qb_fm*r_safe) )
+   endif
+
+   rho = (dip+bump)/(2.0_dp*pi)**1.5_dp
+ end function fw
+
+
+ !-----------------------------------------------------------------------------
+ ! Build the FW folding matrix. 
+ !-----------------------------------------------------------------------------
+subroutine fw_1D(Fmat, mesh, m, p, nucleon)
+
+    integer, intent(in) :: m, p, nucleon
+    real(kind=dp), intent(in) :: mesh(m)
+    real(kind=dp), intent(out) :: Fmat(m,m)
+
+    integer :: i, j, ind
+    real(kind=dp) :: fw_integral
+
+    ! Construct the kernel matrix
+    do i=1,m
+        do j=1,m
+            Fmat(i,j) = fw(mesh(i), mesh(j), nucleon)
+        enddo
+    enddo
+
+    ! Reflection symmetry
+    do i=1,m
+        do j=1,m
+            Fmat(i,j) = Fmat(i,j) &
+                + p*fw(-mesh(i), mesh(j), nucleon)
+        enddo
+    enddo
+
+#if(USE_Periodic==1)
+    ! Periodic images: same convention as dipole_1D
+    do i=1,m
+        do j=1,m
+            Fmat(i,j) = Fmat(i,j) &
+                + fw(mesh(i)-(1+p)*m*dx, mesh(j), nucleon) &
+                + fw((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), nucleon)
+        enddo
+    enddo
+#endif
+
+    ! Numerical integral of the central column
+    ind = m/2 + 1
+    fw_integral = sum(Fmat(:,ind))*dx
+
+    ! Proton: compensate for discretization errors
+    if (nucleon == fw_proton) then
+
+        if (abs(fw_integral) < 1.0e-12_dp) then
+            error stop "FW proton: central-column integral is zero"
+
+        endif
+
+        Fmat(:,:) = Fmat(:,:) / fw_integral
+
+    endif
+
+    ! Neutron: do NOT normalize.
+    ! Its physical integral is zero, so division is not meaningful.
+
+end subroutine fw_1D
 
 
  pure function gamma_function(r1,r2, r0,n,L) result(G)
@@ -837,7 +991,7 @@ end subroutine galster_1D
   !-----------------------------------------------------------------------------
  end function fold_one_form_factor
 
- subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, & 
+  subroutine construct_folding_matrices(proton_size, neutron_size, hocomform, & 
  &                             exact_coulomb_folding, nucleon_form_factor, hbm,FFxn,FFyn,FFzn, FFxp, FFyp, FFzp)
     !---------------------------------------------------------------------------
     ! Construct the matrices for Gaussian folding.
@@ -1076,15 +1230,38 @@ end subroutine galster_1D
 
     enddo
 
+
+    case(2)
+    ! Friedrich-Walcher 2003 for both proton and neutron.
+    ! One component is retained to match the existing matrix interface.
+
+    allocate(FFxn(nx,nx,3,1), FFyn(ny,ny,3,1), FFzn(nz,nz,3,1))
+    FFxn = 0.0_dp
+    FFyn = 0.0_dp
+    FFzn = 0.0_dp
+
+    allocate(FFxp(nx,nx,3,1), FFyp(ny,ny,3,1), FFzp(nz,nz,3,1))
+    FFxp = 0.0_dp
+    FFyp = 0.0_dp
+    FFzp = 0.0_dp
+
+    do sign = -1,+1,2
+      index = 1 + (sign + 1)/2
+
+      ! Neutron: FW neutron coefficients.
+      call fw_1D(FFxn(:,:,index,1), meshx, nx, sign*reduX, fw_neutron)
+      call fw_1D(FFyn(:,:,index,1), meshy, ny, sign*reduY, fw_neutron)
+      call fw_1D(FFzn(:,:,index,1), meshz, nz, sign*reduZ, fw_neutron)
+
+      ! Proton: FW proton coefficients.
+      call fw_1D(FFxp(:,:,index,1), meshx, nx, sign*reduX, fw_proton)
+      call fw_1D(FFyp(:,:,index,1), meshy, ny, sign*reduY, fw_proton)
+      call fw_1D(FFzp(:,:,index,1), meshz, nz, sign*reduZ, fw_proton)
+    enddo
+
    case default
       error stop "Unknown nucleon form factor selection"
 
    end select
 
 end subroutine construct_folding_matrices
-
-
- 
-
-
-end module folding
