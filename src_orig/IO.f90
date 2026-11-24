@@ -746,14 +746,17 @@ subroutine write_header(iochannel)
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
 
-    if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
+    ! Guard the suffix slice: filenames shorter than 4 chars cannot end in HDF5
+    if(len_trim(ofn) >= 4) then
+      if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
-      call write_mocca_hdf5(ofn) !new hdf5 format
+        call write_mocca_hdf5(ofn) !new hdf5 format
 #else
-      call stp('HDF5 support was not enabled at compilation.')
+        call stp('HDF5 support was not enabled at compilation.')
 #endif
-    else
-      call write_mocca_wf(chan, ofn) ! old style in .wf file
+      else
+        call write_mocca_wf(chan, ofn) ! old style in .wf file
+      endif
     endif
 
   end subroutine WriteWaveFunction
