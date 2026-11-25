@@ -463,3 +463,11 @@ loop already computes.
 - Physics note: mesh UV scale for random fields is hbar^2 knyquist^2/2m
   ~ 200+ MeV per dimension - the 'crazy' energies of fresh random
   batches are expected; the residual column flags them honestly.
+
+- ecut=40 rerun with the capped parameters: top-of-table sacrificial
+  states now sit at E = 32.8-32.9 MeV (ceiling 31.65) with residual
+  bounds ~0.10-0.13 MeV, versus E ~ 245-253 MeV / residuals ~157 before;
+  472 of 513 neutron Ritz values under 0.1 MeV residual (was 413);
+  converged at iteration 2008 (was 2582), zero stagnation locks,
+  energy identical. Newest overshoot batch = genuine eigenstructure
+  ~1.3 MeV above the ceiling, no UV churn.
