@@ -731,6 +731,7 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
      use geninfo,       only: nx, ny, nz, dx, store_derivatives
 
      use wavefunctions, only: iteration_status, deriveHF, ITS_ACTIVE, ITS_SACRIFICIAL
+     use wavefunctions, only: Momentum_Updates
      use wavefunctions, only: sacrifice_from, prev_extra_blocks
      use wavefunctions, only: nwn, nwp, nwt, HFBlocks
      use wavefunctions, only: rank_map, spwf_inverse, spwf_map
@@ -783,6 +784,12 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
         sb = sb + HFBlocks(b)
      enddo
      call orthonormalize()
+
+     ! TransformInput leaves Momentum_Updates at its pre-growth size while
+     ! apply_subspace_rotation indexes it with the new spwf count; drop it so
+     ! the next evolution reallocates. The heavy ball loses one step of
+     ! history; the fresh spwfs start from zero momentum either way.
+     if(allocated(Momentum_Updates)) deallocate(Momentum_Updates)
 
      if(allocated(Pcutoffs)) deallocate(Pcutoffs)
      call set_spwf_symmetries(sx,sy,sz,HFBlocks)

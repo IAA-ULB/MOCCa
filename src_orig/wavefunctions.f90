@@ -451,7 +451,7 @@ $N3 deallocate(HFdddPsi)
 
     if(allocated(candPsi)) then
       deallocate(candPsi,canddPsi)
-$N3   allocate(candddPsi)
+$N3   deallocate(candddPsi)
     endif
   end subroutine deallocate_derivatives
 

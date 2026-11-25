@@ -648,7 +648,10 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 
           do wave=si+1, si+N
             !-------------------------------------------------------------------
-            ! Update the wavefunctions.
+            ! Update the wavefunctions. Locked spwfs skip the gradient step
+            ! above; their momentum_updates entry is stale and must not be
+            ! applied either, or locked spwfs drift away from norm one.
+            if(iteration_status(wave) == ITS_LOCKED) cycle
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
           enddo
           si = si + N

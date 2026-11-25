@@ -282,3 +282,29 @@ loop already computes.
      spenergies/dispersions/hfpsi redistribution at repeated calls),
   2) the derivatives re-allocation/indexing after the 3rd growth,
   3) HFBlocks_global vs HFBlocks/spwf_map drift at repeated loadbalance.
+
+## RESOLVED: growth-corruption root causes found and fixed (session 4)
+
+- Root cause (the corruption): Evolve_momentum's update loop added
+  momentum_updates(:,:,wave) to EVERY spwf of the block, with no status
+  check; the gradient loop above it skips LOCKED states, so a locked spwf
+  kept receiving its STALE momentum vector once per iteration — a linear
+  walk away from norm 1 that GramSchmidt (skip locked) never corrected.
+  Dormant with locking_treshold=-1 (upstream default); our sprint enabled
+  locking. Fix: skip ITS_LOCKED in the update loop (evolution.f90).
+- Root cause (real, secondary): Momentum_Updates keeps its first-call
+  nwt_local size across add_spwfs growths while apply_subspace_rotation
+  indexes it with post-growth indices — OOB writes. TransformInput
+  resizes everything else. Fix: deallocate in add_spwfs; Evolve_momentum
+  reallocates at the new size (old heavy-ball history lost, irrelevant).
+- In passing: deallocate_derivatives said "$N3 allocate(candddPsi)"
+  instead of deallocate — genuine latent bug for N3 functionals +
+  pairingtype 2. Fixed.
+- Verified (O16/SLy4 12^3, ecut=15, batch=10, treshold 1e-2, -O3):
+  every NORMCHK deviation count 0, all norms exactly 1 across the whole
+  run incl. both growths 30->70->110; total energy -128.513117 MeV.
+  Stripped-binary rerun reproduces the instrumented run to the digit.
+- REMAINING (not corruption): after the 2nd growth, 11 non-sacrificial
+  states hover at dispersion ~4.3e-2 vs. locking_treshold 1e-2, so the
+  run grinds to maxiter without a further growth — a locking-threshold
+  calibration question for the added high-lying states. Next up.
