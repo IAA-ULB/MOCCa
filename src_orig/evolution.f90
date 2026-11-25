@@ -819,8 +819,11 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
         real(KIND=dp)              :: hdefl
+        real(KIND=dp)              :: dt_i(nwt), mu_i(nwt)
+        logical                    :: fresh_momentum
 
         call start_timer(T_evolution)
+        fresh_momentum = .not.allocated(Momentum_Updates)
 
         if(.not.allocated(Momentum_Updates)) then
           ! we only store the history for the LOCALLY stored wavefunctions
@@ -892,7 +895,21 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
            where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         endif
 
-        if(EstimateParams) call IterativeEstimation(F,iteration)
+        if(EstimateParams) then
+          ! With frozen potentials the spectral bound only changes at a
+          ! growth; add_spwfs deallocated Momentum_Updates, so an
+          ! unallocated array marks the first call after (re)start/growth.
+          ! In between, only the per-state parameters are refreshed.
+          if(fresh_momentum) call IterativeEstimation(F,iteration)
+          if(iteration .eq. 1) then
+             ! Same caution as the global estimator: wild starting point.
+             dt_i = dt       ; mu_i = momentum
+          else
+             call spectrum_dt_mu(dt_i, mu_i)
+          endif
+        else
+          dt_i = dt       ; mu_i = momentum
+        endif
 
         si           = 0
         gradientnorm = 0.0_dp
@@ -1021,7 +1038,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
-            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+            &               mu_i(wg)*momentum_updates(:,:,wave) - dt_i(wg)/hbar * hpsi
           enddo
 
           do wave=si+1, si+N
@@ -1117,6 +1134,48 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         call stop_timer(T_evolution)
 
     end subroutine Evolve_spectrum
+
+    subroutine spectrum_dt_mu(dt_i, mu_i)
+        !-----------------------------------------------------------------------
+        ! Per-spwf heavy-ball parameters for spectrum runs: with a frozen
+        ! hamiltonian, every spwf knows its current Ritz energy, and the
+        ! global formulas of IterativeEstimation apply state by state:
+        ! the contamination band of a single spwf lies between its own
+        ! energy and the spectral maximum of h, while the slowest mode it
+        ! must resolve is the separation to the nearest other Ritz energy
+        ! of the same symmetry block. All safeguards are those of the
+        ! global estimator.
+        !-----------------------------------------------------------------------
+        ! Output: dt_i, mu_i - (nwt) per-spwf step size and momentum factor
+        !-----------------------------------------------------------------------
+        real(KIND=dp), intent(out) :: dt_i(nwt), mu_i(nwt)
+        integer                    :: B, N, si, i, j, it
+        real(KIND=dp)              :: emax_i, relE_i, kappa
+
+        dt_i = dt       ; mu_i = momentum
+        si = 0
+        do B=1,8
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          it = (B+3)/4                       ! isospin of the block
+          do i=si+1,si+N
+             if(iteration_status(i) == ITS_LOCKED) cycle
+             emax_i = estimated_max_spe(it) - spenergies(i)
+             relE_i = huge(1.0_dp)
+             do j=si+1,si+N
+                if(j.eq.i) cycle
+                relE_i = min(relE_i, abs(spenergies(j) - spenergies(i)))
+             enddo
+             if(relE_i < 0.20_dp) relE_i = 0.20_dp
+             if(emax_i < relE_i) emax_i = relE_i
+             kappa = relE_i/emax_i
+             dt_i(i) = 4.0_dp/(emax_i+relE_i+2.0_dp*sqrt(emax_i*relE_i))     &
+     &                * hbar * stepsize_safety
+             mu_i(i) = ((sqrt(kappa)-1.0_dp)/(sqrt(kappa)+1.0_dp))**2
+          enddo
+          si = si + N
+        enddo
+
+    end subroutine spectrum_dt_mu
 
     
     subroutine Evolve_momentum_sane(F, iteration)

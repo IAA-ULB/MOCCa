@@ -392,3 +392,27 @@ loop already computes.
   (it also unmutes the runtime error message). This time it was a
   malformed format in my own print (item/type mismatch); last time a
   dangling continuation.
+
+## Per-state heavy-ball parameters in Evolve_spectrum (session 5b)
+
+- IterativeEstimation's power iteration for the spectral maximum now
+  runs only at (re)start and after each growth (add_spwfs deallocates
+  Momentum_Updates, which doubles as the freshness flag) - h is frozen
+  in spectrum runs, the bound does not drift.
+- spectrum_dt_mu(dt_i, mu_i): the global dt/mu formulas applied
+  state-referenced - emax_i = estimated_max_spe - spenergies(i)
+  (contamination band above the spwf's own Ritz energy), relE_i = the
+  smallest separation to another Ritz energy of the SAME block (the
+  mode resolved last), then the textbook optimum dt_i =
+  4/(emax+relE+2 sqrt(emax relE)) hbar safety, mu_i =
+  ((sqrt(kappa)-1)/(sqrt(kappa)+1))^2. Same floors as the global
+  estimator (relE >= 0.2 MeV, emax >= relE). Iteration 1 keeps the
+  global cautious parameters (mu = 0).
+- Acceptance case: converges at iteration 449 (540 with global dt/mu,
+  >2900 with stagnation on full-h dispersion), same 4 growths, ceilings
+  within 2e-3 MeV of the previous run, energy identical, Ritz tables
+  identical. NOTE the 'dt/mu' line of print_summary_spectrum shows the
+  GLOBAL parameters (the ones set at the last estimation); per-state
+  values are not printed.
+- If EstimateParams = .false., every state gets the user's dt/momentum
+  (input semantics unchanged).
