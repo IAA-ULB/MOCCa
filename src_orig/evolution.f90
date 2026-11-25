@@ -818,6 +818,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 #endif
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
+        real(KIND=dp)              :: hdefl
 
         call start_timer(T_evolution)
 
@@ -953,6 +954,18 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
             !       will get overwritten below by the diagonalisation of h
             spenergies(wg)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wg) = sum(hpsi(:,:)**2)*dv - spenergies(wg)**2
+
+            ! Deflated dispersion for the locking criterion: the components
+            ! of the residual along the locked spwfs of this block lie
+            ! outside the set the iteration can reach. Counting them leaves
+            ! fully-deflated spwfs frozen at a heavy-ball fixed point.
+            if(locking_treshold > 0) then
+               do wave2=si+1,si+N
+                  if(iteration_status(wave2) /= ITS_LOCKED) cycle
+                  hdefl = sum(hfpsi(:,:,wave2)*hpsi(:,:))*dv
+                  dispersions(wg) = dispersions(wg) - hdefl*hdefl
+               enddo
+            endif
 
             ! d2h can be calculated as a convergence measure in this case
             select case(pairingtype)
