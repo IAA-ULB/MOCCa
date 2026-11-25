@@ -1805,6 +1805,10 @@ $N3         &                   HFdddPsi(:,:,:,der_index),                &
                   &    ' , info =', info
           endif
           deallocate(work)
+          ! Keep the Ritz vectors: HFtransfo links the spwfs in memory to
+          ! the joint Ritz basis, so the final properties and spwf
+          ! trimming rotate the states with this matrix.
+          hftransfo(si+1:si+N,si+1:si+N) = S
           ! Ritz vectors as combinations of h|psi>: residual of the k-th
           ! Ritz pair is sqrt(||h u_k||^2 - theta_k^2).
           allocate(hu(mv,4,N))

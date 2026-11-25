@@ -493,3 +493,30 @@ loop already computes.
   replacing the two divergent ceiling prints and the add_spwfs one.
 - Regressions: accept case identical (364 iters, energy, ceilings);
   minimal.sh NLO unchanged (-128.513125 MeV).
+
+## Trim of the output spwf set (current)
+
+- `trim_spectrum()` (end of `iterate_spectrum`, only for scfscheme
+  'SPECTRUM', spectrum_ecut > 0, PairingType 0): keeps the per-block
+  prefix of states with spenergy <= Fermi+ecut, marks sphamil diagonal,
+  resets HFtransfo to the identity, shrinks the block counts via
+  TransformInput with NEGATIVE extrablocks, then set_spwf_symmetries,
+  iteration_status = ITS_LOCKED, SolvePairing. The spwfs in memory are
+  already the joint Ritz eigenstates: update_spwf_properties_HF rotated
+  them in place with the Ritz vectors that spectrum_ritz stores in
+  HFtransfo (evolution.f90).
+- TransformInput (transform.f90): callers pass the module array HFBlocks
+  as its file-block arguments, and the routine writes hfblocks - the same
+  module array - at the top of the extension branch. The dummies are
+  therefore snapshotted into local `fileblocks`/`file_HFB_blocks` copies
+  on entry; without this the file counts silently change mid-routine and
+  every per-block source offset is advanced with the new counts (seen as
+  neutron planes written into proton blocks; read-back of a trimmed file
+  gave +190 MeV total energy). Negative-extras support: `nkeep =
+  min(fileblocks, hfblocks)` prefixes at the wfs/energy, dispersions,
+  hftransfo and sphamil copy loops; the `do i=1,extraspwfs` loops are
+  no-ops for negative values.
+- Verified: trimmed file (41+57 states) is orthonormal per block to
+  machine precision (independent Python parse of the .wf records) and a
+  read-back spectrum run (ecut=10) starts from the exact -128.513117 MeV,
+  reconverges without growth events; minimal.sh NLO unchanged.

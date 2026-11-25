@@ -708,7 +708,93 @@ contains
          end if
 
      enddo
+     call trim_spectrum()
+
    end subroutine iterate_spectrum
+
+   subroutine trim_spectrum()
+     !-------------------------------------------------------------------------
+     ! Cut the spwf set down to the converged single-particle spectrum
+     ! before the output file is written: keep every state with Ritz
+     ! energy below Fermi + spectrum_ecut, drop everything above. After
+     ! the final spectrum_ritz the spenergies ascend within every
+     ! symmetry block, so the kept states are a per-block prefix. The
+     ! spwfs in memory are already the joint Ritz eigenstates
+     ! (update_spwf_properties_HF rotated them), so the file contains
+     ! eigenvalues that belong to the written vectors.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Input: none; the cutoff follows from spectrum_ecut. HF only:
+     ! trimming is not implemented for BCS/HFB bookkeeping.
+     !-------------------------------------------------------------------------
+     use compilation,   only: dp
+     use geninfo,       only: nx, ny, nz, dx
+     use wavefunctions, only: nwn, nwp, nwt, HFBlocks
+     use wavefunctions, only: spenergies, sphamil, HFtransfo
+     use wavefunctions, only: iteration_status, ITS_LOCKED
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz
+     use wavefunctions, only: spwf_map, rank_map, spwf_inverse
+     use pairing,       only: PairingType, PairingScheme, SolvePairing
+     use pairing,       only: FermiEnergy
+     use scfiteration,  only: spectrum_ecut
+     use transform,     only: TransformInput
+
+     integer :: b, i, si, nk(8), keepn, keepp
+     integer :: extrablocks(8), ifail, old_nwn, old_nwp
+     real(dp) :: cutoff(2)
+
+     if(spectrum_ecut <= 0 .or. PairingType /= 0) return
+     cutoff(1) = FermiEnergy(1) + spectrum_ecut
+     cutoff(2) = FermiEnergy(2) + spectrum_ecut
+
+     ! Per block: count the kept states (a prefix after the ascending RR
+     ! back-substitution) and mark sphamil diagonal - update_spwf_proper-
+     ! ties_HF has already rotated the spwfs in place to the joint Ritz
+     ! basis, so the states in memory are the eigenstates themselves.
+     si = 0
+     do b=1,8
+        nk(b) = 0
+        do i=1,HFBlocks(b)
+           if(spenergies(si+i) <= cutoff((b+3)/4)) nk(b) = nk(b) + 1
+        enddo
+        if(HFBlocks(b) == 0) cycle
+        sphamil(si+1:si+HFBlocks(b),si+1:si+HFBlocks(b)) = 0.0_dp
+        do i=1,HFBlocks(b)
+           sphamil(si+i,si+i) = spenergies(si+i)
+           HFtransfo(si+i,si+i) = 1.0_dp
+        enddo
+        si = si + HFBlocks(b)
+     enddo
+     keepn = sum(nk(1:4)) ; keepp = sum(nk(5:8))
+     print '(a,i0,a,i0,a,f8.3,a,f9.3,a,f9.3)',                          &
+          &  ' Trimming output spectrum: keeping ', keepn, ' + ', keepp, &
+          &  ' spwfs (cutoff at Fermi + ', spectrum_ecut,               &
+          &  ' MeV = ', cutoff(1), ' /', cutoff(2), ' MeV)'
+     ! The kept spwfs are the eigenstates themselves: with the block
+     ! rotation above, HFtransfo must be the clean identity (the Ritz
+     ! mixing it carried must not survive into the output file).
+     HFtransfo = 0.0_dp
+     do i=1,nwt
+        HFtransfo(i,i) = 1.0_dp
+     enddo
+
+     if(keepn+keepp == nwt) return
+
+     ! Shrink through TransformInput (negative extrablocks keep the
+     ! per-block prefixes); nwt is updated first because TransformInput
+     ! sizes its temporaries from it. Then refresh the per-spwf
+     ! bookkeeping.
+     extrablocks = nk - HFBlocks
+     old_nwn = nwn ; old_nwp = nwp
+     nwn = keepn ; nwp = keepp ; nwt = keepn + keepp
+     call TransformInput(nx,ny,nz, old_nwn, old_nwp, dx, HFBlocks,       &
+          &               HFBlocks, spwf_map, rank_map, spwf_inverse,    &
+          &               extrablocks)
+     call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+     if(allocated(iteration_status)) deallocate(iteration_status)
+     allocate(iteration_status(nwt)) ; iteration_status = ITS_LOCKED
+     call SolvePairing(PairingScheme, ifail)
+
+   end subroutine trim_spectrum
 
    function spectrum_growth_blocks(nex) result(extrablocks)
      !-------------------------------------------------------------------------
