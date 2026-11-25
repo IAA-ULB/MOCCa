@@ -616,7 +616,7 @@ contains
 
      integer, intent(out)           :: iter
      integer                        :: ifail, nbatches
-     integer                        :: extra_blocks(8)
+     integer                        :: extra_blocks(8), old_nwt
      real(dp)                       :: ceiling_n, ceiling_p
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
@@ -652,17 +652,22 @@ contains
             ceiling_n = maxval(spenergies(1:nwn),   mask=iteration_status(1:nwn)==ITS_LOCKED)
             ceiling_p = maxval(spenergies(nwn+1:nwt),                             &
                  &              mask=iteration_status(nwn+1:nwt)==ITS_LOCKED)
-            print '(a,2f9.3)', ' Spectrum ceilings at convergence (n,p): ', ceiling_n, ceiling_p
-            call spectrum_ritz(potentials)
             if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or. &
                  & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
+               old_nwt = nwt
                extra_blocks = spectrum_growth_blocks(spectrum_batch)
                call add_spwfs(extra_blocks)
                nbatches = nbatches + 1
                convergence_achieved = .false.
-               print '(a,f8.3,a,f8.3,a,f8.3)', &
-                    & ' Locked spectrum ceilings (n: ', ceiling_n, ', p: ', &
-                    & ceiling_p, ') below Fermi + spectrum_ecut; growing.'
+               print '(a)', ' ================= SPECTRUM GROWTH ================= '
+               print '(a,i0)', ' SPECTRUM GROWTH #', nbatches
+               print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
+               print '(a,2f10.3)', '  locked ceilings (n,p) at growth: ',        &
+                    & ceiling_n, ceiling_p
+               print '(a,2f10.3)', '  target (Fermi + spectrum_ecut):  ',      &
+                    & FermiEnergy(1) + spectrum_ecut,                          &
+                    & FermiEnergy(2) + spectrum_ecut
+               print '(a)', ' ================= SPECTRUM GROWTH ================= '
             end if
          end if
 
@@ -682,6 +687,11 @@ contains
             call update_E_history()
             call CalcEnergy(Density, Potentials, .false.)
             call calc_avg_gap()
+
+            ! The single joint Rayleigh-Ritz: overwrite spenergies and
+            ! dispersions with the honest spectrum before the final
+            ! printout, and report the sorted spectrum tables.
+            call spectrum_ritz(potentials)
 
             call update_spwf_properties_HF()
             if (PairingType == 2) call update_spwf_properties_CAN()
@@ -817,8 +827,6 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
         if(allocated(qpenergies)) deallocate(qpenergies)
         call SolvePairing(PairingScheme, ifail)
      end if
-
-     print '(a,i0,a)', ' Growing the spwf space to ', nwt, ' spwfs.'
 
    end subroutine add_spwfs
 
@@ -977,32 +985,56 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
 
    subroutine print_summary_spectrum(iter)
      !------------------------------------------------------------------
-     ! Print a summary on the progress of the iterate_spectrum routine.
-     !
+     ! Compact per-iteration banner of the frozen-potential spectrum
+     ! run: spwf census, progress of the locked ceilings toward the
+     ! Fermi + ecut target, heavy-ball diagnostics.
      !------------------------------------------------------------------
 
-     use evolution,     only : dt, momentum, gradientnorm, d2h
+     use evolution,     only : gradientnorm, d2h, dt_states, mu_states
      use compilation,   only : dp
      use wavefunctions, only : dispersions, spenergies, iteration_status
-     use wavefunctions, only : ITS_ACTIVE
+     use wavefunctions, only : ITS_ACTIVE, ITS_LOCKED, ITS_SACRIFICIAL
+     use wavefunctions, only : nwt, nwn
+     use pairing,       only : FermiEnergy
+     use scfiteration,  only : spectrum_ecut
 
      integer, intent(in) :: iter
+     integer             :: nlock
+     real(dp)            :: cn, cp
 
 1    format(86('-'))
-2    format(' Iteration = ', i4)
-21   format(' Potentials frozen.')
-3    format(' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
-4    format(' Maximum dispersion =', es12.3)
 
      print 1
-     print 2, iter
-     print 21
-     print 3, dt, momentum, gradientnorm, d2h
+     nlock = count(iteration_status(1:nwt) == ITS_LOCKED)
+     print '(a,i6,a,i5,3(a,i5))', ' Iter ', iter, '  nwt', nwt,               &
+          &                    '  locked', nlock, '  active',                   &
+          &                  count(iteration_status(1:nwt) == ITS_ACTIVE),    &
+          &                  '  sacrificial',                                   &
+          &                  count(iteration_status(1:nwt) == ITS_SACRIFICIAL)
+     if(nlock > 0) then
+        cn = maxval(spenergies(1:nwn),                                          &
+             &          mask=iteration_status(1:nwn) == ITS_LOCKED)
+        cp = maxval(spenergies(nwn+1:nwt),                                      &
+             &          mask=iteration_status(nwn+1:nwt) == ITS_LOCKED)
+        print '(a,f10.3,a,f10.3,2(a,f10.3))',                                   &
+             &    '  locked ceilings (n,p)', cn, ' /', cp,                      &
+             &    '   target ', FermiEnergy(1) + spectrum_ecut, ' /',            &
+             &              FermiEnergy(2) + spectrum_ecut
+     endif
+     print '(a,es10.2,a,es9.1)', '  gradn ', gradientnorm, '  D2H ', d2h
+     if(allocated(dt_states)) then
+        print '(a,es9.2,a,es9.2,a)', '  per-spwf dt in [ ',                        &
+             &    minval(dt_states), ' , ', maxval(dt_states), ' ]'
+        print '(a,es9.2,a,es9.2,a)', '  per-spwf mu in [ ',                        &
+             &    minval(mu_states), ' , ', maxval(mu_states), ' ]'
+     endif
      if(any(iteration_status == ITS_ACTIVE)) then
-        print 4, maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
+        print '(a,es10.2)', '  max active dispersion ',                        &
+             &    maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
      else
-        print 4, 0.0_dp
-     end if
+        print '(a)', '  max active dispersion  - all lockable spwfs locked'
+     endif
+     print 1
 
    end subroutine print_summary_spectrum
 #endif

@@ -471,3 +471,25 @@ loop already computes.
   converged at iteration 2008 (was 2582), zero stagnation locks,
   energy identical. Newest overshoot batch = genuine eigenstructure
   ~1.3 MeV above the ceiling, no UV churn.
+
+## Printing cleanup for the merge (session 7)
+
+- Joint Rayleigh-Ritz now runs ONCE, in the exit block of
+  iterate_spectrum (after the density/energy pipeline, before the
+  final printout) and back-substitutes: spenergies := block Ritz
+  eigenvalues (ascending within block), dispersions := residual^2. The
+  final spwf table columns E and d2h are therefore honest spectrum
+  values (occupied lowest neutrons: d2h 4.4e-07 = (6.6e-4)^2), the
+  26 intermediate boundary tables of an ecut=40 run are gone, and the
+  sorted per-isospin 'Final joint Rayleigh-Ritz spectrum' tables remain
+  the run's spectrum product.
+- Per-iteration banner of iterate_spectrum rewritten: spwf census
+  (nwt/locked/active/sacrificial), locked ceilings vs the Fermi+ecut
+  target, gradn/D2H, the per-spwf dt and mu ranges (dt_states/mu_states
+  module arrays in evolution, refreshed each iteration), and the max
+  active deflated dispersion.
+- Growth events print a fenced 'SPECTRUM GROWTH #' banner: batch
+  number, spwf count transition, ceilings at growth, and the target -
+  replacing the two divergent ceiling prints and the add_spwfs one.
+- Regressions: accept case identical (364 iters, energy, ceilings);
+  minimal.sh NLO unchanged (-128.513125 MeV).

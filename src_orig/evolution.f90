@@ -151,6 +151,9 @@ module evolution
     integer              :: stagnation_iter = 0
     real(KIND=dp), allocatable :: best_dispersion(:)
     integer, allocatable      :: stagnation_counter(:)
+    !  Per-spwf heavy-ball parameters as last used by Evolve_spectrum;
+    !  kept for diagnostics printing only.
+    real(KIND=dp), allocatable :: dt_states(:), mu_states(:)
 
 contains
     
@@ -912,6 +915,14 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         else
           dt_i = dt       ; mu_i = momentum
         endif
+
+        if(allocated(dt_states)) then
+           if(size(dt_states) < nwt) deallocate(dt_states, mu_states)
+        endif
+        if(.not.allocated(dt_states)) then
+           allocate(dt_states(nwt), mu_states(nwt))
+        endif
+        dt_states = dt_i      ; mu_states = mu_i
 
         si           = 0
         gradientnorm = 0.0_dp
@@ -1807,6 +1818,15 @@ $N3         &                   HFdddPsi(:,:,:,der_index),                &
           si = si + N
         enddo
 
+        ! Back-substitute the joint Ritz result into the per-spwf arrays:
+        ! spenergies become the honest block eigenvalues and dispersions
+        ! the residual bounds, so the final spwf table reports spectrum
+        ! quality rather than the deflated-constrained iteration values.
+        spenergies(1:nwt) = ritz(1:nwt)
+        do k=1,nwt
+           dispersions(k) = resid(k)**2
+        enddo
+
         call print_ritz_table('Neutrons', 1, nwn, ritz, resid)
         call print_ritz_table('Protons', nwn+1, nwt, ritz, resid)
 
@@ -1839,7 +1859,7 @@ $N3         &                   HFdddPsi(:,:,:,der_index),                &
               k = order(i) ; order(i) = order(j) ; order(j) = k
            endif
         enddo
-        print '(a,a,a,i5,a)', ' Joint Rayleigh-Ritz spectrum, ', label,     &
+        print '(a,a,a,i5,a)', ' Final joint Rayleigh-Ritz spectrum, ', label,  &
              &    ' (', nn, ') states'
         print '(a)', '       E_ritz   resid_bound'
         do i=1,nn
