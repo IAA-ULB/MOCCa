@@ -416,3 +416,30 @@ loop already computes.
   values are not printed.
 - If EstimateParams = .false., every state gets the user's dt/momentum
   (input semantics unchanged).
+
+## ecut = 40 validation (session 6)
+
+- O16/SLy4 12^3, ecut=40 MeV, batch=10, treshold 1e-2, -O3: 25 growths
+  to nwt = 1030 (515 per isospin), converged in 2582 iterations,
+  'Convergence criteria satisfied', ZERO stagnation locks, wall ~320 s.
+  Total energy -128.513117 MeV, identical to every run since the
+  corruption fixes: growth never touches the occupied sector.
+- Final joint Ritz neutron table: 515 eigenvalues from -36.153 upward;
+  residual bounds < 1e-3 MeV for the occupied shell, < 0.1 MeV up to
+  E = 31.652 = the last locked ceiling (residual column independently
+  confirms the ceiling gate), 413 of 515 below 0.1 MeV. The ~15
+  highest (sacrificial overshoot) carry residuals up to 157 MeV -
+  exactly the designed overshoot, now explicitly visible instead of
+  silently corrupting eigenvalues.
+- No modelspace-exhaustion pathology at 1030 spwfs in the 12^3 box;
+  the ladder runs to Fermi+ecut without asymptotic degradation (your
+  session-3 worry: too few unlocked spwfs / box exhaustion - neither
+  bites at this size).
+- Section timers (commit 2c077c49) close the budget of Spwf evolution:
+  previously ~15% unattributed, now 1%: sphamil pair loops ~8%,
+  in-subspace gradient orthogonalisation ~5% (pre-existing misnamed
+  timer T_Hortho, prints as a duplicate 'Subspace rotation'), GS
+  ~11%, apply_sphamil ~16%, deflation ~6%. Timer start/stop per spwf
+  per iteration is diagnostic-grade only - measurable overhead; the
+  pair and deflation timers belong inside the block loop, one level up
+  (per block, not per spwf) if kept permanently.
