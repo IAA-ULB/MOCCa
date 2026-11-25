@@ -776,6 +776,335 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+
+    subroutine Evolve_spectrum(F, iteration)
+        !-----------------------------------------------------------------------
+        ! Heavy-ball evolution of the spwfs for scfscheme = 'SPECTRUM' (frozen-potential
+        ! spectrum runs): diagonalize a time-independent single-particle
+        ! hamiltonian with locking, sacrificial spwfs and a growing spwf set.
+        !
+        ! Same update scheme as Evolve_momentum - psi^(i+1) => psi^(i)
+        ! - dt/hbar * g^(i) + mu * deltapsi, with g^(i) = h |psi^(i)>
+        ! - eps^i |psi^(i)> for diagsphamil = .true. - but the locking ladder,
+        ! stagnation fallback and the ITS_SACRIFICIAL exemptions only make
+        ! sense for time-independent h, so they live here rather than in the
+        ! mean-field routine.
+        !
+        ! Output, as for Evolve_momentum: spenergies, dispersions, sphamil,
+        ! hftransfo (HF basis per block via block diagonalisation when
+        ! diagsphamil = .false.), gradientnorm and the occupation-weighted
+        ! dispersion d2h.
+        !-----------------------------------------------------------------------
+        ! Input:
+        !  F        : potentials determining the single-particle hamiltonian
+        !  iteration: iteration count
+        !-----------------------------------------------------------------------
+
+        use wavefunctions
+
+        ! Explicit declaration of linear algebra routines
+        external :: DSYEV
+        
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
+        integer, allocatable              :: indices(:)
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+
+        integer               :: current_batch, cutoff_batch
+        integer               :: wg, wg2, der_index
+        logical               :: on_the_fly, all_lower_converged
+#if(USE_MPI>0)
+        integer               :: mpi_err
+#endif
+        real(KIND=dp), allocatable :: work(:)
+        real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
+
+        call start_timer(T_evolution)
+
+        if(.not.allocated(Momentum_Updates)) then
+          ! we only store the history for the LOCALLY stored wavefunctions
+          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+          Momentum_Updates = 0.0_dp
+        endif
+
+        if(.not.allocated(sphamil)) then 
+          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+        endif
+
+        ! Locked spwfs become active again unless they are sacrificial
+        where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
+        ! Check what spwfs we can lock
+        if(locking_treshold > 0) then
+          if(allocated(stagnation_counter)) then
+             if(size(stagnation_counter) < nwt)                                  &
+     &                     deallocate(stagnation_counter, best_dispersion)
+          endif
+          if(.not.allocated(stagnation_counter)) then
+             allocate(stagnation_counter(nwt), best_dispersion(nwt))
+             stagnation_counter = 0       ; best_dispersion = huge(1.0_dp)
+          endif
+          si = 0
+          do B=1,8
+             N = HFBlocks(B)
+             if(N.eq.0) cycle
+             indices = OrderSpwfsSym(B)
+             ! A spwf is lockable if converged, or if its dispersion has
+             ! stopped improving (new best) for stagnation_iter iterations.
+             do wave=1,N
+                if(stagnation_iter > 0                                       &
+     &               .and. dispersions(indices(wave)) < 0.9_dp               &
+     &                                       * best_dispersion(indices(wave))) then
+                   best_dispersion(indices(wave)) = dispersions(indices(wave))
+                   stagnation_counter(indices(wave))  = 0
+                elseif(stagnation_iter > 0) then
+                   stagnation_counter(indices(wave))                          &
+     &                  = stagnation_counter(indices(wave)) + 1
+                endif
+                if(stagnation_iter > 0 .and.                                  &
+     &               stagnation_counter(indices(wave)) == stagnation_iter) then
+                   print '(a,i6,a,es12.4,a,f9.3)', ' Stagnation: locking spwf ',  &
+     &                  indices(wave), ' at dispersion',                        &
+     &                  dispersions(indices(wave)), ', spenergy',             &
+     &                  spenergies(indices(wave))
+                endif
+             enddo
+             do wave=1,N
+                all_lower_converged = .true.
+                do wave2=1,wave
+                  if(.not. ( dispersions(indices(wave2)) <= locking_treshold   &
+     &                 .or. (stagnation_iter > 0 .and.                        &
+     &                 stagnation_counter(indices(wave2)) >= stagnation_iter)  &
+     &                 ) ) then
+                     all_lower_converged = .false.
+                  endif
+                enddo
+                if(all_lower_converged .and.                          &
+                     &    iteration_status(indices(wave)) /= ITS_SACRIFICIAL) then
+                   iteration_status(indices(wave)) = ITS_LOCKED
+                endif
+             enddo
+             !print ('(1a10, 99es10.2)'), 'dispersions = ', dispersions(si+1:si+N)
+             !print ('(1a10, 99es10.2)'), 'spenergies  = ', spenergies(si+1:si+N)
+             si = si + N
+          enddo
+        else
+           where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
+        endif
+
+        if(EstimateParams) call IterativeEstimation(F,iteration)
+
+        si           = 0
+        gradientnorm = 0.0_dp
+        d2h          = 0.0_dp
+
+        ! Zero everything about the evolving spwfs
+        do wave=1,nwt
+           if(iteration_status(wave) == ITS_LOCKED) cycle
+           hftransfo(wave,:) = 0.0d0
+           hftransfo(:,wave) = 0.0d0
+           spenergies(wave)  = 0.0d0
+           dispersions(wave) = 0.0d0
+           sphamil(wave,:)   = 0.0d0
+           sphamil(:,wave)   = 0.0d0
+        enddo
+
+        do B=1,8                       !<---- this loops over local spwf indices
+          N = HFblocks(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          do wave=si+1,si+N     ! = local index of the spwf
+            wg = spwf_map(wave) ! = global index of the spwf
+
+            if(iteration_status(wave) == ITS_LOCKED) then
+              ! Don't evolve if locked, but do track contribution to weighted dispersion
+              select case(pairingtype)
+              case(0,1)
+                d2h          = d2h + rho_can(wg)*dispersions(wg)
+              case(2)
+                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
+              end select
+              cycle ! go to the next spwf
+            endif
+
+            if(store_derivatives) then
+              ! We have the derivatives precalculated
+              der_index = wave
+              on_the_fly = .false.
+            else
+              ! We do not have the derivatives precalculated
+              der_index  = 1
+              on_the_fly = .true.
+            endif
+            !-------------------------------------------------------------------
+            ! Calculate the action of the single-particle hamiltonian.
+            hpsi = apply_sphamil(  hfpsi(:,:,wave)       ,                          &
+            &                     hfdpsi(:,:,:,der_index),                          &
+            &                    hfddpsi(:,:,:,der_index),                          &
+$N3         &                   hfdddpsi(:,:,:,der_index),                          &
+            &                      sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,F)
+
+
+            ! 27/10/'26 : this is no longer hidden behind a condition
+            !
+            !       spenergies  : <psi|h  | psi>
+            !       dispersions : <psi|h h| psi> - spenergies**2
+            !
+            ! Note: if diagsphamil == .false., then spenergies
+            !       will get overwritten below by the diagonalisation of h
+            spenergies(wg)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            dispersions(wg) = sum(hpsi(:,:)**2)*dv - spenergies(wg)**2
+
+            ! d2h can be calculated as a convergence measure in this case
+            select case(pairingtype)
+            case(0,1)
+               d2h          = d2h + rho_can(wg)*dispersions(wg)
+            case(2)
+               d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
+            end select
+
+#if(PASTA == 0)
+            !-------------------------------------------------------------------
+            ! We construct the matrix elements of the single-particle 
+            ! hamiltonian in the basis of s.p. wavefunctions in memory.
+#if(USE_MPI>0)
+            call stp('Evolve_spectrum is not yet ready for MPI calculations.')
+#else
+            do wave2=wave,si+N           ! local index
+                wg2 = spwf_map(wave2)    ! global index
+                sphamil(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                sphamil(wg ,wg2) = sphamil(wg2,wg)
+            enddo
+#endif
+#else 
+            !-------------------------------------------------------------------
+            ! ... but this is very costly when nwt is large, i.e. when doing 
+            ! pasta  calculations, so we do something simple instead.
+            !-------------------------------------------------------------------
+            sphamil(wg,wg) = spenergies(wg)
+#endif
+            !-------------------------------------------------------------------
+            if(diagsphamil) then
+              ! We are diagonalising the s.p. hamiltonian completely, i.e.
+              ! also in the space spanned by the s.p. wavefunctions in memory
+              ! We simply move in the direction of h|psi\rangle
+              hpsi =   hpsi - spenergies(wg) * hfpsi(:,:,wave)
+            else
+              ! We do not diagonalise the s.p. hamiltonian, we only try to 
+              ! construct the subspace spanned by its lowest eigenstates. 
+              ! Hence, our update should only take us into "new" directions.
+              ! So, we orthogonalise the update direction to all spwfs in
+              ! storage.
+              call start_timer(T_Hortho)
+              do wave2=si+1,si+N          ! local index
+                wg2 = spwf_map(wave2)     ! global index
+                hpsi = hpsi - sphamil(wg,wg2)*hfpsi(:,:,wave2)
+              enddo
+              call stop_timer(T_Hortho)
+              ! The norm of the gradient can always be calculated as a 
+              ! convergence measure.
+              gradientnorm = gradientnorm + sum(hpsi**2)*dv
+            endif
+
+            !-------------------------------------------------------------------
+            ! Add some history and 'momentum' to the update. 
+            momentum_updates(:,:,wave) = &
+            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+          enddo
+
+          do wave=si+1, si+N
+            !-------------------------------------------------------------------
+            ! Update the wavefunctions. Locked spwfs skip the gradient step
+            ! above; their momentum_updates entry is stale and must not be
+            ! applied either, or locked spwfs drift away from norm one.
+            if(iteration_status(wave) == ITS_LOCKED) cycle
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
+          enddo
+          si = si + N
+        enddo                     !<---- end of the loop over local spwf indices
+
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Bookkeeping for convergence criteria
+        gradientnorm = sqrt(gradientnorm) 
+        d2h          = d2h/(neutrons+protons)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Orthonormalize the new spwf basis.
+        call orthonormalize
+#if(USE_MPI > 0)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
+        ! since we zeroed the initial arrays at the top of this routine.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-scalars
+        call MPI_ALLREDUCE(MPI_IN_PLACE,d2h         , 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        call MPI_ALLREDUCE(MPI_IN_PLACE,gradientnorm, 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-vectors
+        call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        if(diagsphamil) then
+          call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies,                          &
+          &                  nwt, MPI_REAL8,MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-Matrices
+        ! Note, this can be done block-wise in order to save on communication
+        !       it CANNOT be included in the previous loop since it relies on 
+        !       global indices
+        call MPI_ALLREDUCE(MPI_IN_PLACE,sphamil , nwt**2, MPI_REAL8,       &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+#endif
+
+        !-----------------------------------------------------------------------
+        ! Treatment of the HF transformation
+        ! Note: this has been separated from the previous loop since it really
+        !       needs to consider the entire sphamiltonian in a given subblock.
+        !       Hence a new loop over symmetry blocks.
+        !-----------------------------------------------------------------------
+        si = 0
+        do B=1,8                      !<---- this loops over global spwf indices
+          N = HFblocks_global(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          if(diagsphamil) then
+              ! The HF-transfo we use is trivial, i.e. the s.p. wavefunctions
+              ! in memory constitute the HF basis.
+              do wave=1,N
+                  hftransfo(si+wave,si+wave) = 1.0d0
+              enddo
+          else
+              ! The s.p. wavefunctions in memory do not constitute the HF-basis.
+              ! We diagonalise the single-particle hamiltonian (*) to 
+              ! obtain the unitary transformation into that basis.
+              !
+              ! (*) Actually, the single-particle hamiltonian BEFORE the 
+              !     heavy-ball evolution.
+              call start_timer(T_HFdiag)
+
+              HFtransfo(si+1:si+N,si+1:si+N) = sphamil(si+1:si+N, si+1:si+N)
+
+              lwork = -1; allocate(work(1))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              deallocate(work)
+
+              call stop_timer(T_HFdiag)
+          endif
+
+          si = si + N
+        enddo
+
+        call stop_timer(T_evolution)
+
+    end subroutine Evolve_spectrum
+
     
     subroutine Evolve_momentum_sane(F, iteration)
       !-------------------------------------------------------------------------

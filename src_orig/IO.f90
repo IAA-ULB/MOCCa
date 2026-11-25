@@ -162,8 +162,8 @@ contains
     endif
     ! - if efficientHFB is true, we also do not diagonalise h
     if(efficientHFB) diagsphamil = .false.
-    ! - if scfscheme == 2 we also do not diagonalise h
-    if(scfscheme == 2) diagsphamil = .false.
+    ! - if scfscheme == 'SPECTRUM' we also do not diagonalise h
+    if(trim(scfscheme) == 'SPECTRUM') diagsphamil = .false.
 
 
     call ReadWFdata(file_number)

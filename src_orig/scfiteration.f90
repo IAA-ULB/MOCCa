@@ -32,20 +32,21 @@ module SCFiteration
   use functional
   use densities
   use evolution, only : locking_treshold, diagsphamil
+  use geninfo,   only : to_upper
 
   implicit none
   
   !-----------------------------------------------------------------------------
   ! Determine the SCF-evolution scheme
-  !  (0) => Preconditioning of necessary potentials  (here F_I_I)
-  !  (1) => Linear mixing of the necessary densities (here D_I_I)
-  !  (2) => No updates of potentials/densities at all, pure evolution of spwfs.
-  !
-  ! Note: (1) does not work at the moment!
-  integer  :: scfscheme = 0
+  !  'MEANFIELD'  => SCF iteration: update the potentials from the
+  !                  densities (with potential preconditioning)
+  !  'SPECTRUM'   => No updates of potentials/densities at all: evolve the
+  !                  spwfs on frozen potentials to diagonalize h and grow
+  !                  the spwf space to the spectrum cutoff.
+  character(len=20) :: scfscheme = 'MEANFIELD'
   !-----------------------------------------------------------------------------
-  ! Growth of the spwf space during scfscheme = 2 (frozen-potential spectrum
-  ! iteration). Batches of spwfs are added whenever the currently lockable
+  ! Growth of the spwf space during scfscheme = 'SPECTRUM' (frozen-potential
+  ! spectrum iteration). Batches of spwfs are added whenever the currently lockable
   ! states are all locked, until the locked single-particle spectrum covers
   ! FermiEnergy + spectrum_ecut for both isospins.
   !   spectrum_ecut > 0  : grow, up to that excitation energy in MeV
@@ -86,16 +87,19 @@ contains
       endif
 
       ! Sanity checks
-      if((scfscheme .lt. 0) .or. (scfscheme.gt.2)) then
-        call stp('Invalid scfscheme value.')
-      endif
+      scfscheme = to_upper(adjustl(scfscheme))
+      select case(trim(scfscheme))
+      case('MEANFIELD','SPECTRUM')
+      case default
+        call stp("Invalid scfscheme value : use 'MEANFIELD' or 'SPECTRUM'.")
+      end select
 
-      if(locking_treshold > 0 .and. scfscheme .ne. 2) then
+      if(locking_treshold > 0 .and. trim(scfscheme) /= 'SPECTRUM') then
          call stp('Locking is not compatible with evolving potentials.')
       endif
 
-      if(spectrum_ecut > 0 .and. scfscheme .ne. 2) then
-         call stp('Spectrum growth (spectrum_ecut) requires scfscheme = 2.')
+      if(spectrum_ecut > 0 .and. trim(scfscheme) /= 'SPECTRUM') then
+         call stp("Spectrum growth (spectrum_ecut) requires scfscheme = 'SPECTRUM'.")
       endif
       if(spectrum_batch < 1) then
          call stp('spectrum_batch must be at least 1.')
@@ -104,13 +108,12 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Broadcasting the MPI information
 #if(USE_MPI > 0)
-    !call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(kerker_k0   , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(scfscheme   , len(scfscheme), MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(spectrum_ecut, 1, MPI_REAL8 , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(spectrum_batch, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
@@ -130,15 +133,13 @@ contains
     6 format('   Spectrum growth to Fermi + ', f6.2, ' MeV in batches of ', i4, ' spwfs/block')
 
     print 1
-    select case(scfscheme)
-    case(0)
-      print 2, 'Potential preconditioning'
+    select case(trim(scfscheme))
+    case('MEANFIELD')
+      print 2, ' Potential preconditioning'
       print 4, preconfactor
       print 5, kerker_k0
-    case(1)
-       ! not operational!
-    case(2)
-      print 2, ' NO SCF evolution!'
+    case('SPECTRUM')
+      print 2, ' Frozen-potential spectrum'
       if(spectrum_ecut > 0) print 6, spectrum_ecut, spectrum_batch
     end select
   end subroutine printscfiteration

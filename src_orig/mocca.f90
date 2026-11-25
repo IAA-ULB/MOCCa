@@ -147,6 +147,7 @@ contains
      !   iomsg: character, message about convergence
      !----------------------------------------------------------------------------
      use scfiteration, only : scfscheme
+     use evolution,    only : Evolve_subspace, Evolve_spectrum
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -154,9 +155,14 @@ contains
      ! 1. set-up phase, construction of the starting point
      call set_up_mean_field()
      ! 2. Iteration phase, start of iterations
-     if(scfscheme /= 2) then
+     if(trim(scfscheme) /= 'SPECTRUM') then
         call iterate_mean_field(iter, iomsg)
      else
+        ! Frozen-potential spectrum runs get the dedicated heavy-ball
+        ! routine: locking ladder, sacrificial spwfs and per-run (later
+        ! per-state) dt/mu have no place in the mean-field evolution.
+        ! This overrides the Strategy keyword of the evolution namelist.
+        Evolve_subspace => Evolve_spectrum
         call iterate_spectrum(iter, iomsg)
      endif
 
@@ -441,7 +447,7 @@ contains
             ! calculate new values for the potentials from the densities
             potentials_out = calcPotentials(Density)
 
-            if (scfscheme == 0) then
+            if (trim(scfscheme) == 'MEANFIELD') then
                potentials_out = precondition_potentials(potentials, potentials_out)
             end if
             ! Save the information to memory, throwing out older information.
@@ -636,7 +642,7 @@ contains
          convergence_achieved = ALL(iteration_status /= ITS_ACTIVE)
 
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ! Spectrum growth (scfscheme = 2): once all lockable spwfs are
+         ! Spectrum growth (scfscheme = 'SPECTRUM'): once all lockable spwfs are
          ! locked, add a batch if the locked spectrum does not yet reach
          ! the Fermi energy + spectrum_ecut for both isospins. Empty masks
          ! (nothing locked in an isospin) yield -huge, i.e. growth.

@@ -335,3 +335,31 @@ loop already computes.
   satisfied' and finishing cleanly; total energy -128.513117 MeV,
   identical to before. CEILING VALUES ARE NOW TRUSTWORTHY (lock set
   clean) -> the next sprint item is the real acceptance scan over ecut.
+
+## Evolve_spectrum extraction + scfscheme string keyword (session 4c)
+
+- Evolve_spectrum(F, iteration) added to evolution.f90: the heavy-ball
+  path used by scfscheme=2, extracted verbatim from Evolve_momentum as a
+  first, behaviour-preserving step toward dedicated-spectrum machinery
+  (deflated locking is next). run_mean_field now assigns
+  Evolve_subspace => Evolve_spectrum for spectrum runs - this overrides
+  the Strategy keyword of the evolution namelist for those runs (noted
+  in the code and in the input docs below).
+- BREAKING INPUT CHANGE: scfscheme is now a string,
+  'MEANFIELD' (default) or 'SPECTRUM'. The legacy integers 0/1/2 no
+  longer parse; the broken scheme 1 (linear mixing, never operational)
+  is gone. No committed test input or reference used scfscheme, so
+  only ad-hoc user inputs break. Internal comparisons now read
+  trim(scfscheme) == 'SPECTRUM' (mocca, IO) / 'MEANFIELD' (precond
+  branch). MPI_BCAST broadcasts the character variable.
+- Regressions: O16/SLy4 12^3 spectrum acceptance case reproduces the
+  pre-refactor output token-for-token (only the scheme header line
+  differs); minimal.sh NLO converges -128.513125 MeV with the default
+  MEANFIELD path.
+- Known absent facilities on this branch, AGENTS.md's testing section
+  notwithstanding: golden_diff.sh, moments/block-matrix unit suites are
+  not in this checkout - do not assume they exist.
+- NEXT (in the new routine): deflated-residual locking criterion
+  ||P(h psi - eps psi)||^2 (P orth. to locked span), then joint
+  Rayleigh-Ritz spectrum reporting at growth/convergence boundaries,
+  then per-state dt/mu.
