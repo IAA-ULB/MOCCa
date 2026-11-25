@@ -55,6 +55,7 @@ module timing
   integer :: T_fam, T_ZPE
   integer :: T_den_perturbed, T_den_perturbed_sym, T_den_perturbed_asym
   integer :: T_den_perturbed_pp, T_spme_perturbed_pp
+  integer :: T_lock_ladder, T_sph_pairs, T_deflation, T_mom_apply, T_ev_book
   integer :: T_spme_perturbed, T_spme_perturbed_sym, T_spme_perturbed_asym
 #if(USE_MPI > 0)
   integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
@@ -561,6 +562,11 @@ contains
       call add_timer('Calculation of h in subspace', T_calc_sph)
       call add_timer('Matrix elements of h', T_calc_sph_me)
       call add_timer('Update of h in subspace', T_update_sph)
+      call add_timer('Locking ladder', T_lock_ladder)
+      call add_timer('sphamil pairs', T_sph_pairs)
+      call add_timer('Deflation', T_deflation)
+      call add_timer('Momentum application', T_mom_apply)
+      call add_timer('Evolution bookkeeping', T_ev_book)
 #if( USE_MPI > 0)
       call add_timer('Layout transfer: 1D -> 2D', T_transfer_psi_1to2)
       call add_timer('Layout transfer: 2D -> 1D', T_transfer_psi_2to1)

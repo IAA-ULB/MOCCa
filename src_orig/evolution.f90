@@ -838,6 +838,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         ! Locked spwfs become active again unless they are sacrificial
         where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         ! Check what spwfs we can lock
+        call start_timer(T_lock_ladder)
         if(locking_treshold > 0) then
           if(allocated(stagnation_counter)) then
              if(size(stagnation_counter) < nwt)                                  &
@@ -894,6 +895,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         else
            where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         endif
+        call stop_timer(T_lock_ladder)
 
         if(EstimateParams) then
           ! With frozen potentials the spectral bound only changes at a
@@ -915,6 +917,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
 
+        call start_timer(T_ev_book)
         ! Zero everything about the evolving spwfs
         do wave=1,nwt
            if(iteration_status(wave) == ITS_LOCKED) cycle
@@ -925,6 +928,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
            sphamil(wave,:)   = 0.0d0
            sphamil(:,wave)   = 0.0d0
         enddo
+        call stop_timer(T_ev_book)
 
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
@@ -976,6 +980,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
             ! of the residual along the locked spwfs of this block lie
             ! outside the set the iteration can reach. Counting them leaves
             ! fully-deflated spwfs frozen at a heavy-ball fixed point.
+            call start_timer(T_deflation)
             if(locking_treshold > 0) then
                do wave2=si+1,si+N
                   if(iteration_status(wave2) /= ITS_LOCKED) cycle
@@ -983,6 +988,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
                   dispersions(wg) = dispersions(wg) - hdefl*hdefl
                enddo
             endif
+            call stop_timer(T_deflation)
 
             ! d2h can be calculated as a convergence measure in this case
             select case(pairingtype)
@@ -992,6 +998,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
             end select
 
+            call start_timer(T_sph_pairs)
 #if(PASTA == 0)
             !-------------------------------------------------------------------
             ! We construct the matrix elements of the single-particle 
@@ -1035,12 +1042,14 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
               gradientnorm = gradientnorm + sum(hpsi**2)*dv
             endif
 
+            call stop_timer(T_sph_pairs)
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
             &               mu_i(wg)*momentum_updates(:,:,wave) - dt_i(wg)/hbar * hpsi
           enddo
 
+            call start_timer(T_mom_apply)
           do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions. Locked spwfs skip the gradient step
@@ -1049,6 +1058,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
             if(iteration_status(wave) == ITS_LOCKED) cycle
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
           enddo
+        call stop_timer(T_mom_apply)
           si = si + N
         enddo                     !<---- end of the loop over local spwf indices
 
