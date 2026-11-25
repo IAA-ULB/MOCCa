@@ -595,6 +595,7 @@ contains
      use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
 
      use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
+     use evolution,     only: spectrum_ritz
      use evolution,     only: apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
@@ -652,6 +653,7 @@ contains
             ceiling_p = maxval(spenergies(nwn+1:nwt),                             &
                  &              mask=iteration_status(nwn+1:nwt)==ITS_LOCKED)
             print '(a,2f9.3)', ' Spectrum ceilings at convergence (n,p): ', ceiling_n, ceiling_p
+            call spectrum_ritz(potentials)
             if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or. &
                  & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
                extra_blocks = spectrum_growth_blocks(spectrum_batch)

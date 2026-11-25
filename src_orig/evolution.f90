@@ -1661,6 +1661,118 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       call stop_timer(T_calc_sph)
     end function calc_sphamil
     
+    subroutine spectrum_ritz(F)
+        !-----------------------------------------------------------------------
+        ! Report the joint Rayleigh-Ritz spectrum of all spwfs in memory.
+        ! Per symmetry block, apply h to every spwf (locked and active
+        ! together), diagonalize the full block matrix and list the Ritz
+        ! eigenvalues with their residual norms sqrt(||h u||^2 - theta^2).
+        ! The residual is the Krylov-Weinstein bound on the eigenvalue
+        ! error; it is honest for the locked spwfs in a way the individual
+        ! (deflated-constrained) spenergies are not.
+        !-----------------------------------------------------------------------
+        ! Input:  F - the (frozen) mean-field potentials
+        ! Side-effect: prints one table per isospin, sorted by energy.
+        !-----------------------------------------------------------------------
+        type(PotentialVector), intent(in) :: F
+        real(KIND=dp), allocatable :: wfs(:,:,:), hpsi(:,:,:), hu(:,:,:)
+        real(KIND=dp), allocatable :: S(:,:), work(:)
+        real(KIND=dp)             :: ritz(nwt), resid(nwt)
+        integer                    :: B, N, si, wave, iso, lwork, info
+        integer                    :: k, i, j, der_index
+
+        external :: DSYEV
+
+        ritz = 0.0_dp ; resid = 0.0_dp
+        si = 0
+        do B=1,8
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          iso = -1 ; if(B.gt.4) iso = +1
+          allocate(wfs(mv,4,N), hpsi(mv,4,N), S(N,N))
+          do wave=1,N
+             wfs(:,:,wave) = hfpsi(:,:,si+wave)
+             if(store_derivatives) then
+                der_index = si+wave
+             else
+                der_index = 1
+             endif
+             hpsi(:,:,wave) = apply_sphamil(wfs(:,:,wave),                 &
+                  &                     HFdPsi(:,:,:,der_index),          &
+                  &                    HFddPsi(:,:,:,der_index),          &
+$N3         &                   HFdddPsi(:,:,:,der_index),                &
+                  &                      sx(:,si+wave), sy(:,si+wave),      &
+                  &                      sz(:,si+wave), iso,                &
+                  &                      .not.store_derivatives, F)
+          enddo
+          call DGEMM('t','n', N, N, 4*mv, dv, wfs, 4*mv, hpsi, 4*mv,      &
+               &      0.0_dp, S, N)
+          lwork = -1 ; allocate(work(1))
+          call DSYEV('V','U', N, S, N, ritz(si+1:si+N), work, lwork, info)
+          if(info.ne.0) then
+             print *, 'DSYEV workspace query failed, info =', info
+          endif
+          lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
+          call DSYEV('V','U', N, S, N, ritz(si+1:si+N), work, lwork, info)
+          if(info.ne.0) then
+             print *, 'Joint Ritz diagonalisation failed for block ', B,   &
+                  &    ' , info =', info
+          endif
+          deallocate(work)
+          ! Ritz vectors as combinations of h|psi>: residual of the k-th
+          ! Ritz pair is sqrt(||h u_k||^2 - theta_k^2).
+          allocate(hu(mv,4,N))
+          call DGEMM('n','n', 4*mv, N, N, 1.0_dp, hpsi, 4*mv, S, N,      &
+               &      0.0_dp, hu, 4*mv)
+          do k=1,N
+             resid(si+k) = sum(hu(:,:,k)**2)*dv - ritz(si+k)**2
+             if(resid(si+k) > 0.0_dp) resid(si+k) = sqrt(resid(si+k))
+          enddo
+          deallocate(wfs, hpsi, hu, S)
+          si = si + N
+        enddo
+
+        call print_ritz_table('Neutrons', 1, nwn, ritz, resid)
+        call print_ritz_table('Protons', nwn+1, nwt, ritz, resid)
+
+    end subroutine spectrum_ritz
+
+    subroutine print_ritz_table(label, lo, hi, ritz, resid)
+        !-----------------------------------------------------------------------
+        ! Sorted printout of the joint Ritz spectrum for one isospin.
+        !-----------------------------------------------------------------------
+        ! Input: label - table header
+        !        lo,hi - global spwf index range of the isospin
+        !        ritz, resid - (nwt) Ritz energies and residual bounds
+        !-----------------------------------------------------------------------
+        character(*),   intent(in) :: label
+        integer,        intent(in) :: lo, hi
+        real(KIND=dp),  intent(in) :: ritz(nwt), resid(nwt)
+        integer, allocatable      :: order(:)
+        integer                   :: nn, k, i, j
+
+        nn = hi - lo + 1
+        if(nn.le.0) return
+        allocate(order(nn))
+        forall (k=1:nn) order(k) = lo - 1 + k
+        do i=1,nn-1                        ! selection sort by ascending energy
+           j = i
+           do k=i+1,nn
+              if(ritz(order(k)) < ritz(order(j))) j = k
+           enddo
+           if(j.ne.i) then
+              k = order(i) ; order(i) = order(j) ; order(j) = k
+           endif
+        enddo
+        print '(a,a,a,i5,a)', ' Joint Rayleigh-Ritz spectrum, ', label,     &
+             &    ' (', nn, ') states'
+        print '(a)', '       E_ritz   resid_bound'
+        do i=1,nn
+           print '(i6,f11.3,es12.3)', i, ritz(order(i)), resid(order(i))
+        enddo
+        deallocate(order)
+
+    end subroutine print_ritz_table
+
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
       !-------------------------------------------------------------------------
       ! TODO: document

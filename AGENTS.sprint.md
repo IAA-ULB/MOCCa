@@ -363,3 +363,32 @@ loop already computes.
   ||P(h psi - eps psi)||^2 (P orth. to locked span), then joint
   Rayleigh-Ritz spectrum reporting at growth/convergence boundaries,
   then per-state dt/mu.
+
+## Deflated locking + joint Rayleigh-Ritz reporting (session 5)
+
+- Deflated locking criterion implemented in Evolve_spectrum: subtract
+  sum_l <psi_l|h psi>^2 over the locked spwfs of the block from the
+  dispersion, BEFORE the locking ladder; the residual along locked
+  directions is outside the reachable set and counting it froze
+  fully-deflated spwfs at a heavy-ball fixed point. Purely algebraic
+  (orthonormality), so only inner products - no projection vectors.
+- Acceptance case now converges at iteration 540 (was >2900 with the
+  stagnation fallback, never with neither), 4 growths, ceilings
+  3.55/3.67/6.33/8.95, zero stagnation-lock events, energy unchanged.
+  The stagnation fallback is now a redundant safety net (keep, default
+  off).
+- spectrum_ritz(F) added to evolution.f90: at every convergence event
+  in iterate_spectrum, apply h to ALL spwfs of each block (locked
+  included - calc_sphamil only fills active-active pairs + locked
+  diagonals), block Rayleigh-Ritz via DGEMM+DSYEV, true residual bound
+  sqrt(||h u||^2 - theta^2) via a second DGEMM. Prints one sorted table
+  per isospin with the residual column (Krylov-Weinstein eigenvalue
+  error bound). Low neutron Ritz values reproduce the stage-1 locked
+  spectrum to ~2e-3 MeV; former hovering states report honest bounds
+  (~9e-2 MeV).
+- Debugging note, second occurrence: gfortran to-file stdout is FULLY
+  buffered, so prints near a hard exit are lost - the visible tail of a
+  crashed log is NOT the crash site. Run with GFORTRAN_UNBUFFERED_ALL=1
+  (it also unmutes the runtime error message). This time it was a
+  malformed format in my own print (item/type mismatch); last time a
+  dangling continuation.
