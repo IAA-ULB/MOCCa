@@ -143,6 +143,14 @@ module evolution
     !  if locking_treshold < 0 -> no locking
     !  else, lock spwf if dispersion d2h < locking_treshold
     real(KIND=dp)        :: locking_treshold = -1
+    !  Stagnation fallback: an active spwf whose dispersion has not improved
+    !  for stagnation_iter consecutive iterations is locked as well. Grows
+    !  from the heavy-ball + GS structure: once a state's h-residual points
+    !  only along locked spwfs, its updates are annihilated by the
+    !  orthonormalisation and it can never improve further.
+    integer              :: stagnation_iter = 0
+    real(KIND=dp), allocatable :: best_dispersion(:)
+    integer, allocatable      :: stagnation_counter(:)
 
 contains
     
@@ -168,7 +176,8 @@ contains
         &                    gradient_safety, efficientHFB,                    &
         &                    stepsize_safety, freezeiter,                      &
         &                    ortho_strategy, subspace_rotation, d2H_freeze,    &
-        &                    max_inner_iter, locking_treshold
+        &                    max_inner_iter, locking_treshold,                &
+        &                    stagnation_iter
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -498,20 +507,48 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         where(iteration_status == ITS_LOCKED) iteration_status = ITS_ACTIVE
         ! Check what spwfs we can lock
         if(locking_treshold > 0) then
+          if(allocated(stagnation_counter)) then
+             if(size(stagnation_counter) < nwt)                                  &
+     &                     deallocate(stagnation_counter, best_dispersion)
+          endif
+          if(.not.allocated(stagnation_counter)) then
+             allocate(stagnation_counter(nwt), best_dispersion(nwt))
+             stagnation_counter = 0       ; best_dispersion = huge(1.0_dp)
+          endif
           si = 0
           do B=1,8
              N = HFBlocks(B)
              if(N.eq.0) cycle
              indices = OrderSpwfsSym(B)
-             !print *, 'B = ', B, indices
+             ! A spwf is lockable if converged, or if its dispersion has
+             ! stopped improving (new best) for stagnation_iter iterations.
+             do wave=1,N
+                if(stagnation_iter > 0                                       &
+     &               .and. dispersions(indices(wave)) < 0.9_dp               &
+     &                                       * best_dispersion(indices(wave))) then
+                   best_dispersion(indices(wave)) = dispersions(indices(wave))
+                   stagnation_counter(indices(wave))  = 0
+                elseif(stagnation_iter > 0) then
+                   stagnation_counter(indices(wave))                          &
+     &                  = stagnation_counter(indices(wave)) + 1
+                endif
+                if(stagnation_iter > 0 .and.                                  &
+     &               stagnation_counter(indices(wave)) == stagnation_iter) then
+                   print '(a,i6,a,es12.4,a,f9.3)', ' Stagnation: locking spwf ',  &
+     &                  indices(wave), ' at dispersion',                        &
+     &                  dispersions(indices(wave)), ', spenergy',             &
+     &                  spenergies(indices(wave))
+                endif
+             enddo
              do wave=1,N
                 all_lower_converged = .true.
                 do wave2=1,wave
-                  if(dispersions(indices(wave2)) > locking_treshold) then
+                  if(.not. ( dispersions(indices(wave2)) <= locking_treshold   &
+     &                 .or. (stagnation_iter > 0 .and.                        &
+     &                 stagnation_counter(indices(wave2)) >= stagnation_iter)  &
+     &                 ) ) then
                      all_lower_converged = .false.
                   endif
-                  !print *, wave, wave2, dispersions(indices(wave2)), &
-                  !     & locking_treshold, dispersions(indices(wave2)), locking_treshold, all_lower_converged
                 enddo
                 if(all_lower_converged .and.                          &
                      &    iteration_status(indices(wave)) /= ITS_SACRIFICIAL) then

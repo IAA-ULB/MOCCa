@@ -308,3 +308,30 @@ loop already computes.
   states hover at dispersion ~4.3e-2 vs. locking_treshold 1e-2, so the
   run grinds to maxiter without a further growth — a locking-threshold
   calibration question for the added high-lying states. Next up.
+
+## Hovering states: mechanism found, stagnation locks added (session 4b)
+
+- Mechanism: once apply_subspace_rotation makes every active spwf an
+  exact eigenvector of the projected h, a state whose residual h|psi> -
+  e|psi> points only along LOCKED spwfs is caught in a fixed point: the
+  heavy-ball update adds locked-direction components, GramSchmidt
+  removes them again, the spwf NEVER moves (verified: dispersion frozen
+  to 5 digits over 600 iterations, spwf i=35 E=3.53). all_lower_converged
+  then blocks every state above it -> run stalls at maxiter. This is the
+  old 'hovering' anomaly; textbook heavy-ball, nothing to do with bookkeeping.
+- Fix: stagnation fallback, evolution namelist keyword stagnation_iter
+  (default 0 = off). An active spwf whose dispersion has not set a new
+  best (<0.9x) for stagnation_iter consecutive iterations becomes
+  lockable and ladder-eligible; one audit line is printed per stagnation
+  lock. Counters reset on growth (resize), so expect a burst of
+  re-prints after each add_spwfs - cosmetic only (most fire on states
+  already far below locking_treshold).
+- Also: print_summary_spectrum's maximum dispersion is now masked to
+  ITS_ACTIVE (was max over ALL incl. stale locked dispersions, printed
+  a constant misleading value).
+- Verified (O16/SLy4 12^3, ecut=15, batch=10, treshold 1e-2,
+  stagnation_iter=150, -O3): 4 growths, ceilings staircase
+  3.55->3.67->6.33->8.95 (n), run printing 'Convergence criteria
+  satisfied' and finishing cleanly; total energy -128.513117 MeV,
+  identical to before. CEILING VALUES ARE NOW TRUSTWORTHY (lock set
+  clean) -> the next sprint item is the real acceptance scan over ecut.

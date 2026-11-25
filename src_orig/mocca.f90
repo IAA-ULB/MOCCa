@@ -974,7 +974,9 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
      !------------------------------------------------------------------
 
      use evolution,     only : dt, momentum, gradientnorm, d2h
-     use wavefunctions, only : dispersions
+     use compilation,   only : dp
+     use wavefunctions, only : dispersions, spenergies, iteration_status
+     use wavefunctions, only : ITS_ACTIVE
 
      integer, intent(in) :: iter
 
@@ -988,7 +990,11 @@ $PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
      print 2, iter
      print 21
      print 3, dt, momentum, gradientnorm, d2h
-     print 4,  maxval(dispersions)
+     if(any(iteration_status == ITS_ACTIVE)) then
+        print 4, maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
+     else
+        print 4, 0.0_dp
+     end if
 
    end subroutine print_summary_spectrum
 #endif
