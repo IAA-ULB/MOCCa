@@ -1175,10 +1175,19 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
              enddo
              if(relE_i < 0.20_dp) relE_i = 0.20_dp
              if(emax_i < relE_i) emax_i = relE_i
-             kappa = relE_i/emax_i
-             dt_i(i) = 4.0_dp/(emax_i+relE_i+2.0_dp*sqrt(emax_i*relE_i))     &
-     &                * hbar * stepsize_safety
-             mu_i(i) = ((sqrt(kappa)-1.0_dp)/(sqrt(kappa)+1.0_dp))**2
+             if(estimated_max_spe(it) - spenergies(i) < relE_i) then
+                ! Spwf above (or at) the estimated spectral maximum: fresh
+                ! random states saturate the floors, kappa = 1 and a
+                ! step size orders of magnitude beyond stable. Use the
+                ! proven global parameters instead.
+                dt_i(i) = dt
+                mu_i(i) = momentum
+             else
+                kappa = relE_i/emax_i
+                dt_i(i) = 4.0_dp/(emax_i+relE_i+2.0_dp*sqrt(emax_i*relE_i)) &
+     &                   * hbar * stepsize_safety
+                mu_i(i) = ((sqrt(kappa)-1.0_dp)/(sqrt(kappa)+1.0_dp))**2
+             endif
           enddo
           si = si + N
         enddo

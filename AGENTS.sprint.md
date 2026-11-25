@@ -443,3 +443,23 @@ loop already computes.
   per iteration is diagnostic-grade only - measurable overhead; the
   pair and deflation timers belong inside the block loop, one level up
   (per block, not per spwf) if kept permanently.
+
+## Sacrificial-state step size fixed (session 6b)
+
+- Premise check: sacrificial spwfs ARE evolved (the gradient loop skips
+  only ITS_LOCKED); they are exempt from locking and the all-locked
+  convergence gate only. Their apparent frozenness at the top of the
+  joint Ritz table (E~253 MeV, residual 157 MeV at ecut=40) was
+  unstable CHURN, not non-evolution: for states above the estimated
+  spectral maximum, emax_i saturates the floor, kappa=1 and the
+  per-state formula gives dt_i ~ 10*hbar*safety - orders of magnitude
+  above stability; each iteration's GS renormalization kept numbers
+  finite but the states bounced around the mesh UV scale.
+- Fix: in spectrum_dt_mu, states with eps_i above (estimated max -
+  relE_i) take the GLOBAL dt/mu instead of the saturated per-state
+  values. Surgical: well-separated low states keep their (possibly
+  larger) per-state steps.
+- Acceptance case: 364 iterations (was 449), energy identical.
+- Physics note: mesh UV scale for random fields is hbar^2 knyquist^2/2m
+  ~ 200+ MeV per dimension - the 'crazy' energies of fresh random
+  batches are expected; the residual column flags them honestly.
