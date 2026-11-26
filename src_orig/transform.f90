@@ -716,7 +716,7 @@ contains
   end subroutine Transformspwfs
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
-  &                         fileblocks, file_HFB_blocks, file_spwf_map,        &
+  &                         fblocks_in, fhfb_in, file_spwf_map,        &
   &                          file_rank_map, file_spwf_inverse,extraspwfs)
     !---------------------------------------------------------------------------
     ! Transform the input from file to the parameters of the new calculation.
@@ -752,11 +752,17 @@ contains
      &   /,8x,'|__________________________________________________________|')
 
     integer, intent(in)        :: filenx,fileny,filenz,filenwn, filenwp
-    integer, intent(in)        :: fileblocks(8),extraspwfs(8)
-    integer, intent(in)        :: file_HFB_blocks(8)
+    integer, intent(in)        :: fblocks_in(8), extraspwfs(8)
+    integer, intent(in)        :: fhfb_in(8)
     integer, intent(in)        :: file_spwf_map(:), file_rank_map(:)
     integer, intent(in)        :: file_spwf_inverse(:)
     integer                    :: bogo_blocks(8)
+
+    ! Callers pass the module array HFBlocks as fblocks_in, and this
+    ! routine writes hfblocks - the same module array - below. Snapshot
+    ! both file-block vectors first: without the copies the file counts
+    ! would change under us the moment hfblocks is updated.
+    integer                    :: fileblocks(8), file_HFB_blocks(8)
 
     real(KIND=dp), intent(in)  :: filedx
     real(KIND=dp), allocatable :: extended(:,:,:), newenergy(:), temp(:)
@@ -768,11 +774,14 @@ contains
     logical :: ChangeBoxSize = .false., transformed= .false.
     logical :: gradient_detected
     integer :: i,j, b, sb, sf
+    integer :: nkeep(8)   ! min(fileblocks, hfblocks): trim support
     integer :: N1HF   , N2HF   , N1F   , N2F   , TF, THF
     integer :: N1HF_sp, N2HF_sp, N1F_sp, N2F_sp, TF_sp, THF_sp
 
 
     transformed = .false.
+    fileblocks      = fblocks_in
+    file_HFB_blocks = fhfb_in
     !---------------------------------------------------------------------------
     ! Change of box size (unchanged dx but changed nx/ny/nz)
     ChangeBoxSize = .false.
@@ -848,6 +857,9 @@ $PBROKEN  enddo
 
           hfblocks = fileblocks + extraspwfs
           hfblocks_global = hfblocks
+          ! Negative extraspwfs trim: per block, the first
+          ! min(fileblocks, fileblocks+extraspwfs) spwfs are kept.
+          nkeep = min(fileblocks, hfblocks)
 
           gradient_detected =.false.
           do b=1,8
@@ -864,7 +876,7 @@ $PBROKEN  enddo
 
           sb = 0 ; sf = 0
           do b = 1, 8
-            do i=1, fileblocks(b)
+            do i=1, nkeep(b)
                 extended(:,:,sb+i) = hfpsi(:,:,sf+i)
                 if(allocated(mom_extended)) mom_extended(:,:,sb+i) = momentum_updates(:,:,sf+i)
                 newenergy(sb+i)    = spenergies(sf+i)
@@ -886,7 +898,7 @@ $PBROKEN  enddo
           dispersions = 1e9
           sb = 0 ; sf = 0
           do b = 1,8,2
-            do i=1, fileblocks(b)
+            do i=1, nkeep(b)
               dispersions(sb+i) = temp_dispersions(sf+i)
             enddo
             sb  = sb + hfblocks(b)
@@ -1196,8 +1208,8 @@ $PBROKEN  enddo
 
           sb = 0; sf = 0
           do b=1,8
-              hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              hftransfo(sb+1:sb+nkeep(b),sb+1:sb+nkeep(b)) &
+              & = temp2(sf+1:sf+nkeep(b),sf+1:sf+nkeep(b))
               do i=1,extraspwfs(b)
                   hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
               enddo
@@ -1213,8 +1225,8 @@ $PBROKEN  enddo
 
           sb = 0; sf = 0
           do b=1,8
-              sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
-              & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+              sphamil(sb+1:sb+nkeep(b),sb+1:sb+nkeep(b)) &
+              & = temp2(sf+1:sf+nkeep(b),sf+1:sf+nkeep(b))
               do i=1,extraspwfs(b)
                   sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
                   &                    spenergies(sb+fileblocks(b)+i)

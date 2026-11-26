@@ -134,11 +134,14 @@ $TR     sumocc = 2*k
             endif
         endif
 
-        if(locked(wave)) then
-           lock_status  = 'Y'
-        else
-           lock_status  = 'N'
-        endif
+        select case(iteration_status(wave))
+              case(ITS_LOCKED)
+                 lock_status = 'Y'
+              case(ITS_SACRIFICIAL)
+                 lock_status = 'S'
+              case default
+                 lock_status = 'N'
+           end select
 
         if(print_advanced) then
           Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
@@ -209,11 +212,14 @@ $TR     sumocc = 2*k
             endif
         endif
 
-        if(locked(wave)) then
-           lock_status  = 'Y'
-        else
-           lock_status  = 'N'
-        endif
+        select case(iteration_status(wave))
+              case(ITS_LOCKED)
+                 lock_status = 'Y'
+              case(ITS_SACRIFICIAL)
+                 lock_status = 'S'
+              case default
+                 lock_status = 'N'
+           end select
 
         if(print_advanced) then
           Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)

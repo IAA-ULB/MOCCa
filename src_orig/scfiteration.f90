@@ -32,17 +32,30 @@ module SCFiteration
   use functional
   use densities
   use evolution, only : locking_treshold, diagsphamil
+  use geninfo,   only : to_upper
 
   implicit none
   
   !-----------------------------------------------------------------------------
   ! Determine the SCF-evolution scheme
-  !  (0) => Preconditioning of necessary potentials  (here F_I_I)
-  !  (1) => Linear mixing of the necessary densities (here D_I_I)
-  !  (2) => No updates of potentials/densities at all, pure evolution of spwfs.
-  !
-  ! Note: (1) does not work at the moment!
-  integer  :: scfscheme = 0
+  !  'MEANFIELD'  => SCF iteration: update the potentials from the
+  !                  densities (with potential preconditioning)
+  !  'SPECTRUM'   => No updates of potentials/densities at all: evolve the
+  !                  spwfs on frozen potentials to diagonalize h and grow
+  !                  the spwf space to the spectrum cutoff.
+  character(len=20) :: scfscheme = 'MEANFIELD'
+  !-----------------------------------------------------------------------------
+  ! Growth of the spwf space during scfscheme = 'SPECTRUM' (frozen-potential
+  ! spectrum iteration). Batches of spwfs are added whenever the currently lockable
+  ! states are all locked, until the locked single-particle spectrum covers
+  ! FermiEnergy + spectrum_ecut for both isospins.
+  !   spectrum_ecut > 0  : grow, up to that excitation energy in MeV
+  !   spectrum_ecut <= 0  : no growth at all
+  !   spectrum_batch      : number of new spwfs per symmetry block per batch
+  !   spectrum_initial_batch : number of initial batches to add at iteration 0
+  real(dp)  :: spectrum_ecut = -1.0
+  integer   :: spectrum_batch = 5
+  integer   :: spectrum_initial_batch = 2
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
   integer  :: mixingscheme = 0
@@ -63,7 +76,8 @@ contains
 #endif
 
     namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
-    &                       kerker_k0, scfscheme
+    &                       kerker_k0, scfscheme,                          &
+    &                       spectrum_ecut, spectrum_batch, spectrum_initial_batch
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -75,24 +89,39 @@ contains
       endif
 
       ! Sanity checks
-      if((scfscheme .lt. 0) .or. (scfscheme.gt.2)) then
-        call stp('Invalid scfscheme value.')
+      scfscheme = to_upper(adjustl(scfscheme))
+      select case(trim(scfscheme))
+      case('MEANFIELD','SPECTRUM')
+      case default
+        call stp("Invalid scfscheme value : use 'MEANFIELD' or 'SPECTRUM'.")
+      end select
+
+      if(locking_treshold > 0 .and. trim(scfscheme) /= 'SPECTRUM') then
+         call stp('Locking is not compatible with evolving potentials.')
       endif
 
-      if(locking_treshold > 0 .and. scfscheme .ne. 2) then
-         call stp('Locking is not compatible with evolving potentials.')
+      if(spectrum_ecut > 0 .and. trim(scfscheme) /= 'SPECTRUM') then
+         call stp("Spectrum growth (spectrum_ecut) requires scfscheme = 'SPECTRUM'.")
+      endif
+      if(spectrum_batch < 1) then
+         call stp('spectrum_batch must be at least 1.')
+      endif
+      if(spectrum_initial_batch < 0) then
+         call stp('spectrum_initial_batch must be at least 0.')
       endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Broadcasting the MPI information
 #if(USE_MPI > 0)
-    !call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(kerker_k0   , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(scfscheme   , len(scfscheme), MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(spectrum_ecut, 1, MPI_REAL8 , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(spectrum_batch, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(spectrum_initial_batch, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
   
   end subroutine readscfiteration
@@ -107,17 +136,17 @@ contains
     !3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
     5 format('   Kerker k0   = '      , f7.4)
+    6 format('   Spectrum growth to Fermi + ', f6.2, ' MeV in batches of ', i4, ' spwfs/block, initial batches: ', i3)
 
     print 1
-    select case(scfscheme)
-    case(0)
-      print 2, 'Potential preconditioning'
+    select case(trim(scfscheme))
+    case('MEANFIELD')
+      print 2, ' Potential preconditioning'
       print 4, preconfactor
       print 5, kerker_k0
-    case(1)
-       ! not operational!
-    case(2)
-      print 2, ' NO SCF evolution!'
+    case('SPECTRUM')
+      print 2, ' Frozen-potential spectrum'
+      if(spectrum_ecut > 0) print 6, spectrum_ecut, spectrum_batch, spectrum_initial_batch
     end select
   end subroutine printscfiteration
 
