@@ -603,7 +603,7 @@ contains
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
      use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
      use pairing,       only: FermiEnergy
-     use scfiteration,  only: spectrum_ecut, spectrum_batch
+     use scfiteration,  only: spectrum_ecut, spectrum_batch, spectrum_initial_batch
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
      use pairing,       only: cantransfo, cancuttransfo
 
@@ -615,13 +615,34 @@ contains
      use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail, nbatches
+     integer                        :: ifail, nbatches, initial_batches_done
      integer                        :: extra_blocks(8), old_nwt
      real(dp)                       :: ceiling_n, ceiling_p
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
 
      nbatches = 0
+     initial_batches_done = 0
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Initial spectrum growth: add spectrum_initial_batch batches at the start
+     ! to ensure we have enough spwfs to begin with, even if locking is strict.
+     ! This happens before the main iteration loop to ensure the initial state
+     ! has the requested number of batches.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     if (spectrum_ecut > 0 .and. spectrum_initial_batch > 0) then
+        do while (initial_batches_done < spectrum_initial_batch)
+           old_nwt = nwt
+           extra_blocks = spectrum_growth_blocks(spectrum_batch)
+           call add_spwfs(extra_blocks)
+           nbatches = nbatches + 1
+           initial_batches_done = initial_batches_done + 1
+           print '(a)', ' ================= INITIAL SPECTRUM GROWTH ================= '
+           print '(a,i0,a,i0)', ' INITIAL SPECTRUM GROWTH #', initial_batches_done
+           print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
+           print '(a)', ' ================= INITIAL SPECTRUM GROWTH ================= '
+        end do
+     endif
 
      do iter=1, maxiter
          ! Just keep doing heavy-ball steps
