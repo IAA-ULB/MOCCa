@@ -98,7 +98,7 @@ contains
   ! truncation of the spectrum.
   !-----------------------------------------------------------------------------
   subroutine lobpcg_solve(apply_h, mv, n, dv, x, tolerance, thetas, residuals, &
-       &                 apply_m, iterations)
+       &                 apply_m, tolerances, iterations)
 
     procedure(apply_h_interface)      :: apply_h
     procedure(apply_precond_interface), optional :: apply_m
@@ -107,6 +107,10 @@ contains
     real(dp), intent(inout)      :: x(mv,4,n)
     real(dp), intent(in)         :: tolerance
     real(dp), intent(out)        :: thetas(n), residuals(n)
+    ! Per-state tolerances: states the caller does not need converged (the
+    ! overallocated block tail above the cutoff) get a loose one, so their
+    ! slow tail convergence cannot stall the uniform criterion.
+    real(dp), intent(in), optional :: tolerances(n)
     integer, intent(out), optional :: iterations
 
     real(dp), allocatable :: y(:,:,:), hy(:,:,:), g(:,:), c(:,:), work(:)
@@ -207,9 +211,12 @@ contains
 
        print '(a,i0,a,es10.2)', ' LOBPCG iteration ', it,                       &
             &                  ', max residual ', maxval(residuals)
-       print '(a,i0,a,es10.2)', ' LOBPCG iteration ', it,                       &
-            &                  ', max residual ', maxval(residuals)
-       if(all(residuals < tolerance)) then
+       if(present(tolerances)) then
+          if(all(residuals < tolerances)) then
+             if(present(iterations)) iterations = it
+             return
+          endif
+       elseif(all(residuals < tolerance)) then
           if(present(iterations)) iterations = it
           return
        endif

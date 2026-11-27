@@ -2016,6 +2016,8 @@ $N3    &                              dddpr,                                  &
       use geninfo, only : mv, stp, dv, neutrons, protons
       use derivatives, only : Derive_lap
       use parameterization, only : COM1body, nucleonmass, hbm
+      use scfiteration, only : spectrum_ecut
+      use pairing, only : FermiEnergy
 
       type(PotentialVector), intent(in) :: F
 
@@ -2023,11 +2025,16 @@ $N3    &                              dddpr,                                  &
       real(dp), allocatable :: dpr(:,:,:), ddpr(:,:,:)
 $N3   real(dp), allocatable :: dddpr(:,:,:)
       real(dp), allocatable :: x(:,:,:), thetas(:), resids(:), shift(:)
+      real(dp), allocatable :: tolerances(:)
       real(dp)              :: reducedmass, a_kin, butler_t, butler_f
 
       integer, parameter   :: precond_cg_iter = 200 ! CG ceiling per component
       real(dp), parameter  :: precond_cg_tol = 1d-10  ! relative CG tolerance
       real(dp), parameter  :: spectrum_precond_shift_floor = 2.0_dp ! MeV
+      ! Residual criterion for the overallocated block tail above the
+      ! cutoff: the box-continuum states there converge slowly (rate
+      ! ~0.99) and the straddle check, not this solve, certifies them.
+      real(dp), parameter  :: spectrum_tolerance_above = 1.0_dp ! MeV
 
 #if(USE_MPI>0)
       call stp('spectrum_lobpcg_blocks is not yet ready for MPI '//         &
@@ -2079,16 +2086,33 @@ $N3   allocate(dddpr(mv,10,4))
             &                    spectrum_precond_shift_floor)
          enddo
 
+         ! Per-state residual criterion: strict below the cutoff (these
+         ! states carry the physics and are trimmed into the output),
+         ! loose above it (overallocated box-continuum tail, judged only
+         ! through the final straddle check). The mask follows the input
+         ! spenergies; the Ritz values of the converged solve move states
+         ! by far less than the tolerance gap between the two tiers.
+         allocate(tolerances(n))
+         do wg=i1,si
+            if(spenergies(spwf_map(wg)) <                                      &
+            &   FermiEnergy(it) + spectrum_ecut) then
+               tolerances(wg-i1+1) = sqrt(locking_treshold)
+            else
+               tolerances(wg-i1+1) = spectrum_tolerance_above
+            endif
+         enddo
+
          call lobpcg_solve(lobpcg_apply_h, mv, n, dv, x,                     &
               &            sqrt(locking_treshold), thetas, resids,            &
-              &            apply_m = lobpcg_apply_m)
+              &            apply_m = lobpcg_apply_m,                          &
+              &            tolerances = tolerances)
 
          hfpsi(:,:,i1:si) = x
          do wg=i1,si
             spenergies(spwf_map(wg))  = thetas(wg - i1 + 1)
             dispersions(spwf_map(wg)) = resids(wg - i1 + 1)**2
          enddo
-         deallocate(x, thetas, resids, shift)
+         deallocate(x, thetas, resids, shift, tolerances)
       enddo
 
       deallocate(dpr, ddpr)
