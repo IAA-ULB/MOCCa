@@ -6,8 +6,11 @@
 ! Chebyshev count) with the basis {X, R, P}: X the current eigenvector
 ! approximations, R = hX - X Theta the residuals, P the previous step
 ! directions. One dense projected eigensolve per iteration (DGEMM + DSYEV);
-! the preconditioner M is the identity for now - the kinetic preconditioner
-! of preconditioning.f90 may replace it later. Convergence when all
+! the preconditioner M enters through an optional procedure argument applying
+! M^{-1} to one residual column (column index passed along, so the caller can
+! use per-state parameters). Without it the residual block carries raw R and
+! convergence is locally linear (Knyazev 2001); with it, the block carries
+! M^{-1} R and the rate improves accordingly. Convergence when all
 ! residuals ||h x - theta x|| are below the tolerance, uniformly over the
 ! block.
 !
@@ -55,6 +58,19 @@ module spectrum_lobpcg_module
      end function apply_h_interface
   end interface
 
+  abstract interface
+     !-------------------------------------------------------------------------
+     ! Apply M^{-1} to one mesh spinor (the residual of state k); the column
+     ! index lets the caller use per-state parameters.
+     !-------------------------------------------------------------------------
+     subroutine apply_precond_interface(mv, r, k, mr)
+       import dp
+       integer, intent(in)  :: mv, k
+       real(dp), intent(in) :: r(mv,4)
+       real(dp), intent(out):: mr(mv,4)
+     end subroutine apply_precond_interface
+  end interface
+
 contains
 
   !-----------------------------------------------------------------------------
@@ -65,6 +81,8 @@ contains
   !-----------------------------------------------------------------------------
   ! Input:
   !   apply_h   - applies h to one mesh spinor (see apply_h_interface)
+  !   apply_m   - optional: applies M^{-1} to one residual column (see
+  !               apply_precond_interface); absent means M = identity
   !   mv        - mesh-spinor dimension
   !   n         - subspace dimension: the block's spwf count
   !   dv        - mesh integration weight
@@ -74,21 +92,26 @@ contains
   !   x         - the lowest-n eigenvectors, orthonormal, ascending theta
   !   thetas    - the Ritz eigenvalues
   !   residuals - the residual norms sqrt(dv ||h x||^2 - theta^2)
+  !   iterations - optional: the iteration count at convergence
   ! Errors out (stp) at the iteration ceiling: the caller's overallocation
   ! covers the count, so non-convergence means the solve failed - no silent
   ! truncation of the spectrum.
   !-----------------------------------------------------------------------------
-  subroutine lobpcg_solve(apply_h, mv, n, dv, x, tolerance, thetas, residuals)
+  subroutine lobpcg_solve(apply_h, mv, n, dv, x, tolerance, thetas, residuals, &
+       &                 apply_m, iterations)
 
-    procedure(apply_h_interface) :: apply_h
+    procedure(apply_h_interface)      :: apply_h
+    procedure(apply_precond_interface), optional :: apply_m
     integer, intent(in)          :: mv, n
     real(dp), intent(in)         :: dv
     real(dp), intent(inout)      :: x(mv,4,n)
     real(dp), intent(in)         :: tolerance
     real(dp), intent(out)        :: thetas(n), residuals(n)
+    integer, intent(out), optional :: iterations
 
     real(dp), allocatable :: y(:,:,:), hy(:,:,:), g(:,:), c(:,:), work(:)
     real(dp), allocatable :: hx_store(:,:,:), p_store(:,:,:), residual(:)
+    real(dp), allocatable :: ynew(:,:)
     real(dp), allocatable :: w(:)
     integer               :: m, k, it, lwork, info
 
@@ -100,22 +123,20 @@ contains
 
     ! Allocatable locals persist across calls (one call per symmetry block);
     ! reallocate for this block's mv and n.
-    print *, 'DBG entry mv,n,yalloc:', mv, n, allocated(y)
     if(allocated(y)) deallocate(y, hy, hx_store, p_store, residual)
     allocate(y(mv,4,3*n), hy(mv,4,3*n), hx_store(mv,4,n),                    &
-         &   p_store(mv,4,n), residual(n))
+         &   p_store(mv,4,n), residual(n), ynew(mv,4))
     y = 0.0_dp
 
     do it=1, lobpcg_max_iter
 
        m = 2*n ; if(it > 1) m = 3*n
 
-       m = 2*n ; if(it > 1) m = 3*n
-
        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       ! The basis: {X, hX} cold, {X, R, P} afterwards. A residual already
-       ! below the tolerance is replaced by a fresh random spinor to keep
-       ! the basis full rank. Orthonormalized before h acts on it.
+       ! The basis: {X, hX} cold, {X, R, P} afterwards. With a preconditioner
+       ! the residual block carries M^{-1} R. A residual already below the
+       ! tolerance is replaced by a fresh random spinor to keep the basis full
+       ! rank. Orthonormalized before h acts on it.
        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        if(it == 1) then
           y(:,:,1:n) = x
@@ -124,7 +145,6 @@ contains
           enddo
        else
           y(:,:,1:n)     = x
-          print *, 'DBG shapes', size(y,3), size(hx_store,3), n, m
           y(:,:,n+1:2*n) = hx_store - state_times_theta(mv, n, x, thetas)
           y(:,:,m-n+1:3*n) = p_store
           do k=1,n
@@ -133,10 +153,16 @@ contains
                 ! round-off noise and its conjugation direction is stale,
                 ! both destabilizing the projected solve. Fresh random
                 ! columns keep the basis full rank for the others.
-                y(:,:,n+k) = random_state(mv, k)
+                y(:,:,n+k)   = random_state(mv, k)
                 y(:,:,m-n+k) = random_state(mv, 100+k)
              endif
           enddo
+          if(present(apply_m)) then
+             do k=1,n
+                call apply_m(mv, y(:,:,n+k), k, ynew)
+                y(:,:,n+k) = ynew
+             enddo
+          endif
        endif
        call orthonormalize_block(mv, m, dv, y)
 
@@ -164,7 +190,6 @@ contains
             &                 'failed.', 'lobpcg_solve')
 
        c = g
-       c(:,n+1:2*n) = 0.0_dp    ! DBG: P disabled, basis [X, R] only
        call rotate_basis(mv, m, n, y, c, x)
        thetas = w(1:n)
        ! h on the new X comes from the rotation of hY, so the residual
@@ -182,11 +207,12 @@ contains
 
        print '(a,i0,a,es10.2)', ' LOBPCG iteration ', it,                       &
             &                  ', max residual ', maxval(residuals)
-       print *, 'DBG tol: ', tolerance, ' resids: ', residuals
-       print *, 'DBG check: ', maxval(residuals), tolerance,                  &
-            &                   all(residuals < tolerance)
-       print '(a,99es9.1)', ' DBG resids: ', residuals
-       if(all(residuals < tolerance)) return
+       print '(a,i0,a,es10.2)', ' LOBPCG iteration ', it,                       &
+            &                  ', max residual ', maxval(residuals)
+       if(all(residuals < tolerance)) then
+          if(present(iterations)) iterations = it
+          return
+       endif
 
     enddo
 
@@ -261,7 +287,6 @@ contains
           y(:,:,k) = y(:,:,k) - dv*sum(y(:,:,j) * y(:,:,k)) * y(:,:,j)
        enddo
        hn = sqrt(dv*sum(y(:,:,k)**2))
-       print *, 'DBG col', k, 'norm', hn
        if(hn < tiny(1.0_dp))                                                  &
             &   call stp('orthonormalize_block: degenerate basis column.',    &
             &                'orthonormalize_block')

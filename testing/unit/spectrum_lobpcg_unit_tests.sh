@@ -19,9 +19,11 @@ fi
 cd "$(dirname "$0")"
 ROOT=$(cd ../.. && pwd)
 
-# Transient work directory, destroyed at teardown
+# Transient work directory, destroyed at teardown; stdout goes to the
+# logs/ tree, per the testing conventions.
 WORK=$PWD/work/spectrum_lobpcg.$MESH
-rm -rf $WORK ; mkdir -p $WORK/src
+LOGDIR=$PWD/logs
+rm -rf $WORK ; mkdir -p $WORK/src $LOGDIR
 
 # Push the marker-bearing sources through Hephaestos; the LOBPCG module is
 # marker-free but goes through the same pass for uniformity. Hephaestos
@@ -38,7 +40,9 @@ gfortran -O2 -cpp -DUSE_MPI=0 -J . -c src/spectrum_lobpcg_module.f90
 gfortran -O2 -J . -o spectrum_lobpcg_unit_tests \
          ../../spectrum_lobpcg_unit_tests.f90 compilation.o geninfo.o spectrum_lobpcg_module.o -llapack -lblas
 
-./spectrum_lobpcg_unit_tests $MESH
+./spectrum_lobpcg_unit_tests $MESH 2>&1 | tee $LOGDIR/spectrum_lobpcg_unit_tests.$MESH.out
+rc=${PIPESTATUS[0]}
 
 cd ..
 rm -rf $WORK
+exit $rc

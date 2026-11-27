@@ -15,6 +15,9 @@
 !  - the converged eigenvectors are orthonormal in the dv metric
 !  - reproducibility: a second call with identical initial guesses must
 !    return the identical spectrum
+!  - preconditioning: the same solve with a kinetic CG preconditioner
+!    M^{-1} = (b_k + T)^{-1} (per state, b_k = |theta_k| exact, T the
+!    kinetic stencil) must converge in fewer iterations
 !
 ! Tier: the 8^3 smoke test (seconds, suitable for CI); a 16^3 tier would
 ! stress the level spacing near the cutoff like a real run - run it locally
@@ -29,10 +32,12 @@ program spectrum_lobpcg_unit_tests
   implicit none
 
   integer               :: nx, mv, n, i, j, k, c, idim, s, lwork, info
-  integer               :: dim, n_exact
+  integer               :: dim
+  integer               :: iters_plain, iters_precond
   real(dp), allocatable :: mat(:,:), work(:), eigenvalues(:)
   real(dp), allocatable :: x(:,:,:), thetas(:), residuals(:)
-  real(dp)              :: dx, cutoff, tol, err, dev, dv
+  real(dp), allocatable :: x0(:,:,:), thetas2(:), residuals2(:)
+  real(dp)              :: dx, tol, err, dev, dv
   real(dp)              :: comp_shift(4) = (/ 0.0_dp, 0.7_dp, 1.3_dp, 2.1_dp /)
   integer, allocatable  :: seed(:)
   character(len=16)     :: arg
@@ -85,10 +90,8 @@ program spectrum_lobpcg_unit_tests
   call DSYEV('N', 'U', dim, mat, dim, eigenvalues, work, lwork, info)
   deallocate(mat, work)
 
-  n_exact = count(eigenvalues <= cutoff)
-
-  ! The exact count from a dense diagonalization.
   allocate(x(mv,4,n), thetas(n), residuals(n))
+  allocate(x0(mv,4,n), thetas2(n), residuals2(n))
 
   ! Random initial guesses, seeded reproducibly after the house pattern:
   ! the same seed gives the same solve, so runs are reproducible and
@@ -101,7 +104,11 @@ program spectrum_lobpcg_unit_tests
      x(:,:,i) = x(:,:,i) / sqrt(dv*sum(x(:,:,i)**2))
   enddo
 
-  call lobpcg_solve(apply_test_h, mv, n, dv, x, tol, thetas, residuals)
+  ! Unpreconditioned solve.
+  x0 = x
+  call lobpcg_solve(apply_test_h, mv, n, dv, x, tol, thetas, residuals,      &
+       &            iterations = iters_plain)
+
   ! The Ritz values must match the exact lowest-n eigenvalues to the
   ! tolerance; the residuals of the converged block are below it; the
   ! converged eigenvectors are orthonormal in the dv metric.
@@ -126,11 +133,42 @@ program spectrum_lobpcg_unit_tests
   print '(a,i0,a,i0,a,es10.2)', ' Mesh ', nx, '^3: lowest ', n,              &
        &       ' Ritz values match the dense diagonalization, max deviation ', err
 
+  ! Preconditioned solve: same initial guesses (x0 saved before the first
+  ! call), M^{-1} = (b_k + T)^{-1} per state, b_k = |theta_k| exact. Must
+  ! converge to the same spectrum, in strictly fewer iterations.
+  x0 = x
+  call lobpcg_solve(apply_test_h, mv, n, dv, x0, tol, thetas2, residuals2,   &
+       &            apply_m = apply_test_m, iterations = iters_precond)
+  do i=1,n
+     err = abs(thetas2(i) - eigenvalues(i))
+     if(err > 10.0_dp*tol) then
+        print '(a,i0,a,es10.2,a,es10.2)', ' FAIL: preconditioned Ritz ', i,  &
+             &                ' deviates from the exact eigenvalue by ', err
+        stop 1
+     endif
+     if(residuals2(i) > tol) then
+        print *, 'FAIL: preconditioned residual ', i, ' above the tolerance'
+        stop 1
+     endif
+     dev = abs(sum(x0(:,:,i)**2) - 1.0_dp/dv)
+     if(dev > 1.0e-10_dp) then
+        print *, 'FAIL: preconditioned eigenvectors are not orthonormal'
+        stop 1
+     endif
+  enddo
+  if(iters_precond >= iters_plain) then
+     print '(a,i0,a,i0)', ' FAIL: preconditioned solve took ', iters_precond,&
+          & ' iterations, not fewer than the plain solve''s ', iters_plain
+     stop 1
+  endif
+  print '(a,i0,a,i0,a)', ' Preconditioned solve: ', iters_precond,           &
+       &   ' iterations vs ', iters_plain, ' without (same spectrum, tol ok)'
+
 contains
 
   !---------------------------------------------------------------------------
-  ! h acting on one mesh spinor of the current block, via the 3-point
-  ! periodic Laplacian stencil with the block's component shift.
+  ! h acting on one mesh spinor of the current block: the 3-point periodic
+  ! Laplacian stencil with the block's component shift.
   !---------------------------------------------------------------------------
   function apply_test_h(mvv, x) result(hx)
     use compilation, only : dp
@@ -158,6 +196,75 @@ contains
     enddo
     enddo
   end function apply_test_h
+
+  !---------------------------------------------------------------------------
+  ! M^{-1} acting on one residual column: per state k, a conjugate-gradient
+  ! solve of (b_k I + T) p = r, b_k = |theta_k| (the exact eigenvalue of that
+  ! state, known here), T the shift-free kinetic stencil of apply_test_h.
+  ! The operator is positive definite (T >= 0, b_k > 0); the solve damps the
+  ! high-mesh-frequency content of the residual.
+  !---------------------------------------------------------------------------
+  subroutine apply_test_m(mvv, r, k, p)
+    use compilation, only : dp
+    integer, intent(in)     :: mvv, k
+    real(dp), intent(in)    :: r(mvv,4)
+    real(dp), intent(out)   :: p(mvv,4)
+
+    real(dp) :: res(mvv), dir(mvv), tdir(mvv)
+    real(dp) :: initnorm, newnorm, oldnorm, acg, bcg, b_k
+    integer  :: c, iter
+
+    b_k = abs(eigenvalues(k))
+    p = 0.0_dp
+    do c=1,4
+       res      = r(:,c)
+       initnorm = sum(res**2)*dv
+       if(initnorm < 1.0e-30_dp) cycle
+       newnorm  = initnorm
+       dir      = res
+       do iter=1,300
+          call apply_test_T(mvv, dir, tdir)
+          tdir = b_k*dir + tdir
+          acg  = newnorm/(sum(dir*tdir)*dv)
+          p(:,c)   = p(:,c)   + acg*dir
+          res      = res      - acg*tdir
+          oldnorm  = newnorm
+          newnorm  = sum(res**2)*dv
+          bcg      = newnorm/oldnorm
+          dir      = res + bcg*dir
+          if(newnorm < 1.0e-10_dp*initnorm) exit
+       enddo
+    enddo
+
+  end subroutine apply_test_m
+
+  !---------------------------------------------------------------------------
+  ! T = the shift-free kinetic stencil: (6I - neighbours)/dx^2.
+  !---------------------------------------------------------------------------
+  subroutine apply_test_T(mvv, v, tv)
+    use compilation, only : dp
+    integer, intent(in)     :: mvv
+    real(dp), intent(in)    :: v(mvv)
+    real(dp), intent(out)   :: tv(mvv)
+
+    integer :: i, j, k, l
+
+    do k=1,nx
+    do j=1,nx
+    do i=1,nx
+       l = lidx(i, j, k)
+       tv(l) = ( 6.0_dp*v(l)                                                &
+            &                     - v(lidx(mod(i,nx)+1, j, k))              &
+            &                     - v(lidx(mod(i+nx-2, nx)+1, j, k))        &
+            &                     - v(lidx(i, mod(j,nx)+1, k))              &
+            &                     - v(lidx(i, mod(j+nx-2, nx)+1, k))        &
+            &                     - v(lidx(i, j, mod(k,nx)+1))              &
+            &                     - v(lidx(i, j, mod(k+nx-2, nx)+1))        &
+            &              ) / (dx*dx)
+    enddo
+    enddo
+    enddo
+  end subroutine apply_test_T
 
   !---------------------------------------------------------------------------
   ! Mesh index of site (i,j,k) within one spinor component, 1-based.

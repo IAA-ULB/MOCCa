@@ -2013,14 +2013,21 @@ $N3    &                              dddpr,                                  &
       ! Input:
       !   F - the frozen mean-field potentials
       !-----------------------------------------------------------------------
-      use geninfo, only : mv, stp, dv
+      use geninfo, only : mv, stp, dv, neutrons, protons
+      use derivatives, only : Derive_lap
+      use parameterization, only : COM1body, nucleonmass, hbm
 
       type(PotentialVector), intent(in) :: F
 
-      integer               :: b, si, i1, wg, iso, n
+      integer               :: b, si, i1, wg, iso, it, n
       real(dp), allocatable :: dpr(:,:,:), ddpr(:,:,:)
 $N3   real(dp), allocatable :: dddpr(:,:,:)
-      real(dp), allocatable :: x(:,:,:), thetas(:), resids(:)
+      real(dp), allocatable :: x(:,:,:), thetas(:), resids(:), shift(:)
+      real(dp)              :: reducedmass, a_kin, butler_t, butler_f
+
+      integer, parameter   :: precond_cg_iter = 200 ! CG ceiling per component
+      real(dp), parameter  :: precond_cg_tol = 1d-10  ! relative CG tolerance
+      real(dp), parameter  :: spectrum_precond_shift_floor = 2.0_dp ! MeV
 
 #if(USE_MPI>0)
       call stp('spectrum_lobpcg_blocks is not yet ready for MPI '//         &
@@ -2043,18 +2050,45 @@ $N3   allocate(dddpr(mv,10,4))
          i1 = si + 1
          si = si + n
 
-         allocate(x(mv,4,n), thetas(n), resids(n))
+         allocate(x(mv,4,n), thetas(n), resids(n), shift(n))
          x = hfpsi(:,:,i1:si)
 
+         ! Kinetic preconditioner (item 007, step 2): M^{-1} = (b_k + a D)^{-1}
+         ! per state, a = -hbm*reducedmass the frozen mesh kinetic
+         ! coefficient, b_k = |theta_k| of the input spectrum (floored).
+         ! Frozen for the whole solve; the shift makes the operator
+         ! positive definite on the mesh (D is negative semidefinite).
+         ! Same reduced mass as apply_sphamil.
+         it = (iso+3)/2
+         Reducedmass = 1.0_dp
+#if(PASTA == 0)
+         select case(COM1Body)
+         case(2)
+            Reducedmass = (1.0_dp-nucleonmass(it)/                             &
+            &             (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+         case(3)
+            Butler_t = (1.5d0 * (neutrons + protons))**(1.d0/3.d0)
+            Butler_f = 2.d0/(Butler_t + 1.d0/(3*Butler_t))
+            Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                  &
+            &             (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+         end select
+#endif
+         a_kin = -hbm(it) * reducedmass
+         do wg=i1,si
+            shift(wg-i1+1) = max(abs(spenergies(spwf_map(wg))),                &
+            &                    spectrum_precond_shift_floor)
+         enddo
+
          call lobpcg_solve(lobpcg_apply_h, mv, n, dv, x,                     &
-              &            sqrt(locking_treshold), thetas, resids)
+              &            sqrt(locking_treshold), thetas, resids,            &
+              &            apply_m = lobpcg_apply_m)
 
          hfpsi(:,:,i1:si) = x
          do wg=i1,si
             spenergies(spwf_map(wg))  = thetas(wg - i1 + 1)
             dispersions(spwf_map(wg)) = resids(wg - i1 + 1)**2
          enddo
-         deallocate(x, thetas, resids)
+         deallocate(x, thetas, resids, shift)
       enddo
 
       deallocate(dpr, ddpr)
@@ -2076,6 +2110,48 @@ $N3   deallocate(dddpr)
 $N3                             dddpr,                                       &
         &                   sx(:,i1), sy(:,i1), sz(:,i1), iso, .true., F)
       end function lobpcg_apply_h
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! M^{-1} acting on the residual of state k: per spinor component, a
+      ! conjugate-gradient solve of (b_k + a_kin D) p = r. b_k > 0 and
+      ! a_kin < 0 make the operator positive definite on the mesh (D is
+      ! negative semidefinite), and its inverse damps the high-mesh-frequency
+      ! content of the residual - the kinetic part of a shift-Laplacian
+      ! preconditioner. The block's reflection signs keep every component
+      ! in-sector.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      subroutine lobpcg_apply_m(m, r, k, mr)
+        integer, intent(in)  :: m, k
+        real(dp), intent(in) :: r(m,4)
+        real(dp), intent(out):: mr(m,4)
+
+        real(dp) :: res(m), dir(m), adir(m), b_k
+        real(dp) :: initnorm, newnorm, oldnorm, acg, bcg
+        integer  :: c, iter
+
+        b_k = shift(k)
+        mr  = 0.0_dp
+        do c=1,4
+           res      = r(:,c)
+           initnorm = sum(res**2)*dv
+           if(initnorm < 1d-30) cycle
+           newnorm  = initnorm
+           dir      = res
+           do iter=1,precond_cg_iter
+              call Derive_lap(dir, sx(c,i1), sy(c,i1), sz(c,i1), adir)
+              adir = b_k*dir + a_kin*adir
+              acg  = newnorm/(sum(dir*adir)*dv)
+              mr(:,c)   = mr(:,c)   + acg*dir
+              res       = res       - acg*adir
+              oldnorm   = newnorm
+              newnorm   = sum(res**2)*dv
+              bcg       = newnorm/oldnorm
+              dir       = res + bcg*dir
+              if(newnorm < precond_cg_tol*initnorm) exit
+           enddo
+        enddo
+
+      end subroutine lobpcg_apply_m
 
     end subroutine spectrum_lobpcg_blocks
 
