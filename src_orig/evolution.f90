@@ -2021,11 +2021,12 @@ $N3    &                              dddpr,                                  &
 
       type(PotentialVector), intent(in) :: F
 
-      integer               :: b, si, i1, wg, iso, it, n
+      integer               :: b, si, i1, wg, iso, it, n, nround
       real(dp), allocatable :: dpr(:,:,:), ddpr(:,:,:)
 $N3   real(dp), allocatable :: dddpr(:,:,:)
       real(dp), allocatable :: x(:,:,:), thetas(:), resids(:), shift(:)
       real(dp), allocatable :: tolerances(:)
+      logical, allocatable  :: strict(:)
       real(dp)              :: reducedmass, a_kin, butler_t, butler_f
 
       integer, parameter   :: precond_cg_iter = 200 ! CG ceiling per component
@@ -2089,30 +2090,38 @@ $N3   allocate(dddpr(mv,10,4))
          ! Per-state residual criterion: strict below the cutoff (these
          ! states carry the physics and are trimmed into the output),
          ! loose above it (overallocated box-continuum tail, judged only
-         ! through the final straddle check). The mask follows the input
-         ! spenergies; the Ritz values of the converged solve move states
-         ! by far less than the tolerance gap between the two tiers.
-         allocate(tolerances(n))
-         do wg=i1,si
-            if(spenergies(spwf_map(wg)) <                                      &
-            &   FermiEnergy(it) + spectrum_ecut) then
-               tolerances(wg-i1+1) = sqrt(locking_treshold)
-            else
-               tolerances(wg-i1+1) = spectrum_tolerance_above
-            endif
+         ! through the final straddle check). The mask is predicted from
+         ! the input spenergies - unoccupied ones are not variational,
+         ! so a state predicted above the cutoff can converge BELOW it:
+         ! reclassify from the converged Ritz values and re-solve the
+         ! block (warm start) until the mask is stable, so every kept
+         ! state carries the strict residual.
+         allocate(tolerances(n), strict(n))
+         strict = spenergies(spwf_map(i1:si)) <                              &
+            &     FermiEnergy(it) + spectrum_ecut
+         do nround=1,6
+            tolerances = merge(sqrt(locking_treshold),                        &
+            &                  spectrum_tolerance_above, strict)
+            call lobpcg_solve(lobpcg_apply_h, mv, n, dv, x,                   &
+                 &            sqrt(locking_treshold), thetas, resids,         &
+                 &            apply_m = lobpcg_apply_m,                       &
+                 &            tolerances = tolerances)
+            if(all(strict .eqv. (thetas < FermiEnergy(it) + spectrum_ecut)))  &
+                 &   exit
+            if(nround == 6)                                                   &
+                 &   call stp('spectrum_lobpcg_blocks: the kept/tail '//      &
+                 &               'classification did not stabilize under '//  &
+                 &               're-solving; a state sits at the cutoff.',   &
+                 &               'spectrum_lobpcg_blocks')
+            strict = thetas < FermiEnergy(it) + spectrum_ecut
          enddo
-
-         call lobpcg_solve(lobpcg_apply_h, mv, n, dv, x,                     &
-              &            sqrt(locking_treshold), thetas, resids,            &
-              &            apply_m = lobpcg_apply_m,                          &
-              &            tolerances = tolerances)
 
          hfpsi(:,:,i1:si) = x
          do wg=i1,si
             spenergies(spwf_map(wg))  = thetas(wg - i1 + 1)
             dispersions(spwf_map(wg)) = resids(wg - i1 + 1)**2
          enddo
-         deallocate(x, thetas, resids, shift, tolerances)
+         deallocate(x, thetas, resids, shift, tolerances, strict)
       enddo
 
       deallocate(dpr, ddpr)

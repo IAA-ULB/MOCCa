@@ -1073,6 +1073,7 @@ contains
      integer, intent(in) :: iter
      integer             :: nlock
      real(dp)            :: cn, cp
+     logical             :: strict(nwt)
 
 1    format(86('-'))
 
@@ -1101,8 +1102,29 @@ contains
              &    minval(mu_states), ' , ', maxval(mu_states), ' ]'
      endif
      if(any(iteration_status == ITS_ACTIVE)) then
-        print '(a,es10.2)', '  max active dispersion ',                        &
-             &    maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
+        if(spectrum_ecut > 0) then
+           ! Dispersion quality split at the spectrum cutoff: the kept
+           ! states carry the solve's strict residual criterion, the
+           ! overallocated tail above the cutoff is converged loosely
+           ! by design (the straddle check certifies it).
+           strict(1:nwn)     = spenergies(1:nwn) <                              &
+            &                    FermiEnergy(1) + spectrum_ecut
+           strict(nwn+1:nwt) = spenergies(nwn+1:nwt) <                          &
+            &                    FermiEnergy(2) + spectrum_ecut
+           print '(a,es10.2)', '  max dispersion, kept states    ',             &
+                &    maxval(dispersions(1:nwt), mask=strict(1:nwt)              &
+                &                  .and. iteration_status(1:nwt) == ITS_ACTIVE)
+           if(any((.not.strict(1:nwt)) .and.                                    &
+                &            iteration_status(1:nwt) == ITS_ACTIVE))            &
+                &   print '(a,es10.2)',                                         &
+                &    '  max dispersion, tail states    ',                       &
+                &    maxval(dispersions(1:nwt), mask=(.not.strict(1:nwt))       &
+                &                                       .and.                   &
+                &            iteration_status(1:nwt) == ITS_ACTIVE)
+        else
+           print '(a,es10.2)', '  max active dispersion ',                      &
+                &    maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
+        endif
      else
         print '(a)', '  max active dispersion  - all lockable spwfs locked'
      endif

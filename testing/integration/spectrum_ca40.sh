@@ -30,6 +30,9 @@
 # Basic starting point of all testing scripts
 source ../functions.sh
 
+# ENSURE small number of THREADS
+export OMP_NUM_THREADS=4
+
 # Set up
 setup_test_env "spectrum_ca40" "$1" "SLy4"
 
