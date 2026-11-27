@@ -741,10 +741,13 @@ subroutine write_header(iochannel)
     use IO_wf, only: write_mocca_wf
 #if(USE_HDF5 == 1)
     use IO_wf, only : write_mocca_hdf5
+    use dumpfile, only : write_dumpfile
 #endif
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
+    character(len=len(ofn))      :: dumpfn
+    integer                      :: idot
 
     if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
@@ -754,6 +757,16 @@ subroutine write_header(iochannel)
 #endif
     else
       call write_mocca_wf(chan, ofn) ! old style in .wf file
+    endif
+
+    if(writedumpfile) then
+      idot = index(ofn, '.', back=.true.)
+      dumpfn = ofn(1:max(idot,1)-1)//'.dump.hdf5'
+#if(USE_HDF5>0)
+      call write_dumpfile(dumpfn)
+#else
+      call stp('writedumpfile requires HDF5 support at compilation.')
+#endif
     endif
 
   end subroutine WriteWaveFunction

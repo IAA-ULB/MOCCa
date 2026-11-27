@@ -71,7 +71,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     generic_process_files = [ 'mocca.f90', 'scfiteration.f90', \
                               'printing.f90', 'HFB_gradient.f90', \
                               'HFB_direct.f90', 'momentsofinertia.f90', \
-                              'evolution.f90', 'fam.f90','fam_testing.f90']
+                              'evolution.f90', 'fam.f90','fam_testing.f90', \
+                              'dumpfile.f90']
 
     if(fname in generic_process_files):
         # A generic preprocessor that makes a few simple substitutions

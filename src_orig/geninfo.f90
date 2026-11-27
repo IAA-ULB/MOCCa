@@ -171,6 +171,10 @@ module GenInfo
   ! expense of CPU time.
   logical :: store_derivatives = .true.
   !-----------------------------------------------------------------------------
+  ! If True, write a standalone HDF5 debug dumpfile (full spwf state, hpsi,
+  ! derivatives, densities, potentials) at the end of the converged run.
+  logical :: writedumpfile = .false.
+  !-----------------------------------------------------------------------------
   ! If True, add a high potential wall on the edges of the box.
   ! This is only meaningful when dealing with cubic meshes.
   logical :: simulate_spherical_bc = .false.
@@ -233,7 +237,8 @@ contains
     Namelist /nucleus/ neutrons, protons, inversetemp, mun, mup, fixfermi,     &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
-    &                  block_factor_col, simulate_spherical_bc, angmom_prec
+    &                  block_factor_col, simulate_spherical_bc, angmom_prec,   &
+    &                  writedumpfile
     Namelist /mesh/ nx, ny, nz, dx
 
     if (MPI_rank == 0) then
@@ -307,6 +312,7 @@ contains
 
     ! d) Other calculational details...
     call MPI_BCAST(store_derivatives, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(writedumpfile, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_row, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_col, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif

@@ -207,7 +207,7 @@ MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 MF_SRC  +=   pairing.f90 densities.f90 densities_diag.f90 densities_offdiag.f90 densities_perturbed.f90 densities_sphamil.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 MF_SRC  +=   fission_MOI.f90 functional.f90 functional_energy.f90 functional_potentials.f90 functional_fields.f90 functional_io.f90 functional_coefs.f90 evolution.f90 scfiteration.f90 spectrum_count_module.f90
-MF_SRC  +=   IO_aux.f90 IO_wf.f90
+MF_SRC  +=   IO_aux.f90 IO_wf.f90 dumpfile.f90
 MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -225,7 +225,7 @@ FAM_SRC +=   pairing.f90 densities.f90 densities_diag.f90 densities_offdiag.f90 
 FAM_SRC +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC +=   fission_MOI.f90 functional.f90 functional_energy.f90 functional_potentials.f90 functional_fields.f90 functional_io.f90 functional_coefs.f90 evolution.f90 scfiteration.f90 spectrum_count_module.f90
 FAM_SRC +=   fam_gmres.f90 fam.f90 fam_testing.f90
-FAM_SRC  +=  IO_aux.f90 IO_wf.f90
+FAM_SRC  +=  IO_aux.f90 IO_wf.f90 dumpfile.f90
 FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 mocca.f90
 FAM_SRC +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
