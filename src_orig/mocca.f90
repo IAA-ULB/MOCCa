@@ -147,6 +147,7 @@ contains
      !   iomsg: character, message about convergence
      !----------------------------------------------------------------------------
      use scfiteration, only : scfscheme
+     use evolution,    only : Evolve_subspace
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -154,9 +155,13 @@ contains
      ! 1. set-up phase, construction of the starting point
      call set_up_mean_field()
      ! 2. Iteration phase, start of iterations
-     if(scfscheme /= 2) then
+     if(trim(scfscheme) /= 'SPECTRUM') then
         call iterate_mean_field(iter, iomsg)
      else
+        ! Frozen-potential spectrum runs go through their own scheme:
+        ! Chebyshev-count sizing and the fixed-block LOBPCG solve, no
+        ! evolution routine. This overrides the Strategy keyword of the
+        ! evolution namelist.
         call iterate_spectrum(iter, iomsg)
      endif
 
@@ -441,7 +446,7 @@ contains
             ! calculate new values for the potentials from the densities
             potentials_out = calcPotentials(Density)
 
-            if (scfscheme == 0) then
+            if (trim(scfscheme) == 'MEANFIELD') then
                potentials_out = precondition_potentials(potentials, potentials_out)
             end if
             ! Save the information to memory, throwing out older information.
@@ -574,9 +579,10 @@ contains
 
      use compilation,   only: dp
 
-     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
+     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx, stp
 
-     use wavefunctions, only: locked, deriveHF, sphamil, HFtransfo, spenergies
+     use wavefunctions, only: iteration_status, ITS_ACTIVE, ITS_LOCKED, ITS_SACRIFICIAL
+     use wavefunctions, only: deriveHF, sphamil, HFtransfo, spenergies
      use wavefunctions, only: nwn, nwp, nwt, hfpsi, hfblocks_global, hfblocks
      use wavefunctions, only: rank_map, spwf_inverse, spwf_map
      use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
@@ -587,13 +593,17 @@ contains
      use wavefunctions, only: CAN_J, CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ,  CAN_spin
      use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
 
-     use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
+     use evolution,     only: calc_sphamil, subspace_rotation
+     use evolution,     only: spectrum_ritz, spectrum_count_blocks
+     use evolution,     only: spectrum_lobpcg_blocks
      use evolution,     only: apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
 
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
      use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
+     use pairing,       only: FermiEnergy
+     use scfiteration,  only: spectrum_ecut, spectrum_batch
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
      use pairing,       only: cantransfo, cancuttransfo
 
@@ -605,54 +615,46 @@ contains
      use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail, old_blocks(8), B
-     integer, allocatable           :: old_rank_map(:), old_spwf_inverse(:)
+     integer                        :: ifail
+     integer                        :: counts(8), extra_blocks(8), old_nwt
+     real(dp)                       :: ceiling_n, ceiling_p
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
 
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Sizing of the fixed spwf set: count, per symmetry block and isospin,
+     ! the eigenvalues of the frozen mesh hamiltonian below Fermi +
+     ! spectrum_ecut (item 007, step 0) and allocate the count plus one
+     ! batch of overallocation per block. There is no growth ladder: the
+     ! spwf set is fixed from here on, and the post-loop check below
+     ! guarantees that the converged spectrum spans the cutoff.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     if (spectrum_ecut > 0) then
+        old_nwt = nwt
+        call spectrum_count_blocks(potentials,                               &
+             &              (/ FermiEnergy(1) + spectrum_ecut,               &
+             &                 FermiEnergy(2) + spectrum_ecut /), counts)
+        extra_blocks = max(0, counts + spectrum_batch - HFBlocks)
+        where(HFBlocks == 0) extra_blocks = 0
+        if (any(extra_blocks > 0)) then
+           call add_spwfs(extra_blocks)
+           iteration_status = ITS_ACTIVE
+        endif
+        print '(a)', ' ================= SPECTRUM SIZING ================= '
+        print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
+        print '(a)', ' ================= SPECTRUM SIZING ================= '
+     endif
+
      do iter=1, maxiter
-         ! Just keep doing heavy-ball steps
-         call Evolve_subspace(potentials, iter)
-         if (store_derivatives) call deriveHF() ! and update derivatives
-         ! Full recalculation of h with the spwfs AFTER evolution
-         sphamil = Calc_Sphamil(potentials, .true.)
-         call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+         ! Item 007, step 2: the fixed-block LOBPCG solve replaces the
+         ! heavy-ball ladder. It either converges - every residual below
+         ! sqrt(locking_treshold), uniformly - or errors out, so one pass
+         ! through the loop suffices.
+         call spectrum_lobpcg_blocks(potentials)
          if (store_derivatives) call deriveHF() ! and update derivatives
 
          call print_summary_spectrum(iter)
-         ! Convergence is reached if ALL the spwfs are locked inside the
-         !  evolution,i.e. if their dispersion is small enough
-         convergence_achieved = ALL(locked)
-
-         !if(iter.eq.1) then
-         !   nwn = nwn + 10
-         !   nwp = nwp + 10
-         !   nwt = nwn + nwp
-!
-!            old_blocks = HFBlocks
-!            do B=1,8,2
-!               HFBlocks(B) = HFBlocks(B) + 5
-!               HFBlocks_global(B) = HFBlocks_global(B) + 5
-!            enddo
-!
-!            call transforminput(nx,ny,nz,nwn-10,nwp-10,dx,old_blocks,grad_blocks, &
-!                &       spwf_map,rank_map,spwf_inverse,(/ 5,0,5,0,5,0,5,0 /))
-!            deallocate(locked); allocate(locked(nwt)) ; locked = .false.
-!            call orthonormalize()
-!
-!            if(allocated(Pcutoffs)) deallocate(Pcutoffs)
-!            call set_spwf_symmetries(sx,sy,sz,HFBlocks)
-!            call deallocate_derivatives()
-!            call allocate_memory_derivatives(PairingType)
-!            if(store_derivatives) call deriveHF()
-!            if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, rho_can, kappa_can)
-!            if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
-!            if(allocated( HF_spin)) deallocate( HF_spin, HF_STR,  HF_STI, spwf_r2_hf, P_hf)
-!            if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
-!            if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR,  CAN_STI, spwf_r2_can, P_can)
-!
-!            if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
-         !endif
+         convergence_achieved = .true.
 
          if (convergence_achieved .or. iter .eq. maxiter) then
             ! Let us prepare for a final printout
@@ -671,6 +673,11 @@ contains
             call CalcEnergy(Density, Potentials, .false.)
             call calc_avg_gap()
 
+            ! The single joint Rayleigh-Ritz: overwrite spenergies and
+            ! dispersions with the honest spectrum before the final
+            ! printout, and report the sorted spectrum tables.
+            call spectrum_ritz(potentials)
+
             call update_spwf_properties_HF()
             if (PairingType == 2) call update_spwf_properties_CAN()
             call updateAM(Density, .true.)
@@ -686,7 +693,214 @@ contains
          end if
 
      enddo
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Certified straddle check (pitfall 022): the fixed spwf set must
+     ! span Fermi + spectrum_ecut for both isospins, else trim_spectrum
+     ! would silently write an incomplete, self-consistent-looking
+     ! spectrum file. Fail loudly instead.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     if (spectrum_ecut > 0) then
+        ceiling_n = maxval(spenergies(1:nwn))
+        ceiling_p = maxval(spenergies(nwn+1:nwt))
+        if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or.               &
+             & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
+           print '(a,2f10.3)', '  spectrum ceilings (n,p): ',                &
+                & ceiling_n, ceiling_p
+           print '(a,2f10.3)', '  target (Fermi + spectrum_ecut):  ',        &
+                & FermiEnergy(1) + spectrum_ecut,                            &
+                & FermiEnergy(2) + spectrum_ecut
+           call stp('iterate_spectrum: the spwf set does not span Fermi + ' //&
+                &   'spectrum_ecut; the Chebyshev count undershot the '//     &
+                &   'discretized spectrum.', 'iterate_spectrum')
+        endif
+     endif
+
+     call trim_spectrum()
+
    end subroutine iterate_spectrum
+
+   subroutine trim_spectrum()
+     !-------------------------------------------------------------------------
+     ! Cut the spwf set down to the converged single-particle spectrum
+     ! before the output file is written: keep every state with Ritz
+     ! energy below Fermi + spectrum_ecut, drop everything above. After
+     ! the final spectrum_ritz the spenergies ascend within every
+     ! symmetry block, so the kept states are a per-block prefix. The
+     ! spwfs in memory are already the joint Ritz eigenstates
+     ! (update_spwf_properties_HF rotated them), so the file contains
+     ! eigenvalues that belong to the written vectors.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Input: none; the cutoff follows from spectrum_ecut. HF only:
+     ! trimming is not implemented for BCS/HFB bookkeeping.
+     !-------------------------------------------------------------------------
+     use compilation,   only: dp
+     use geninfo,       only: nx, ny, nz, dx
+     use wavefunctions, only: nwn, nwp, nwt, HFBlocks
+     use wavefunctions, only: spenergies, sphamil, HFtransfo
+     use wavefunctions, only: iteration_status, ITS_LOCKED
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz
+     use wavefunctions, only: spwf_map, rank_map, spwf_inverse
+     use pairing,       only: PairingType, PairingScheme, SolvePairing
+     use pairing,       only: FermiEnergy
+     use scfiteration,  only: spectrum_ecut
+     use transform,     only: TransformInput
+
+     integer :: b, i, si, nk(8), keepn, keepp
+     integer :: extrablocks(8), ifail, old_nwn, old_nwp
+     real(dp) :: cutoff(2)
+
+     if(spectrum_ecut <= 0 .or. PairingType /= 0) return
+     cutoff(1) = FermiEnergy(1) + spectrum_ecut
+     cutoff(2) = FermiEnergy(2) + spectrum_ecut
+
+     ! Per block: count the kept states (a prefix after the ascending RR
+     ! back-substitution) and mark sphamil diagonal - update_spwf_proper-
+     ! ties_HF has already rotated the spwfs in place to the joint Ritz
+     ! basis, so the states in memory are the eigenstates themselves.
+     si = 0
+     do b=1,8
+        nk(b) = 0
+        do i=1,HFBlocks(b)
+           if(spenergies(si+i) <= cutoff((b+3)/4)) nk(b) = nk(b) + 1
+        enddo
+        if(HFBlocks(b) == 0) cycle
+        sphamil(si+1:si+HFBlocks(b),si+1:si+HFBlocks(b)) = 0.0_dp
+        do i=1,HFBlocks(b)
+           sphamil(si+i,si+i) = spenergies(si+i)
+           HFtransfo(si+i,si+i) = 1.0_dp
+        enddo
+        si = si + HFBlocks(b)
+     enddo
+     keepn = sum(nk(1:4)) ; keepp = sum(nk(5:8))
+     print '(a,i0,a,i0,a,f8.3,a,f9.3,a,f9.3)',                          &
+          &  ' Trimming output spectrum: keeping ', keepn, ' + ', keepp, &
+          &  ' spwfs (cutoff at Fermi + ', spectrum_ecut,               &
+          &  ' MeV = ', cutoff(1), ' /', cutoff(2), ' MeV)'
+     ! The kept spwfs are the eigenstates themselves: with the block
+     ! rotation above, HFtransfo must be the clean identity (the Ritz
+     ! mixing it carried must not survive into the output file).
+     HFtransfo = 0.0_dp
+     do i=1,nwt
+        HFtransfo(i,i) = 1.0_dp
+     enddo
+
+     if(keepn+keepp == nwt) return
+
+     ! Shrink through TransformInput (negative extrablocks keep the
+     ! per-block prefixes); nwt is updated first because TransformInput
+     ! sizes its temporaries from it. Then refresh the per-spwf
+     ! bookkeeping.
+     extrablocks = nk - HFBlocks
+     old_nwn = nwn ; old_nwp = nwp
+     nwn = keepn ; nwp = keepp ; nwt = keepn + keepp
+     call TransformInput(nx,ny,nz, old_nwn, old_nwp, dx, HFBlocks,       &
+          &               HFBlocks, spwf_map, rank_map, spwf_inverse,    &
+          &               extrablocks)
+     call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+     if(allocated(iteration_status)) deallocate(iteration_status)
+     allocate(iteration_status(nwt)) ; iteration_status = ITS_LOCKED
+     call SolvePairing(PairingScheme, ifail)
+
+   end subroutine trim_spectrum
+
+   subroutine add_spwfs(extrablocks)
+     !-------------------------------------------------------------------------
+     ! Grow the single-particle space mid-run by extrablocks(8) spwfs per
+     ! symmetry block. The spwf array itself, the block bookkeeping, the
+     ! loadbalancing and the reduced-subspace matrices (HFtransfo, sphamil,
+     ! dispersions) are handled by TransformInput; this routine refreshes
+     ! everything else that is dimensioned per spwf.
+     ! New spwfs are random-initialized by TransformInput; native spwfs are
+     ! left untouched by the subsequent orthonormalisation.
+     !-------------------------------------------------------------------------
+     ! Input: extrablocks - number of new spwfs per symmetry block
+     !-------------------------------------------------------------------------
+     use compilation,   only: dp
+
+     use geninfo,       only: nx, ny, nz, dx, store_derivatives
+
+     use wavefunctions, only: iteration_status, deriveHF, ITS_ACTIVE, ITS_SACRIFICIAL
+     use wavefunctions, only: Momentum_Updates
+     use wavefunctions, only: sacrifice_from, prev_extra_blocks
+     use wavefunctions, only: nwn, nwp, nwt, HFBlocks
+     use wavefunctions, only: rank_map, spwf_inverse, spwf_map
+     use wavefunctions, only: allocate_memory_derivatives, deallocate_derivatives
+     use wavefunctions, only: set_spwf_symmetries, sx, sy, sz, orthonormalize
+     use wavefunctions, only: canenergies
+     use wavefunctions, only: HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, HF_spin
+     use wavefunctions, only: HF_STR, HF_STI, spwf_r2_hf, P_hf
+     use wavefunctions, only: CAN_J, CAN_JTR, CAN_JTI, CAN_J2, CAN_JJ, CAN_spin
+     use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
+
+     use transform,      only: TransformInput
+     use pairing,        only: PairingType, PairingScheme, SolvePairing
+     use pairing,        only: cantransfo, cancuttransfo
+     use pairing,        only: rho_can, kappa_can, qpenergies
+
+     use HFB,            only: grad_blocks, qp_j, qp_JTR, qp_JTI, qpdispersions
+     use pairingcutoffs, only: Pcutoffs
+
+     integer, intent(in) :: extrablocks(8)
+     integer             :: old_nwn, old_nwp, old_blocks(8), ifail
+     integer             :: b, i, sb
+
+     old_nwn = nwn ; old_nwp = nwp ; old_blocks = HFBlocks
+
+     nwn = nwn + sum(extrablocks(1:4))
+     nwp = nwp + sum(extrablocks(5:8))
+     nwt = nwn + nwp
+
+     call TransformInput(nx,ny,nz,old_nwn,old_nwp,dx,old_blocks,grad_blocks, &
+          &        spwf_map,rank_map,spwf_inverse,extrablocks)
+
+     ! Rebuild the spwf statuses for the enlarged space: existing spwfs are
+     ! active (locked spwfs re-lock at the next evolution anyway), new ones
+     ! start active too. Batches append at the end of each symmetry block, so
+     ! the sacrificial set (the newest two batches) is fixed by per-block
+     ! boundaries alone - no batch ledger needed.
+     sacrifice_from = max(0, old_blocks - prev_extra_blocks)
+     prev_extra_blocks = extrablocks
+     if(allocated(iteration_status)) deallocate(iteration_status)
+     allocate(iteration_status(nwt)) ; iteration_status = ITS_ACTIVE
+     sb = 0
+     do b=1,8
+        do i=1, old_blocks(b)
+           iteration_status(sb+i) = ITS_ACTIVE
+        enddo
+        do i=old_blocks(b)+1, HFBlocks(b)
+           if(i > sacrifice_from(b)) iteration_status(sb+i) = ITS_SACRIFICIAL
+        enddo
+        sb = sb + HFBlocks(b)
+     enddo
+     call orthonormalize()
+
+     ! TransformInput leaves Momentum_Updates at its pre-growth size while
+     ! apply_subspace_rotation indexes it with the new spwf count; drop it so
+     ! the next evolution reallocates. The heavy ball loses one step of
+     ! history; the fresh spwfs start from zero momentum either way.
+     if(allocated(Momentum_Updates)) deallocate(Momentum_Updates)
+
+     if(allocated(Pcutoffs)) deallocate(Pcutoffs)
+     call set_spwf_symmetries(sx,sy,sz,HFBlocks)
+     call deallocate_derivatives()
+     call allocate_memory_derivatives(PairingType)
+     if(store_derivatives) call deriveHF()
+     if(allocated(canenergies)) deallocate(canenergies, cantransfo, cancuttransfo, kappa_can)
+     if(allocated( HF_J))    deallocate( HF_J,  HF_JTR,  HF_JTI,  HF_J2,  HF_JJ)
+     if(allocated( HF_spin)) deallocate( HF_spin, HF_STR, HF_STI, spwf_r2_hf, P_hf)
+     if(allocated( CAN_J))    deallocate( CAN_J,  CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ)
+     if(allocated( CAN_spin)) deallocate( CAN_spin, CAN_STR, CAN_STI, spwf_r2_can, P_can)
+     if(allocated(qp_j)) deallocate (qp_j, qp_JTR, qp_JTI, qpdispersions)
+
+     ! TransformInput leaves rho_can zeroed; the (dt,mu) estimation and the
+     ! weighted dispersions need HF occupations -> refill them.
+     if(PairingType == 0) then
+        if(allocated(qpenergies)) deallocate(qpenergies)
+        call SolvePairing(PairingScheme, ifail)
+     end if
+
+   end subroutine add_spwfs
 
    subroutine printsummary(iter, potentials_frozen)
       !---------------------------------------------------------------------------
@@ -843,26 +1057,78 @@ contains
 
    subroutine print_summary_spectrum(iter)
      !------------------------------------------------------------------
-     ! Print a summary on the progress of the iterate_spectrum routine.
-     !
+     ! Compact per-iteration banner of the frozen-potential spectrum
+     ! run: spwf census, progress of the locked ceilings toward the
+     ! Fermi + ecut target, heavy-ball diagnostics.
      !------------------------------------------------------------------
 
-     use evolution,     only : dt, momentum, gradientnorm, d2h
-     use wavefunctions, only : dispersions
+     use evolution,     only : gradientnorm, d2h, dt_states, mu_states
+     use compilation,   only : dp
+     use wavefunctions, only : dispersions, spenergies, iteration_status
+     use wavefunctions, only : ITS_ACTIVE, ITS_LOCKED, ITS_SACRIFICIAL
+     use wavefunctions, only : nwt, nwn
+     use pairing,       only : FermiEnergy
+     use scfiteration,  only : spectrum_ecut
 
      integer, intent(in) :: iter
+     integer             :: nlock
+     real(dp)            :: cn, cp
+     logical             :: strict(nwt)
 
 1    format(86('-'))
-2    format(' Iteration = ', i4)
-21   format(' Potentials frozen.')
-3    format(' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
-4    format(' Maximum dispersion =', es12.3)
 
      print 1
-     print 2, iter
-     print 21
-     print 3, dt, momentum, gradientnorm, d2h
-     print 4,  maxval(dispersions)
+     nlock = count(iteration_status(1:nwt) == ITS_LOCKED)
+     print '(a,i6,a,i5,3(a,i5))', ' Iter ', iter, '  nwt', nwt,               &
+          &                    '  locked', nlock, '  active',                   &
+          &                  count(iteration_status(1:nwt) == ITS_ACTIVE),    &
+          &                  '  sacrificial',                                   &
+          &                  count(iteration_status(1:nwt) == ITS_SACRIFICIAL)
+     if(nlock > 0) then
+        cn = maxval(spenergies(1:nwn),                                          &
+             &          mask=iteration_status(1:nwn) == ITS_LOCKED)
+        cp = maxval(spenergies(nwn+1:nwt),                                      &
+             &          mask=iteration_status(nwn+1:nwt) == ITS_LOCKED)
+        print '(a,f10.3,a,f10.3,2(a,f10.3))',                                   &
+             &    '  locked ceilings (n,p)', cn, ' /', cp,                      &
+             &    '   target ', FermiEnergy(1) + spectrum_ecut, ' /',            &
+             &              FermiEnergy(2) + spectrum_ecut
+     endif
+     print '(a,es10.2,a,es9.1)', '  gradn ', gradientnorm, '  D2H ', d2h
+     if(allocated(dt_states)) then
+        print '(a,es9.2,a,es9.2,a)', '  per-spwf dt in [ ',                        &
+             &    minval(dt_states), ' , ', maxval(dt_states), ' ]'
+        print '(a,es9.2,a,es9.2,a)', '  per-spwf mu in [ ',                        &
+             &    minval(mu_states), ' , ', maxval(mu_states), ' ]'
+     endif
+     if(any(iteration_status == ITS_ACTIVE)) then
+        if(spectrum_ecut > 0) then
+           ! Dispersion quality split at the spectrum cutoff: the kept
+           ! states carry the solve's strict residual criterion, the
+           ! overallocated tail above the cutoff is converged loosely
+           ! by design (the straddle check certifies it).
+           strict(1:nwn)     = spenergies(1:nwn) <                              &
+            &                    FermiEnergy(1) + spectrum_ecut
+           strict(nwn+1:nwt) = spenergies(nwn+1:nwt) <                          &
+            &                    FermiEnergy(2) + spectrum_ecut
+           print '(a,es10.2)', '  max dispersion, kept states    ',             &
+                &    maxval(dispersions(1:nwt), mask=strict(1:nwt)              &
+                &                  .and. iteration_status(1:nwt) == ITS_ACTIVE)
+           if(any((.not.strict(1:nwt)) .and.                                    &
+                &            iteration_status(1:nwt) == ITS_ACTIVE))            &
+                &   print '(a,es10.2)',                                         &
+                &    '  max dispersion, tail states    ',                       &
+                &    maxval(dispersions(1:nwt), mask=(.not.strict(1:nwt))       &
+                &                                       .and.                   &
+                &            iteration_status(1:nwt) == ITS_ACTIVE)
+        else
+           print '(a,es10.2)', '  max active dispersion ',                      &
+                &    maxval(dispersions, mask=iteration_status == ITS_ACTIVE)
+        endif
+     else
+        print '(a)', '  max active dispersion  - all lockable spwfs locked'
+     endif
+     print 1
 
    end subroutine print_summary_spectrum
 #endif
