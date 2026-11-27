@@ -58,6 +58,7 @@ module evolution
 
     use wavefunctions
     use functional
+    use spectrum_count_module, only : chebyshev_count
     use preconditioning
     use timing
     use HFB, only : estimategradparams, gradient_stepsize,             &
@@ -1872,6 +1873,124 @@ $N3         &                   HFdddPsi(:,:,:,der_index),                &
         deallocate(order)
 
     end subroutine print_ritz_table
+
+    subroutine spectrum_count_blocks(F, cutoff, counts)
+      !-----------------------------------------------------------------------
+      ! Counts, per symmetry block and isospin, the eigenvalues of the
+      ! frozen mesh hamiltonian below cutoff(isospin) = FermiEnergy +
+      ! spectrum_ecut, by stochastic Chebyshev trace estimation
+      ! (spectrum_count_module). Sizes the fixed spwf set of spectrum
+      ! runs (item 007, step 0); the count is a property of the
+      ! DISCRETIZED hamiltonian, as trim_spectrum applies it.
+      !
+      ! Probes live in the block's reflection sector by construction:
+      ! the stored mesh is the symmetry wedge, and a random spinor on the
+      ! wedge together with the block's sx/sy/sz sign vector IS a general
+      ! state of the sector - no symmetrization of the probe (do not
+      ! reflect wedge points; they are not stored). See development item
+      ! 023. h acts through apply_sphamil with the block's signs, so the
+      ! recurrence stays in-sector and the probe expectation values
+      ! converge to the trace of h restricted to the sector.
+      !
+      ! Spectral bounds, per block: the maximum from a power iteration in
+      ! the block's sector (the global estimator of IterativeEstimation
+      ! covers the first block's sector only), the minimum from the input
+      ! spenergies minus a margin - a too-low bound only widens the
+      ! interval, a too-high one destabilizes the recurrence.
+      !
+      ! Serial: spectrum runs are not MPI-ready yet (see Evolve_spectrum).
+      !-----------------------------------------------------------------------
+      ! Input:
+      !   F      - the frozen mean-field potentials
+      !   cutoff - FermiEnergy + spectrum_ecut per isospin (neutron, proton)
+      ! Output:
+      !   counts - per symmetry block, the count estimate rounded up
+      !-----------------------------------------------------------------------
+      use geninfo, only : mv, stp
+      use pairing, only : FermiEnergy
+
+      type(PotentialVector), intent(in) :: F
+      real(KIND=dp), intent(in)         :: cutoff(2)
+      integer, intent(out)              :: counts(8)
+
+      integer, parameter  :: nprobes = 24    ! Stochastic probes (item 007: 20-32)
+      integer, parameter  :: kdegree = 300   ! Chebyshev degree of the damped step
+      integer, parameter  :: npower  = 80    ! Power-iteration steps for the emax bound
+      real(dp), parameter :: emin_margin = 15.0_dp  ! Below the input spectrum
+      real(dp), parameter :: emax_margin = 5.0_dp   ! Above the power iteration
+
+      integer               :: b, si, i1, iso, it, s
+      integer, allocatable  :: seed(:)
+      real(dp), allocatable :: dpr(:,:,:), ddpr(:,:,:)
+$N3   real(dp), allocatable :: dddpr(:,:,:)
+      real(dp)              :: v(mv,4), hv(mv,4), emax, emin, lmin
+
+      if(mv <= 0) call stp('spectrum_count_blocks: mesh not initialized.',    &
+           &               'spectrum_count_blocks')
+
+      ! Lower bound: the input spenergies must bracket the frozen
+      ! hamiltonian's lowest level from above; garbage (unset) energies
+      ! would silently destabilize the recurrence - fail loudly instead.
+      emin = minval(spenergies(1:nwt))
+      if(emin > FermiEnergy(1) .or. emin > FermiEnergy(2))                    &
+           &   call stp('spectrum_count_blocks: input spenergies are not '//  &
+           &            'available; a spectrum run must start from a spwf '// &
+           &            'file carrying spenergies.', 'spectrum_count_blocks')
+      lmin = emin - emin_margin
+
+      allocate(dpr(mv,3,4), ddpr(mv,6,4))
+$N3   allocate(dddpr(mv,10,4))
+
+      counts = 0
+      si = 0
+      do b=1,8
+         if(HFBlocks(b) == 0) cycle
+         iso = -1
+         if(b > 4) iso = +1
+         i1 = si + 1
+         si = si + HFBlocks(b)
+
+         ! Upper bound: power iteration with the block's signs, seeded per
+         ! block after the house pattern (reproducible, golden_diff-safe).
+         call random_seed(size=s)
+         allocate(seed(s)) ; seed = 961 + b
+         call random_seed(put=seed) ; deallocate(seed)
+         call random_number(v)
+         v = v / sqrt(sum(v*v))
+         do it=1,npower
+            hv = count_apply_h(mv, v)
+            v  = hv / sqrt(sum(hv*hv))
+         enddo
+         hv   = count_apply_h(mv, v)
+         emax = sum(v*hv) + emax_margin
+
+         counts(b) = ceiling(chebyshev_count(count_apply_h, mv, lmin, emax,  &
+              &                    cutoff((b+3)/4), nprobes, kdegree))
+         print '(a,i0,a,i0,a,f9.2)', '  spectrum count, block ', b,         &
+              &                 ': ', counts(b), ' states (emax bound ', emax, ' MeV)'
+      enddo
+
+      deallocate(dpr, ddpr)
+$N3   deallocate(dddpr)
+
+    contains
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! h acting on one mesh spinor of the current block, via apply_sphamil
+      ! with the block's reflection signs and the frozen potentials;
+      ! derivatives are recalculated on the fly.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      function count_apply_h(m, x) result(hx)
+        integer, intent(in)  :: m
+        real(dp), intent(in) :: x(m,4)
+        real(dp)             :: hx(m,4)
+
+        hx = apply_sphamil(x, dpr, ddpr,                                     &
+$N3    &                              dddpr,                                  &
+        &                     sx(:,i1), sy(:,i1), sz(:,i1), iso, .true., F)
+      end function count_apply_h
+
+    end subroutine spectrum_count_blocks
 
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
       !-------------------------------------------------------------------------

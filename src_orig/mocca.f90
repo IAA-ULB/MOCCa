@@ -580,7 +580,7 @@ contains
 
      use compilation,   only: dp
 
-     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx
+     use geninfo,       only: MaxIter, store_derivatives, nx, ny, nz, dx, stp
 
      use wavefunctions, only: iteration_status, ITS_ACTIVE, ITS_LOCKED, ITS_SACRIFICIAL
      use wavefunctions, only: deriveHF, sphamil, HFtransfo, spenergies
@@ -595,7 +595,7 @@ contains
      use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
 
      use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
-     use evolution,     only: spectrum_ritz
+     use evolution,     only: spectrum_ritz, spectrum_count_blocks
      use evolution,     only: apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
@@ -603,7 +603,7 @@ contains
      use pairing,       only: pairingtype, solvepairing, calc_avg_gap
      use pairing,       only: pairingscheme, qpenergies, clean_pairing, Pcutoffs
      use pairing,       only: FermiEnergy
-     use scfiteration,  only: spectrum_ecut, spectrum_batch, spectrum_initial_batch
+     use scfiteration,  only: spectrum_ecut, spectrum_batch
      use pairing,       only: rho_pairing, kappa_pairing, rho_can, kappa_can
      use pairing,       only: cantransfo, cancuttransfo
 
@@ -615,33 +615,34 @@ contains
      use transform,     only: transforminput
 
      integer, intent(out)           :: iter
-     integer                        :: ifail, nbatches, initial_batches_done
-     integer                        :: extra_blocks(8), old_nwt
+     integer                        :: ifail
+     integer                        :: counts(8), extra_blocks(8), old_nwt
      real(dp)                       :: ceiling_n, ceiling_p
      character(len=99), intent(out) :: iomsg
      logical                        :: convergence_achieved
 
-     nbatches = 0
-     initial_batches_done = 0
-
      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     ! Initial spectrum growth: add spectrum_initial_batch batches at the start
-     ! to ensure we have enough spwfs to begin with, even if locking is strict.
-     ! This happens before the main iteration loop to ensure the initial state
-     ! has the requested number of batches.
+     ! Sizing of the fixed spwf set: count, per symmetry block and isospin,
+     ! the eigenvalues of the frozen mesh hamiltonian below Fermi +
+     ! spectrum_ecut (item 007, step 0) and allocate the count plus one
+     ! batch of overallocation per block. There is no growth ladder: the
+     ! spwf set is fixed from here on, and the post-loop check below
+     ! guarantees that the converged spectrum spans the cutoff.
      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     if (spectrum_ecut > 0 .and. spectrum_initial_batch > 0) then
-        do while (initial_batches_done < spectrum_initial_batch)
-           old_nwt = nwt
-           extra_blocks = spectrum_growth_blocks(spectrum_batch)
+     if (spectrum_ecut > 0) then
+        old_nwt = nwt
+        call spectrum_count_blocks(potentials,                               &
+             &              (/ FermiEnergy(1) + spectrum_ecut,               &
+             &                 FermiEnergy(2) + spectrum_ecut /), counts)
+        extra_blocks = max(0, counts + spectrum_batch - HFBlocks)
+        where(HFBlocks == 0) extra_blocks = 0
+        if (any(extra_blocks > 0)) then
            call add_spwfs(extra_blocks)
-           nbatches = nbatches + 1
-           initial_batches_done = initial_batches_done + 1
-           print '(a)', ' ================= INITIAL SPECTRUM GROWTH ================= '
-           print '(a,i0,a,i0)', ' INITIAL SPECTRUM GROWTH #', initial_batches_done
-           print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
-           print '(a)', ' ================= INITIAL SPECTRUM GROWTH ================= '
-        end do
+           iteration_status = ITS_ACTIVE
+        endif
+        print '(a)', ' ================= SPECTRUM SIZING ================= '
+        print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
+        print '(a)', ' ================= SPECTRUM SIZING ================= '
      endif
 
      do iter=1, maxiter
@@ -654,43 +655,11 @@ contains
          if (store_derivatives) call deriveHF() ! and update derivatives
 
          call print_summary_spectrum(iter)
-         ! Convergence is reached if ALL spwfs are locked, i.e. every state
-         ! of every added batch has settled. Spwfs above FermiEnergy +
-         ! spectrum_ecut are superfluous by design: the last growth batch
-         ! deliberately overshoots the cutoff.
          ! Convergence is reached if no spwf is left in the active state:
-         ! every lockable spwf must be locked, and the sacrificial states of
-         ! the newest growth batches are exempt by construction.
+         ! every spwf of the fixed set must be locked. The set was sized
+         ! from the Chebyshev count plus one overallocation batch, so a
+         ! converged run spans the cutoff; the post-loop check verifies it.
          convergence_achieved = ALL(iteration_status /= ITS_ACTIVE)
-
-         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ! Spectrum growth (scfscheme = 'SPECTRUM'): once all lockable spwfs are
-         ! locked, add a batch if the locked spectrum does not yet reach
-         ! the Fermi energy + spectrum_ecut for both isospins. Empty masks
-         ! (nothing locked in an isospin) yield -huge, i.e. growth.
-         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         if (convergence_achieved .and. spectrum_ecut > 0) then
-            ceiling_n = maxval(spenergies(1:nwn),   mask=iteration_status(1:nwn)==ITS_LOCKED)
-            ceiling_p = maxval(spenergies(nwn+1:nwt),                             &
-                 &              mask=iteration_status(nwn+1:nwt)==ITS_LOCKED)
-            if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or. &
-                 & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
-               old_nwt = nwt
-               extra_blocks = spectrum_growth_blocks(spectrum_batch)
-               call add_spwfs(extra_blocks)
-               nbatches = nbatches + 1
-               convergence_achieved = .false.
-               print '(a)', ' ================= SPECTRUM GROWTH ================= '
-               print '(a,i0)', ' SPECTRUM GROWTH #', nbatches
-               print '(a,i0,a,i0)', '  spwf space: ', old_nwt, ' -> ', nwt
-               print '(a,2f10.3)', '  locked ceilings (n,p) at growth: ',        &
-                    & ceiling_n, ceiling_p
-               print '(a,2f10.3)', '  target (Fermi + spectrum_ecut):  ',      &
-                    & FermiEnergy(1) + spectrum_ecut,                          &
-                    & FermiEnergy(2) + spectrum_ecut
-               print '(a)', ' ================= SPECTRUM GROWTH ================= '
-            end if
-         end if
 
          if (convergence_achieved .or. iter .eq. maxiter) then
             ! Let us prepare for a final printout
@@ -729,6 +698,29 @@ contains
          end if
 
      enddo
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Certified straddle check (pitfall 022): the fixed spwf set must
+     ! span Fermi + spectrum_ecut for both isospins, else trim_spectrum
+     ! would silently write an incomplete, self-consistent-looking
+     ! spectrum file. Fail loudly instead.
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     if (spectrum_ecut > 0) then
+        ceiling_n = maxval(spenergies(1:nwn))
+        ceiling_p = maxval(spenergies(nwn+1:nwt))
+        if ( (ceiling_n - FermiEnergy(1) < spectrum_ecut) .or.               &
+             & (ceiling_p - FermiEnergy(2) < spectrum_ecut) ) then
+           print '(a,2f10.3)', '  spectrum ceilings (n,p): ',                &
+                & ceiling_n, ceiling_p
+           print '(a,2f10.3)', '  target (Fermi + spectrum_ecut):  ',        &
+                & FermiEnergy(1) + spectrum_ecut,                            &
+                & FermiEnergy(2) + spectrum_ecut
+           call stp('iterate_spectrum: the spwf set does not span Fermi + ' //&
+                &   'spectrum_ecut; the Chebyshev count undershot the '//     &
+                &   'discretized spectrum.', 'iterate_spectrum')
+        endif
+     endif
+
      call trim_spectrum()
 
    end subroutine iterate_spectrum
@@ -816,28 +808,6 @@ contains
      call SolvePairing(PairingScheme, ifail)
 
    end subroutine trim_spectrum
-
-   function spectrum_growth_blocks(nex) result(extrablocks)
-     !-------------------------------------------------------------------------
-     ! Number of extra spwfs per symmetry block for one growth batch: nex
-     ! spwfs for every block that exists in this build's symmetry scenario.
-     ! Blocks that do not exist are left empty; TransformInput's sanity
-     ! checks remain the final arbiter.
-     !-------------------------------------------------------------------------
-     ! Input:  nex - desired number of new spwfs per symmetry block
-     ! Output: extrablocks(8)
-     !-------------------------------------------------------------------------
-     integer, intent(in) :: nex
-     integer             :: extrablocks(8)
-
-     extrablocks = 0
-$TR      extrablocks(1) = nex ; extrablocks(3) = nex
-$TR      extrablocks(5) = nex ; extrablocks(7) = nex
-$NTR     extrablocks = nex
-$PBROKEN extrablocks(3) = 0 ; extrablocks(4) = 0
-$PBROKEN extrablocks(7) = 0 ; extrablocks(8) = 0
-
-   end function spectrum_growth_blocks
 
    subroutine add_spwfs(extrablocks)
      !-------------------------------------------------------------------------
