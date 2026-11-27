@@ -18,9 +18,11 @@ fi
 cd "$(dirname "$0")"
 ROOT=$(cd ../.. && pwd)
 
-# Transient work directory, destroyed at teardown
+# Transient work directory, destroyed at teardown; stdout goes to the
+# logs/ tree, per the testing conventions.
 WORK=$PWD/work/chebyshev_count.$MESH
-rm -rf $WORK ; mkdir -p $WORK/src
+LOGDIR=$PWD/logs
+rm -rf $WORK ; mkdir -p $WORK/src $LOGDIR
 
 # Push the marker-bearing sources through Hephaestos; the counter module is
 # marker-free but goes through the same pass for uniformity. Hephaestos
@@ -37,7 +39,9 @@ gfortran -O2 -g -fcheck=all -fbacktrace -J . -c src/spectrum_count_module.f90
 gfortran -O2 -J . -o chebyshev_count_unit_tests \
          ../../chebyshev_count_unit_tests.f90 compilation.o geninfo.o spectrum_count_module.o -llapack -lblas
 
-./chebyshev_count_unit_tests $MESH
+./chebyshev_count_unit_tests $MESH 2>&1 | tee $LOGDIR/chebyshev_count_unit_tests.$MESH.out
+rc=${PIPESTATUS[0]}
 
 cd ..
 rm -rf $WORK
+exit $rc
