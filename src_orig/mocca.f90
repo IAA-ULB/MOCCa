@@ -147,7 +147,7 @@ contains
      !   iomsg: character, message about convergence
      !----------------------------------------------------------------------------
      use scfiteration, only : scfscheme
-     use evolution,    only : Evolve_subspace, Evolve_spectrum
+     use evolution,    only : Evolve_subspace
 
      integer, intent(out)           :: iter
      character(len=99), intent(out) :: iomsg
@@ -158,11 +158,10 @@ contains
      if(trim(scfscheme) /= 'SPECTRUM') then
         call iterate_mean_field(iter, iomsg)
      else
-        ! Frozen-potential spectrum runs get the dedicated heavy-ball
-        ! routine: locking ladder, sacrificial spwfs and per-run (later
-        ! per-state) dt/mu have no place in the mean-field evolution.
-        ! This overrides the Strategy keyword of the evolution namelist.
-        Evolve_subspace => Evolve_spectrum
+        ! Frozen-potential spectrum runs go through their own scheme:
+        ! Chebyshev-count sizing and the fixed-block LOBPCG solve, no
+        ! evolution routine. This overrides the Strategy keyword of the
+        ! evolution namelist.
         call iterate_spectrum(iter, iomsg)
      endif
 
@@ -594,8 +593,9 @@ contains
      use wavefunctions, only: CAN_J, CAN_JTR,  CAN_JTI,  CAN_J2,  CAN_JJ,  CAN_spin
      use wavefunctions, only: CAN_STR, CAN_STI, spwf_r2_can, P_can
 
-     use evolution,     only: Evolve_subspace, calc_sphamil, subspace_rotation
+     use evolution,     only: calc_sphamil, subspace_rotation
      use evolution,     only: spectrum_ritz, spectrum_count_blocks
+     use evolution,     only: spectrum_lobpcg_blocks
      use evolution,     only: apply_subspace_rotation
      use functional,    only: potentials, calcenergy, update_E_history
      use moments,       only: calculatemoments
@@ -646,20 +646,15 @@ contains
      endif
 
      do iter=1, maxiter
-         ! Just keep doing heavy-ball steps
-         call Evolve_subspace(potentials, iter)
-         if (store_derivatives) call deriveHF() ! and update derivatives
-         ! Full recalculation of h with the spwfs AFTER evolution
-         sphamil = Calc_Sphamil(potentials, .true.)
-         call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+         ! Item 007, step 2: the fixed-block LOBPCG solve replaces the
+         ! heavy-ball ladder. It either converges - every residual below
+         ! sqrt(locking_treshold), uniformly - or errors out, so one pass
+         ! through the loop suffices.
+         call spectrum_lobpcg_blocks(potentials)
          if (store_derivatives) call deriveHF() ! and update derivatives
 
          call print_summary_spectrum(iter)
-         ! Convergence is reached if no spwf is left in the active state:
-         ! every spwf of the fixed set must be locked. The set was sized
-         ! from the Chebyshev count plus one overallocation batch, so a
-         ! converged run spans the cutoff; the post-loop check verifies it.
-         convergence_achieved = ALL(iteration_status /= ITS_ACTIVE)
+         convergence_achieved = .true.
 
          if (convergence_achieved .or. iter .eq. maxiter) then
             ! Let us prepare for a final printout

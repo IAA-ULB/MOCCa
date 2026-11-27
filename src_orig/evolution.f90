@@ -59,6 +59,7 @@ module evolution
     use wavefunctions
     use functional
     use spectrum_count_module, only : chebyshev_count
+    use spectrum_lobpcg_module, only : lobpcg_solve
     use preconditioning
     use timing
     use HFB, only : estimategradparams, gradient_stepsize,             &
@@ -1991,6 +1992,92 @@ $N3    &                              dddpr,                                  &
       end function count_apply_h
 
     end subroutine spectrum_count_blocks
+
+    subroutine spectrum_lobpcg_blocks(F)
+      !-----------------------------------------------------------------------
+      ! Fixed-block LOBPCG solve of the frozen mesh hamiltonian, per
+      ! symmetry block and isospin (item 007, step 2): the subspace
+      ! dimension is the block's spwf count, from the Chebyshev count;
+      ! the solve either converges - every residual below sqrt of the
+      ! locking_treshold, uniformly - or errors out. Replaces the
+      ! heavy-ball/locking Evolve_spectrum in the spectrum scheme.
+      !
+      ! h acts through apply_sphamil with the block's reflection signs
+      ! and the frozen potentials, derivatives recalculated on the fly
+      ! (same pattern as spectrum_count_blocks). The converged spwfs and
+      ! the Ritz values / residual norms are written back to hfpsi,
+      ! spenergies and dispersions.
+      !
+      ! Serial: spectrum runs are not MPI-ready.
+      !-----------------------------------------------------------------------
+      ! Input:
+      !   F - the frozen mean-field potentials
+      !-----------------------------------------------------------------------
+      use geninfo, only : mv, stp, dv
+
+      type(PotentialVector), intent(in) :: F
+
+      integer               :: b, si, i1, wg, iso, n
+      real(dp), allocatable :: dpr(:,:,:), ddpr(:,:,:)
+$N3   real(dp), allocatable :: dddpr(:,:,:)
+      real(dp), allocatable :: x(:,:,:), thetas(:), resids(:)
+
+#if(USE_MPI>0)
+      call stp('spectrum_lobpcg_blocks is not yet ready for MPI '//         &
+           &   'calculations.', 'spectrum_lobpcg_blocks')
+#endif
+
+      if(locking_treshold <= 0)                                             &
+           &   call stp('spectrum_lobpcg_blocks: locking_treshold must '//  &
+           &               'be positive; it is the solve''s residual '//    &
+           &               'criterion.', 'spectrum_lobpcg_blocks')
+
+      allocate(dpr(mv,3,4), ddpr(mv,6,4))
+$N3   allocate(dddpr(mv,10,4))
+
+      si = 0
+      do b=1,8
+         n = HFBlocks(b) ; if(n == 0) cycle
+         iso = -1
+         if(b > 4) iso = +1
+         i1 = si + 1
+         si = si + n
+
+         allocate(x(mv,4,n), thetas(n), resids(n))
+         x = hfpsi(:,:,i1:si)
+
+         call lobpcg_solve(lobpcg_apply_h, mv, n, dv, x,                     &
+              &            sqrt(locking_treshold), thetas, resids)
+
+         hfpsi(:,:,i1:si) = x
+         do wg=i1,si
+            spenergies(spwf_map(wg))  = thetas(wg - i1 + 1)
+            dispersions(spwf_map(wg)) = resids(wg - i1 + 1)**2
+         enddo
+         deallocate(x, thetas, resids)
+      enddo
+
+      deallocate(dpr, ddpr)
+$N3   deallocate(dddpr)
+
+    contains
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! h acting on one mesh spinor of the current block, via apply_sphamil
+      ! with the block's reflection signs and the frozen potentials;
+      ! derivatives are recalculated on the fly.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      function lobpcg_apply_h(m, xx) result(hxx)
+        integer, intent(in)  :: m
+        real(dp), intent(in) :: xx(m,4)
+        real(dp)             :: hxx(m,4)
+
+        hxx = apply_sphamil(xx, dpr, ddpr,                                   &
+$N3                             dddpr,                                       &
+        &                   sx(:,i1), sy(:,i1), sz(:,i1), iso, .true., F)
+      end function lobpcg_apply_h
+
+    end subroutine spectrum_lobpcg_blocks
 
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
       !-------------------------------------------------------------------------
