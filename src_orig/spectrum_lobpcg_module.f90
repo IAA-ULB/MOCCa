@@ -171,11 +171,21 @@ contains
        call orthonormalize_block(mv, m, dv, y)
 
        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       ! The action of h on the whole basis: m applications per iteration.
+       ! The action of h on the whole basis. The X block is free: x is a
+       ! rotation of the previous orthonormal basis and hx_store of the
+       ! previous hY by the SAME coefficient matrix, so h x = hx_store;
+       ! only the R and P columns (m - n of them) need applications.
        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       do k=1,m
-          hy(:,:,k) = apply_h(mv, y(:,:,k))
-       enddo
+       if(it == 1) then
+          do k=1,m
+             hy(:,:,k) = apply_h(mv, y(:,:,k))
+          enddo
+       else
+          hy(:,:,1:n) = hx_store
+          do k=n+1,m
+             hy(:,:,k) = apply_h(mv, y(:,:,k))
+          enddo
+       endif
 
        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ! The projected matrix G = Y^T hY and its lowest 2n Ritz pairs: the
